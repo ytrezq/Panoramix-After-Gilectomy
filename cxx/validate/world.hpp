@@ -18,7 +18,8 @@
 //
 // Every EVM value is a Word (intx::uint256), addresses too (below 2^160).
 // Nothing here depends on gas: external calls are never executed (their
-// results come from the World), GAS gives `fixed_gas`.
+// results come from the World), GAS gives what Session::gas() says (from
+// `fixed_gas` down, read by read and event by event).
 #pragma once
 
 #include <intx/intx.hpp>
@@ -44,9 +45,18 @@ constexpr Word to_address(const Word& w) noexcept
     return w & address_mask;
 }
 
-/// What GAS (gasleft()) gives, on both sides: gas never matters. (evmone is
-/// patched for it: EVMONE_FIXED_GAS in validate/Makefile.inc, the same value.)
+/// What GAS (gasleft()) gives at a call's first read, on both sides
+/// (evmone is patched for it: EVMONE_FIXED_GAS in validate/Makefile.inc, the
+/// same value). The gas left then goes down by gas_read_cost at every read
+/// and by gas_event_cost at every event the comparison orders (an external
+/// call but a precompile's, a creation, a log): Session::gas(). Not the
+/// EVM's gas - nothing else depends on gas (the calls' gas, the costs) - but
+/// a value that changes as the run goes, the same on both sides when they
+/// read it at the same points: a read moved past another or past a call,
+/// two reads taken for one, a read taken out of a loop give other values.
 inline constexpr std::int64_t fixed_gas = 30'000'000;
+inline constexpr std::int64_t gas_read_cost = 10;
+inline constexpr std::int64_t gas_event_cost = 1'000;
 
 /// keccak-256 (KECCAK256's) of bytes, as a word.
 Word keccak256(BytesView data) noexcept;

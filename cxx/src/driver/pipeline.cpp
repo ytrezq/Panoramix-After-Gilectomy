@@ -933,6 +933,15 @@ void Run::contract_phase()
         } catch (const Error& e) {
             log(log_warning, LOGGER, std::string("SafeMath failed: the arithmetic stays as it is. (") + e.what() + ")");
         }
+        // lot 10's last display rewrite: a gas read used once by the next
+        // line printed in it (each function's own: one failing leaves the
+        // others done, its trace as it was)
+        for (std::vector<FunctionInfo>* fns : {&r.functions[f], &r.internals[f]})
+            for (FunctionInfo& fn : *fns)
+                try {
+                    if (!fn.trace.nil()) fn.trace = output::inline_gas_reads(fn.trace);
+                } catch (const Error&) {
+                }
     }
     if (StageObserver* o = s_.options.observer)
         for (unsigned s = 0; s < STAGE_COUNT; ++s)

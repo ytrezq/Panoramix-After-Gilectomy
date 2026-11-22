@@ -36,7 +36,10 @@
 // frame; CALL_SUCCESS k, CREATE_ADDRESS k, RETURNDATASIZE k,
 // RETURNDATA_BYTES(k, off, len) read it (k = 0: no call, size 0; a record
 // not written yet: Bug). MSIZE: the high-water mark of the memory the run
-// touched (word rounded). GAS: the host's env().gas.
+// touched (word rounded). GAS: the host's gas(), asked at every read (each
+// GAS read is a variable set where the code reads it, a call's own gas
+// apart: lot 5) - a host whose gas left goes down at every read sees a read
+// moved, merged or taken out of a loop.
 //
 // Bytes (ir.md 4.2): SIZED(n, v): the low n bytes of v big-endian (v a
 // bytes expression of another length: resized, zeroes before or its last n
@@ -134,6 +137,11 @@ struct CallEnv {
 class Host {
 public:
     virtual const CallEnv& env() = 0;
+    // GAS: the gas left, asked at each read the run makes (a call line's own
+    // gas, which no interpreter evaluates, aside); env().gas unless the host
+    // makes it change (the validation's: lower at every read and every
+    // external event)
+    virtual Word256 gas() { return env().gas; }
     virtual Word256 sload(const Word256& slot) = 0;
     virtual void sstore(const Word256& slot, const Word256& value) = 0;
     virtual Word256 tload(const Word256& key) = 0;

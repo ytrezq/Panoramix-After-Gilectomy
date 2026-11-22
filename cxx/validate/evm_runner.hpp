@@ -5,7 +5,8 @@
 // their results come from the World.
 //
 // Gas: the call gets `RunOptions::gas` (the budget that bounds the loops and
-// the memory; out of it, the end is `exhausted`), GAS gives fixed_gas, the
+// the memory; out of it, the end is `exhausted`), GAS gives the Session's
+// gas() (a GAS right before a call, that call's gas: gas_left()), the
 // external calls use none and return all they're given.
 #pragma once
 

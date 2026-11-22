@@ -38,7 +38,7 @@ SessionHost::SessionHost(Session& session) : session_{&session}
     env_.origin = to_word256(c.origin);
     env_.callvalue = to_word256(c.value);
     env_.gasprice = to_word256(c.gas_price);
-    env_.gas = pan::Word256::of(static_cast<std::uint64_t>(fixed_gas));
+    env_.gas = pan::Word256::of(static_cast<std::uint64_t>(fixed_gas));  // (GAS asks gas())
     env_.coinbase = to_word256(b.coinbase);
     env_.timestamp = to_word256(b.timestamp);
     env_.number = to_word256(b.number);
@@ -54,6 +54,11 @@ SessionHost::SessionHost(Session& session) : session_{&session}
 const pan::exec::CallEnv& SessionHost::env()
 {
     return env_;
+}
+
+pan::Word256 SessionHost::gas()
+{
+    return to_word256(session_->gas());
 }
 
 pan::Word256 SessionHost::sload(const pan::Word256& slot)

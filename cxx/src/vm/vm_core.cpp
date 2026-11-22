@@ -917,6 +917,20 @@ Value Vm::code_bytes(Value pos, Value len) const {
     return mk(Op::CODE_BYTES, pos, len);
 }
 
+bool Vm::gas_of_next_call(u32 pc) const noexcept {
+    // (GAS has no immediate: the next byte is the next instruction's opcode)
+    if (u64(pc) + 1 >= code_.size()) return false;
+    switch (Op(code_[pc + 1])) {
+        case Op::CALL:
+        case Op::CALLCODE:
+        case Op::DELEGATECALL:
+        case Op::STATICCALL:
+            return true;
+        default:
+            return false;
+    }
+}
+
 bool Vm::plain(u8 op8, u32 pc) {
     if (underflow(op8, pc) || overflow(op8, pc)) return false;
     const Op op = Op(op8);
@@ -967,11 +981,26 @@ bool Vm::plain(u8 op8, u32 pc) {
         case Op::GASLIMIT: case Op::CHAINID: case Op::BASEFEE: case Op::BLOBBASEFEE:
             st_.push_back(Value::leaf(op));
             return true;
-        case Op::GAS:
+        case Op::GAS: {
             // each read its own number: two reads aren't the same value (the
-            // algebra would fold gas - gas)
-            st_.push_back(Value::leaf(op, ++gas_reads_));
+            // algebra would fold gas - gas). The gas left changes with every
+            // instruction: a read is a variable set where the code reads it
+            // (as MSIZE), so that nothing moves it, merges it with another
+            // or takes it for loop invariant - but for the gas of a call
+            // made by the next instruction, read by the call itself
+            const Value g = Value::leaf(op, ++gas_reads_);
+            if (gas_of_next_call(pc)) {
+                st_.push_back(g);
+                return true;
+            }
+            const Value t = fresh_tmp();
+            emit(mk(Op::SETVAR, t, g), pc);
+            st_.push_back(t);
+            // (the gas left is below 2^64 in any execution: what a decision
+            // about the read may use, as it did of the leaf)
+            known_ = known_.with_var_bits(t, 64);
             return true;
+        }
         case Op::RETURNDATASIZE: {
             Value v = returndatasize(pc);
             if (v.nil()) return false;

@@ -5,6 +5,7 @@
 #include <evmone/baseline.hpp>
 #include <evmone/tracing.hpp>
 #include <evmone/vm.hpp>
+#include <evmone/fixed_gas.hpp>
 
 #include <algorithm>
 #include <cstring>
@@ -33,6 +34,28 @@ evmc::address address_of(const Word& w) noexcept
 {
     return intx::be::trunc<evmc::address>(w);
 }
+
+/// GAS asks the Session (evmone's local change, fixed_gas.hpp): a read, or a
+/// call's own gas (the GAS right before it), for the run of one call.
+class GasHook
+{
+public:
+    explicit GasHook(Session& session) : saved_{evmone::fixed_gas_hook}
+    {
+        evmone::fixed_gas_hook = {&GasHook::read, &session};
+    }
+    ~GasHook() { evmone::fixed_gas_hook = saved_; }
+    GasHook(const GasHook&) = delete;
+    GasHook& operator=(const GasHook&) = delete;
+
+private:
+    static std::int64_t read(void* ctx, bool counted) noexcept
+    {
+        auto& s = *static_cast<Session*>(ctx);
+        return static_cast<std::int64_t>(counted ? s.gas() : s.gas_left());
+    }
+    evmone::FixedGasHook saved_;
+};
 
 /// The evmc host of one call: every question to the Session.
 class SessionHost final : public evmc::Host
@@ -317,6 +340,7 @@ Effects EvmRunner::run(Session& session)
     msg.code_address = msg.recipient;
     msg.code = impl_->code.data();
     msg.code_size = impl_->code.size();
+    const GasHook gas_hook{session};
     const evmc::Result result{evmone::baseline::execute(impl_->vm, evmc::Host::get_interface(),
         host.to_context(), EVMC_OSAKA, msg, impl_->analysis)};
     impl.cost.gas = msg.gas - result.gas_left;

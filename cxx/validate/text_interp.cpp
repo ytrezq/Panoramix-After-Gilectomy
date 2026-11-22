@@ -395,7 +395,7 @@ Word Run::eval(ExprId e)
     case Op::calldata_size: return Word{ctx_.calldata.size()};
     case Op::return_data_size: return Word{ret_.size()};
     case Op::this_address: return s_.address();
-    case Op::gas: return Word{static_cast<std::uint64_t>(fixed_gas)};
+    case Op::gas: return s_.gas();  // (a read of its own: the Session's gas left there)
     case Op::chain_id: return s_.block().chain_id;
     case Op::msize: throw Unsup{Unsupported::msize};
     case Op::number: return s_.block().number;
