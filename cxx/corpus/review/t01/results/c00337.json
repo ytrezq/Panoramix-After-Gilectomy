@@ -1,0 +1,25 @@
+{
+  "id": "c00337",
+  "abi_functions": 7,
+  "reviewed": 7,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 20, "P6": 7, "P8": 30},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "postTransfer(address,address,bytes32) (unknown32d26c06), preTransfer(address,address,bytes32) (unknown088fedf1)",
+      "lines": "75-76, 116-117 (and every FHE.isAllowed / allowTransient)",
+      "decompiled": "mem[0] = 0x9e7b61f58c47dc699ac88507c4f5bb9f121c03808c5676a8078fe583e4649700 / mem[0] = 0 / ... static call stor9E7B.isAllowed(bytes32, address) with: args _param3, caller",
+      "source": "Impl.getCoprocessorConfig(): assembly { $.slot := CoprocessorConfigLocation } then IACL($.ACLAddress).isAllowed(handle, account)",
+      "issue": "Two scratch stores to mem[0], the second overwriting the first with no read in between, are printed before every coprocessor-config access (P8).",
+      "rule": "A store overwritten by a later store to the same address with no read in between is dead and is not printed.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 7 ABI functions reviewed (the getters, setMaxHolderCount, onInstall and supportsInterface read; postTransfer/preTransfer (602/659 lines, FHE coprocessor calls) by structure). The pack lists ERC165Checker.supportsAllInterfaces (with its for loop) as reached by preTransfer, but no function of this contract calls it and the bytecode has no ERC-165 query: source_loops = 0, and the text has no while. The FHE/ACL calls lose their arguments after the first if-join (P2, 20 lines); custom errors print as selectors.",
+  "summary": "Faithful and loop-free; besides P2 call arguments, only overwritten scratch stores clutter the FHE paths."
+}

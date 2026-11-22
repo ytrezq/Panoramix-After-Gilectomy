@@ -1,0 +1,25 @@
+{
+  "id": "c00219",
+  "abi_functions": 46,
+  "reviewed": 46,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 1, "P7": 5},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getTrustedRemoteAddress(uint16)",
+      "lines": "512-555",
+      "decompiled": "if uint1(trustedRemoteLookup[_remoteChainId]): _2 = ... .field_1 else: _2 = uint7(... .field_1) / if ... == (_2 < 32): revert with Panic(34) / mem[64] = ceil32(_2) + 160 / mem[128] = _2 / if uint1(...): _3 = ... (the same length decoding again) ... / while idx < _2 + (_2 + 12) % 32 + ceil32(_2) + 32 * (not (_2 + 12) % 32) + 140:",
+      "source": "LzApp.sol getTrustedRemoteAddress: bytes memory path = trustedRemoteLookup[_remoteChainId]; require(path.length != 0, ...); return path.slice(0, path.length - 20);",
+      "issue": "The storage-bytes length decoding and its Panic(34) check are printed twice in a row (the second copy is _3 = _2 with no store in between), and BytesLib.slice's lengthmod expression is recomputed in the loop bound.",
+      "rule": "Two evaluations of the same pure expression over unchanged storage with no store in between are equal: reuse _2 and drop the repeated check; bind lengthmod = (_2 + 12) % 32 + 32 * (not (_2 + 12) % 32) once.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loop (1): BytesLib.slice's Yul for in getTrustedRemoteAddress (543), a readable word-copy while (it is a source loop, so not a P7). Implicit: memory copies of bytes for return values and for the nonblockingLzReceive/retryMessage self-call buffers (492/500 getConfig, 558, 660, 738: P7, no MCOPY on shanghai). OFT send/receive, LzApp trusted-remote checks, failedMessages hashing and the ERC20 functions match by reading; slice's 'slice_overflow' and 'slice_outOfBounds' requires are absent because under 0.8 checked arithmetic they can never fail (the Panic(17) checks remain).",
+  "summary": "Good, faithful text with its single source loop as a readable while; minor repetition of the storage-bytes length decoding and unconverted bytes copy loops."
+}

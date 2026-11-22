@@ -1,0 +1,102 @@
+{
+  "id": "c00034",
+  "abi_functions": 123,
+  "reviewed": 123,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 16, "P4": 24, "P6": 309, "P7": 182, "P8": 2700, "P9": 40, "P11": 60, "P12": 5000},
+  "findings": [
+    {
+      "kind": "semantics",
+      "severity": "medium",
+      "function": "getRedemptionAmount(address,uint256), getRedemptionCollateralUsd(address) and every SafeMath.mul(..., 'SafeMath: multiplication overflow') helper call",
+      "lines": "558, 568 (getRedemptionAmount); 1682-1802 (getRedemptionCollateralUsd); helper at 79-82",
+      "decompiled": "_2 = SafeMath.mul(projectId, 1000000000000 * 10**18, 'SafeMath: multiplication overflow')   vs elsewhere: revert with Error(string reason), 32, 33, 'SafeMath: multiplication overflow', Bytes(31, bool(stor22_8))",
+      "source": "SafeMath.sol mul: require(c / a == b, \"SafeMath: multiplication overflow\")",
+      "issue": "The bytecode's shared mul-overflow revert (0x4682) CODECOPYs only the 33 message bytes and reverts with 64, so the 31 padding bytes are stale memory: after a price-feed call they end with useSwapPricing. The text keeps this where it inlines the revert (39 lines with Bytes(31, bool(stor22_8)), 100 with mem[mem[64] + 101 len 31]) but the SafeMath.mul helper reverts with a zero-padded literal, so its revert data differs in the last byte.",
+      "rule": "Abstract a revert into a helper with a literal message only when the bytes of the revert data past the message are known to be zero; otherwise keep the inline form (or give the helper the padding as an argument).",
+      "verified": "text_check run --seed 6 --random --each --per-selector 8: 5 calls differ, 'expected revert Error(\"SafeMath: multiplication overflow\"), got ... (first difference at byte 131)': 0x29ff9615 x3, 0x2c668ec1 x2; disassembly 0x46a3-0x46b7 (push2 0x607b push1 0x21 codecopy, size + 0x40)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "175 SafeMath sub/div reverts with a message argument, in most functions (getRedemptionCollateral, getNextAveragePrice, getNextGlobalShortAveragePrice, buyUSDG, sellUSDG, swap, the position functions...)",
+      "lines": "e.g. 1198-1219 (getRedemptionCollateral), 2023-2059 and 2127-2144 (buyUSDG), 1585-1603 (getNextAveragePrice)",
+      "decompiled": "_21 = mem[64] / mem[64] = mem[64] + 64 / mem[_21] = 30 / mem[_21 + 32] = 'SafeMath: subtraction overflow' ... mem[mem[64] + 36] = mem[_21] / _24 = mem[_21] / ... idx = 32 / while idx < _24: mem[idx + mem[64] + 68] = mem[_21 + idx + 32] ... / mem[floor32(_24) + mem[64] + 68] = ~(256**(-(_24 % 32) + 32) - 1) & ... / revert with Error(string reason), 32, mem[mem[64] + 36 len floor32(_24) + 64]",
+      "source": "SafeMath.sub(a, b) -> sub(a, b, \"SafeMath: subtraction overflow\"): require(b <= a, errorMessage); div(a, b, errorMessage)",
+      "issue": "When the free-memory pointer is unknown (after a branch merge or a dynamic allocation) the message string is stored at _21 and then re-read and copied by a loop into the revert data: about 14 lines and one while each, P7 x175, while the same revert prints as 'revert with \"SafeMath: subtraction overflow\"' where the pointer is a constant (e.g. 1249, 1987). The length is re-read as mem[_21] two lines after 'mem[_21] = 30'.",
+      "rule": "Forward stores to loads at the same symbolic base: a write to mem[b + c] reaches a read of mem[b + c] when every write in between is at b + c' with a disjoint constant range (here mem[64] = b + 64). With the length a constant, the copy loop and the padding mask evaluate to the message, and the block is 'revert with <message>'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "every _validate(cond, code) failure path (174 places: all gov-only setters, buyUSDG, sellUSDG, swap, directPoolDeposit, getDelta, the position functions...)",
+      "lines": "e.g. 579-585 (setIsSwapEnabled); 2148-2154, 2349-2355, 2373-2379 (buyUSDG)",
+      "decompiled": "if not stor48[18].length: revert with Error(string reason), 32, stor48[18].length / if 31 >= stor48[18].length: revert with ..., 256 * stor48[18].field_8 / mem[mem[64] + 68] = stor48[18][0] / mem[mem[64] + 100 len floor32(max(mem[64] + 100, mem[64] + stor48[18].length + 68) - mem[64] - 69)] = stor[sha3(sha3(18, 48)) + 1 len (max(mem[64] + 100, mem[64] + stor48[18].length + 68) - mem[64] - 69) / 32] / revert with Error(string reason), 32, stor48[18].length, mem[mem[64] + 68 len -stor48[18].length % 32 + stor48[18].length]",
+      "source": "Vault.sol:_validate: require(_condition, errors[_errorCode]);  (errors is mapping(uint256 => string) at slot 48)",
+      "issue": "Reverting with a storage string is printed as its three-way expansion (empty, short, long), 5 lines each; with a symbolic pointer (69 places) the copy length reads floor32(max(p + 100, p + len + 68) - p - 69), which is floor32(len - 1) under the dominating 31 < len. '-len % 32 + len' is ceil32(len).",
+      "rule": "The sequence (length 0 / short form / long-form copy) that ABI-encodes a storage byte array is one value: print 'revert with stor48[18]' (the errors mapping). Independently: max(p + a, p + b) - p = max(a, b) for memory offsets that cannot wrap, max(31, x - 1) = x - 1 under x > 31, and -x % 32 + x = ceil32(x).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "increasePosition(address,address,address,uint256,bool) (also decreasePosition x6, liquidatePosition x3, swap x3 for 2, buyUSDG, sellUSDG)",
+      "lines": "10914-14938 (increasePosition: copies of the prologue at function lines ~100, 290, 752, 942, 1410, 1600, 2099, 2289, 2751, 2941, 3409, 3599); 1870-1903 vs 1917-1950 (buyUSDG)",
+      "decompiled": "if maxGasPrice: mem[0] = 55 / mem[32] = 48 / ... if address(_param1) != caller: if router != caller: mem[0] = address(_param1) / mem[32] = 24 / mem[0] = caller / mem[32] = sha3(address(_param1), 24) ... (each arm then repeats validateIncreasePosition, updateCumulativeFundingRate, the price call and getNextAveragePrice)",
+      "source": "Vault.sol:increasePosition: _validate(isLeverageEnabled, 28); _validateGasPrice(); _validateRouter(_account); _validateTokens(...); vaultUtils.validateIncreasePosition(...); updateCumulativeFundingRate(...); ...",
+      "issue": "The checks that only revert in one arm split the paths, and the continuation is printed once per path: vaultUtils.updateCumulativeFundingRate is called 12 times in increasePosition's text (once in the source), and about 3,600 of its 4,615 lines are copies. The arms differ only in the sha3 scratch words mem[0] and mem[32] that each _validate/mapping read leaves.",
+      "rule": "Before merging two paths, drop memory writes that are dead at the merge point (the scratch [0, 64) is always rewritten before the next SHA3 reads it); paths whose remaining state agrees join, and the code after the join is printed once.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "decreasePosition(address,address,address,uint256,uint256,bool,address) and liquidatePosition's liquidationState == 2 path",
+      "lines": "5219 onward (decreasePosition); 8850 onward (liquidatePosition); 530 lines",
+      "decompiled": "_1724 = sha3(sha3(mem[_1717 + 32 len mem[_1717]]), 43) / if stor[_1724 + 2] <= 0: ... / _2353 = stor[_1724 + 1] / stor[_1724 + 1] = 0",
+      "source": "Vault.sol:_decreasePosition: bytes32 key = getPositionKey(_account, _collateralToken, _indexToken, _isLong); Position storage position = positions[key]; ... position.collateral ...",
+      "issue": "abi.encodePacked of the key is built at an unknown free-memory pointer, so the key is sha3 of a memory slice and positions[key] is bound as a raw slot: every member reads stor[_1724 + i] instead of stor43[key].field_{256 i}, as it does in getPosition and the other functions where the pointer is a constant.",
+      "rule": "Resolve memory relative to a symbolic base (the packed bytes written at b, b + 20, b + 40, b + 60 are the concatenation), and never bind sha3(k, slot) itself to a variable: bind k, and print stor[sha3(k, slot) + i] as the mapping's struct member.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getNextFundingRate inlined in buyUSDG, sellUSDG, swap, the position functions and updateCumulativeFundingRate (P11, about 60 lines)",
+      "lines": "e.g. 1986-1987, 2027 and 2046-2059 (buyUSDG)",
+      "decompiled": "if SafeMath.add(stor42[a], fundingInterval) <= block.timestamp: ... if stor42[a] > block.timestamp: revert with 'SafeMath: subtraction overflow' ... if not fundingInterval: revert with 'SafeMath: division by zero' ... if fundingInterval: ... else: (14-line revert with a while)",
+      "source": "Vault.sol:865-867 and updateCumulativeFundingRate: block.timestamp.sub(lastFundingTimes[_token]).div(fundingInterval) ... block.timestamp.div(fundingInterval).mul(fundingInterval)",
+      "issue": "Checks implied by dominating ones are kept: x <= x + y <= t (the add did not overflow) implies x <= t, and fundingInterval != 0 was already required with no write to slot 18 in between, so the 31 'if fundingInterval:' tests and their revert arms are dead.",
+      "rule": "Drop a test implied by a dominating one: x + y <= t with no overflow implies x <= t; a storage read equal to one already tested, with no possible write to that slot in between (mapping writes cannot alias a fixed slot), has the tested value.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "buyUSDG, sellUSDG, swap, getRedemptionAmount, position functions; getDelta, getNextAveragePrice, getPositionDelta",
+      "lines": "2116, 2291, 558 (constants); 2147, 934, 1460 (<= 0); 963, 1497, 1835 (mem[128])",
+      "decompiled": "(_29 * _143 - _30 * _143) / (1000000000000 * 10**18)  |  if _151 / 10**_148 <= 0:  |  if _param3 > mem[128]: _7 = -_6 + _param3",
+      "source": "tokenAmount.mul(price).div(PRICE_PRECISION) (10**30); _validate(usdgAmount > 0, 18); _averagePrice > price ? _averagePrice.sub(price) : ...",
+      "issue": "A constant product is not folded (1000000000000 * 10**18 is 10**30, 15 lines); unsigned x <= 0 is x == 0 (18 lines); the call's return value is read back as mem[128] in one test and as _6 in the next line; -b + a for a - b.",
+      "rule": "Fold constant products; print unsigned x <= 0 as not x; a memory word written from return data that is not overwritten is that return value; print -b + a as a - b.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "the SafeERC20 transfers (_transferOut) in decreasePosition, liquidatePosition, sellUSDG, swap; upgradeVault, withdrawFees",
+      "lines": "2873-2894 (sellUSDG); 896-909 (upgradeVault); 1012-1025 (withdrawFees)",
+      "decompiled": "mem[_326 + 32 len 4] = 2835717307 ... call address(_param1) with: args mem[mem[64] len _332]   |   mem[176 len 16] = uint128(to >> 32) / mem[164 len 12] = 0 / mem[160 len 4] = 2835717307 / ... / mem[292 len 64] = Bytes(16, 0xa9059cbb000000000000000000000000), Bytes(20, address(to)), Bytes(28, _5 >> 32) / mem[356] = _5 << 224 / call address(token).transfer(address recipient, uint256 amount) with: args address(to), _5",
+      "source": "SafeERC20.safeTransfer: _callOptionalReturn(token, abi.encodeWithSelector(token.transfer.selector, to, value)) -> Address.functionCall",
+      "issue": "With an unknown pointer the transfer loses its name and arguments (P2, 16 lines) and the selector is printed in decimal (2835717307 = 0xa9059cbb, 10 lines); with a constant pointer the call is resolved but 8 lines of byte-sliced memory writes that only rebuild its arguments stay.",
+      "rule": "A 4-byte constant stored as the first bytes of call data is a selector: print it in hex. Once a call's arguments are resolved, the memory writes that only feed them are dead and need not be printed.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source has no explicit loop; all 182 whiles are implicit copies (P7): 175 revert-message copies of SafeMath sub/div messages and 7 'while idx >= 32' call-data copies in Address.functionCallWithValue. P8 is dominated by the sha3 scratch writes (mem[0]/mem[32], ~1,620 lines), SafeMath message allocations (~650) and the pre-writes of inlined reverts (~400). The padding shown as Bytes(31, bool(stor22_8)) or mem[mem[64] + 101 len 31] is exact (CODECOPY of the bare message). increasePosition (4,615 lines), decreasePosition (3,523) and liquidatePosition (3,364) were reviewed by structure (branches, calls, events, storage writes, the delete of positions[key], includeAmmPrice writes); swap and sellUSDG by their calls and events against the source; everything else line by line. Event names show as topic hashes (not in the signature database). The second extcodesize check before a repeated call to the same address is dropped by the decompiler, which is exact.",
+  "summary": "Semantically faithful except for one verified inexactness (the SafeMath.mul helper hides stale revert padding), but extremely bloated: per-path duplication of the position functions' prologues, unfolded revert-message copy loops and storage-string revert expansions, and raw struct storage arithmetic where the position key is hashed from memory at an unknown pointer."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "c00009",
+  "abi_functions": 50,
+  "reviewed": 50,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 16, "P3": 2, "P4": 1, "P6": 8, "P7": 18},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "fulfillRandomWords((uint256[2],uint256[2],uint256,uint256,uint256,address,uint256[2],uint256[2],uint256),(uint64,uint256,uint32,uint32,address,bytes),bool) (0x301f42e9)",
+      "lines": "1718-1731",
+      "decompiled": "_285 = mem[64] / mem[mem[64] + 32] = sha3(3, call.data[68 len 64]) / mem[_285 + 64] = idx / _286 = mem[64] / mem[mem[64]] = _285 - mem[64] + 64 / mem[64] = _285 + 96 / ... mem[_209 + 32 * idx + 948] = sha3(mem[_286 + 32 len mem[_286]])",
+      "source": "VRFCoordinatorV2_5.sol:477-479 for (uint256 i = 0; i < numWords; ++i) { randomWords[i] = uint256(keccak256(abi.encode(randomness, i))); }",
+      "issue": "Each random word is printed as the hash of a memory range whose length is '_285 - mem[64] + 64' (that is, 64), so the derivation keccak(randomness, i) is not visible although both words are known: randomness = sha3(3, gamma) and i.",
+      "rule": "With mem[64] >= 0x80 established (all stores to it are constants >= 0x80 or increments), writes at mem[64] + 32 and _285 + 64 do not alias mem[64], so _285 - mem[64] = 0 and the length is 64; sha3(mem[p + 32 len 64]) with known words at p + 32 and p + 64 is sha3(w1, w2).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "migrate(uint256,address) (_isTargetRegistered inlined)",
+      "lines": "1714-1725",
+      "decompiled": "if 0 >= stor17.length: revert with 0x5428d449, _to / mem[0] = 17 / _3 = sha3(17) / s = 0 / while -_to + address(stor[_3 + s]): / if SafeMath.inc(s) >= stor17.length: revert with 0x5428d449, _to / ... s = SafeMath.inc(s)",
+      "source": "VRFCoordinatorV2_5.sol:720-727 for (uint256 i = 0; i < migrationTargetsLength; ++i) { if (s_migrationTargets[i] == target) return true; } return false; with migrate: if (!_isTargetRegistered(newCoordinator)) revert CoordinatorNotRegistered(newCoordinator)",
+      "issue": "The search loop is rotated: its test is the comparison written as a difference '-_to + address(stor[_3 + s])', the index test sits in the body, and the element is raw stor[sha3(17) + s] although the same array is stor17[idx] in registerMigratableCoordinator (207).",
+      "rule": "A nonzero test of a - b reads as a != b. stor[keccak(p) + i] for an array slot p with one-word elements is storP[i], whether the hash is a temporary or inline.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops counted are those in this bytecode: OptimismL1Fees calls the GasPriceOracle predeploy (OVM_GASPRICEORACLE.getL1Fee / getL1FeeUpperBound are external calls), so GasPriceOracle._getCalldataGas and LibZip.flzCompress (seven loops in the pack) are not here; VRF._projectiveECAdd's 'for (' is a comment. Loop map: deregisterMigratableCoordinator (327), deregisterProvingKey (416), fulfillRandomWords' numWords loop (1718), VRF._fieldHash 'while x >= FIELD_SIZE' (1442, 1508), VRF._hashToCurve 'while not on curve' (1499, as the addmod/mulmod curve test), getActiveSubscriptionIds (504), migrate's consumer loop (1247), pendingRequestExists (179 and inlined in removeConsumer 537 / cancelSubscription 705), removeConsumer (545), _deleteSubscription (636, 714, 1149), _isTargetRegistered (207, 1069 rotated). Implicit: six two-element 'while idx < 2' copies of uint256[2] proof fields, four checked-exponentiation loops ('while u > 1: if s > -1 / s'), storage-to-memory consumer copies (two rotated, P3), ABI encode and bytes copies (P7). fulfillRandomWords (900 lines) reviewed by structure: proof decode, key-hash lookup, commitment check, VRF verification, random-words loop, callback with gas checks, payment and the Optimism L1 fee call; the rest are short subscription/admin functions, checked.",
+  "summary": "Faithful, every in-bytecode source loop is a while; the random-word derivation and a few array accesses are obscured by the unresolved free-memory pointer and raw storage arithmetic."
+}

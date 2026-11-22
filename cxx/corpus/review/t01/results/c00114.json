@@ -1,0 +1,47 @@
+{
+  "id": "c00114",
+  "abi_functions": 29,
+  "reviewed": 29,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P3": 2, "P4": 3, "P6": 19, "P8": 83, "P11": 20, "P14": 40},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "addClient(string,(string,bytes[]),address), addClient((string,bytes[]),address), migrateClient, getCounterparty, recvPacket/ackPacket/timeoutPacket (merkle prefix reads)",
+      "lines": "def storage line 4; 1064, 1101-1120, 1653, 1695",
+      "decompiled": "stor1 is fixed array of array of bytes at storage 1   ...   _45 = sha3(mem[_43 len _44], 0x515a..601) / _69 = stor1[_45].length / stor1[_45].length = cd[..] / if not uint1(stor1[_45][idx + ..]):",
+      "source": "ICS02Client: counterpartyInfos[clientId] = CounterpartyInfo({clientId, merklePrefix}) in ERC-7201 namespaced storage (the compiler layout is empty)",
+      "issue": "The bytes[] member at offset +1 of the struct counterpartyInfos[clientId] (base slot _45 = keccak(clientId, 0x515a..601)) is presented as a phantom top-level variable 'stor1' at storage 1 indexed by the hash; the contract has no variable at slot 1.",
+      "rule": "A slot h + k with h a mapping element's keccak and k a small constant is member k of the struct stored at h (whose mapping def storage already has as 'struct of 2 slots'): print stor515A_515a8336[clientId].field_256 and do not invent a variable at slot k.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "sendPacket((string,uint64,(string,string,string,string,bytes)))",
+      "lines": "1910-1923",
+      "decompiled": "idx = 0 / while idx < 32: _33 = mem[64]; ...; mem[_33] = 96 ... mem[_33 + 128] = 96; mem[_31 + idx + 32] = _33; idx = idx + 32",
+      "source": "ICS26Router.sendPacket: Payload[] memory payloads = new Payload[](1) (via-IR zero-initialization of a struct array)",
+      "issue": "An implicit initialization loop with constant bounds runs exactly once but is printed as a while.",
+      "rule": "A loop whose induction variable starts at a constant, steps by a constant and is bounded by a constant has a known trip count; with one iteration, print the body once.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "addIBCApp(string,address)",
+      "lines": "1271-1272",
+      "decompiled": "if 2 * bool(_22) / bool(_22) != 2 and _22: revert with Panic(17)",
+      "source": "Strings.tryParseAddress -> _tryParseHexUintUncheckedBounds: hasPrefix ... SafeCast.toUint(hasPrefix) * 2",
+      "issue": "The overflow check of 2 * bool(x) is kept although a 0/1 value times 2 cannot overflow (as are ~20 Panic(50) checks implied by the loop bound, e.g. 'if idx >= 42' in the toHexString loop 'while idx > 1').",
+      "rule": "Range facts: bool(x) is in {0,1}, so c * bool(x) never overflows for c < 2^255; a check whose condition is false under the value ranges is dead.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "via-IR build; all storage is ERC-7201 namespaced (empty compiler layout). Small functions, getters, addIBCApp (both), addClient (both, by structure for the bytes[] storage copy), multicall, pause/unpause, verify* reviewed in detail; recvPacket, ackPacket, timeoutPacket, sendPacket, migrateClient by structure. Source loops: 7, all whiles: OZ Multicall's for (387), IBCIdentifiers.validateCustomIBCIdentifier (1370 and 1568, 'while True' search loops), Strings._tryParseHexUintUncheckedBounds (1277), Strings.toHexString (236 'while idx > 1'), Strings.toString (1029, rotated: first digit stored before 'while t / 10', P3), ICS24Host.packetCommitmentBytes32 (2053, 4888, 5676 ...) and packetAcknowledgementCommitmentBytes32 (recvPacket/ackPacket). The last two are not in the pack's reach lists (ICS24Host library functions missing from it) but are in the source and the text. Implicit loops: bytes[] calldata decodes and storage copies of the merkle prefix (storage array resize clearing 'if not uint1(stor1[_45][..])' on shrink), zero-init of new bytes[](n) / Payload[](1) (one shown as a one-iteration loop, finding 2), return/struct encodings. 274 Panic(65) allocation-overflow checks of the via-IR allocator are printed (free-memory pointer + size > 2^64 - 1), e.g. 'if mem[64] + 64 > 18446744073709551615 or mem[64] + 64 < mem[64]' for constant sizes. String-keyed mappings print as stor515A_515a8336[concat(call.data[_param1 + 36 len ..])] (P4).",
+  "summary": "Semantically faithful with all 7 source loops (including two the pack misses) shown as whiles; readability suffers from via-IR allocation checks, a phantom 'stor1' variable for a struct member in namespaced storage, and rotated or one-iteration implicit loops."
+}

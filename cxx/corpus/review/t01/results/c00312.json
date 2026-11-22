@@ -1,0 +1,71 @@
+{
+ "id": "c00312",
+ "abi_functions": 17,
+ "reviewed": 17,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P6": 1,
+  "P8": 5,
+  "P9": 1,
+  "P10": 6,
+  "P11": 26,
+  "P14": 3
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "maxWithdraw(), onWithdraw(uint256)",
+   "lines": "363, 171",
+   "decompiled": "return ((_7 - _8 <= _7) * _7 - (_7 - _8 <= _7) * _8 < ext_call.return_data[0]) * ((_7 - _8 <= _7) * _7 - (_7 - _8 <= _7) * _8 ^ ext_call.return_data[0]) ^ ext_call.return_data[0]\n...\nargs (_1 + 1 < ext_call.return_data[0]) * (_1 + 1 ^ ext_call.return_data[0]) ^ ext_call.return_data[0], 0, _param1",
+   "source": "RoycoVaultMakinaStrategy.sol:209-211 Math.min(Math.saturatingSub(maxWithdraw(), convertToAssets(1)), _getStrategyOwnedAssets()); :163 Math.min(sharesToRedeem, _getStrategyOwnedShares()); OZ Math.ternary b ^ ((a ^ b) * toUint(c)), trySub c * toUint(c <= a)",
+   "issue": "OpenZeppelin 5's branchless helpers are printed as raw bit tricks: min(a, b) as (a < b) * (a ^ b) ^ b, and saturatingSub(a, b) as a 0/1 factor distributed over the difference, (a - b <= a) * a - (a - b <= a) * b. maxWithdraw's return value and onWithdraw's redeem amount are unreadable.",
+   "rule": "With c in {0, 1}: b ^ ((a ^ b) * c) is (c ? a : b), which is min(a, b) when c = (a < b) and max when c = (a > b); (a - b) * (a - b <= a) is the saturating a > b ? a - b : 0; never distribute a 0/1 factor over a sum or difference.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "maxWithdraw(), maxAllocation()",
+   "lines": "317-318, 333-361, 234-245",
+   "decompiled": "if ceil32(min(32, _3)) + ceil32(min(32, _5)) + ceil32(min(32, return_data.size)) + mem[64] > 18446744073709551615 or ceil32(min(32, _3)) + ceil32(min(32, _5)) + ceil32(min(32, return_data.size)) + mem[64] < ceil32(min(32, _3)) + ...:\n    revert with Panic(65)",
+   "source": "RoycoVaultMakinaStrategy.sol:196-211 IMachine(MAKINA_MACHINE).maxMint() / maxWithdraw() / convertToAssets(...) / balanceOf(...) return-value decoding",
+   "issue": "Each decoded return value (via-IR) re-checks the free-memory allocation, and as mem[64] is not known after the paused/recoveryMode join the seven impossible Panic(65) checks are kept, each one longer than the last (a sum of ceil32(min(32, size_k)) terms).",
+   "rule": "Track an upper bound of mem[64] across joins (here at most 0x80 + 0x20) and through calls (a call writes only its output region); an allocation check p + n > 2^64 - 1 or p + n < p with p and n bounded far below 2^64 is false and can be dropped.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "maxWithdraw()",
+   "lines": "304-322",
+   "decompiled": "mem[128] = 0x7a00b1f00000000000000000000000000000000000000000000000000000000\nstatic call 0x0.unknown07a00b1f(?) ...\nif 32 > return_data.size:\n    _1 = return_data.size\n    _2 = return_data.size\nelse:\n    _1 = 32\n    _2 = 32\n...\nrequire mem[128] == bool(mem[128])\n_4 = mem[128]",
+   "source": "RoycoVaultMakinaStrategy.sol:206 if (paused() || IMakinaGovernable(MAKINA_MACHINE).recoveryMode()) return 0;",
+   "issue": "The same recoveryMode() call and bool decoding that maxAllocation prints as ext_call.return_data[0] with min(32, return_data.size) prints here as the output buffer mem[128], the selector store (63 hex digits, P6) and min(32, return_data.size) split into a two-armed if with two copies.",
+   "rule": "Print the output region of a call as ext_call.return_data[...] once it is written by the call, drop the dead selector store, and fold if a > b: x = b else: x = a into x = min(a, b).",
+   "verified": "reading only"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "allocateFunds(bytes), deallocateFunds(bytes), onWithdraw(uint256), rescueToken(address,uint256), asset(), getVault(), getMakinaMachine(), strategyType()",
+   "lines": "23-38, 79, 155, 186, 273",
+   "decompiled": "if caller:\n    revert with 0x23315fa1\n...\nif not _token:\n    revert with 0x4d84a214",
+   "source": "RoycoVaultMakinaStrategy.sol:23-35 immutables ROYCO_VAULT, MAKINA_MACHINE, ASSET, MACHINE_SHARE_TOKEN, STRATEGY_TYPE",
+   "issue": "All immutables are 0 in this build: onlyRoycoVault becomes if caller: revert (the three vault functions always revert after the pause check), every machine/asset call targets 0x0, and rescueToken's check against MACHINE_SHARE_TOKEN becomes _token != 0.",
+   "rule": "none (build artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "solc 0.8.28 via-IR optimized; no source loops (OZ AccessManaged, Pausable, SafeERC20, Math reach no loops; msg.data is passed to consumeScheduledOp as one Array line). restricted (canCallWithDelay staticcall with the shr/mul delay clamp, consumeScheduledOp under _consumingSchedule), whenNotPaused before onlyRoycoVault, the exact length == 64 checks, SafeERC20's assembly transfer/transferFrom (result check, bubbling, empty-returndata + code-size rule, SafeERC20FailedOperation(token)), setAuthority, isConsumingScheduledOp and every event and return checked against the source. Patterns: P11 'require calldata.size - 4 >=′ 0' in the 12 functions without arguments (implied by the dispatcher) plus the 7 Panic(65) checks; P8 the selector/argument stores mem[0], mem[4] kept before the resolved transferFrom/transfer calls and mem[128] in maxWithdraw; P10 the else: _3 = paused copies of the paused || recoveryMode() short-circuit. sigdb names mislead: TokenRescue(address token, address to, uint256 tokenId) for TokenRescue(recipient, token, amount) (the values are printed in the right order), redeem(uint256 amount, address receiverAddress, uint256 fee) for redeem(shares, receiver, minAssets). Address validation prints as require not Mask(96, 160, x).",
+ "summary": "A correct text for a small strategy; it is hard to read only where OpenZeppelin 5's branchless min/saturatingSub appear as raw bit tricks and where impossible via-IR allocation checks pile up after each decoded return value. All immutables are 0, so the vault-only functions always revert."
+}

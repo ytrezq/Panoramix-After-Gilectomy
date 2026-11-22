@@ -1,0 +1,13 @@
+{
+  "id": "c00372",
+  "abi_functions": 11,
+  "reviewed": 11,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [],
+  "notes": "Balancer's OZ 3.x ERC20 with BAL# error codes (solc 0.7.1). All 11 functions checked line by line: zero-address checks ('BAL#408'/'BAL#409'), checked add with 'BAL#000', checked sub with the BAL#414/415/416 messages (SafeMath.sub(a, b, errorMessage)), Approval re-emitted in transferFrom with the decremented allowance, string getters as 'Array(len=name.length, data=name[all])'. No loops in source or text. No issue found.",
+  "summary": "Clean and faithful text of a plain ERC20; nothing to simplify."
+}

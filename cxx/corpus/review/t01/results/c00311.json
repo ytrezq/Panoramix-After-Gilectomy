@@ -1,0 +1,25 @@
+{
+  "id": "c00311",
+  "abi_functions": 9,
+  "reviewed": 9,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 6, "P7": 2, "P11": 3},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "swap(address,uint256,(address,uint256,address)[],(address,uint256,address)[],uint256,(address,(uint256,address,bytes,uint256)[])[],bytes) (SwapFacade._swap)",
+      "lines": "270-276, 353-385, 415-424",
+      "decompiled": "if idx >= mem[_58]: revert with Panic(50) (inside 'while idx < cd[_param3 + 4]', mem[_58] = cd[_param3 + 4])  |  static call address(cd[96 * idx + _param3 + 36]) with: args mem[mem[64] len _118 - mem[64] + 36] / _122 = mem[mem[64]]  |  log Trade(...): mem[mem[64] len _128 - mem[64] + 192]",
+      "source": "SwapFacade.sol:138-160 balancesBefore[i] = ... ; for (...) { uint256 received = balanceAfter - balancesBefore[i]; if (received < minReturns[i].amount) revert InsufficientReturn(...); amountsOut[i] = received; } emit Trade(...)",
+      "issue": "The second balance loop loses the balanceOf name and arguments and the Trade event data stays raw memory (P2, mem[64]-relative buffers after the executor call), and the bounds checks of balancesBefore[i] / amountsOut[i] are implied by the loop bound (P11).",
+      "rule": "As in c00600 (bounded mem[64]); drop 'i >= len' checks under 'while i < len' when the array was allocated with that length and is not resized.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: swap's targetTokenTransferInfos check loop (121), _swap's balances-before loop (257) and minimum-return loop (353); all while. Implicit: the encoding of the executor call's arrays (286, 302/316) and the returned amounts copy (428, P7 with 286?). Checked: deadline (TransactionExpired), ZeroInput, EmptySwap, ETH vs ERC20 balance branches (0xeeee.. and zero address), fee-collector delta, InsufficientReturn, the single-output check, Trade event fields. All 9 ABI functions read.",
+  "summary": "A short, faithful text with its three loops found; only raw call/event buffers after the executor call and implied bounds checks remain."
+}

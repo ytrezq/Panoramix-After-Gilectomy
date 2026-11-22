@@ -1,0 +1,36 @@
+{
+  "id": "c00314",
+  "abi_functions": 16,
+  "reviewed": 16,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P6": 1, "P7": 9},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "outboundTransfer(address,address,uint256,uint256,uint256,bytes), getOutboundCalldata(...)",
+      "lines": "180-191, 202-212, 240-330",
+      "decompiled": "mem[ceil32(_data.length) + 160] = mem[mem[192] + 160] / _7 = mem[_2 + 160] / idx = 0 / while idx < _7: mem[idx + ceil32(_data.length) + 192] = mem[_2 + idx + 192]; idx = idx + 32 / if not _7 % 32: ... else: mem[floor32(_7) + ...] = ~(256**(-(_7 % 32) + 32) - 1) & mem[...]",
+      "source": "L1DaiGateway.outboundTransfer: (from, extraData) = abi.decode(_data, (address, bytes)) (router case); getOutboundCalldata: abi.encodeWithSelector(..., abi.encode(from, extraData)) ",
+      "issue": "Every bytes copy of solc 0.6's ABI coder (abi.decode of a bytes member from memory, the encodings of the retryable-ticket calldata) is a word loop followed by a zeroing mask of the last partial word: 9 whiles and 10 mask expressions for what are copy lines.",
+      "rule": "'while i < n: mem[d + i] = mem[s + i]; i += 32' followed by masking the bytes after d + n in the last word is mem[d len n] = mem[s len n] plus zero padding: print the copy line (and the padding as part of the encoding).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "outboundTransfer, finalizeInboundTransfer, calculateL2TokenAddress, getOutboundCalldata",
+      "lines": "162-163, 168-169, 29-32",
+      "decompiled": "if address(_l1Token): revert with 'L1DaiGateway/token-not-dai' / if caller: _17 = caller ...",
+      "source": "require(_l1Token == l1Dai, \"L1DaiGateway/token-not-dai\"); if (msg.sender == l1Router) { (from, extraData) = parseOutboundData(_data); } (l1Dai, l1Router, l2Dai, l1Escrow, inbox ... are immutables)",
+      "issue": "The immutables read as 0 in this pre-deployment bytecode (solc), so the token check reads 'l1Token != 0' and the router check 'caller != 0'.",
+      "rule": "None (input artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 16 ABI functions reviewed (wards/rely/deny/close/isOpen read; finalizeInboundTransfer, getOutboundCalldata, outboundTransfer by structure). No source loop; all 9 whiles are implicit bytes copies of the ABI coder (P7). solc 0.6.11 (ABI coder v1 checks such as 'require _data <= 4294967296').",
+  "summary": "Faithful; no source loop, but the ABI coder's bytes copies are 9 word-copy whiles with partial-word masks, and immutables read as zero."
+}

@@ -1,0 +1,69 @@
+{
+  "id": "c00054",
+  "abi_functions": 73,
+  "reviewed": 73,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 1, "P6": 85, "P7": 74, "P8": 200, "P11": 30, "P14": 40, "P18": 60},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "fund, rebalance, withdraw, triggerValidatorWithdrawals, forceValidatorExit, isVaultHealthy and 20 others (60 calls, 19 logs)",
+      "lines": "e.g. 882-884, 2077-2079 vs 'call 0x0.unknown0103349c' elsewhere, 3604-3606, 3643-3662, 2797-2818; logs 878-880",
+      "decompiled": "_76 = mem[64] / mem[mem[64]] = 0xb60d4288.. / call loanToken.mem[_76 len 4] with: value call.value wei  |  _47 = mem[64]; mem[mem[64]] = 0x103349c..; mem[_47 + 4] = _44 / static call 0x0.mem[_47 len 4] with: args _44  |  _75 = mem[64]; mem[mem[64]] = int104(..) / log 0xb7cba63c..: mem[_75], indexed loanToken",
+      "source": "VaultHub.sol fund(): IStakingVault(_vault).fund{value: msg.value}(); LIDO.getPooledEthBySharesRoundUp(...); emit VaultInOutDeltaUpdated(_vault, inOutDelta)",
+      "issue": "The selector or the log word is stored through 'mem[mem[64]]' right after '_N = mem[64]', but read back as mem[_N]; the two are not identified, so 60 calls print a memory slice as their function name (some with their arguments decoded, so only the name is lost) and 19 events print their data as 'mem[_N]'. The same selector is named when written at a constant address ('call 0x0.unknown0103349c', 47 lines).",
+      "rule": "The address of 'mem[mem[64]] = X' is evaluated before the store, so after '_N = mem[64]' with no store to mem[64] between, the store is 'mem[_N] = X'; a later read of mem[_N len 4] or mem[_N] with no overlapping store between is the top bytes of X / X (no free-pointer range analysis needed).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "totalValue, vaultRecord (unknowne8ddced0), maxLockableValue, fund, isVaultHealthy, totalMintingCapacityShares, withdraw, rebalance, settleLidoFees and every function reading VaultRecord (70 loops)",
+      "lines": "e.g. 620-645 (totalValue), 653-673 and 696-736 (vaultRecord), 862-878 (fund)",
+      "decompiled": "s = 224; idx = 0; t = 2 / while idx < 2: _2 = mem[64]; ... mem[_2] = int104(uint104(stor9EB7[_param1][t].field_0)); ...; mem[s] = _2; s = s + 32; idx = idx + 1; t = t + 1 / _8 = mem[mem[256] + 90 len 6] > mem[mem[224] + 90 len 6] / int104(mem[mem[32 * _8 + 224]])",
+      "source": "VaultHub._totalValue: inOutDelta (DoubleRefSlotCache.Int104WithCache[2]) copied from storage, then RefSlotCache.sol:162 _cache[0].refSlot >= _cache[1].refSlot ? 0 : 1 and :121 _cache[idx].value",
+      "issue": "The compiler's copy of a 2-element array of structs from storage to memory is printed as a while with a constant trip count (61 'while idx < 2', 9 'while idx < 64' zero-initialisations), so every later use goes through two memory indirections: totalValue's result is 'int104(mem[mem[32 * _8 + 224]]) - ...' instead of the storage fields of slots 2 and 3.",
+      "rule": "A loop whose counter runs from a constant to a constant bound (here 0..2) with a constant step is exactly its unrolled body; unroll small constant trip counts, then forward the stores: _8 = stor9EB7[v][3].field_208 > stor9EB7[v][2].field_208 and the value is int104(stor9EB7[v][2 + _8].field_0).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all functions using LIDO, LIDO_LOCATOR or CONSENSUS_CONTRACT",
+      "lines": "e.g. 2079, 3420, 3700, 4008 (145 lines)",
+      "decompiled": "static call 0x0.unknownb9a03828(?) with: ...  |  static call 0x0.getSharesByPooledEth(...)",
+      "source": "VaultHub immutables LIDO, LIDO_LOCATOR, CONSENSUS_CONTRACT",
+      "issue": "solc immutables read as 0 in this pre-deployment bytecode, so the locator and Lido calls target 0x0.",
+      "rule": "none (build artifact)",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "triggerValidatorWithdrawals(address,bytes,uint64[],address)",
+      "lines": "3407-3418",
+      "decompiled": "s = 0 / while True: if s >= cd[_param3 + 4]: _5 = 0; break / require not Mask(192, 64, cd[32 * s + _param3 + 36]) / if uint64(cd[32 * s + _param3 + 36]): _5 = 1; break / s = s + 1; continue",
+      "source": "VaultHub.sol:896 for (uint256 i = 0; i < _amountsInGwei.length; i++) { if (_amountsInGwei[i] > 0) { hasPartialWithdrawals = true; break; } }",
+      "issue": "The source loop is shown as a while, but as 'while True' with its own test as the first exit; _amountsInGwei[i] is raw calldata arithmetic.",
+      "rule": "'while True: if c: (assignments); break; ...' is 'while not c: ...' followed by the assignments of that exit; cd[32 * s + p + 36] with p the offset of a uint64[] parameter is _amountsInGwei[s].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "nearly all functions",
+      "lines": "e.g. 612-615, 2833-2834, 2850-2853, 3403-3406 (171 'mem[0] =' lines); 2845, 3398 (23 lines)",
+      "decompiled": "mem[0] = _param1 / mem[0] = 0x9eb73ffa..e200 / mem[0] = _param1 / mem[32] = 0x9eb73ffa..e200  |  mem[0] = 0xe8b0..3a02 / mem[0] = 0  |  _2 = uint48(..field_352) and uint48(..field_352) != 281474976710655",
+      "source": "keccak scratch of the namespaced mappings; PausableUntil.whenResumed; VaultHub._isPendingDisconnect: disconnectInitiatedTs != DISCONNECT_NOT_INITIATED (type(uint48).max)",
+      "issue": "Dead scratch writes are printed (the first two of each four-line group are overwritten before any read, P8), and the all-ones constant 2**48 - 1 is printed in decimal.",
+      "rule": "A memory store overwritten before any read is dead; print a constant 2**k - 1 as 0xff..ff (or 2**48 - 1).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small functions and the getters were compared line by line; the functions above 200 lines (setLiabilitySharesTarget, resumeBeaconChainDeposits, forceValidatorExit, burnShares, transferAndBurnShares, triggerValidatorWithdrawals, withdraw, connectVault, rebalance, voluntaryDisconnect, disconnect, settleLidoFees, socializeBadDebt, applyVaultReport (unknown146a9bec), forceRebalance) were reviewed by structure: modifiers and custom errors, the order of external calls (checked in detail for connectVault, burnShares, triggerValidatorWithdrawals, forceValidatorExit), events, loops; no semantic problem found. Source loops: only triggerValidatorWithdrawals' for. The pack lists ValidatorConsolidationRequests._consolidationCalldatas (two nested for loops) as reached by many functions, but no reviewed function calls it and the text has no such loop, so it is not counted. Implicit loops: 61 'while idx < 2' + 9 'while idx < 64' (copies of Int104WithCache[2] to memory and zero-initialisation of the pointer array), the address[] return encoding of getRoleMembers (448), the uint64[] calldata decode and re-encode of triggerValidatorWithdrawals / forceValidatorExit (3636, 3655, 2809): P7 74. Custom errors and events missing from the database print as selectors / topic hashes (normal). Calls to the namespaced-storage getters keep their raw slots; slices such as 'mem[mem[256] + 90 len 6]' (uint48 refSlot) and 'ext_call.return_data[12 len 20]' as a call target are P18-like. via-IR allocation checks (Panic(65), 293 lines) are real code.",
+  "summary": "Complete and faithful, with the single source loop shown; the text is cluttered by constant-trip-count struct-copy loops whose results are then read through double memory indirections, and by selectors and event data stored via 'mem[mem[64]]' that are never re-identified, so 60 calls lose their function names."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "c00103",
+  "abi_functions": 104,
+  "reviewed": 104,
+  "not_reviewed": [],
+  "source_loops": 10,
+  "loops_shown": {"while": 10, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 6, "P7": 26, "P8": 12},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "flashLoan, joinPool, exitPool, uniswapV3Swap, exactInput, Pendle/Pxl/Velodrome decoders with loops (11 returns)",
+      "lines": "1106-1136, 1156-1186, 1206-1236, 742-771",
+      "decompiled": "_9 = mem[64] / ... / mem[_9 + _10 + 32] = 0 / mem[_9 + _10 + 32] = cd[32 * idx + tokens + 36] << 96 / _14 = mem[64] / mem[mem[64]] = _9 + _10 - mem[64] + 20 / ... return memory from mem[64] len _5 + ceil32(_6) - mem[64] + 64",
+      "source": "BalancerV2DecoderAndSanitizer.sol:21-36 addressesFound = abi.encodePacked(recipient); for (...) addressesFound = abi.encodePacked(addressesFound, tokens[i]);",
+      "issue": "Same as c00446 flashLoan: the temporaries _9/_14/_5 equal mem[64] but are not identified with it, so the accumulated length and the return value keep '- mem[64]' terms, and a dead zero store precedes the address store.",
+      "rule": "After '_t = mem[64]', mem[64] reads as _t until the next store to mem[64]; drop a store overwritten at the same address before any read.",
+      "verified": "reading only (same library code as c00446)"
+    }
+  ],
+  "notes": "Same decoder library as c00446 (Veda boring-vault fork): all 104 ABI functions reviewed (2 const lines returning empty bytes, the one-line decoders spot-checked, execute x2 and the Velodrome/Pendle/Pxl decoders by structure). The 10 source loops are all whiles: flashLoan (1106), exitPool (1156), joinPool (1206), OneInch uniswapV3Swap (742), UniswapV3 exactInput (1250, 'idx < path.length / 23 + 1'), the three Pendle loops of unknownf7e375e8 (1440/1459/1478), and the Pxl and VelodromeV1 route loops (unknownf41766d8 1053, unknown7123a386 1319). Implicit: the nested abi.encodePacked copies and ABI encodings (26, P7) and 4 validated decodes. No semantic difference found.",
+  "summary": "Faithful; every loop is found; as in c00446, the abi.encodePacked accumulation is obscured by free-memory-pointer temporaries and nested copy whiles."
+}

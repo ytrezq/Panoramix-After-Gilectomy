@@ -1,0 +1,47 @@
+{
+  "id": "c00257",
+  "abi_functions": 51,
+  "reviewed": 51,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 6, "P7": 6, "P8": 20, "P10": 8, "P11": 6},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "def storage; deposit, mint, withdraw, redeem, the permit variants, updateVestingSchedule, freeAssets(), totalAssets()",
+      "lines": "49-61, 668-698 (deposit)",
+      "decompiled": "def totalAssets(): if not issuanceRate: return totalAssets ... def freeAssets(): return totalAssets ... totalAssets = SafeMath.add(totalAssets, amount)",
+      "source": "uint256 public freeAssets (slot 9); function totalAssets() returns issuanceRate == 0 ? freeAssets : issuanceRate * vestingTimePassed / precision + freeAssets",
+      "issue": "Slot 9 (freeAssets) is named totalAssets after the totalAssets() getter, which returns it only when issuanceRate == 0, although the getter freeAssets() returns exactly that slot; every update then reads as if it changed the total assets.",
+      "rule": "Name a slot after a getter that returns it on every path (freeAssets()), never after one that returns it on one branch only.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "deposit, mint, withdraw, redeem, the permit variants, previewDeposit/Mint/Withdraw/Redeem, totalAssets, convertTo*",
+      "lines": "658-665, 689-696 (deposit)",
+      "decompiled": "if issuanceRate: ... if not issuanceRate or _1 <= -1 / issuanceRate: revert with Panic(18) / revert with Panic(17)",
+      "source": "totalAssets(): ((issuanceRate_ * vestingTimePassed) / precision) + freeAssets, with uint256 public immutable precision",
+      "issue": "The immutable precision reads as 0, so whenever issuanceRate is nonzero the vesting term divides by zero (Panic 18, or Panic 17 if the product overflows first); the text renders this exactly.",
+      "rule": "-",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "deposit, mint, withdraw, redeem, depositWithPermit, mintWithPermit",
+      "lines": "653-656, 676-679, 663, 711-726",
+      "decompiled": "_5 = amount / _6 = amount / _7 = amount / _9 = amount ... if not issuanceRate or _1 <= -1 / issuanceRate: ... mem[160 len 4] = 599290589 / ... while idx < 100: mem[idx + 260] = mem[idx + 160] ... call asset with: args mem[260 len 100]",
+      "source": "shares_ = previewDeposit(assets_); ERC20Helper.transferFrom(asset, msg.sender, address(this), assets_)",
+      "issue": "Four always-equal variables for shares (P10), a test of issuanceRate inside 'if issuanceRate' (P11), and the transferFrom through ERC20Helper as a constant-length copy loop and an unnamed raw-memory call with its selector in decimal (599290589 = 0x23b872dd), as in c00454.",
+      "rule": "Merge variables equal on every path; drop a test implied by the enclosing condition; a constant-length word copy is a copy line, after which the call is named from its selector.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loop in the reached source. The six whiles are the ERC20Helper call-data copies with constant bounds (100 bytes for transferFrom, 68 for transfer: P7), same as c00454. deposit checked line by line against RevenueDistributionToken (lock, previewDeposit, _mint, Transfer/Deposit/IssuanceParamsUpdated events, the transferFrom and its 'RDT:M:TRANSFER_FROM' check); the other functions follow the same pattern and were read line by line.",
+  "summary": "Faithful and loop-free; the main problem is the freeAssets slot named after the totalAssets() getter, plus the immutable precision (0) that makes the vesting term divide by zero, and the usual low-level transfer calls."
+}

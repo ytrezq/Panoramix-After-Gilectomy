@@ -1,0 +1,36 @@
+{
+  "id": "c00254",
+  "abi_functions": 24,
+  "reviewed": 24,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 14, "P6": 12, "P7": 27, "P11": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "unknown2d9dea19, unknownd1f62d1b, unknown5b232acd (the swap functions: SafeERC20.safeApprove / forceApprove via _callOptionalReturn)",
+      "lines": "472-487, 681-696, 1425-1440",
+      "decompiled": "mem[164] = swapRouter / mem[196] = call.value / mem[128] = 68 / ... mem[160 len 4] = 157198259 / idx = 0 / while idx < 68: mem[idx + 228] = mem[idx + 160]; idx = idx + 32 / mem[296] = 0 / call stor304 with: args mem[228 len 68]",
+      "source": "SafeERC20._callOptionalReturn(token, abi.encodeCall(token.approve, (spender, value))): the 68-byte call data is copied into the call buffer",
+      "issue": "A copy of a constant 68 bytes is left as a 3-iteration while loop, so the call data is not tracked through it and the approve call prints with raw memory arguments (selector 0x095ea7b3 shown in decimal as 157198259 a few lines above).",
+      "rule": "A loop 'idx = 0; while idx < C: mem[d + idx] = mem[s + idx]; idx += 32' with constant C and non-overlapping ranges is the copy line mem[d len C] = mem[s len C]; with the source words known, the call args become approve(swapRouter, call.value).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setPath(address,address,address[],uint24[],address) (unknownbd154e31)",
+      "lines": "375-405",
+      "decompiled": "while s < _36: if s >= mem[32 * cd[_param3 + 4] + 160]: revert with Panic(50) / if s >= mem[128]: revert with Panic(50) / ... _42 = mem[64] ... _46 = mem[64] / mem[mem[64]] = _42 - mem[64] + 23 ... while idx < _47: ... while idx < _53: ... mem[mem[64]] = _42 + _47 + _53 - mem[64] + 55",
+      "source": "MocSwapperV3MultiHop.sol:245-247 for (uint256 i = 0; i < intermediateTokens_.length; i++) path = bytes.concat(path, abi.encodePacked(fees_[i], intermediateTokens_[i]));",
+      "issue": "The loop is found, but its body keeps a bounds check implied by its own condition (s < mem[128]), two bytes.concat copies as nested whiles, and lengths containing '- mem[64]' because the free-memory-pointer temporaries are not identified with mem[64].",
+      "rule": "Drop 'if i >= n: revert' inside 'while i < n' (n unchanged); after '_t = mem[64]', mem[64] reads as _t until the next store to it; word-copy loops of known length are copy lines.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 24 ABI functions reviewed (governance/pause/upgrade functions and getters read; setPath read in full: COINBASE mapped to the wrapper, encodedPaths written with copy lines and clearing; the four swap functions by structure). The only source loop (setPath's intermediate-token loop) is a while. Implicit loops: validated ABI decodes of address[]/uint24[] (322, 339), the bytes.concat/abi.encodePacked copies of the swap paths and call buffers, and three fixed 68-byte copies (P7).",
+  "summary": "Faithful; the single source loop is found, but bytes.concat copies and fixed-size call-buffer copies stay as whiles, which also hides the approve call's arguments."
+}

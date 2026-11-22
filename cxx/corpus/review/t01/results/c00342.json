@@ -1,0 +1,25 @@
+{
+  "id": "c00342",
+  "abi_functions": 6,
+  "reviewed": 6,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "create(), delegates(address), isDelegate(address)",
+      "lines": "13, 18, 33, 39",
+      "decompiled": "def delegates(address delegator): ... return isDelegate[delegator]   |   isDelegate[caller] = create.new_address",
+      "source": "VoteDelegateFactory.sol:24 mapping(address usr => address voteDelegate) public delegates; isDelegate(usr) returns delegates[usr] != address(0)",
+      "issue": "The mapping of delegate contracts is named isDelegate, after the function that returns bool(delegates[usr]), instead of after its own getter delegates(address), which returns it unchanged; 'isDelegate[caller] = create.new_address' reads as storing an address in a boolean map.",
+      "rule": "Name a storage variable after a getter that returns it unchanged; prefer that getter over one that returns an expression of it (bool(x), x != 0).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loops. chief and polling are immutables (const 0), which is why the VoteDelegate constructor arguments print as Bytes(64, 0), caller (artifact, not a finding). create's check, the creation, both mapping writes and the CreateVoteDelegate event match the source.",
+  "summary": "Tiny, faithful factory text whose only issue is a misleading storage name taken from a bool getter."
+}

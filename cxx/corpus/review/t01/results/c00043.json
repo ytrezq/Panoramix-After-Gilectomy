@@ -1,0 +1,61 @@
+{
+ "id": "c00043",
+ "abi_functions": 44,
+ "reviewed": 44,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P1": 1,
+  "P2": 193,
+  "P6": 37,
+  "P7": 74,
+  "P8": 200,
+  "P12": 1500,
+  "P14": 200
+ },
+ "findings": [
+  {
+   "kind": "coverage",
+   "severity": "medium",
+   "function": "executeActionDirect(bytes)",
+   "lines": "4270-4782",
+   "decompiled": "call address(_6896) with: args mem[mem[64] len _6989 + _7000 - mem[64]] / if return_data.size: ... / ...  # Decompilation aborted (8 times, last at top level 4782)",
+   "source": "McdRepayComposite.sol:82-91 and :93-170 (_repay: _dfsSell, _takeFee, getAllDebt, DAI_ADDR.approveToken, IDaiJoin.join, vat.dai, frob, _withdrawColl for flash loans, ratio checks); logger.logActionDirectEvent(\"McdRepayComposite\", logData)",
+   "issue": "No path of the function completes: the 8 aborts sit in the branches of the DFS sell (wrapper / aggregator calls), and every non-reverting path ends in one, so the text has no DaiJoin.join, no payback frob, no flash-loan collateral withdrawal, no ratio check and no logActionDirectEvent call at all.",
+   "rule": "Coverage limit of the decompiler (path budget); not a rewrite rule.",
+   "verified": "reading only (no `stop`/`return` and no 0x9759a6ac... DaiJoin call in lines 2261-4783)"
+  },
+  {
+   "kind": "coverage",
+   "severity": "medium",
+   "function": "executeAction(bytes,bytes32[],uint8[],bytes32[])",
+   "lines": "6343-8140",
+   "decompiled": "log ActionEvent(string logName, bytes data): ... / return _5871 / ... static call 0x35d1b3f3d7966a1dfe207aa4514c12a259a0492b with: ... /  ...  # Decompilation aborted",
+   "source": "McdRepayComposite.sol:150-165 if (_repayParams.gasUsed != 0) { ratioAfter = getRatio(...); RatioNotHigherThanBefore / TargetRatioMiss }; emit ActionEvent; return bytes32(paybackAmount)",
+   "issue": "Only one path reaches `log ActionEvent` and the return (8092-8093). The automation path (gasUsed != 0) aborts inside the second getRatio after vat.urns, losing the RatioNotHigherThanBefore and TargetRatioMiss reverts, the event and the return; 10 more aborts end branches of the DFS sell.",
+   "rule": "Coverage limit of the decompiler (path budget); not a rewrite rule.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "withdrawStuckFunds(address,address,uint256), executeAction, executeActionDirect, calcGasCost",
+   "lines": "438",
+   "decompiled": "mem[ceil32(return_data.size) + 160 len 4] = 2835717307",
+   "source": "AdminAuth.sol:41 IERC20(_token).safeTransfer(_receiver, _amount) (abi.encodeWithSelector(token.transfer.selector, ...))",
+   "issue": "A 4-byte selector written into memory is printed in decimal (2835717307 = 0xa9059cbb), in 38 lines here (47 in c00591).",
+   "rule": "Print a constant stored as a 4-byte memory slice (`mem[p len 4] = c`) in hex, like the other selectors.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "DeFi Saver McdRepayComposite (solc 0.8.24, no via-IR). No explicit loop is reached: DSMath.rpow is unused, TxSaverBytesTransientStorage and TokenGroupRegistry run in other contracts (the pack's 'Reaches setBytesTransiently' for getPriceInUSD/getAddrForChainlinkOracle is a pack-tool artifact; the text has no TSTORE/TLOAD). All 78 whiles are implicit: 74 forward word-copy loops of `bytes` (`while idx < n: mem[d + idx] = mem[s + idx]; idx += 32` then `mem[d + n] = 0`, P7) and 4 ABI decode/encode loops in parseInputs/parseCompositeParams/executeAction. The two main functions (executeAction 3362 lines, executeActionDirect 2523) were reviewed by structure; their calls are mostly raw memory (P2, same free-pointer identification failure as c00026/c00591). getChainlinkPriceInUSD is kept as a recursive internal function (internal_0x12dc), correctly (fallback through the ETH price, wmul). Small functions (price helpers, getCdpInfo, getRatio, withdrawStuckFunds with the 2300 stipend `gas 2300 * (not _amount)`, getAddrForChainlinkOracle, constants) read correctly. P12 (sell/fee continuations duplicated into each branch) is an estimate.",
+ "summary": "Small helpers are faithful and readable, but the composite action itself is badly covered: executeActionDirect never reaches the DAI payback or the logger (8 aborts), executeAction loses its automation path, and the rest is obscured by raw-memory calls (P2) and 74 unconverted bytes-copy loops."
+}

@@ -1,0 +1,61 @@
+{
+ "id": "c00517",
+ "abi_functions": 12,
+ "reviewed": 12,
+ "not_reviewed": [],
+ "source_loops": 4,
+ "loops_shown": {
+  "while": 4,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 17,
+  "P4": 28,
+  "P7": 10,
+  "P8": 60,
+  "P9": 30,
+  "P12": 15,
+  "P14": 300
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "operate(uint256,int256,int256,address), liquidate(uint256,uint256,address,bool)",
+   "lines": "3772-3782, 3790-3793, 1649-1651",
+   "decompiled": "_3790 = mem[64]; mem[mem[64]] = 32; mem[64] = mem[64] + 64 / mem[_3786 + 64] = 0xad967e15..; ... while idx < _3795: mem[_3786 + idx + 292] = mem[_3790 + idx + 32] ... / call 0x0 with: args mem[mem[64] len _3786 + ceil32(_3795) - mem[64] + 292]",
+   "source": "operate: LIQUIDITY.operate(token, supplyAmt, borrowAmt, withdrawTo, borrowTo, abi.encode(msg.sender)) (main.sol, the liquidity layer calls)",
+   "issue": "Each Liquidity operate call is built at mem[64] right after 'mem[64] = mem[64] + 64', yet the call reads 'mem[mem[64] len ...]' with mem[64] unresolved, and the bytes argument is copied by a word loop, so the six calls show neither function nor arguments.",
+   "rule": "Fold mem[64] to the value just stored to it (no intervening store to slot 64) and turn the word-wise copy of a bytes buffer into a copy line; the buffer then decodes as operate(...) with its bytes argument.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "liquidate, operate",
+   "lines": "994, 1026, 1277, 1301, 1314, 1608",
+   "decompiled": "stor4[concat(mem[_235 + 64])] = mem[_235 + 128] / stor5[concat(mem[ceil32(_3) + ceil32(_5) + 480])] = mem[ceil32(_3) + ceil32(_5) + 768] << 56 | 16 * Mask(30, 22, _177) | ...",
+   "source": "liquidate's LiquidateMemoryVars / operate's OperateMemoryVars structs (tick, tickId, branch ids held in memory) used as mapping keys (_tickData[tick], _branchData[branchId], ...)",
+   "issue": "The memory structs that hold the current tick/branch are never turned into variables, so mapping keys are one-element concats of memory words (P4) and values are memory slices at pointer-arithmetic addresses (P14).",
+   "rule": "Promote memory words written at fixed offsets of a fresh allocation and only read back as scalars to SSA variables; a mapping key read from such a word is then the variable (m[k]) rather than concat(mem[..]).",
+   "verified": "reading only"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "LIQUIDITY(), VAULT_FACTORY(), VAULT_ID(), constantsView() and all Liquidity calls",
+   "lines": "1649, 3758",
+   "decompiled": "call 0x0 with: ...",
+   "source": "ConstantVariables immutables (LIQUIDITY, VAULT_FACTORY, VAULT_ID, supply/borrow tokens, slots)",
+   "issue": "solc immutables read as 0 in pre-deployment code; Liquidity calls go to address 0. Not a decompiler error.",
+   "rule": "none (corpus artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "4 source loops, all whiles: Helpers.fetchLatestPosition:184 'while ((branchData_ & 3) == 2)' shown as 'while t % 4 == 2' (fetchLatestPosition and operate), liquidate:888 and its inner :946 'while (true)' (1006, 1027, with their breaks/continues), Helpers._fetchNextTopTick:299 'while (true)' (operate 1989). The other whiles are implicit: the word-loop copy of the abi.encode(msg.sender) bytes argument for the Liquidity calls (P7, 7 in operate, 1 in liquidate) and the event encoding. liquidate (1390 lines) and operate (2340 lines) reviewed by structure: tick/branch walks, packed storage updates (Fluid packs its storage by hand in the source, so whole-slot shift/mask writes are faithful, not P15), Liquidity calls, custom-error reverts (0x60121cca with error ids), events. No semantic error found.",
+ "summary": "Faithful, with all four source loops shown as whiles; readability is limited by the hand-packed storage arithmetic (as in the source), memory-struct locals used as mapping keys, and Liquidity calls that lose their function and arguments."
+}

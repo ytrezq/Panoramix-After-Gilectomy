@@ -1,0 +1,36 @@
+{
+  "id": "c00408",
+  "abi_functions": 44,
+  "reviewed": 44,
+  "not_reviewed": [],
+  "source_loops": 6,
+  "loops_shown": {"while": 6, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 11, "P4": 6, "P6": 6, "P8": 200, "P14": 80, "P18": 40},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "queueBatch, queueAddChain, queueAddRemotePool, queueRemoveRemotePool, queueSetRemoteToken, queueApplyAllowListUpdates (all via _queueAction)",
+      "lines": "1941-1947 (queueBatch)",
+      "decompiled": "mem[t + ceil32(_215) + 32] = 0x761896ce...; _254 = t + ceil32(_215) + 36 / mem[_254] = _12; mem[_254 + 32] = 0; revert with memory ...",
+      "source": "ConfigTimelockBatchQueue.sol:100-103 address destination = _configDestination(action_); if (destination == address(0)) revert IConfigTimelockBatchQueue_ConfigDestinationZero(actionId_, index_);",
+      "issue": "The destination is an immutable that reads as 0, so after validating the first sub-action every queue function reverts with ConfigDestinationZero(actionId, 0); the key loop (:122), _queuedConfigKeyCount (:265), both _queueAction loops (:206, :226), the storage of the action and its events are dead in this bytecode (not counted as source loops).",
+      "rule": "None (not a decompiler error).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "cancelQueuedAction, executeQueuedAction",
+      "lines": "829-842, 862-868, 888-891, 2053-2056",
+      "decompiled": "while 2 * _110 > idx: address(stor[idx + sha3(sha3(_param1, 3) + 2)]) = 0; ... idx = idx + 2 / mem[_183 + 64] = stor5[_param1][s][2 * t] / stor5[_param1][s][idx] = 0; stor5[_param1][s][idx + 1] = 0",
+      "source": "delete of QueuedAction.actions (array of 2-slot BatchAction structs with a bytes member) and of QueuedConfigState[] (2-slot structs)",
+      "issue": "Arrays of 2-slot structs are indexed by raw slot (2 * t, idx + 1) instead of element and member, and the actions array of a mapping element is addressed as stor[idx + sha3(sha3(_param1, 3) + 2)].",
+      "rule": "When an array's index is always scaled by the element size k (k * i + c, c < k), print element i, member c (stor5[k1][k2][i].field_c); sha3(sha3(k, m) + c) is the data of the array member at offset c of mapping m's element k.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Built without the optimizer, so dead 'mem[0] = ..; mem[32] = ..' key writes are frequent (P8). Live source loops (6): executeQueuedAction :147 ('while s < t' 2000), _executeSubAction :183, _remotePoolsStateHash :842 and _allowListStateHash :883 (2319 'v = v ^ sha3(...)', 2480), _releaseConfigKeys :231/:235 (845/860 in cancelQueuedAction, 2909/2921 in executeQueuedAction) - all while. The loops dead because of the immutable destination (finding 1) are not counted. Implicit loops: calldata/return-data array decodes with per-element checks, address[] encodings (masked slices), delete loops of struct arrays (readable whiles), offset tables. queueBatch / executeQueuedAction (600 and 1,050 pack lines) reviewed by structure. No semantic error found.",
+  "summary": "Complete and faithful; the live source loops are while loops. In this bytecode an immutable destination of 0 makes every queue function revert after validating the first sub-action, so most of the queueing logic is (correctly) absent; the rest is verbose unoptimized code with raw struct-array slot indexing."
+}

@@ -1,0 +1,124 @@
+{
+  "id": "c00003",
+  "abi_functions": 43,
+  "reviewed": 43,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {"while": 8, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 293, "P3": 2, "P4": 88, "P6": 135, "P7": 1, "P8": 400, "P10": 1, "P11": 68, "P12": 70, "P14": 100, "P15": 3, "P18": 56},
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "getPrice, getPriceDetailed, _getPriceImplNoWrite, getPriceRawForMode, getPricesRawForMode, getConfiguredTokenOracles",
+      "lines": "15643 (getPrice), 20073 (getPriceDetailed), 11205 (_getPriceImplNoWrite), 7943 (getPriceRawForMode), 8270-9221 (6 markers, getPricesRawForMode), 25035 and 26012 (getConfiguredTokenOracles)",
+      "decompiled": "...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)  (13 markers; 4 of them at indent 2, i.e. the whole join after the source-read tree is lost)",
+      "source": "main.sol:1588 _getPriceImpl -> _getResolvedPrice/_getPegResolvedPrice/_getPriceWithAlt/_readComposedPrice/_applyLegCap/_applyOverallCap; main.sol:1520 _priceRawForMode -> _readComposedPriceRaw; main.sol:1689 _buildConfiguredTokenOracle -> _readSourcesWithRates",
+      "issue": "The four price getters lose everything after the deeply nested per-leg source reads (later legs' composition (price*rate)/1e27, the alt/fallback resolution, deviation and overall caps, and the return on those paths); many paths end with a bare 'if ext_call.success: mem[64] = ...; require return_data.size >= 32' and then the abort. getPricesRawForMode and getConfiguredTokenOracles lose parts of their source loop body (the _priceRawForMode / _buildConfiguredTokenOracle reads of the additional and alt buckets).",
+      "rule": "Not a rewrite issue: the path explosion comes from inlining 3 legs x 4 source kinds x try/catch fallbacks per bucket; sharing the continuation of identical sub-trees (the leg read is the same code for each leg, differing only in its storage slot) would let the search finish.",
+      "verified": "reading only (markers and the lost tails located in the text)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getPrice, getPriceDetailed, _getPriceImplNoWrite, getPriceRawForMode, getPricesRawForMode, getConfiguredTokenOracles",
+      "lines": "e.g. 9356-9375 (_getPriceImplNoWrite); 59 loops in all: 'while u > 1' x51, 'while v > 1' x8",
+      "decompiled": "if uint8(cfg.field_160): if uint8(cfg.field_160) >= 78 and uint8(cfg.field_160) >= 32: s = 10; t = 1; u = uint8(..); while u > 1: if s > -1 / s: revert Panic(17); if not u % 2: _928 = t else: _928 = s * t; s = s * s; t = _928; u = u / 2 ... if t > -1 / s: revert Panic(17); _1065 = s * t  else: _1065 = 10**uint8(cfg.field_160)",
+      "source": "main.sol:1001 _applyMultiplier: return rate_ * uint256(10 ** uint8(multiplier_));",
+      "issue": "The checked power 10**e is printed as the compiler's square-and-multiply helper (59 while loops, more than half of the text's 94), with the direct 10**e only in the else arm. Since 10^78 > 2^256, the loop arm always ends in Panic(17); the guard also keeps the redundant conjunct 'e >= 32'.",
+      "rule": "The block 'if e >= T: (s,t,u) = (b,1,e); while u > 1: {require s <= MAX / s; if u % 2: t = t*s; s = s*s; u = u >> 1}; require t <= MAX / s; r = s*t else r = b**e' computes b**e and reverts with Panic(17) exactly when b**e > 2^256-1: print it as a checked 'r = b**e'. For a constant b with b^T > 2^256-1 the loop arm is exactly 'revert with Panic(17)'. 'e >= 78 and e >= 32' is 'e >= 78'.",
+      "verified": "reading only (traced the helper for e = 78: the final check t = 10^14 > MAX/10^64 panics)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "every governance-gated function (25 lines), setPausedState",
+      "lines": "157, 340, 465, 508, 682, 752, 1392, 1550, 210 ...; 255-258",
+      "decompiled": "_2 = caller and ext_call.return_data[0] / if address(_2) != caller: revert with 0xf2a91419, 310002   |   _8 = _param3 and 2",
+      "source": "bootstrapBase.sol:48 _governanceAddrWithBootstrap: if (msg.sender == BOOTSTRAP_ADMIN) return BOOTSTRAP_ADMIN; return realGov_;  (BOOTSTRAP_ADMIN immutable reads 0); main.sol:253 pauseLiquidate_ ? PAUSED_LIQUIDATE : 0",
+      "issue": "Python's value-returning 'and' is used as a number: 'caller and X' means 'X if caller != 0 else 0', and '_param3 and 2' means '2 if _param3 else 0'. A reader takes 'and' as boolean, which makes the governance check look wrong.",
+      "rule": "When the result of 'a and b' is used as a non-boolean value, print it as a conditional ('b if a else 0', or 'c * a' for a bool a and constant c); also '(a and b) != a' is 'a != 0 and b != a', so the check reads 'if caller and address(X) != caller'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "isTokenConfigGovernanceApproved, getTokenConfig, enableFallback, removeAdditionalAltSourceConfig, removeAdditionalSourceConfig, _getPriceImplNoWrite and the price getters (81 lines)",
+      "lines": "74, 50, 478, 689, 1557, 1598, 9282 ...",
+      "decompiled": "return bool(8 * uint1(tokenConfig[_param1].field_235))  |  if 2 * uint1(tokenConfig[_param1].field_209): revert ...  |  if not 4 * uint1(tokenConfig[..].field_234)",
+      "source": "main.sol:1420 flagsBitmap & FLAG_GOVERNANCE_APPROVED != 0; main.sol:1604 pauseState_ & PAUSED_LIQUIDATE != 0",
+      "issue": "A single-bit flag test is printed as a multiplication of the bit by its weight.",
+      "rule": "In a boolean context (if, require, bool(), not) c * uint1(x) with a constant c != 0 is uint1(x) (no overflow is possible); print 'if tokenConfig[..].field_209'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "price getters (136 lines)",
+      "lines": "e.g. 9352-9353",
+      "decompiled": "_457 = 1000000000 * 10**18  |  SafeMath.div(1000000000 * 10**18, 10**uint8(-int8(..)))",
+      "source": "main.sol:1083 rate_ = ORACLE_PRECISION (1e27)",
+      "issue": "The constant 10**27 is printed as an unfolded product.",
+      "rule": "Fold products of constants; print a power of ten as 10**k.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "sequencerL2Data, getPrice*, getPriceView, getPricesRawForMode, getConfiguredTokenOracles",
+      "lines": "1129-1130, 11246-11247 (296 range checks); 26023-26107, 9244-9256 (56 field reads)",
+      "decompiled": "require mem[_32] == mem[_32 + 22 len 10]  |  mem[u] = Bytes(12, 0), mem[mem[s] + 12 len 20]  |  mem[t] = Bytes(31, 0), mem[s + 31 len 1]",
+      "source": "abi.decode of uint80 roundId/answeredInRound from latestRoundData/getRoundData; abi.encode of the ConfiguredTokenOracle[] and uint8[] return values",
+      "issue": "Range checks and narrow fields are printed as byte slices of a memory word instead of uint80(..), address(..), uint8(..), as c00600 also reports.",
+      "rule": "x[a + 32 - n len n] is Mask(8n, 0, x[a]); 'Bytes(32-n, 0), x[a + 32 - n len n]' is that same value as a word: print 'mem[a] == uint80(mem[a])', 'address(mem[s])', 'uint8(mem[s])'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "removeConfig()",
+      "lines": "769-779",
+      "decompiled": "uint240(stor1[t][s].field_0) = uint240(stor1[t][len-1].field_0) / uint240(stor1[t][s].field_0) = _54 / uint8(..field_240) = bool(..) / stor1[t][s].field_248 = _53 >> 248 / uint240(stor1[t][s].field_0) = _54 / uint8(..field_240) = bool(_55) / stor1[t][s].field_248 = bool(stor1[t][_52 - 1].field_248)",
+      "source": "main.sol:826 arr_[i] = arr_[arr_.length - 1];",
+      "issue": "A one-slot struct copy is printed as 7 field writes (field_0 three times, field_240 and field_248 twice), with temporaries _52.._55.",
+      "rule": "A field write followed by another write of the same field with no read of those bits in between is dead (field-granular dead-store elimination is exact even when the indices may alias, since the intervening reads touch other bits); when every field of slot A is then written from the same field of slot B, print 'stor1[t][s] = stor1[t][len - 1]'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "sequencerL2Data, getPrice, getPriceDetailed, getPriceView, getPriceDetailedView, getPriceRawForMode, getPricesRawForMode (15 do-while loops)",
+      "lines": "1093-1135, 1151-1178, 1192-1218, 11227-11264 ...",
+      "decompiled": "s = ext_call.return_data[64] / t = ext_call.return_data[32] ... while True: ... if _68: s = mem[_32 + 64]; t = mem[_32 + 32]; u = mem[_32]; ... continue",
+      "source": "sequencerL2.sol:88 and :115 do { (roundId_, answer_, startedAt_, , ) = getRoundData(roundId_ - 1); ... } while (...)",
+      "issue": "The loops are right, but each carries two variables s and t that are assigned at entry and on every iteration and never read.",
+      "rule": "Remove loop-carried variables (and their initialisations) that no expression reads: liveness over the loop's phi nodes.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getPriceDetailedViewRaw, getPriceDetailedView, getPriceView",
+      "lines": "273-280; 1050; 909",
+      "decompiled": "static call this.address.unknown76c8121a(?) with: args Bytes(28, uint128(_param1 >> 32)), Bytes(4, uint32(_param1)), _param2, _param3, _param4   |   mem[_93 + 32 len 4] = 1992823322",
+      "source": "main.sol:1647 address(this).staticcall(abi.encodeCall(this._getPriceImplNoWrite, (token_, emode_, isOperate_, isCollateral_)))",
+      "issue": "The address argument is split in two slices because the 4-byte selector was stored over the word before it; the selector itself is printed in decimal elsewhere.",
+      "rule": "Bytes(28, x >> 32) followed by Bytes(4, uint32(x)) is the 32-byte word x: merge adjacent slices of the same word. Print a 4-byte value stored as a selector in hex (0x76c8121a).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all",
+      "lines": "e.g. 134, 151, 575, 1078, 167",
+      "decompiled": "static call 0x0.unknownb5c736e4(?) ... / if caller: revert with 0xf2a91419, 310002 (multicall) / static call 0x0.latestRoundData() / if not this.address: revert 'Function must be called through delegatecall' / return 0, 2700, ... (sequencerL2Data)",
+      "source": "immutables LIQUIDITY, BOOTSTRAP_ADMIN, _SEQUENCER_ORACLE, UUPS __self",
+      "issue": "solc immutables read as 0 in the pre-deployment runtime code.",
+      "rule": "none (not a decompiler error)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Very large contract (36 KB, 26118 lines). Reviewed in detail: all small/medium functions (configsMap, disable/enable*, isEmodeValid, isGuardian, isTokenConfigGovernanceApproved, getTokenConfig, multicall, proxiableUUID, registerTransientOracleKey, remove* (5), sequencerL2Data, setGuardian, setTokenConfigGovernanceApproved, setPausedState, setTokenType, upgradeTo, getPriceDetailedView, getPriceDetailedViewRaw). Reviewed by structure (control flow, calls, loops, writes, events, aborts): getPrice, getPriceDetailed, _getPriceImplNoWrite, getPriceRawForMode, getPricesRawForMode, getConfiguredTokenOracles (each 1,000-6,000 lines), setSourceConfig; setAltSourceConfig, setAdditionalSourceConfig, setAdditionalAltSourceConfig same shape as setSourceConfig; getPriceView same as getPriceDetailedView minus the metadata; setPriceMode, setOverallCap, setSourceCapMode, upgradeToAndCall only skimmed. Loops: the 8 source loops are multicall's for, _tokenHasEmodeInConfigsMap (while True search loop, isEmodeValid), _revertIfTokenKeysBlockAltRemoval (inlined 7 times), removeConfig's swap-and-pop for, getPricesRawForMode's for and getConfiguredTokenOracles' for (bodies partly aborted), and the two do-while loops of sequencerL2.sol (15 inlined copies as 'while True'). The other 70 whiles are implicit: 59 checked-exp helpers (finding 2), 2 rotated zero-inits of new T[](n) (P3), 1 storage->memory ConfigMap[] copy, 4 return encodings (one plain uint256[] word copy left as a while, P7). P2: 293 'args mem[..]' lines (88 calls without a function name, e.g. 'static call _param3 with: args mem[mem[64] len _45 + ceil32(return_data.size) - mem[64] + 4]' right after 'mem[64] = ceil32(return_data.size) + mem[64]'), plus 18 logs whose data is 'mem[mem[64] len _47 - mem[64] + 64]' and 44 'revert with memory' of custom errors, all from the unknown free-memory pointer (rule as in c00600). P4: the keccak key of _keyHash inside the loops is 'stor0[concat(mem[0])]' with mem[0] = sha3(mem[_48 + 32 len mem[_48]]) because 'mem[mem[64]] = _48 - mem[64] + 128' is not folded to 128 although _48 = mem[64]; with a constant base the same key prints as stor0[sha3(_param1, _param2, _2, _3)]. P11: 58 redundant 'e >= 32' conjuncts plus Panic(50)/Panic(49) checks implied by the loop condition (multicall 628, removeConfig 767 and 780, getPricesRawForMode 8079-8086). P12: tails duplicated after the two-exit _checkAuth (enableDeviationCheck 345-375, enableFallback 470-492, registerTransientOracleKey 211-224) and after 'if flag: removeAlt..()' (removeSourceConfig, removeAdditionalSourceConfig, setTokenType). P15: transient[0] = _param1 | Mask(96, 160, transient[0]) (_tToken, 2 lines) and setPausedState's whole-slot write of pauseState. Zero-fill of new uint256[](n) is printed as 'mem[a len 32n] = call.data[calldata.size len 32n]' (3 lines; a calldatacopy past the end is zeros, could print '= 0'). Semantics checked on the reviewed functions: auth, reverts (custom error codes), storage writes (incl. _clearSources' 208/184/184-bit clears) and events match the source.",
+  "summary": "Faithful where it finishes, but the four price getters and two batch views are cut by 13 aborts, and the text is dominated by unknown-free-memory-pointer artifacts (293 P2 lines, raw-memory logs and keys) and by 59 checked-exponentiation helper loops that should read as 10**e."
+}

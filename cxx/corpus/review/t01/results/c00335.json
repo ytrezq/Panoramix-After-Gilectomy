@@ -1,0 +1,47 @@
+{
+ "id": "c00335",
+ "abi_functions": 17,
+ "reviewed": 17,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P3": 1,
+  "P7": 1,
+  "P11": 3,
+  "P12": 1
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "pause(address), unknown338d93fc(address,address) (setPauser-style registry update)",
+   "lines": "141-144, 186-189",
+   "decompiled": "if SafeMath.sub(stor5.length, 1) >= stor5.length: revert with Panic(50) / ... / if not stor5.length: revert with Panic(49)",
+   "source": "the swap-and-pop removal from the pausables array: arr[idx - 1] = arr[arr.length - 1]; arr.pop()",
+   "issue": "After SafeMath.sub(stor5.length, 1) has succeeded the length is at least 1, so the Panic(50) test on 'length - 1' and the Panic(49) pop test are dead but printed.",
+   "rule": "A checked 'n - 1' that did not revert implies n >= 1: fold 'n - 1 >= n' and 'not n' to false afterwards when n is unchanged in between.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "unknown338d93fc and the other admin functions",
+   "lines": "125-126",
+   "decompiled": "if caller: revert with SenderNotAdmin()",
+   "source": "CircuitBreaker immutable admin",
+   "issue": "The immutable admin reads as 0, so the admin check prints as 'if caller: revert'. Not a decompiler error.",
+   "rule": "none (corpus artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Small contract (17 ABI functions), read line by line. No explicit loop in the source; the two whiles are the storage-to-memory copy of the pausables address[] (rotated, first element peeled: P3) and its ABI encoding (P7) in the list getter. pause() matches the source: the transient reentrancy lock, the pauser and heartbeat checks, the registry removal, pauseFor(pauseDuration), the isPaused() confirmation, events and the heartbeat refresh. No semantic error found.",
+ "summary": "Small, faithful and readable; only dead bounds checks after a checked decrement and the immutable admin artifact."
+}

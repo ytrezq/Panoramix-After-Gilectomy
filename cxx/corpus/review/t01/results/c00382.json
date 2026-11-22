@@ -1,0 +1,25 @@
+{
+  "id": "c00382",
+  "abi_functions": 9,
+  "reviewed": 9,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P15": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "wallet(), close()",
+      "lines": "6, 11, 49",
+      "decompiled": "state is uint8 at storage 2 offset 160 / def wallet(): return address(stor[2]) / call address(stor[2]) with: value eth.balance(this.address) wei, gas 2300 * (not eth.balance(this.address))",
+      "source": "RefundVault.sol: address public wallet; State public state; (packed in slot 2); close(): wallet.transfer(address(this).balance);",
+      "issue": "def storage names the enum state packed in slot 2 but not wallet at offset 0, although wallet() returns it, so the transfer in close() targets address(stor[2]) (P15).",
+      "rule": "Name every packed field that a getter returns (wallet is address at storage 2), and print masked reads of it by that name.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "solc 0.4.26, no loops. All functions match: onlyOwner requires, enum range asserts (assert state <= 2, invalid opcode in 0.4), deposit (SafeMath.add with assert), enableRefunds/close state transitions and events, close's wallet.transfer and refund's investor.transfer (gas 2300 * (not value), as solc's transfer emits), transferOwnership.",
+  "summary": "Small and faithful; the only defect is the unnamed packed wallet field."
+}

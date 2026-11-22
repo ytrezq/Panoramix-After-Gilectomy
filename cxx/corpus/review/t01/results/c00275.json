@@ -1,0 +1,83 @@
+{
+ "id": "c00275",
+ "abi_functions": 30,
+ "reviewed": 30,
+ "not_reviewed": [],
+ "source_loops": 6,
+ "loops_shown": {
+  "while": 6,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 54,
+  "P6": 1,
+  "P7": 14,
+  "P8": 14,
+  "P9": 8,
+  "P11": 16,
+  "P12": 11
+ },
+ "findings": [
+  {
+   "kind": "loop",
+   "severity": "medium",
+   "function": "aggregateValues(uint256[]), updatePrice(bytes)",
+   "lines": "156-176, 303-366",
+   "decompiled": "s = 160\nwhile True:\n    if s >= 32 * cd[_param1 + 4] + 160:\n        if mem[128] % 2: ... return _20\n    idx = 160\n    while idx < s: ...\n    s = s + 32",
+   "source": "NumericArrayLib.sol:36-53 for { let arrIPtr := valuesPtr } lt(arrIPtr, endPtr) {...}; pickMedian 22-28; RedstoneConsumerBase.sol:298-306 for (dataFeedIndex < valuesForDataFeeds.length) then RedstonePriceFeed.sol:189-194",
+   "issue": "The outer sort loop of aggregateValues and the _getAggregatedValues loop of updatePrice print as while True with the whole rest of the function (median and return; the price check, SafeCast, lastPrice write, UpdatePrice event and stop) nested inside the exit test. The same sort loop inlined in updatePrice prints as a plain while idx < end, because its successor does not end the function.",
+   "rule": "When a loop's exit edge leads to code that never re-enters the loop, print the loop as while not exit_test: and place that code after it, whether or not it ends in return/stop/revert.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "updatePrice(bytes)",
+   "lines": "268-292, 311-327, 380-407",
+   "decompiled": "_30 = mem[64]\nmem[mem[64]] = 0xe7764c9e00000000...\nrevert with memory\n  from mem[64]\n   len _30 - mem[64] + 4\n...\nlog UpdatePrice(uint256 newPrice=mem[mem[64] len _90 - mem[64] + 32])\nsigner = ecrecover(mem[mem[64] len _111 - mem[64] + 160])\n_114 = mem[mem[64] - 32]\nif mem[mem[64] - 20 len 20]: ...",
+   "source": "CalldataExtractor.sol:78-96, RedstonePriceFeed.sol:189-193, SignatureLib.sol:25, RedstonePriceFeed.sol:204-217",
+   "issue": "After the first allocation (the abi.decode copy) the free-memory pointer is not trusted, so the ten custom-error reverts, the UpdatePrice event and the ecrecover input and output stay as raw memory around mem[64] (len _30 - mem[64] + 4 is just 4), and the recovered address is read back as mem[mem[64] - 32] while the unused name signer goes to the success flag. The same marker and size checks print as plain revert with 0xe7764c9e in extractTimestampsAndAssertAllAreEqual, which allocates nothing.",
+   "rule": "mem[0x40] starts at 0x80 and only grows by sizes below 2^64, so a store at mem[0x40] + k (k >= 0) never writes slot 0x40: keep the pointer's value across such stores, which folds _x - mem[64] to 0 and lets reverts, logs and precompile calls print their data.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "aggregateValues(uint256[]), updatePrice(bytes)",
+   "lines": "158-167, 353-362, 199, 370",
+   "decompiled": "if mem[128] / 2 >= mem[128]: revert with Panic(50)\n_20 = mem[16 * Mask(251, 1, mem[128]) + 160]\n...\nif uint32(cd[..]) + 32 != (uint24(cd[..]) * uint32(cd[..]) + 32 * uint24(cd[..])) / uint24(cd[..]) and uint24(cd[..]): revert with Panic(17)",
+   "source": "NumericArrayLib.sol:22-27 arr[middleIndex], arr[middleIndex - 1]; CalldataExtractor.sol:62-65 dataPointsCount * (DATA_POINT_SYMBOL_BS + eachDataPointValueByteSize)",
+   "issue": "arr[n / 2] prints as mem[16 * Mask(251, 1, n) + 160], next to bounds checks that n >= 1 already implies (n / 2 < n, n / 2 - 1 < n for even n); the overflow check of uint24 * (uint32 + 32), which cannot overflow, is kept in distributed form.",
+   "rule": "16 * Mask(251, 1, x) is 32 * (x / 2): print the element index as x / 2; drop index checks i < n when i is x / 2 or x / 2 - 1 and n = x >= 1 (or >= 2 when even); a product of an m-bit and an n-bit value with m + n <= 256 cannot overflow, so drop its check.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "updatePrice(bytes), extractTimestampsAndAssertAllAreEqual()",
+   "lines": "246, 250, 253, 301, 310, 181",
+   "decompiled": "mem[ceil32(...) + 192] = cd[calldata.size]\nmem[_41 + 32 len 32 * _40] = call.data[calldata.size len 32 * _40]\nlastPrice = mem[_41 + 48 len 16]\nif cd[calldata.size - 32] & 823907890102272 != 823907890102272",
+   "source": "RedstoneConsumerBase.sol:96-97 new uint256[](n); RedstonePriceFeed.sol:192 lastPrice = priceValue.toUint128(); CalldataExtractor.sol:73-75 REDSTONE_MARKER_MASK",
+   "issue": "Zero-initialisation of new arrays prints as a read past the end of calldata, the uint128 cast stored in lastPrice as a 16-byte memory slice, and the Redstone marker mask 0x2ed57011e0000 in decimal.",
+   "rule": "cd[calldata.size] and call.data[calldata.size len n] are zero: print 0 / Bytes(n, 0); a slice [w + 16 len 16] of a 32-byte word is uint128(word); print bitmask constants (an and-mask compared with itself) in hex.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "updatePrice(bytes), getAuthorisedSignerIndex(address), serialize(), signerAddress0-9(), dataFeedId(), token(), getUniqueSignersThreshold()",
+   "lines": "3-20, 62-65, 294-407",
+   "decompiled": "const unknown816f444a = 0 ... const unknownf90c4924 = 0\ndef unknown3ce142f5(address _param1): ... revert with 0xec459bc0, _param1",
+   "source": "RedstonePriceFeed.sol:41-61 immutables token, dataFeedId, signerAddress0..9, _signersThreshold",
+   "issue": "All immutables are 0 in this build, so getAuthorisedSignerIndex always reverts SignerNotAuthorised, the data-package loop of _securelyExtractOracleValuesFromTxMsg reverts in its first iteration and the two loops of _extractDataPackage are dead (not counted), and new uint256[](threshold) is empty so the aggregation path always ends in CanNotPickMedianOfEmptyArray. The text is right for these values.",
+   "rule": "none (build artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "solc 0.8.23 optimized. Source loops counted (6): extractTimestampsAndAssertAllAreEqual's package loop (while, 194), LibString.fromSmallString's Yul scan (while byte(s, stor2), 78), NumericArrayLib.sort outer and inner (inlined twice: aggregateValues 156/170, updatePrice 341/343), the new uint256[](threshold) loop (259, condition carried in _28 = 1 then reloaded as mem[...+160]) and _getAggregatedValues' loop (303). Not counted, dead only because the signer immutables are 0: the data-package loop (only the count==0 test and a first iteration ending in reverts are printed, 293-407) and _extractDataPackage's two loops. Implicit loops as while (P7): string.concat copy in description (86) and the abi.encode copy of address[10] in serialize (124). P12: the two identical SignerNotAuthorised reverts after ecrecover (397-407). P11: implied median bounds checks and impossible uint24*uint32 overflow checks. All conditions, error selectors (shown as raw 4-byte selectors since the custom errors are not in the database), storage writes (lastPayloadTimestamp, lastPrice) and returns checked against the source; serialize's encoding (offsets 512, string tail) and description's concat are right. contractType is the ASCII string 'PRICE_FEED::REDSTONE' printed as hex (see c00023 finding).",
+ "summary": "Correct text whose main readability problems are the rotated while True loops that hold the function's tail, raw-memory reverts/event/ecrecover after the first allocation in updatePrice, and unfolded index and overflow arithmetic; most of updatePrice is dead in this build because all immutables are 0."
+}

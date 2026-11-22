@@ -1,0 +1,79 @@
+{
+  "id": "c00174",
+  "abi_functions": 22,
+  "reviewed": 22,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P7": 2,
+    "P11": 26,
+    "P12": 15
+  },
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "updateBalances, delegate, votingPowerOf, register, TOKEN/ORIGIN/EXP_BASE/MAX_SHARE_PLUGINS/SHARE_PLUGIN_GAS_LIMIT getters",
+      "lines": "56-78, 172-206, 235, 252, 326",
+      "decompiled": "if caller: revert with AccessDenied() ... static call 0x0.unknownc1255635(?) ... _2 = not block.timestamp % 2 and balanceOf[_owner] ... if Mask(1, 29, block.timestamp): return 0 ... Bytes(64, 0)",
+      "source": "Plugin.sol:14-18 immutable TOKEN, onlyToken; VotingPowerCalculator.sol:10-11, 81-178 immutable ORIGIN/EXP_BASE/_EXP_TABLE_*; TokenizedDelegationPlugin.sol:14-15",
+      "issue": "solc immutables read as 0: onlyToken becomes 'if caller', pluginBalanceOf targets 0x0, the 30 table multiplications of _votingPowerAt collapse into a chain of bit tests returning 0 or the balance, and the share's constructor gets Bytes(64, 0).",
+      "rule": "Not a decompiler error (pre-deployment bytecode).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "updateBalances(address,address,uint256), delegate(address)",
+      "lines": "260, 276, 357, 373",
+      "decompiled": "revert with 0xe450d38c, _2, balanceOf[_2], amount ... revert with 0xec442f05, 0",
+      "source": "ERC20.sol:190 revert ERC20InsufficientBalance(from, fromBalance, value); ERC20.sol:223 revert ERC20InvalidReceiver(address(0))",
+      "issue": "Custom errors with arguments print as a raw selector and words, although errors without arguments are named (AccessDenied(), NotRegisteredDelegatee()) and the signature database has these names. Corpus-wide 11615 lines in 249 texts have 'revert with 0xXXXXXXXX, ...'.",
+      "rule": "When revert data is a 4-byte selector followed by n words and the selector matches an error signature whose static ABI encoding is n words, print revert with Name(arg1, ..., argn).",
+      "verified": "reading only (grep of dec/*.txt and of sigdb2.bin for the name)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "delegate(address)",
+      "lines": "322-353, 372-373 (also updateBalances 275-276)",
+      "decompiled": "if delegated[caller] != delegatee:\n    _4 = delegated[caller]\n    ...\n    _14 = delegatee != _4\n    if not _14:\n        if _4: ... burn ... if delegatee: ... mint ...",
+      "source": "DelegationPlugin.sol:21-28 and 43: if (prevDelegatee != delegatee) {... _updateBalances(...)} -> if (fromDelegatee != toDelegatee && amount > 0)",
+      "issue": "_14 repeats the dominating test (same storage read, no write between), so the 16-line 'if not _14' arm is dead; likewise 'if not delegatee: revert' under _4 == 0 and delegatee != _4.",
+      "rule": "Identify two reads of the same slot with no store between, and fold a condition implied by a dominating (dis)equality, including x != y and y == 0 implies x != 0; then drop the dead arm.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "delegate(address), setDefaultFarm(address)",
+      "lines": "106, 333-334, 345, 353, 387, 395-396, 404-405",
+      "decompiled": "require min(32, return_data.size) >=′ 32 ... mem[64] = ceil32(min(32, _1)) + 128 (after burn/mint, value already there) ... if mem[64] > 18446744073709551615: revert with Panic(65)",
+      "source": "FarmingDelegationPlugin.sol:28-34, DelegationPlugin.sol:25 (calls with and without return values)",
+      "issue": "The free-memory bookkeeping after each call is printed: stores that rewrite the value mem[64] already holds, and Panic(65) checks after joins where every incoming value is at most 160. The returndata check min(32, x) >=′ 32 is just x >= 32.",
+      "rule": "Drop a store of the value a location already holds, comparing values modulo bound names (return_data.size of the same call = _1); keep the value set of mem[64] through joins and fold mem[64] > 2**64 - 1 when every value is bounded; fold min(c, x) >= c to x >= c.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "register(string,string), setDefaultFarm(address)",
+      "lines": "107-108, 229-235",
+      "decompiled": "require not ext_call.return_data[0 len 12] << 160; _7 = ext_call.return_data[12 len 20] != registration[caller] ... mem[2 * Mask(250, 5, _name.length + 31) + ceil32(_url.length) + 6289] = _url.length ... code: code.data[11730 len 5937], 128, ceil32(_name.length) + 160, Bytes(64, 0), _name.length, mem[ceil32(_name.length) + ceil32(_url.length) + 6289 len ceil32(_name.length) + ceil32(_url.length) + 32]",
+      "source": "FarmingDelegationPlugin.sol:37 IPlugin(farm).TOKEN() != registration[msg.sender]; TokenizedDelegationPlugin.sol:40 new DelegatedShare(name_, symbol_, MAX_SHARE_PLUGINS, SHARE_PLUGIN_GAS_LIMIT)",
+      "issue": "The returned address is validated and compared through byte slices instead of the Mask/address forms used for parameters; ceil32(n) also prints as Mask(250, 5, n + 31); and the constructor arguments show both strings as one raw memory slice, hiding the symbol string.",
+      "rule": "Print w[0 len 12] << 160 as Mask(96, 160, w) and w[12 len 20] as address(w); print Mask(k, 5, n + 31) as ceil32(n) when n is known small; print a memory range built by known writes (words, calldata copies, zero pads) as the list of those pieces.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No explicit loops in the source (the voting-power table is unrolled by hand). Implicit loops: name()/symbol() memory-to-memory copies as while (P7, lines 138, 166); storage->memory and calldata->memory copies as copy lines. updateBalances prints the burn/mint tail in both arms of 'if _5' (P12, 15 lines). Unknown selectors: the four uint immutable getters (unknown76a1ad41...) and pluginBalanceOf/addDefaultFarmIfNeeded (unknownc1255635, unknownf70f6a9a). delegate mixes ext_call.return_data[0] and its binding _3 for the same balance (correct: no call in between). register's two CREATEs, their failure reverts, and the second allocation check (pruned by the first) are correct. The created DelegatedShare/MultiFarmingPlugin code is not reviewed (other contracts).",
+  "summary": "Faithful text with no semantic discrepancy found; readability suffers from custom errors with arguments printed as raw selectors, a dead arm and tail duplication in the delegation paths, via-IR free-memory bookkeeping after calls, and immutables read as 0 (artifact)."
+}

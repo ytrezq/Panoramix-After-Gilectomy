@@ -1,0 +1,36 @@
+{
+  "id": "c00531",
+  "abi_functions": 82,
+  "reviewed": 82,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 9, "P4": 8, "P6": 5, "P8": 40, "P9": 60, "P11": 18, "P18": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unpause, grantRole, revokeRole and every onlyRole failure path (18 toHexString loops)",
+      "lines": "359-367, 371-377, 395-405, 710-730",
+      "decompiled": "mem[160 len 42] = 0 / idx = 41 / s = caller / while idx > 1: / if idx >= 42: revert with Panic(50) / mem[idx + 160 len 1] = byte(s % 16, 0x3031...) / idx = idx - 1 / s = s / 16",
+      "source": "StringsUpgradeable.sol:64-67 for (uint256 i = 2 * length + 1; i > 1; --i) { buffer[i] = _HEX_SYMBOLS[value & 0xf]; value >>= 4; }",
+      "issue": "The loop is found and readable, but keeps the bounds check of buffer[i] although i starts at 41 and only decreases (P11).",
+      "rule": "For a counter that starts at c and only decreases, drop 'if idx >= n: revert' when c < n.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "finalizeDelegatorWithdrawalRequest() and every inlined accrueFee (accrueFee, exchangeRateCurrent, requestWithdraw, repay, liquidationCall, ...)",
+      "lines": "2276-2300, 2337-2343, 2374, 2388, 2403-2405",
+      "decompiled": "stor204 = SafeMath.add(stor204, (block.number * stor204 * stor206 - accrualBlockNumber * stor204 * stor206) / 10**18) ... mem[_74 + 128] = stor225[idx].field_1024 ... _87 = SafeMath.add(mem[_74 + 128], stor214) > block.number ... stor224[concat(Bytes(12, 0), mem[_74 + 12 len 20])]",
+      "source": "SDUtilityPool.accrueFee: uint256 blockDelta = block.number - accrualBlockNumber; uint256 simpleInterestFactor = utilizationRatePerBlock * blockDelta; uint256 accumulatedFee = (simpleInterestFactor * totalUtilizedSD) / DECIMAL; ... DelegatorWithdrawInfo memory delegatorWithdrawInfo = delegatorWithdrawRequests[requestId];",
+      "issue": "The checked product rate * (block.number - accrualBlockNumber) * totalUtilizedSD is distributed over the subtraction (P9), and the memory copy of the withdraw request is read back as slices (mem[_74 + 128], mem[_74 + 12 len 20]) instead of the stor225[idx] fields it was copied from (P18).",
+      "rule": "Keep a*(b - c) factored when b - c is a checked subtraction already printed; fold mem[p + k] to the storage field stored there when no store to it or to the field intervenes.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 82 ABI functions reviewed (getters, role/pause functions, setters, delegate/repay/requestWithdraw/claim/finalize read; liquidationCall (348 lines) and the utilizer functions by structure). Source loops: finalizeDelegatorWithdrawalRequest's request loop (2334, 'while idx < _38' with break), clearUtilizerInterest (2076), _deleteRequestId inlined in claim (929) and StringsUpgradeable.toHexString in each onlyRole failure path (18 copies, the role-0 copy specialised to writing '0' digits): all whiles, no implicit loop left. finalize's struct copy, the re-reads of stor225[idx] before the external call and the cToken bookkeeping match the source. Many public variables are storNNN because their getters are not in the signature database (normal).",
+  "summary": "Faithful and readable: every loop is a clear while; only small simplifications are missed (an implied bounds check in toHexString, distributed interest products, struct fields read back from memory)."
+}

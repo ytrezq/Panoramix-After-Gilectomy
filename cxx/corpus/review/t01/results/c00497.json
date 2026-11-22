@@ -1,0 +1,47 @@
+{
+  "id": "c00497",
+  "abi_functions": 54,
+  "reviewed": 54,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 1, "P7": 259, "P8": 40, "P18": 10},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "unknowncbb114e7 (non-view library function, no ABI entry)",
+      "lines": "240",
+      "decompiled": "require this.address",
+      "source": "solc library call guard: PUSH20 <library address> ADDRESS EQ (bytecode starts 73 0000...0000 30 14)",
+      "issue": "The guard that a non-view library function is only DELEGATECALLed compares ADDRESS with the library's own address, which the creation code patches in at deployment; in this pre-deployment runtime code the placeholder is zero, so the guard reads as `require this.address`.",
+      "rule": "None needed (pre-deployment artifact, like immutables); optionally recognize the 21-byte PUSH20/ADDRESS/EQ prologue of libraries and print it as a call-guard comment.",
+      "verified": "bytecode prefix 730000000000000000000000000000000000000000301460806040"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all 20 get*StructHash functions",
+      "lines": "422-428 (189 such loops), 5131-5141, 5214-5225",
+      "decompiled": "while idx < cd[...]: require cd[s] == address(cd[s]); mem[t] = address(cd[s]); idx = idx + 1; s = s + 32; t = t + 32 ... while s < _162: mem[u] = Bytes(12, 0), mem[t + 12 len 20] ... _165 = mem[64]; mem[mem[64]] = _161 + 32 * _162 - mem[64]; _167 = sha3(mem[_165 + 32 len mem[_165]])",
+      "source": "RelayUtils.sol: keccak256(abi.encodePacked(params.transferTokens)) etc. on calldata structs (RelayParams, CreateOrderParams...)",
+      "issue": "The text is dominated by 259 implicit loops: ABI decoding of every address[] of the calldata structs into memory (with per-element validation and a redundant `address()` on the stored value) and abi.encodePacked copies, followed by hashes whose length `_161 + 32 * _162 - mem[64]` is just `32 * _162`, so a hash of an address array takes ~20 lines and can't be read as `sha3(addresses)`.",
+      "rule": "Print a validated calldata-to-memory array decode as one copy line with its validation (`require all elements fit address`), a memory-to-memory element copy as a copy line, and fold `x - mem[64]` when x is a copy of mem[64]; drop `address()` on a value checked by `require v == address(v)`.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknowncbb114e7",
+      "lines": "341-358",
+      "decompiled": "mem[_40] = _param1; mem[_40 + 32] = _param5; ... mem[mem[64] + 36] = Bytes(12, 0), mem[_40 + 12 len 20]; mem[mem[64] + 68] = Bytes(12, 0), mem[_40 + 44 len 20]",
+      "source": "a memory struct built from parameters and ABI-encoded for a library call",
+      "issue": "The fields just stored into the struct are re-read as memory slices (P18) instead of being forwarded, so the encoded arguments read `Bytes(12, 0), mem[_40 + 12 len 20]` rather than `_param1`.",
+      "rule": "Forward a 32-byte store to a later 20-byte slice read of its low bytes when nothing in between writes the word: `Bytes(12, 0), mem[a + 12 len 20]` after `mem[a] = x` is `address(x)`.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "A library of EIP-712 struct-hash helpers; the 20 get*StructHash functions (200-500 lines each) reviewed by structure, the 34 typehash/domain getters fully (they print the typehash as sha3('...') of the type string, faithful since the bytecode hashes at run time). Source loops: _getCreateOrderParamsListStructHash and _getUpdateOrderParamsListStructHash, both shown as whiles in the two getBatchStructHash functions (5052, 5229 and the copies in 540edf5b). All other whiles are compiler loops (address[]/bytes32[] decoding and encodePacked), counted in P7. The unknown non-ABI function cbb114e7 (two delegatecalls to a linked library, then a struct-encoding call) was read for structure only; its second array re-encode omits the per-element validation, which is equivalent because the same calldata elements were validated just before. P6: `mem[256] = 0x988a8f7000...` (selector 0x0988a8f7). P8: typehash strings stored to memory and hashed inside the order loops are kept in full.",
+  "summary": "Faithful, abort-free text of a hashing library; the 2 source loops are clear whiles, but the text is buried under 259 implicit ABI decode/encodePacked loops and unresolved free-pointer lengths, so each struct hash is hard to read."
+}

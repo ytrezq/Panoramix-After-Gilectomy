@@ -1,0 +1,78 @@
+{
+ "id": "c00180",
+ "abi_functions": 40,
+ "reviewed": [
+  "all 40 ABI functions (constants, getters, Ownable/guardian, updateCancellationFee, updateGasLimit, getProposalState, rescueVotingPortal, add/removeVotingPortals, setPowerStrategy, cancelProposal, updateRepresentativesForChain, queueProposal, createProposal, getProposal, activateVoting, executeProposal, initializeWithRevision, redeemCancellationFee, setVotingConfigs, initialize)"
+ ],
+ "not_reviewed": [],
+ "source_loops": 6,
+ "loops_shown": {
+  "while": 6,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 4,
+  "P4": 15,
+  "P6": 54,
+  "P7": 7,
+  "P8": 60,
+  "P10": 18,
+  "P11": 32,
+  "P12": 6,
+  "P14": 4,
+  "P15": 17,
+  "P18": 27
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "rescueVotingPortal, add/removeVotingPortals, createProposal, executeProposal, setPowerStrategy, activateVoting, initializeWithRevision, setVotingConfigs, redeemCancellationFee, initialize",
+   "lines": "216-222, 619-647, 1088-1093, 1152-1221, 1343-1356 (33 'Error(string reason), 32, mem[...]' reverts, 12 'revert with memory'); 356-380, 856-882; 1375-1382, 1395",
+   "decompiled": "_11 = mem[64]; mem[64] = mem[64] + 64; mem[_11] = 2; mem[_11 + 32] = 0x3430...; if not address(_10): mem[mem[64]] = 0x8c379a0...; _14 = mem[_11] ... revert with Error(string reason), 32, mem[mem[64] + 36 len _14 + 32], Bytes(-_14 + ceil32(_14), 0)",
+   "source": "require(votingPortal != address(0), Errors.INVALID_VOTING_PORTAL_ADDRESS); require(success, Errors.CANCELLATION_FEE_REDEEM_FAILED); to.call{value: cancellationFee}(new bytes(0))",
+   "issue": "Error strings built at a pointer copied from mem[64] are not read back past the later 'mem[mem[64]]' stores, so 45 reverts never show their reason ('40', '60'-'65', '4', '44', '83'-'85', '90', '93', '94'), while the same functions show 'revert with '1'' when the offset is constant. Two different reasons are merged into one raw revert after a join (setPowerStrategy '41'/'63', activateVoting '4'/'8'), the fee transfer's empty calldata is 'mem[mem[64] len _34 - mem[64] + mem[_34] + 32]' and the event amounts are raw memory.",
+   "rule": "Treat a variable assigned mem[64] as equal to mem[64] until the next store to slot 64; with the free pointer bumped past it, a later store at mem[64] cannot alias the string, so forward it and decode the revert, call and log data.",
+   "verified": "by reading: _11 = mem[64] and mem[64] = _11 + 64 precede the store at mem[mem[64]], so mem[_11] = 2 is still live when _14 = mem[_11] is read"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "cancelProposal, queueProposal, activateVoting, executeProposal, redeemCancellationFee (inlined _getProposalState)",
+   "lines": "386-406, 535-557, 826-882, 1005-1036, 1535-1583",
+   "decompiled": "_3 = not uint8(stor7[_index].field_0) or uint8(stor7[_index].field_0) >= 4\nif _3:\n    ... if uint8(stor7[_index].field_0) != 1:\n        revert with '5'\n    ... (50 more lines)",
+   "source": "require(_getProposalState(proposal) == State.Created, Errors.PROPOSAL_NOT_IN_CREATED_STATE);",
+   "issue": "The continuation after _getProposalState's two returns is copied into both arms, and in the shortcut arm (state 0 or >= 4) the test against Created/Active/Queued is not folded, so each arm continues with code that can never run (about 150 dead lines over five functions). In redeemCancellationFee the computed arm likewise keeps a 'state == Cancelled' path although that arm's state is 1, 2, 3 or 7.",
+   "rule": "After copying a join's continuation into the arms, fold each copy with the facts known on its arm (a range or set of values for the variable tested) and drop everything after an unconditional revert; prefer not copying when one copy becomes a bare revert.",
+   "verified": "by reading: line 824 bounds the state to 0..7, so under '_3' the state is 0, 4, 5, 6 or 7 and 'state != 1' always reverts"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "executeProposal, redeemCancellationFee, executeProposal cooldown, _setVotingConfigs (setVotingConfigs, initialize, initializeWithRevision)",
+   "lines": "6-8; 1070; 1428, 1557; 982, 1014; 1167, 1659, 1981",
+   "decompiled": "const unknownc3a76d92 = 0; const unknownc4956366 = 0; const COOLDOWN_PERIOD = 0; call 0x0.unknown55c4fed4(?); call 0x0 with: value _25 wei; if block.timestamp < uint40(stor7[id].field_120)",
+   "source": "CANCELLATION_FEE_COLLECTOR, CROSS_CHAIN_CONTROLLER, COOLDOWN_PERIOD (immutables)",
+   "issue": "solc immutables read as 0: the cross-chain forwarder and the fee collector are 0x0 and the cooldown term disappears from two comparisons.",
+   "rule": "Known artifact of immutables in runtime code; show them as named unknown constants rather than 0.",
+   "verified": "source declares the three as immutable"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "queueProposal, activateVoting, createProposal",
+   "lines": "521-523, 558-568; 818, 864, 868, 871 (and 932-939); 669, 679",
+   "decompiled": "mem[448] = uint56(stor8[...].field_160) ... if mem[480] <= SafeMath.mul(mem[473 len 7], 10**18); ... | uint24(mem[189 len 3]) << 56 | 2; Mask(176, 80, X) | uint56(X)",
+   "source": "_isPropositionPowerEnough(votingConfig, power); proposal.votingDuration = votingConfig.votingDuration;",
+   "issue": "VotingConfig fields copied to fixed memory are read back as byte slices of those words (minPropositionPower as 'mem[473 len 7]', votingDuration as 'mem[189 len 3]') across the external call or the join, although nothing writes those words in between. The packed-slot update in activateVoting applies two masks to the same value instead of one.",
+   "rule": "Forward a memory word across calls and joins when every path stores the same value and no write can reach it (the call's output range is known); merge 'Mask(a, b, X) | uintN(X)' into one AND with the combined constant.",
+   "verified": "by reading: the static call writes only mem[480..512] and the only other stores are at mem[64]-relative offsets above 480"
+  }
+ ],
+ "notes": "Source loops (GovernanceCore): L165 updateRepresentativesForChain (text 450), L254 createProposal (612), L416 executeProposal (1044), L466 redeemCancellationFee (1332, 'while True' with stop), L562 _setVotingConfigs (inlined three times: 1142, 1634, 1954), L752 _updateVotingPortals (inlined four times: 208 with constant bound 1, 249, 290, 2157). Implicit: 7 decode/copy/encode loops (82, 348, 735, 792, 1602, 1895, 1921). initialize's two Initializable checks are real (initialize and _initializeCore both carry 'initializer'). Rate/threshold math, enum checks, packed Proposal writes (masks checked), EnumerableSet add/remove and event fields match the source.",
+ "summary": "All 40 functions reviewed; all six source loops are whiles and the semantics match apart from the immutables read as 0. The text is hard to read because free-pointer aliasing hides 45 revert reasons and because the inlined proposal-state check leaves about 150 lines of unreachable duplicated code in five functions."
+}

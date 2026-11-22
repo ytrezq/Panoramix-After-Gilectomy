@@ -1,0 +1,36 @@
+{
+  "id": "c00152",
+  "abi_functions": 29,
+  "reviewed": 29,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 14, "P4": 1, "P6": 10, "P7": 4},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "addShares(uint256,address), removeShares(uint256,address), processExit(uint256,address)",
+      "lines": "306-321, 380-391, 905",
+      "decompiled": "mem[228] = caller / mem[260] = this.address / mem[292] = _param1 / mem[192] = 100 / mem[240 len 16] = uint128(caller >> 32) / mem[228 len 12] = 0 / mem[224 len 4] = 599290589 / if ext_code.size(pool): idx = 0; while idx < 100: mem[idx + 324] = mem[idx + 224]; idx += 32 / call pool with: args mem[324 len 100]",
+      "source": "MapleWithdrawalManager.addShares: require(ERC20Helper.transferFrom(pool, msg.sender, address(this), shares_), 'WM:AS:TRANSFER_FROM_FAIL') (ERC20Helper: abi.encodeWithSelector(IERC20Like.transferFrom.selector, from, to, amount) then token.call(data))",
+      "issue": "As in c00109: the copy of a constant-address, constant-size call buffer is left as a while loop, so the token calls (transferFrom here, transfer in removeShares and processExit) lose their selector and arguments although every word is known; the selector is also printed in decimal over a split address word.",
+      "rule": "Convert a word-copy loop with constant start, step and bound into a copy line (or unroll it) and resolve the call input through it: 'call pool.transferFrom(caller, this.address, _param1)'. Merge 'mem[240 len 16] = uint128(caller >> 32); mem[228 len 12] = 0' back into one word store of caller.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "processRedemptions(uint256)",
+      "lines": "1118-1123",
+      "decompiled": "while True: _211 = u > 0 and uint128(t) <= uint128(s) / if not _211: uint128(stor4) = uint128(t); stor0 = 1; stop / ...",
+      "source": "MapleWithdrawalManager.sol:179 while (maxSharesToProcess_ > 0 && nextRequestId_ <= lastRequestId_) { ... if (!isProcessed_) break; ... } queue.nextRequestId = nextRequestId_;",
+      "issue": "The source loop is found, but its condition is computed inside a 'while True' and the code after the loop (the queue update and the reentrancy unlock) is printed inside the exit branch (as in c00015).",
+      "rule": "When the first statement of a 'while True' body computes c and exits when not c, print 'while c:' and move the exit branch after the loop.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Unoptimized build (solc 0.8.7). Getters, setters, manual-withdrawal views, addShares, removeShares, removeRequest, setManualWithdrawal reviewed in detail; processExit and processRedemptions by structure (the redemption math calls pool.totalSupply, poolManager.unrealizedLosses/totalAssets, asset balance, as in the source). Source loop: 1 (processRedemptions' while), shown as a while (finding 2). Implicit loops: 3 constant-size copies of token-call buffers (finding 1) and removeRequest's bytes copy (P7). P2: 14 lines (calls to poolManager/pool after an unknown free-memory pointer).",
+  "summary": "Faithful, with its one source loop found; the main defect is that unconverted fixed-size copy loops hide the arguments of the token transfers, as in c00109."
+}

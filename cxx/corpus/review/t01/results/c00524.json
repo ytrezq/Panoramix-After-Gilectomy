@@ -1,0 +1,25 @@
+{
+  "id": "c00524",
+  "abi_functions": 44,
+  "reviewed": 44,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {"while": 8, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 41, "P3": 1, "P4": 9, "P6": 62, "P7": 7},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "buyCover, buyCoverWithRi, executeCoverBuy (_requestAllocation inlined)",
+      "lines": "1360-1364 vs 1405 (and the same in 2398-2443, 3583-3628)",
+      "decompiled": "if SafeMath.div(_99 + SafeMath.mul(mem[mem[32 * s + ceil32(cd[_param1 + cd[_param1 + 324] + 4]) + 544] + 32], 10**18) - 1, _99) + 9999999999999999 > ... / ... / if 10**16 * (((_99 + 10**18 * _403 - 1) / _99 + 9999999999999999) / 10**16) >= 0x1000000000000000000000000: revert 'SafeCast: ... 96 bits'",
+      "source": "Cover.sol:421-424 coverAmountInNXM = Math.roundUp(Math.divCeil(allocationRequests[i].coverAmountInAsset * ONE_NXM, nxmPriceInCoverAsset), NXM_PER_ALLOCATION_UNIT); :434 coverAmountInNXM.toUint96()",
+      "issue": "coverAmountInNXM is recomputed in full in each of its overflow checks, in the call arguments, in the SafeCast check and in the stored struct instead of being named once, so each use is a 150+ character expression over a doubly indirect memory read.",
+      "rule": "After the checks of a checked computation pass, bind its result to a variable and use that variable for later uses of the same expression (the operands are unchanged: no write to their memory in between).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed in detail: recalculateActiveCoverInAsset (loop i = 1..53 over the weekly expiration buckets, SafeCast 192 then 64 as in the source), updateTotalActiveCoverAmount (while lastUpdateId < currentBucketId with the bucket read at idx + 1, SafeCast 64 then 192 as in the source), getters; buyCover / buyCoverWithRi / executeCoverBuy (about 1,000 lines each, the same inlined code) by structure: PoolAllocationRequest[] decode loop, _requestDeallocation loop over existing allocations ('while s < t'), _requestAllocation loop ('while s < _400') with the staking-pool requestAllocation call (0x6c56066d, not in the signature database), premium and slippage checks, the expiration-bucket update and loop. Loop map: burnStake (684), expireCover (537), multicall (356), populateIpfsMetadata (471), recalculateActiveCoverInAsset (231), _requestAllocation, _requestDeallocation, _updateTotalActiveCoverAmount ('while idx < block.timestamp / (7 * 24 * 3600)' in each inlining). Implicit: calldata decode loops of the request arrays and string[], the storage-to-memory copy of PoolAllocation[] and its ABI encode in the allocations getter, multicall's rotated bytes[] zero-init (P3) and result encode (P7). '7 * 24 * 3600' is the source's BUCKET_SIZE = 7 days, not P1.",
+  "summary": "Faithful and compact: all eight source loops are clean whiles and the bucket/SafeCast logic matches the source order; only minor recomputation and the usual P2/P4/P6 noise."
+}

@@ -1,0 +1,58 @@
+{
+  "id": "c00133",
+  "abi_functions": 35,
+  "reviewed": 35,
+  "not_reviewed": [],
+  "source_loops": 35,
+  "loops_shown": {"while": 35, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P4": 123, "P6": 7, "P7": 50, "P8": 400, "P10": 10, "P11": 12, "P18": 21},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "updateNodes, addNodes, removeNodes, addNodeOperators, removeNodeOperators, removeDONs*, addDONs, setDONFamilies (all EnumerableSet members inside mapped structs)",
+      "lines": "4275-4324, 2257-2300 (554 lines with `stor[sha3(`, 303 with `stor[_N]`)",
+      "decompiled": "if stor[sha3(stor18[concat(mem[_402 + 64])].field_512, sha3(uint32(stor18[concat(mem[_402 + 64])].field_0), 14) + 3)]: ... stor[sha3(_445 + 2) + stor[_445 + 2] - 1] = 0; stor[_445 + 2] = _560 - 1 ; _122 = sha3(w, 22); while stor[_122]:",
+      "source": "CapabilitiesRegistry.sol:767-768 s_nodeOperators[id].nodeP2PIDs.remove(p2pId) / .add(...); :1351 while (s_donIdToDonFamilyHashes[donId].length() > 0)",
+      "issue": "EnumerableSet members of structs in mappings are printed as raw slots: `_positions` lookups as `stor[sha3(key, sha3(id, 14) + 3)]`, the `_values` length as `stor[_445 + 2]` and elements as `stor[sha3(_445 + 2) + i]`; even a top-level mapped array length is `stor[sha3(w, 22)]` in a loop condition while the body calls it `stor22[w].length`.",
+      "rule": "Resolve `sha3(slot_of(member))` and `sha3(k, slot_of(member))` recursively when `slot_of(member)` is `sha3(id, base) + offset` of a known mapping of structs, giving `stor14[id].field_512[i]` / `stor14[id].field_768[k]`; print `stor[sha3(k, base)]` as `storBase[k]` everywhere, including in loop conditions.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "deprecateCapabilities (unknown88ea09ee) and every revert with a string argument (22 lines)",
+      "lines": "248-253, 270-275",
+      "decompiled": "_23 = mem[64]; mem[mem[64]] = 0x4ff9e48a00000000...; mem[_23 + 4] = 32; ... revert with mem[_23 len 4], 32, mem[_23 + 36 len _24 + 32], Bytes(-_24 + ceil32(_24), 0)",
+      "source": "CapabilitiesRegistry.sol:873 revert CapabilityDoesNotExist(capabilityId);",
+      "issue": "The selector was just stored at mem[_23] (as `mem[mem[64]]`, with _23 a copy of mem[64]) yet the revert prints it as the memory slice `mem[_23 len 4]`, so the error can't be identified; the string payload is likewise raw memory.",
+      "rule": "Forward stores to loads through the equality `_23 == mem[64]` (no store to 64 in between), so `mem[_23 len 4]` becomes the constant selector and the revert decodes as `revert with 0x4ff9e48a, string`.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "updateNodes (unknown07e1959c), addNodes, updateNodeOperators",
+      "lines": "4266-4272",
+      "decompiled": "revert with 0x5fab2b6600000000000000000000000000000000000000000000000000000000, mem[_402 + 28 len 4]",
+      "source": "CapabilitiesRegistry.sol:762 revert NodeOperatorCannotReassignNode(node.nodeOperatorId);",
+      "issue": "The 36-byte payload is split as a 32-byte word holding the selector plus a 4-byte memory slice (the uint32 struct field, P18), instead of a 4-byte selector and one ABI word, unlike the neighbouring `revert with 0xd82f6adb, mem[_402 + 64]`.",
+      "rule": "Re-split a revert payload of the form `Bytes(32, sel << 224) ++ Bytes(4, x)` at byte 4 into `sel, uint32(x)`; read a 4-byte slice ending a 32-byte word as `uint32(word)`.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "removeDONsByName (unknownb8521761), removeDONs",
+      "lines": "2212-2214, 2257-2300",
+      "decompiled": "u = uint32(stor[_5]) ... w = uint32(stor[_5]) ... while stor[_122]: ... stor22[w][...] ... stor22[uint32(u)][...]",
+      "source": "CapabilitiesRegistry.sol:1351-1353 _removeDONFromFamily(donId, lastFamilyHash)",
+      "issue": "The same DON id is held in two loop variables (u and w, both `uint32(stor[_5])`) and the body alternates between `stor22[w]` and `stor22[uint32(u)]`, which reads as if two different sets were involved.",
+      "rule": "Merge variables assigned the same expression at the same point and never reassigned differently (copy propagation of loop-carried copies), and drop `uint32()` on a value already known to fit.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Functions over ~300 lines (getDONs, getDON*, addDONs, updateDON, setDONFamilies, updateNodes, addNodes, getNodes*) reviewed by structure; the rest fully. All 35 source loops are shown as whiles (updateNodes' outer loop as a labeled `loop1: while True` with `continue loop1` from the inner one; _removeDON's `while (length() > 0)` as `while stor[_122]`). The other whiles are implicit: via-IR zero-initialization of `new string[](n)`/`new Struct[](n)` (`while idx < 32 * _2: mem[idx + 160] = 96` or a fresh struct per element), calldata decodes of string[]/tuple[], memory ABI encodings of the returned struct arrays and of string[] error payloads (InvalidNodeCapabilities) (P7). Storage strings are copied with copy lines. P4: the header counts 56 `concat(mem[N])`, but 67 more one-element keys use a computed address (`stor18[concat(mem[_402 + 64])]`), 123 in all. P8: `mem[0] = k; mem[32] = slot` before every mapping access (829 such lines), and dead `mem[0] = 4; mem[0] = stor4[...]`. P11: the push bounds check `if _27 >= stor6.length: revert Panic(50)` after `length++` (12). P10: the EnumerableSet.add result flag `if stor7[k]: _32 = 0 else: ... _32 = 1; if not _32: revert`. Custom errors and events print as raw selectors/topics (database). No semantic error found.",
+  "summary": "Faithful via-IR text with no aborts and all 35 loops shown as whiles; readability suffers from raw sha3 slot arithmetic for EnumerableSets inside mapped structs, reverts whose selector is left as a memory slice, and many dead scratch-memory writes."
+}

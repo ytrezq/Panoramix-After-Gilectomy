@@ -1,0 +1,47 @@
+{
+  "id": "c00233",
+  "abi_functions": 33,
+  "reviewed": 33,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 1, "P3": 1, "P6": 43, "P11": 1, "P12": 2, "P15": 3},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "schedule, execute, cancel, consumeScheduledOp, getSchedule and every function guarded by onlyAuthorized (the delayed-operation check)",
+      "lines": "200-202, 577-579, 753-755, ... 2584-2586 (about 30 lines)",
+      "decompiled": "if uint48(stor40C6_40c6c8c2_2[sha3(caller, this.address, 96, calldata.size, call.data[0 len calldata.size], Bytes(-calldata.size + ceil32(calldata.size), 0))].field_0) + 7 * 24 * 3600 > 281474976710655: ...  |  _154 = _114 ^ (5 * 24 * 3600 > _114) * (_114 ^ 5 * 24 * 3600)",
+      "source": "AccessManagerUpgradeable.hashOperation(caller, target, data) = keccak256(abi.encode(caller, target, data)); _schedules[id].timepoint + expiration(); Math.max(delay, minSetback())",
+      "issue": "The operation id (keccak of abi.encode(caller, target, data)) is re-printed in full at each of its uses, making 30 lines of 250+ characters, and OpenZeppelin's branchless Math.max prints as the xor/multiply formula (as in c00525).",
+      "rule": "Name a keccak result used more than once (id = sha3(...)) and use the name in the mapping accesses; b ^ ((a ^ b) * (a > b)) is max(a, b).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setTargetFunctionRole(address,bytes4[],uint64)",
+      "lines": "1620-1632, 1740-1752, 1791-1803",
+      "decompiled": "if caller == this.address: if transient[0xbf39..52fc] == sha3(this.address, call.func_hash): idx = 0 / while idx < cd[_param2 + 4]: ... uint64(stor[sha3(Mask(32, 224, cd[32 * idx + _param2 + 36]), sha3(_param1, 0x40c6..ad00))]) = _param3 ... / stop  (and twice more)",
+      "source": "AccessManagerUpgradeable.sol:407 for (uint256 i = 0; i < selectors.length; ++i) _setTargetFunctionRole(target, selectors[i], roleId); under onlyAuthorized",
+      "issue": "The body with its loop is printed in three arms of the onlyAuthorized check instead of once after it (P12), and the nested namespaced mapping _targets[target].allowedRoles[selector] stays a raw stor[sha3(...)] access.",
+      "rule": "Hoist the common continuation of the modifier's arms after the if/else; print stor[sha3(k2, sha3(k1, S) + o)] with S a namespaced mapping base as the nested mapping access.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize(address) (OpenZeppelin Initializable v5)",
+      "lines": "139-140",
+      "decompiled": "_1 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64",
+      "source": "InitializableStorage at 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00",
+      "issue": "The 2 P1 lines: the Initializable slot printed as a multiple of 3600 (see c00525).",
+      "rule": "Never factor a slot by a time unit.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: setTargetFunctionRole for (shown three times, 1622/1742/1793) and MulticallUpgradeable.multicall's for (285; missing from the pack's 'reaches' list); both while. Implicit: the zero-init of results (279, rotated, P3) and the return encoding (331, with copy lines). The multicall body is faithful: context suffix of length 0 at mem[128], bytes.concat by copy lines, delegatecall to this, verifyCallResultFromTarget's FailedCall / AddressEmptyCode reverts (raw memory), a Panic(50) implied by the loop bound (P11). The 7 * 24 * 3600 and 5 * 24 * 3600 constants are the real expiration() and minSetback() (1 week, 5 days). 33 ABI functions read.",
+  "summary": "A faithful text of AccessManager with both loops found; long lines come from the unnamed operation-hash and the branchless Math.max, the setTargetFunctionRole body is repeated in three modifier arms, and the Initializable slot prints as a multiple of 3600."
+}

@@ -1,0 +1,68 @@
+{
+ "id": "c00023",
+ "abi_functions": 70,
+ "reviewed": 70,
+ "not_reviewed": [],
+ "source_loops": 1,
+ "loops_shown": {
+  "while": 1,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P8": 2,
+  "P10": 24,
+  "P16": 5
+ },
+ "findings": [
+  {
+   "kind": "semantics",
+   "severity": "medium",
+   "function": "isFactory(bytes32,address)",
+   "lines": "94-99",
+   "decompiled": "def unknown6167f931(address _param1): ... require calldata.size - 4 >=′ 64 ... return bool(stor18[0x46545f4c4f414e...][_param1])",
+   "source": "MapleGlobals.sol:471-479 isFactory(bytes32 factoryId_, address factory_) { factoryId_; ... isFactory_ = isInstanceOf[\"FT_LOAN_MANAGER_FACTORY\"][factory_]; }",
+   "issue": "The selector is unknown, so the header lists only the used calldata words, numbered consecutively: the address read from the second head word (cd[36]) is printed as the first and only parameter _param1, while the unused bytes32 first argument disappears. A reader (or a reparser placing params consecutively) takes cd[4] as the address.",
+   "rule": "Number inferred parameters by their calldata offset ((offset - 4) / 32 + 1) and print unused head words below the highest used one as placeholder parameters (e.g. uint256 _param1  # unused), so every name keeps its true position.",
+   "verified": "reading only: header vs ABI checked for all 51 unknown functions, this is the only mismatch; decompiler source output/names.cpp (Selector params named _param{k+1} by index in fn->params) with analysis/traits.cpp infer_params (only used offsets kept); text_check --params help says the text does not give an unknown function's param places"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "isPoolDeployer(address)",
+   "lines": "688-694",
+   "decompiled": "mem[32] = sha3(0x46545f4c4f414e5f4d414e414745525f464143544f5259..., 18)\nif not stor18[0x46545f...][caller]:\n    mem[32] = sha3(0x504f4f4c5f4d414e414745525f464143544f5259..., 18)\nif not uint8(stor[sha3(caller, mem[32])]):\n    mem[32] = sha3(0x5749544844524157414c5f4d414e414745525f464143544f5259..., 18)\nif not uint8(stor[sha3(caller, mem[32])]):\n    revert with 'MG:IPD:INV_FACTORY'",
+   "source": "MapleGlobals.sol:502-507 require(isInstanceOf[\"FT_LOAN_MANAGER_FACTORY\"][msg.sender] || isInstanceOf[\"POOL_MANAGER_FACTORY\"][msg.sender] || isInstanceOf[\"WITHDRAWAL_MANAGER_FACTORY\"][msg.sender], \"MG:IPD:INV_FACTORY\")",
+   "issue": "The short-circuit value of each '||' is expressed through the scratch word mem[32] (the inner mapping slot left by whichever lookup ran last), so two of the three isInstanceOf lookups print as raw stor[sha3(caller, mem[32])] and the merged test re-reads storage the path already knows is true. It is correct but the mapping name and the three keys are hidden behind memory state.",
+   "rule": "At a join whose incoming paths differ only in scratch words used as hash inputs (mem[0..63]), introduce a variable for the joined value (a phi of the per-path results) instead of re-deriving it from memory, then resolve each lookup as a mapping access; equivalently print require(A or B or C) when the operands have no side effects.",
+   "verified": "reading only (each path traced by hand: FT true keeps mem[32] = FT slot so both later tests re-read the same true word; otherwise PM, then WM, as in the source)"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "canDeploy(address), canDeployFrom(address,address), isPoolDeployer(address), activatePoolManager(address), isFactory(bytes32,address)",
+   "lines": "97, 99, 548, 553, 563, 609, 614, 624, 661, 688-692, 698, 703, 713",
+   "decompiled": "stor18[0x504f4f4c5f4d414e414745525f464143544f5259000000000000000000000000][address(_2)]",
+   "source": "MapleGlobals.sol:138 isInstanceOf[\"POOL_MANAGER_FACTORY\"][factory_] (also LOAN_FACTORY, LOAN_MANAGER_FACTORY, FT_LOAN_MANAGER_FACTORY, WITHDRAWAL_MANAGER_FACTORY, LIQUIDATOR_FACTORY)",
+   "issue": "bytes32 string-literal mapping keys are printed as 64-digit hex numbers in 16 lines, so a reader must decode ASCII to see which instance list is checked.",
+   "rule": "Print a 32-byte constant whose bytes are printable ASCII followed only by zero bytes (left-aligned, at least a few characters) as a string literal, the way revert reasons are printed, when it is used as a key, compared or stored.",
+   "verified": "reading only (hex decoded locally)"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "activatePoolManager(address)",
+   "lines": "660",
+   "decompiled": "require ext_call.return_data[0] == ext_call.return_data[12 len 20]",
+   "source": "MapleGlobals.sol:136 address delegate_ = IPoolManagerLike(poolManager_).poolDelegate();",
+   "issue": "The ABI address check of the second call's return value prints as a comparison with a byte slice, while the identical check of the first call (line 653) prints as == address(ext_call.return_data[0]).",
+   "rule": "The bytes [12 len 20] of a 32-byte word are its low 160 bits: print them as address(word), so the check reads require x == address(x) like the others.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "solc 0.8.7 noopt. Only source loop: setTimelockWindows' for over functionIds_ (unknown79212350, 729-760), a readable while with idx < cd[_param2 + 4], the needed Panic(50) bounds checks of the two other arrays, raw element arithmetic cd[32 * idx + _paramN + 36] in 5 lines (P16) and a dead per-iteration struct allocation mem[64] = mem[64] + 64 plus mem[64] = 128 (P8 2). No implicit loops (bytes hashed directly as sha3(32, len, call.data[...], Bytes(pad))). All conditions, revert strings, storage writes (struct fields split: stor17 delay/duration, stor19 timestamp/dataHash, stor20 ownedPoolManager/isPoolDelegate, priceOracleOf oracle/maxDelay, slot 3 securityAdmin/protocolPaused), events and external calls (factory, poolDelegate, isInstance, setActive(true), latestRoundData) match the source; getLatestPrice's stale/zero/round checks and isValidScheduledCall's overflow check of timestamp + delay + duration are right. P10 (24 lines): the '||' chains of canDeployFrom inlined into canDeploy, canDeployFrom and isPoolDeployer print as if X: _7 = X else: ... _7 = _6 (twice each). 51 of 70 selectors are not in the signature database, so their getters' state prints as stor7..stor24/stor4/stor4_128 and storB531 (admin slot) instead of isCollateralAsset, defaultTimelockParameters, ... (not a decompiler error). sigdb parameter names mislead slightly: canDeploy(address owner) is the would-be deployer, getLatestPrice(address feedAddress) is the asset key of priceOracleOf. setValidPoolDeployer writes stor9[_param1] = _param2 right after reverting when _param2 is true (could fold to 0).",
+ "summary": "A faithful, compact text: every effect of the 70 functions matches the source and the single loop is a clear while. Its problems are an unknown function's header that numbers params by use (isFactory's address shown as _param1 though it is the second argument), an '||' chain carried through scratch memory in isPoolDeployer, and bytes32 ASCII keys in hex."
+}

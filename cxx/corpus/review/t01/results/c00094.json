@@ -1,0 +1,36 @@
+{
+  "id": "c00094",
+  "abi_functions": 117,
+  "reviewed": 117,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 5, "P6": 12, "P7": 5, "P8": 150},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "every function calling CCTPLib, CurveLib, PSMLib, ERC4626Lib, AaveLib... (20 delegatecalls)",
+      "lines": "e.g. 340, 371, 386, 401, 418",
+      "decompiled": "delegate 0x119314561bee17a748779087c8f5ab1b76a68a80.unknownb3b032fc(?) with: gas gas_remaining args proxy, stor40, _param1, _param2",
+      "source": "MainnetController.sol depositToWeETH -> WEETHLib.deposit(...) and the other external library functions",
+      "issue": "External library functions run by DELEGATECALL to linked addresses; in this unlinked bytecode the 8 targets are link placeholders (all 0x11...), not real addresses. The six loops of the source (CCTPLib.transferUSDCToCCTP's while, CurveLib's four for loops, PSMLib.swapUSDCToUSDS's while) are in those libraries, not in this bytecode.",
+      "rule": "None needed (artifact of unlinked bytecode).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "requestWithdrawFromWstETH and most proxy.doCall paths (53 lines)",
+      "lines": "2594, 2646; 2599-2603 vs 2643-2656",
+      "decompiled": "mem[_24 + 32 len 4] = 430596695 ... call proxy with: args mem[mem[64] len _27 + 100], Bytes(-_27 + ceil32(_27), 0)   (while the approve call just above prints: call proxy.unknown3aada4d2(?) with: args 0x7f39..., Array(len=68, data=Bytes(4, 0x095ea7b3), 0x889e..., _param1))",
+      "source": "MainnetController.sol:443-463 proxy.doCall(WSTETH, abi.encodeCall(approve, ...)); proxy.doCall(WSTETH_WITHDRAW_QUEUE, abi.encodeCall(requestWithdrawalsWstETH, (amountsToRedeem, address(proxy))))",
+      "issue": "Inner call data built at a constant-relative base decodes into a readable Array(...) argument, but when it is built after an array allocation at a loaded mem[64] the outer call stays raw memory and the inner selector shows only as a decimal (430596695 = 0x19aa6257).",
+      "rule": "Print a constant written to mem[a len n], n < 32, as Bytes(n, 0x...); fold mem[64] after 'mem[64] = b + k' (the known P2 root cause) so the second doCall decodes like the first.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loop of the source is in this bytecode: all six belong to external libraries reached by DELEGATECALL (see the artifact finding). The 7 whiles are compiler code: 5 element-wise memory copies of ABI encodings/decodings of uint256[] (removeLiquidityCurve 1905/1918, requestWithdrawFromWstETH 2636/2692/2705: P7) and 2 checked exponentiation helpers of 10**decimals (1980, 2087). Reviewed line by line: requestWithdrawFromWstETH, depositToWeETH, the admin setters (setMaxSlippage, setOTCBuffer...); the other role-gated wrappers by structure (nonReentrant guard stor0, hasRole check reverting with AccessControlUnauthorizedAccount(caller, role), rate-limit call on stor40, proxy.doCall); all faithful. The rate-limit keys (LIMIT_*) are storage variables in this version, and the text reads them as storN correctly. Custom errors print as raw selectors (0x3ee5aeb5 ReentrancyGuardReentrantCall, 0xe2517d3f AccessControlUnauthorizedAccount).",
+  "summary": "Faithful, mostly readable text of role-gated wrappers; it has no source loops of its own (they are in delegatecalled libraries with placeholder addresses), and its main blemishes are decimal selectors and a few undecoded nested proxy calls."
+}

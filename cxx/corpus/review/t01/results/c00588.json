@@ -1,0 +1,58 @@
+{
+  "id": "c00588",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 411, "P6": 140, "P7": 21, "P8": 10, "P9": 35, "P10": 8, "P11": 30, "P15": 76, "P18": 35},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize(), initialize(address), initialize(address,...x6), initializeBaseStrategy(...), initializeStrategy(address,address)",
+      "lines": "176-188; 456-493; 598-659; 720-820; 822-928",
+      "decompiled": "_1 = stor0 / 256 or not uint8(stor0) / if not _1: revert ... / if stor0 / 256: _4 = 0 else: _2 = stor0 / 256 / stor0 = 257 / _4 = not _2 / _5 = stor0 / 256 or not uint8(stor0) / if not _5: revert ... / if stor0 / 256: _8 = 0 else: ... / ... if _8: uint8(stor0.field_8) = 0",
+      "source": "Initializable.sol:31-45 initializer, nested 3 to 6 times (initializeStrategy -> initializeBaseStrategy -> BaseUpgradeableStrategy.initialize -> ControllableInit.initialize -> GovernableInit.initialize -> ReentrancyGuardUpgradeable.initialize)",
+      "issue": "After the outermost initializer, stor0 / 256 (_initializing) is non-zero on both paths (it was non-zero, or stor0 = 257 was just written), so every nested 'already initialized' check, the nested 'else' arms and the matching 'if _8: _initializing = 0' resets are dead, yet they are all printed; in the else arm '_2 = stor0 / 256' is known to be 0, so '_4 = not _2' is 1. The packed slot 0 (two bools _initialized and _initializing) is one uint16 'stor0' in def storage (P15).",
+      "rule": "Propagate storage values: after 'stor0 = 257' the masked field (stor0 >> 8) & 0xff is 1, and inside 'if (stor0 >> 8) & 0xff' it is non-zero; at the join both facts give 'non-zero', which decides the later identical conditions. Inside 'if c: ... else: x = c' x is 0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "withdrawToVault(uint256), doHardWork(), withdrawAllToVault(), emergencyExit()",
+      "lines": "5220-5229 (x, y, z, a never read; t read once); 9101-9111; 1623-1629",
+      "decompiled": "s = (...) / (-_143 + stor4E92) / t = storA170 / u = stor4E92 / v = _155 / w = _148 / x = storA170 / y = (same as s) / z = storA170 / a = storA170 / while v > s:",
+      "source": "AaveFoldStrategy.sol:489-510 _redeemNoFlash: while (borrowed > newBorrowTarget) {...}; :470-486 _depositNoFlash",
+      "issue": "Each inlined loop is preceded by up to 11 loop variables, most of them copies of the same invariant (four copies of storA170, two of the bound, two of borrowTargetFactorNumerator / stor4E92) that the body never reassigns and often never reads; only v and w (borrowed, supplied) change.",
+      "rule": "A loop variable that the body never assigns is its initial value (substitute it); a variable that is then never read is dead and is dropped. Two loop variables with the same initial value and no assignment are the same value.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "receiveFlashLoan(...), emergencyExit(), withdrawAllToVault(), withdrawToVault(uint256), doHardWork(), salvage(...)",
+      "lines": "1023, 1077, 1132, 1172, 1234, 1282, 1315 (47 lines)",
+      "decompiled": "mem[_198 + 32 len 4] = 157198259  |  mem[_292 + 32 len 4] = 2835717307  |  if -mem[32 * _param1.length + 192] - mem[32 * _param1.length + 32 * _amounts.length + 224]:",
+      "source": "SafeERC20 abi.encodeWithSelector(token.approve.selector, ...) / (token.transfer.selector, ...); AaveFoldStrategy.sol:465 _redeem(toRepay) -> if (amountUnderlying == 0) return",
+      "issue": "The selectors of the SafeERC20 calls are printed in decimal (157198259 = 0x095ea7b3 approve, 2835717307 = 0xa9059cbb transfer), so the call's function cannot be recognised; 'toRepay != 0' is printed as '-a - b' (the negated sum) instead of 'a + b'.",
+      "rule": "A 4-byte value stored with 'len 4' (a selector) prints as hex, or as the function name when the signature database knows it; '-a - b' as a condition is 'a + b != 0' (negation does not change zero-ness).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "initialize(address,address,address,address,address,address), initialize(address)",
+      "lines": "598, 456",
+      "decompiled": "def initialize(address _owner, address _originConvexBooster, address _convexRewardFactory, address _virtualBalanceWrapperFactory, address _rewardCrvToken, address _rewardCvxToken) / storA170 = _originConvexBooster  |  def initialize(address sender): ... storA7EC = sender",
+      "source": "BaseUpgradeableStrategy.sol:40 initialize(address _storage, address _underlying, address _vault, address _rewardPool, address _rewardToken, address _strategist); ControllableInit.sol:12 initialize(address _storage)",
+      "issue": "Parameter names taken from another contract with the same signature mislead: the underlying token reads as '_originConvexBooster', the vault as '_convexRewardFactory', the storage contract as '_owner' or 'sender'.",
+      "rule": "Take parameter names from the signature database only when they are attached to that exact selector unambiguously; otherwise print _param1.. (the function name alone is reliable).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "doHardWork (3,000 lines), withdrawToVault (2,620), withdrawAllToVault (2,400) and emergencyExit (770) were reviewed by structure (calls, loops, conditions, stores); receiveFlashLoan, salvage, the initializers and all 50+ getters/setters line by line. The 5 source loops are all readable whiles, inlined 12 times: getAddressArray (isRewardToken, rewardTokens()), _isAddressInList (isRewardToken, as 'while True' with the bound test first), _redeemNoFlash x5 (in emergencyExit and withdrawAllToVault the bound newBorrowTarget = 0 is folded: 'while u > 0'), _liquidateReward's rewardTokens loop x2, _depositNoFlash x2. The other 22 whiles are implicit: the calldata decode of receiveFlashLoan's address[] (readable) and 21 ABI-encoding copies of address[]/uint256[] memory arrays (flashLoan tokens/amounts, claimAllRewards assets, the rewardTokens() return) left as whiles (P7). Checked exactly: receiveFlashLoan (both branches, safeApprove allowance check kept only when value != 0, _supply's 1e2 floor, _borrow/_redeem zero guards), restricted / onlyGovernance, shouldUpgrade, investedUnderlyingBalance, totalFeeNumerator, setters with their revert strings. P9: borrowTarget = (supplied - borrowed) * num / (denom - num) is distributed into 's * num - b * num' with the overflow check rewritten accordingly. P8: keccak scratch writes (mem[0] = 4, mem[32] = 5) kept although the accesses print as rewardTokens[s] and stor5[...]. Eternal-storage slots are named after their getters when the getter returns the raw slot (pendingFee, storedBalance, sellFloor...), storXXXX otherwise (aToken = stor8CDE, underlying = storA170, vault = storEFD7): not misleading.",
+  "summary": "Faithful, with every loop found and readable, but the long functions are obscured by 411 raw-memory calls, decimal SafeERC20 selectors, distributed fee/borrow arithmetic and dead duplicated loop variables; the nested initializers keep their dead re-checks."
+}

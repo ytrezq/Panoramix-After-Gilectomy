@@ -1,0 +1,112 @@
+{
+ "id": "c00516",
+ "abi_functions": 81,
+ "reviewed": 81,
+ "not_reviewed": [],
+ "source_loops": 7,
+ "loops_shown": {
+  "while": 7,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P1": 9,
+  "P2": 172,
+  "P6": 75,
+  "P7": 12,
+  "P8": 590,
+  "P9": 470,
+  "P10": 10,
+  "P11": 12,
+  "P12": 40,
+  "P13": 9,
+  "P14": 60,
+  "P15": 3,
+  "P16": 30,
+  "P18": 650
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "deposit, mint, withdraw, withdrawFor, redeem, redeemFor, totalAssets, convertTo*, preview*, maxWithdraw, maxRedeem, maxMint, setFee, setFeeRecipient, setLockBuffer, reallocate, updateWithdrawQueue",
+   "lines": "8563-8566, 8598, 8727, 8779, 8847, 9024-9026, 1231, 1335-1337",
+   "decompiled": "_97 = mem[64] / mem[mem[64]] = 0x2c3c9157.. / mem[_97 + 4] = withdrawQueue[idx] / static call 0x0.mem[_97 len 4] with: args withdrawQueue[idx]  |  revert with mem[_226 len 4], 32, mem[_226 + 36 len _227 + 32], Bytes(-_227 + ceil32(_227), 0)  |  delegate 0x1160...6809890 with: args mem[mem[64] len 32 * _261 + t - mem[64] + 32]",
+   "source": "MoolahVault.sol:471 MOOLAH.expectedSupplyAssets(_marketParams(withdrawQueue[i]), address(this)) (idToMarketParams, position, market, borrowRateView); UtilsLib toUint128 require(..., 'max uint128 exceeded'); MoolahVault.sol:672 MoolahVaultLib.supplyMoolah(MOOLAH, queue, caps, assets)",
+   "issue": "Inside the totalAssets loop (inlined in 20 functions) 104 calls show their selector as mem[_N len 4] although the line before stores it at mem[mem[64]] right after '_N = mem[64]', 38 'max uint128 exceeded' reverts stay raw memory (the message is printed as a hex word two lines above), and the library calls lose function and arguments; setCap, where the same code runs at constant offsets, prints market(), position(), borrowRateView() and revert with 'max uint128 exceeded'.",
+   "rule": "After '_v = mem[64]' with no store to mem[64] in between, mem[64] and _v are the same value: rewrite mem[mem[64] + k] to mem[_v + k] and '_v - mem[64]' to 0; then the selector word, the Error(string) buffer and the argument buffer are read back like constant-offset buffers.",
+   "verified": "reading only (setCap 2020-2153 vs deposit 8563-8772: same source, decoded only at constant offsets)"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "maxDeposit(address), maxMint(address)",
+   "lines": "889-910",
+   "decompiled": "mem[64] = 64 * stor3.length + 192 ... _14 = 64 * stor3.length + 192 / mem[_14] = 0xcfb31404.. / delegate 0x1160...unknowncfb31404(?) with: args 0, Array(len=stor3.length, data=mem[160 len 32 * stor3.length], stor3.length, mem[96 * stor3.length + 356 len 32 * stor3.length]), 32 * stor3.length + 128 / mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[...] / ... mem[_14 + ceil32(min(32, return_data.size))] = mem[_14] / return memory from ... len 32",
+   "source": "MoolahVault.sol:521 return MoolahVaultLib.maxDeposit(MOOLAH, queue, caps)",
+   "issue": "The second array argument is printed as its head offset (32 * len + 128) with its length and data appended inside the first Array(...), and the returned value reads as mem[_14], the word where the text stored the selector, because the return data is copied to mem[mem[64]] and mem[64] is not folded to _14 although it was assigned that value before the loop.",
+   "rule": "Decode an ABI argument list head by head: each head word that is an offset o names a tail at base + o, printed as its own Array(len, data). Fold mem[64] to its last stored value when no store to slot 64 can intervene (loop bodies here write only 32 * idx + 160 + c and slots 0/32).",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "setSkimRecipient, setWhiteList, setMarketRemoval, setSupplyQueue, setBotRole, revokeBotRole, setCap, setFee, setFeeRecipient, setLockBuffer, updateWithdrawQueue (11 lines)",
+   "lines": "240-242, 291-293, 381-383, 400-402, 1253-1255",
+   "decompiled": "revert with caller >> 32 | 0xe2517d3f00000000000000000000000000000000000000000000000000000000, Bytes(4, uint32(caller)), 0xaf290d86...3a02c",
+   "source": "AccessControlUpgradeable._checkRole: revert AccessControlUnauthorizedAccount(account, role) for onlyRole(MANAGER/CURATOR/ALLOCATOR)",
+   "issue": "The custom error's selector and address argument are merged into one word plus a 4-byte tail, so the revert reads as three odd values; for the DEFAULT_ADMIN_ROLE check the same error prints as 'revert with 0xe2517d3f, caller, 0'.",
+   "rule": "Revert and call data that start with a 4-byte selector are re-split after byte 4: 'sel << 224 | x >> 32, Bytes(4, uint32(x))' is 'sel, x' whenever x < 2^160 (generally: Bytes(a, x >> 8b), Bytes(b, x mod 2^8b) is Bytes(a + b, x)).",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "reallocate(((address,address,address,address,uint256),uint256)[])",
+   "lines": "1138-1148",
+   "decompiled": "mem[32] = 0x9124e178..c37e / if not stor9124[caller]: ... mem[32] = 0x200e0027..43d3 / if not uint8(stor[sha3(caller, mem[32])]): revert with 'not allocator or bot'",
+   "source": "MoolahVault.sol:98 require(hasRole(ALLOCATOR, msg.sender) || hasRole(BOT, msg.sender), 'not allocator or bot')",
+   "issue": "The disjunction is printed as a storage read through a memory word that holds one of two mapping bases depending on the first test, so the BOT check is hidden; the meaning is 'if not stor9124[caller] and not stor200E[caller]: revert'.",
+   "rule": "A read of a constant memory address after a branch that stores different values to it in its arms is a phi; push a use of the phi into the arms when it is a single test (here it folds to stor9124[caller], already known true, in one arm and stor200E[caller] in the other).",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "name(), symbol(), DOMAIN_SEPARATOR(), permit(...), eip712Domain()",
+   "lines": "573-618, 735-784, 974-1013",
+   "decompiled": "if not uint1(stor9): _1 = uint7(stor9.field_1) else: _1 = stor9.field_1 / if (_1 < 32) == uint1(stor9): revert with Panic(34) / ... if not uint1(stor9): mem[160] = 256 * stor9.field_8 else: mem[160 len ceil32(_2)] = stor[0x6e15.. len (_2 + 31) / 32] ... return 32, mem[128], mem[floor32(_5 - 97) + 192 len mem[128]], ...",
+   "source": "MoolahVault.sol:482 if (bytes(_name).length > 0) return _name; return super.name(); EIP712Upgradeable._EIP712NameHash / _EIP712VersionHash",
+   "issue": "Every read of a storage string (16 places) is the open-coded via-IR decoding of the length byte, the Panic(34) check and a short/long copy, and later memory is addressed through 'floor32(_5 - 97) + floor32(_12 - floor32(_2 - 97) - 97) + 224'; 'return _name' takes 20 lines.",
+   "rule": "The sequence 'L = slot & 1 ? slot >> 1 : (slot >> 1) & 0x7f; require (L < 32) != (slot & 1); data = slot & 1 ? stor[keccak(p) len ceil32(L)/32] : slot & ~0xff' computes exactly the bytes stored at p; print it as one string read (stor9[0 len stor9.length]) and name the memory word that holds the hash as a variable.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "withdraw, withdrawFor, redeem, redeemFor, deposit, mint",
+   "lines": "7949 and 7 more",
+   "decompiled": "lastTotalAssets = _183 * (_183 > shares) - shares * (_183 > shares)",
+   "source": "MoolahVault.sol:604 newTotalAssets.zeroFloorSub(assets) (UtilsLib: z := mul(gt(x, y), sub(x, y)))",
+   "issue": "The product is distributed, so 'x > y ? x - y : 0' reads as two products.",
+   "rule": "Do not distribute a multiplication by a 0/1 value over a subtraction; '(x > y) * (x - y)' is 'max(x, y) - y'.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "MOOLAH(), DECIMALS_OFFSET() and every Moolah call",
+   "lines": "154-160, 8566",
+   "decompiled": "def unknown195be17a(): return 0 / def unknownaea70acc(): return 0 / static call 0x0.mem[_97 len 4]",
+   "source": "MoolahVault.sol immutables MOOLAH and DECIMALS_OFFSET (set in the constructor)",
+   "issue": "solc immutables read as 0 in this pre-deployment code: Moolah calls go to address 0 and 10 ** DECIMALS_OFFSET is 1. Not a decompiler error.",
+   "rule": "none (corpus artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "via-IR build, 84 decompiled functions for 81 ABI entries (+ fallback). All reviewed; the inlined totalAssets/expectedSupplyAssets/wTaylorCompounded block (~350 lines, repeated in 20 functions) was reviewed once and then by structure. No semantic error found. Loops: the 7 loops of MoolahVault.sol are all whiles: setSupplyQueue:247, updateWithdrawQueue:264 and :275, reallocate:303, totalAssets:470 (inlined 20 times), _maxDeposit:517 (maxDeposit, maxMint), _supplyMoolah:668 (deposit, mint). The 5 loops of MoolahVaultLib (reallocate:40, supplyMoolah:103, withdrawMoolah:138, simulateWithdrawMoolah:172, maxDeposit:205) are in a linked public library reached by DELEGATECALL to 0x1160663e...809890, so they are not in this bytecode and are not counted. Implicit loops: storage-to-memory copies (getWhiteList, getRoleMembers, supplyQueue/withdrawQueue writes, string writes) are copy lines; 12 ABI-encoding loops over memory arrays (address/bool/uint184 cleanup, uint256 copy) stay whiles (P7): maxDeposit, maxMint, reallocate x3, updateWithdrawQueue's event, getWhiteList, getRoleMembers, deposit x2, mint x2. P2 here = 34 'args mem[' lines + 104 selectors shown as mem[_N len 4] + 38 raw Error(string) reverts (first finding). P9: the Taylor expansion of wTaylorCompounded is distributed into polynomials of block.timestamp and lastUpdate (220 lines with 'block.timestamp * block.timestamp'), plus 512-bit mulDiv. P13/def storage: role membership for constant roles becomes separate variables stor1995/stor200E/stor511D/stor9124/storB7DB, hasRole/grantRole with a variable role stay stor[sha3(account, sha3(role, 0x2dd7..))]; whiteList's _values array is 'stor7 is uint256' with data at stor[0xa66c..]; the Initializable slot is split as uint72/uint184 and written as 18446744073709551617 (P15). P11: Panic(50) after length++ (5), 's >= withdrawQueue.length' inside a loop bounded by it, ECDSA error code 2 that tryRecover(v,r,s) never returns. P8: the via-IR keccak scratch (mem[0] = x; mem[0] = base; mem[0] = x) is printed everywhere. Parameter names from the signature database mislead in places (withdraw(uint256 shares, address to, address from) takes assets; withdrawFor's third parameter is the sender, not a receiver; initialize's 'rewards' is the asset).",
+ "summary": "Faithful, every in-contract loop shown as a while, but long and opaque: inside the inlined totalAssets loop the free-memory pointer is not followed, so Moolah calls, library calls and 'max uint128 exceeded' reverts lose names and arguments; the interest arithmetic is distributed into polynomials, storage strings are open-coded, and role errors and the allocator-or-bot test are printed in confusing forms."
+}

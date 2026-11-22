@@ -1,0 +1,36 @@
+{
+  "id": "c00232",
+  "abi_functions": 22,
+  "reviewed": 22,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P6": 2, "P8": 40, "P17": 18},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "exec(bytes32) and the vat/daiJoin/vow helpers",
+      "lines": "261, 285 (33 calls to 0x0)",
+      "decompiled": "static call 0x0.ilks(bytes32) with: gas gas_remaining args _ilk ; static call 0x0.live() with: ...",
+      "source": "D3MHub: VatLike public immutable vat; DaiJoinLike public immutable daiJoin",
+      "issue": "vat and daiJoin are solc immutables, zero in the pre-deployment runtime code, so every Vat/DaiJoin call reads as a call to 0x0.",
+      "rule": "None (pre-deployment artifact).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "exec(bytes32)",
+      "lines": "271-274 (18 lines)",
+      "decompiled": "if ext_call.return_data[32] != 1000000000 * 10**18: revert with 'D3MHub/rate-not-one' ; if _2 / (1000000000 * 10**18) > 0x279d346de4781f921dd7a89933d54d1f72927c7014:",
+      "source": "D3MHub: uint256 constant RAY = 10 ** 27; require(rate == RAY, \"D3MHub/rate-not-one\"); lineWad = line / RAY",
+      "issue": "RAY = 10**27 is printed as the product `1000000000 * 10**18` (as 1e30 in c00001 and 1e27 in c00506).",
+      "rule": "Print a constant equal to 10**k as `10**k`, never as a decimal times a power of ten.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loops in the source or the text. exec(bytes32) (420 lines) read in full for its branches (live/culled/tack/wind/unwind paths), calls, storage writes and reverts; the other 21 functions are short. The lock modifier (`if locked: revert ...; locked = 1`), the ilk/urn sanity checks, the min/max target computations and the frob/grab/slip/move calls follow the source. P2: 3 calls with raw-memory arguments; P8: selector stores and the growing `ceil32(_1) + ceil32(_3) + ...` scratch addresses before named calls. No semantic error found.",
+  "summary": "Clean, faithful text without loops; minor issues only: immutable Vat/DaiJoin calls printed as calls to 0x0 and RAY shown as `1000000000 * 10**18`."
+}

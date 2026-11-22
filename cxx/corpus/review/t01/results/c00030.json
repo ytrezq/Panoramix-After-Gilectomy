@@ -1,0 +1,25 @@
+{
+  "id": "c00030",
+  "abi_functions": 59,
+  "reviewed": 59,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 21, "P3": 2, "P6": 5, "P8": 100, "P9": 10, "P11": 8, "P12": 20},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "processWithdrawalRequests(uint256) and the withdrawal views (13 lines)",
+      "lines": "6 (def storage), 2264, 2270, 2415-2421",
+      "decompiled": "stor1 is fixed array of uint256 at storage 1 / stor3 is fixed array of uint256 at storage 3 ... t = sha3(stor5DFE_5dfed237_19, 0x5dfed...3b11) ... if stor5DFE_5dfed237_11 != stor5DFE_5dfed237_11 * stor1[t] / stor1[t] and stor1[t]:",
+      "source": "BaseTSA.sol:294-298 WithdrawalRequest storage request = $.queuedWithdrawals[$.queuedWithdrawalHead]; ... _getSharesToWithdrawAmount(request.amountShares)",
+      "issue": "A member of the queued withdrawal request, at slot t + 1 where t is the keccak slot of queuedWithdrawals[head], prints as stor1[t], and def storage declares fixed arrays at slots 1 and 3 that the contract (which uses only ERC-7201 namespaced slots) does not have; the reader cannot tell that stor1[t] is request.amountShares.",
+      "rule": "An access stor[t + k] with t bound to a keccak-derived slot is member k of the struct at t: print it through t's definition (stor5DFE_..._11b[head].field_{256k}) and do not infer a fixed array at slot k from it.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: processDeposits' for (1926) and processWithdrawalRequests' for (2267) are both rotated (P3): the first test 'if 0 >= cd[_param1 + 4]: stop' is printed before the loop (in both arms of the fee branch, P12) with the first element loaded into s, the loop is 'while True:' and the real test is at the bottom ('if t + 1 >= mem[128]: stop / s = mem[32 * t + 192] / t = t + 1'); the head >= next break of processWithdrawalRequests is inside. _getSubAccountStats' for over balances is shown readably 6 times (1016, 1279, 2735, 3470, 4025, 4760). Implicit whiles: 9 checked exponentiation helpers (10**decimals, 'while u > 1'), and ABI decodings of returned balance arrays and of the calldata action/signature structs in the two big signing functions (3100, 3154, 4390, 4444). The two signing functions (unknowna39cc91b 1188 lines, unknownc4f1909d 1292) and processDeposit/processWithdrawalRequests were reviewed by structure; getNumShares, the small setters and getters by reading. Storage is ERC-7201 namespaced (keccak bases 0x5dfed..., 0x273fa..., 0x52c63...): the text names members stor5DFE_5dfed237_N, which is consistent. P9: share/withdraw math distributed over subtractions ('-1 * s * stor1[t] + ... * stor1[t] + totalPendingDeposits * stor1[t]').",
+  "summary": "Faithful text; its three source loops are found (two rotated with the test at the bottom), and the main readability problem is that struct members reached through a precomputed mapping slot are shown as fake fixed arrays stor1/stor3."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "c00055",
+  "abi_functions": 89,
+  "reviewed": 89,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 7, "P6": 3, "P7": 4, "P8": 40},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getClaimableAmount(address) and the delegate/undelegate paths with raw calls",
+      "lines": "1438-1450",
+      "decompiled": "while idx:\n    _15 = mem[64]\n    mem[mem[64]] = 0xd241c1ea...\n    mem[_15 + 4] = _4 / mem[_15 + 36] = s\n    static call address(_2) with: args mem[mem[64] len _15 - mem[64] + 68]",
+      "source": "ListaStakeManager.sol:929-934 while (count != 0) { req = IStakeCredit(creditContract).unbondRequest(holder, index); _amount += req.bnbAmount; --count; ++index; }",
+      "issue": "Inside the loop the unbondRequest(holder, index) call and its struct result stay raw memory (P2), the same named-alias-of-mem[64] cause as in c00585.",
+      "rule": "As c00585: unify '_15 = mem[64]' with later reads of mem[64] until the next write; len '_15 - mem[64] + 68' is then 68 and the call decodes.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 89 ABI functions and the fallback reviewed; the staking, delegation, undelegation and claim flows by structure (stake hub calls, credit contract calls, SafeMath-checked share math, events, AccessControl and pause checks). Loops: 5 explicit in this bytecode, all readable whiles: claimWithdrawByUUID's loop over the user's requests, getClaimableAmount's 'while (count != 0)' ('while idx:'), _getTotalBnbInValidators' loop over creditContracts, syncCredits' loop, and StringsUpgradeable.toHexString ('while idx > 1', 62 copies from the AccessControl missing-role revert; for DEFAULT_ADMIN_ROLE the role digits are folded to '0', nice). Not counted: SLisLibrary.binarySearchCoveredMaxIndex and requireBindable are public library functions reached by delegatecall (8 delegate calls), so their loops are not in this bytecode. The AccessControl revert is printed as a readable concatenation ('AccessControl: account 0x', mem[162 len 40], ' is missing role 0x', ...). No execution run.",
+  "summary": "Faithful and mostly readable: all loops are clean whiles (the many toHexString copies come from inlined AccessControl reverts); the only notable defect is a few raw calls, such as unbondRequest inside the claimable-amount loop."
+}

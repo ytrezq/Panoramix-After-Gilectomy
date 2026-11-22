@@ -1,0 +1,47 @@
+{
+  "id": "c00220",
+  "abi_functions": 25,
+  "reviewed": 25,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 3, "P3": 2, "P4": 4, "P6": 8, "P7": 24, "P8": 40, "P12": 20, "P18": 15},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "sendCrossChainMessage (unknown62448850), retrySendCrossChainMessage (inlined ReceiptQueue.getOutstandingReceiptsToSend)",
+      "lines": "sendCrossChainMessage text lines 51-73 (dec 1430s)",
+      "decompiled": "if SafeMath.sub(stor4[cd[_param1 + 4]].field_256, stor4[cd[_param1 + 4]].field_0) != (5 < SafeMath.sub(...)) ...\nidx = stor4[cd[_param1 + 4]].field_256 - stor4[cd[_param1 + 4]].field_0 ^ (5 < stor4[cd[_param1 + 4]].field_256 - stor4[cd[_param1 + 4]].field_0) * (stor4[...",
+      "source": "ReceiptQueue.sol getOutstandingReceiptsToSend: uint256 resultSize = Math.min(queue.size(), MAX_RECEIPT_BATCH_SIZE) (OZ 5 branch-free min)",
+      "issue": "OZ 5's branch-free min 'a ^ ((b < a) * (a ^ b))' is printed literally with the queue size (last - first) recomputed inside it, and the whole expression is repeated in about eight lines (array allocation, free pointer, loop bound).",
+      "rule": "a ^ ((b < a) * (a ^ b)) is min(a, b) for all words (and with > it is max); bind the queue size and the min to temporaries once.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "receiveCrossChainMessage (unknown3e249b56), sendCrossChainMessage, sendSpecifiedReceipts, retrySendCrossChainMessage",
+      "lines": "sendCrossChainMessage 88-100; receiveCrossChainMessage 'stor[sha3(_142, sha3(cd[_param1 + 68], 4) + 2)] = mem[_131]'",
+      "decompiled": "_39 = sha3(stor4[cd[_param1 + 4]].field_0, sha3(cd[_param1 + 4], 4) + 2)\nmem[_40] = stor[sha3(stor4[cd[_param1 + 4]].field_0, sha3(cd[_param1 + 4], 4) + 2)]\nmem[_40 + 32] = address(stor[sha3(...) + 1])\nstor[sha3(...)] = 0; address(stor[_39 + 1]) = 0\nstor4[cd[_param1 + 4]].field_0 = SafeMath.add(1, _41)",
+      "source": "ReceiptQueue.sol: struct TeleporterMessageReceiptQueue { uint256 first; uint256 last; mapping(uint256 => TeleporterMessageReceipt) data; } enqueue/dequeue on receiptQueues[blockchainID]",
+      "issue": "The queue's first/last members are named (stor4[id].field_0 / field_256) but its data mapping (member 2, a mapping of 2-slot structs) is raw keccak arithmetic, so enqueue and dequeue cannot be read as queue operations.",
+      "rule": "As in c00235: stor[sha3(k, B) + i] and stor[sha3(a, sha3(k, B) + j) + m] with one base B make B a mapping of structs whose member j is a mapping of structs; print B[k].field_(256*j)[a].field_(256*m).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "receiveCrossChainMessage and the functions calling the message verifier",
+      "lines": "-",
+      "decompiled": "call 0x0.unknownf1faff00(?) with: ...",
+      "source": "messageVerifier.verifyMessage(message) (immutable verifier address)",
+      "issue": "solc immutable read as 0: the verifier is called at address 0.",
+      "rule": "None: normal for this corpus.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 25 ABI functions reviewed; receiveCrossChainMessage (about 400 text lines), sendCrossChainMessage, sendSpecifiedReceipts, retryMessageExecution and retrySendCrossChainMessage by structure (checks, the message-received and relayer-reward writes, receipt marking with ReceiptReceived events, queue enqueue/dequeue, the gas check and destination code check, the destination call, failed-message hash storage, MessageExecuted/MessageExecutionFailed, ReceiveCrossChainMessage/SendCrossChainMessage events, fee transfers); no semantic difference found. Source loops (4, all whiles): _checkIsAllowedRelayer (a readable 'while True' with the revert), receiveCrossChainMessage's receipt loop, getOutstandingReceiptsToSend's dequeue loop, sendSpecifiedReceipts' loop. Implicit: about 30 calldata decodes and ABI encodes of the TeleporterMessage struct (address[], receipt[] and bytes members) for hashing, events and calls (P7 for the memory-to-memory ones), two rotated zero-inits ('while idx - 1', P3). The Error(string) reverts after the first dynamic allocation ('insufficient gas', ...) and the events with struct data print as raw memory at the free-memory pointer (P2 root cause); struct members are read back as mem[_8 + 96], mem[_8 + 128] (P18). P1: the Initializable slot 0xf0c5... printed as '0x111f...aa0 * 3600' (initialize). P12: the relayer-reward write and message-received write are printed in both arms of the 'zero message nonce' split; the failed-message handling twice. No execution run.",
+  "summary": "Structurally faithful; the text is long and hard to follow because of the TeleporterMessage ABI encodes, free-memory-pointer raw memory, OZ's branch-free min printed literally, and the receipt queue's data mapping left as raw keccak slots."
+}

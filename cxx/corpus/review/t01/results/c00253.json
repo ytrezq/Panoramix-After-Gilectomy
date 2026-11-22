@@ -1,0 +1,25 @@
+{
+  "id": "c00253",
+  "abi_functions": 19,
+  "reviewed": 19,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P7": 2, "P8": 10, "P11": 1, "P12": 14},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "updateBalances(address,address,uint256)",
+      "lines": "204-263",
+      "decompiled": "_2 = from and delegated[from] / _4 = to and delegated[to] / if _5: ... (balances, events) ... if _2: call registration[_2].burn(...) ... call registration[_4].mint(...) / else: if _2: call registration[_2].burn(...) ... call registration[_4].mint(...)",
+      "source": "DelegationHook.sol:36-37 from == address(0) ? address(0) : delegated[from]; TokenizedDelegationHook._updateBalances: super._updateBalances(...) then burn/mint on the delegatees' share tokens",
+      "issue": "P12: the burn/mint tail (14 lines) is printed in both arms of the 'fromDelegatee != toDelegatee && amount > 0' test; the value-'and' of c00410 encodes the ternaries; 'if not _4: revert ERC20InvalidReceiver(0)' is dead there (_4 != _2 = 0).",
+      "rule": "Hoist a common tail out of both arms of an if (tail merging); print 'a and b' with non-boolean b as 'b if a else 0'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "via-IR build. No explicit loops in the source. The two whiles are the string copies of name()/symbol() from the storage-loaded buffer into the return buffer (P7). register (create of the share token with name/url), delegate, setDefaultFarm and the ERC20 view functions are faithful. Address decoding checks print as 'require not Mask(96, 160, from)'. The onlyToken check reads 'if caller: revert AccessDenied()' because TOKEN is an immutable read as 0 (artifact). No semantic error found.",
+  "summary": "Short, complete and faithful; no source loops. Minor issues: a duplicated burn/mint tail in updateBalances, value-'and' ternaries, and two string copy loops."
+}

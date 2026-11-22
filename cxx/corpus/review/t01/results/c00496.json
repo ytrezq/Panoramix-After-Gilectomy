@@ -1,0 +1,80 @@
+{
+  "id": "c00496",
+  "abi_functions": 4,
+  "reviewed": 4,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 40, "P2": 19, "P3": 4, "P6": 47, "P7": 5, "P8": 1500, "P9": 420, "P11": 6, "P12": 3, "P18": 117},
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "getPositionInfo(DataStore,IReferralStorage,bytes32,MarketUtils.MarketPrices,uint256,address,bool)",
+      "lines": "12261-13081",
+      "decompiled": "if not _6371: ... if not mem[_6351 + 64]: (static funding) ... else: (adaptive) ... getUint(MIN_FUNDING_FACTOR_PER_SECOND) ... getUint(MAX_FUNDING_FACTOR_PER_SECOND) / ...  # Decompilation aborted",
+      "source": "MarketUtils.sol:1589-1682 (getNextFundingFactorPerSecond after the early return), :1411-1531 (getNextFundingAmountPerSize), ReaderPositionUtils.sol:205-286",
+      "issue": "The text continues only for the two cheap cases (one side's open interest is zero, line 11948; diffUsd == 0 and fundingIncreaseFactorPerSecond == 0, line 13082). Every other path, i.e. any active market, ends in the abort: the bounded saved funding factor, the funding amounts per size, the latest funding values, the multiplier, getFundingFees, the getPositionPnlUsd delegatecall, the totals and the return are lost.",
+      "rule": "Decompiler limit (path budget); the inlined mulDiv expansions (P9) multiply the paths. Folding mulDiv to one expression before path exploration would shrink the function enough to finish.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "getAccountPositionInfoList(...) 0x78109081, getPositionInfoList(...) 0x6aeb8755",
+      "lines": "4171 (getAccountPositionInfoList), 8474 (getPositionInfoList)",
+      "decompiled": "static call _param1.getUint(sha3(sha3(Array(len=14, data='FUNDING_FACTOR')), ...)) ... require return_data.size >=′ 32 / ...  # Decompilation aborted",
+      "source": "MarketUtils.sol:1590-1682 and :1411-1531, inlined in the loops of ReaderPositionUtils.sol:43 and :72",
+      "issue": "Inside the per-position loop body the abort comes even earlier than in getPositionInfo, right after the FUNDING_FACTOR read: the static and adaptive funding-factor computations and the funding amounts per size are lost for every active market. The loop's rest (claimable funding reads, getPositionPnlUsd, positionKey store, continue) is shown only for the non-aborted paths.",
+      "rule": "Same limit as in getPositionInfo.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all four (53 reverts), e.g. getAccountPositionInfoList and getPositionInfo",
+      "lines": "623-639; 12974-12981; 13104-13111; 11806-11813",
+      "decompiled": "mem[mem[64]] = 0xeb1947dd000...; mem[_3824 + 4] = address(_3813); revert with memory from mem[64] len _3824 - mem[64] + 36   |   mem[_9081 + 36] = 21; mem[_9081 + 68] = 0x580ac1e2ad161ab0d634ce7679198eac50198357000000000000000000000 * 3600; revert with memory from mem[64] len _9081 - mem[64] + 100",
+      "source": "ReaderPositionUtils.sol:103 revert Errors.EmptyMarketPrice(market); Math.mulDiv require(denominator > prod1, \"Math: mulDiv overflow\")",
+      "issue": "Reverts whose payload is built at the free-memory pointer stay raw memory: the custom error EmptyMarketPrice(address) (in the ABI) and the string 'Math: mulDiv overflow' are not decoded, and the string word even becomes a P1 constant (all 40 P1 lines are this). The same strings are decoded where the buffer base is a constant (line 12690 'revert with 'Math: mulDiv overflow'').",
+      "rule": "Same root cause as P2: when _x = mem[64] and every byte of [_x, _x + n) is written at _x + constant offsets, read the buffer through those writes as for a constant base (offsets from one SSA base below 2^64 do not wrap), then decode selector + ABI words as Error(string) or a known error.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getPositionInfo and the two list functions (inlined MarketUtils.getCachedTokenPrice)",
+      "lines": "9171-9174",
+      "decompiled": "revert with Bytes(16, 0xbe4729a2000000000000000000000000), mem[ceil32(_1) + 3116 len 20], Bytes(12, 0), ext_call.return_data[12 len 20]",
+      "source": "MarketUtils.sol getCachedTokenPrice: revert Errors.UnableToGetCachedTokenPrice(token, market.marketToken)",
+      "issue": "A custom error from the ABI is printed as a concatenation of byte slices whose boundaries straddle the selector and the first argument's zero padding, so neither the error nor its two address arguments are visible.",
+      "rule": "When revert data is 4 + 32k bytes and its first 4 bytes are a constant selector, re-split the concatenation at 4 + 32i: 'Bytes(12, 0), x[a + 12 len 20]' is the word address(x[a]); then print 'revert with Error(args)' (named when the selector is known).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "getAccountPositionInfoList (inlined _getMarketPricesByAddress); new-array zeroing in getAccountPositions, getAccountPositionInfoList, getPositionInfoList",
+      "lines": "623-642; 73-127, 444, 4651",
+      "decompiled": "if 0 >= mem[128]: revert EmptyMarketPrice / _3827 = mem[160] / t = 0 / while -address(_3813) + address(_3827): if t + 1 >= mem[128]: revert ... / _3827 = mem[32 * t + 192] / t = t + 1   |   if len: <first element, 24 lines> / while idx - 1: <same 24 lines>; idx = idx - 1",
+      "source": "ReaderPositionUtils.sol:96-103 for (i = 0; i < markets.length; i++) if (markets[i] == market) return marketPrices[i]; revert EmptyMarketPrice(market); :71 new PositionInfo[](n)",
+      "issue": "The search loop is rotated (first bound test and first load before the loop) and its condition is the difference 'markets[t] - market' instead of 'markets[t] != market'; the zero-initialising loops are rotated with their first iteration duplicated and the test 'idx - 1'. Semantics are right.",
+      "rule": "In a condition, 'x - y' (or '-y + x') is nonzero iff x != y: print 'x != y'. For the rotation see P3: 'if n: body; while idx - 1: body; idx--' is 'while idx != 0: body; idx--' with idx = n.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getPositionInfo, getAccountPositionInfoList, getPositionInfoList",
+      "lines": "e.g. 12898-12995 (502 lines)",
+      "decompiled": "mem[_5903 + ceil32(_54) + ceil32(_55) + ceil32(_56) + ceil32(_57) + ceil32(_58) + ceil32(_62) + ceil32(_63) + 3744] = ext_call.return_data[0]",
+      "source": "MarketUtils.sol:1609 cache.savedFundingFactorPerSecond = getSavedFundingFactorPerSecond(...) (fields of memory cache structs)",
+      "issue": "Fields of the memory cache structs are addressed by sums of up to eight ceil32(return_data.size) terms, repeated on every access, which makes the funding code unreadable (lines over 240 characters).",
+      "rule": "Name an address expression when it is first used as the base of an allocation (it equals mem[64] at that point) and print later accesses as name + constant; the decompiler already does this for some allocations (_6351 = mem[64]).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "getPositionInfo (4,670 lines) and the two list functions (4,250 and 4,300 lines) were reviewed by structure: loops, the delegatecalls to the linked libraries (PositionStoreUtils.get 0xfdfc26f3, MarketStoreUtils.get 0xa8d8fff5, ReaderPricingUtils.getExecutionPrice 0xda1d77b9, PositionUtils.getPositionPnlUsd at 0x1108dffd with P2 args), the referral-storage calls, getCachedTokenPrice, the sizeDeltaUsd choice, the totals and the return encoding; the list functions inline the same body as getPositionInfo. getAccountPositions was reviewed in full and is correct. Source loops: ReaderPositionUtils.sol:43, :72, :96, :114 and PRBMathUD60x18.log2:388 (shown as 'while s:' / 'while t:' at 7 inlined sites, readable). EnumerableValues.valuesAt's loop runs inside DataStore (external call) and is not counted. The other 11 whiles are implicit: ABI decoding of the calldata arrays (237, 255, 4504), return-data decode of bytes32[] and ABI encoding of the result arrays (63, 195, 326, 4390, 8693: P7), new-array zeroing (100, 444, 4651: P3). P11: Panic(50) bound checks implied by the loop tests (131, 182, 556, 4763...). P12: the usePositionSizeAsSizeDeltaUsd selection printed in both arms of the getCachedTokenPrice branch (9179-9190). P8 and P9 are estimates (1,246 sha3/call-buffer setup writes, 1,560 zero-initialising writes; 421 mulmod/Newton lines). Constants 10^30 and 10^45 print as '1000000000000 * 10**18' and '1000000000000000000000000000 * 10**18' (cosmetic).",
+  "summary": "A huge library reader whose main funding path is lost to aborts in the three big functions; what is shown is faithful but buried under mulDiv expansions, raw-memory reverts and very long memory addresses. The loops are all present; getAccountPositions is clean apart from known patterns."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "c00393",
+  "abi_functions": 2,
+  "reviewed": 2,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "getCreationCode(), getCreationCodeContracts()",
+      "lines": "3-4",
+      "decompiled": "const getCreationCode = 32, 0 / const getCreationCodeContracts = Bytes(64, 0)",
+      "source": "BaseSplitCodeFactory.sol:101-108 immutables _creationCodeContractA/B and _creationCodeSizeA/B; _getCreationCodeWithArgs(\"\") (extcodecopy of the two halves)",
+      "issue": "All four immutables read as 0, so the creation code is empty and both functions are constants: an empty bytes (offset 32, length 0) and two zero addresses. Printing the empty bytes as '32, 0' (its ABI words) is a minor display issue.",
+      "rule": "None for the constants (not a decompiler error); a constant return that is a valid ABI encoding of an empty dynamic value could print as ''.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Two view functions, both constant because the immutables read as 0; the Yul code of _getCreationCodeWithArgs has no loop. Fallback reverts. No semantic issue.",
+  "summary": "Trivial and faithful: with the immutables read as 0 both functions fold to constants."
+}

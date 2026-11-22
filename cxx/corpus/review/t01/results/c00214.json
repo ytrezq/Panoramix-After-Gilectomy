@@ -1,0 +1,13 @@
+{
+  "id": "c00214",
+  "abi_functions": 16,
+  "reviewed": 16,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 2, "P7": 3, "P8": 12},
+  "findings": [],
+  "notes": "Unoptimised build (solc 0.8.7 noopt), yet a compact and readable text. Loop map: configurePool (functionIds loop), hasPermission (lenders loop), setLenderAllowlist (stor4[poolManager][lender] = bool, with the Panic(50) bound on the booleans array, after 'PPM:PAUSED', 'PPM:NOT_PD_GOV_OR_OA', 'PPM:SLA:NO_LENDERS' and 'PPM:SLA:LENGTH_MISMATCH'), setLenderBitmaps, setPoolBitmaps — all checked against the source. The other three whiles are the ABI encode loops of the LenderAllowlistSet / LenderBitmapsSet event arrays (P7). P8: the mem[0]/mem[32] hash scratch writes kept before each nested-mapping write. Calls to globals (isFunctionPaused(msg.sig), the pool delegate / governor / operational admin lookups) are typed but unnamed (unknownXXXXXXXX), which is the signature database.",
+  "summary": "Faithful and readable: all five source loops are clean whiles; only hash scratch writes and ABI encode loops add noise."
+}

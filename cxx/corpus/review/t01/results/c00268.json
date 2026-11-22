@@ -1,0 +1,25 @@
+{
+  "id": "c00268",
+  "abi_functions": 2,
+  "reviewed": 2,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "build(address,address,bytes32,address,address)",
+      "lines": "34-46",
+      "decompiled": "_1 = create.new_address / if not create.new_address: revert ... / require ext_code.size(create.new_address) / call create.new_address.rely(address usr) ... / require ext_code.size(_1) / call _1.deny(address usr)",
+      "source": "UNIV2LPOracle.sol:105-107 orcl = address(new UNIV2LPOracle(...)); UNIV2LPOracle(orcl).rely(_owner); UNIV2LPOracle(orcl).deny(address(this));",
+      "issue": "The new contract's address is bound to _1 but printed as create.new_address in the first half of the uses and _1 in the second.",
+      "rule": "Once a value is bound to a temporary, print every later use with that temporary.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Both ABI functions read in full (isOracle, build). solc 0.6.12: no ABI cleanup checks on the address arguments (address(...) masks at the uses instead), create failure bubbles the return data; the event's indexed tok0/tok1 and the rely/deny/isOracle sequence match the source. No loop in the source or the text.",
+  "summary": "Exact and readable; only an inconsistent name for the created contract's address."
+}

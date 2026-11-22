@@ -1,0 +1,47 @@
+{
+  "id": "c00555",
+  "abi_functions": 54,
+  "reviewed": 54,
+  "not_reviewed": [],
+  "source_loops": 9,
+  "loops_shown": {"while": 9, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 19, "P3": 1, "P6": 14, "P7": 15, "P8": 97, "P11": 16, "P16": 20},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "setDestinationGas((uint32,uint256)[]), unenrollRemoteRouters(uint32[])",
+      "lines": "726-728; 1189-1191",
+      "decompiled": "s = 0 / while True: / if s >= cd[_param1 + 4]: / stop / require cd[64 * s + _param1 + 36] == uint32(...) / ...",
+      "source": "GasRouter.setDestinationGas: for (i < gasConfigs.length) _setDestinationGas(...); Router.unenrollRemoteRouters: for (i < length) _unenrollRemoteRouter(_domains[i])",
+      "issue": "Two plain for loops are printed as 'while True' with the exit test and the function's end ('stop') inside the body.",
+      "rule": "A 'while True' whose first statement is 'if c: <tail>' is 'while not c: <body>' followed by the tail.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "verify (TypedMemView.encodeHex, 8 inlined copies of 2 loops)",
+      "lines": "1953-1975 and 15 more",
+      "decompiled": "while uint8(s) > 15: / if 8 * uint8(s) != 8 * (s % 32): revert Panic(17) / ... mem[_25 + 32] = 0x30313233...66 / _26 = mem[_25 + uint8(...) / 16 + 32]",
+      "source": "TypedMemView.sol:106 for (uint8 i = 31; i > 15; ) { uint8 _byte = uint8(_b >> (i * 8)); ... }",
+      "issue": "The uint8 overflow test of i * 8 is kept although i stays in [16, 31] in this loop (and [0, 15] in the next); the hex digit table is rebuilt in memory and indexed instead of shown as a constant lookup.",
+      "rule": "With loop bounds 15 < i <= 31 (or i <= 15) on a uint8 counter, 8 * i < 256, so the overflow test is false; a read of a constant string stored in fresh memory is the byte of the constant.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "quoteTransferRemote(uint32,bytes32,uint256) and the token/immutable getters (token, tokenMessenger, messageTransmitter, ...)",
+      "lines": "149-160",
+      "decompiled": "mem[64] = 320 / s = 160 / idx = 3 / while idx - 1: mem[64] = mem[64] + 64 ... / revert with Panic(18)",
+      "source": "TokenRouter.sol:119 quoteTransferRemote: quotes = new Quote[](3); ... _quoteGasPayment / _outboundAmount (scale immutables)",
+      "issue": "With the solc immutables read as 0, the scaling divides by zero before any call, so the decompiler correctly reduced quoteTransferRemote to the Quote[3] allocation (rotated init loop, P3) followed by Panic(18).",
+      "rule": "none (input artifact)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "54 ABI functions plus the fallback reviewed; verify (with the CCTP message parsing through TypedMemView), transferRemote and handle reviewed by structure, the router/domain admin functions read in full. Loops: 9 explicit, all whiles: EnumerableMapExtended.keys and .uint32Keys (domains()), Strings.toString's digit loop ('while t / 10', inlined about 12 times for the 'No router enrolled for domain: ' messages, which solc evaluates eagerly), addDomains (uint32 counter kept as 'while uint32(s) < _24'), enrollRemoteRouters, setDestinationGas and unenrollRemoteRouters ('while True'), TypedMemView.encodeHex's two loops (16 copies in verify; the pack's loop list misses them). Implicit: urls()/setUrls string[] storage copies, decodes, the Quote[3] init (P3), ~15 encode copies (P7). P16: calldata struct-array elements as cd[64 * s + _param1 + 36]. No semantic error found.",
+  "summary": "Faithful and fairly readable: all 9 loops present (two as 'while True'), with the usual copy loops and dead scratch stores; quoteTransferRemote collapses to Panic(18) only because the scale immutables read as 0."
+}

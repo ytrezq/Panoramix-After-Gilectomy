@@ -1,0 +1,25 @@
+{
+  "id": "c00553",
+  "abi_functions": 7,
+  "reviewed": 7,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "getChainlinkToken() and every create",
+      "lines": "3, 21-22, 33-34, 46-47, 55-56, 69-70",
+      "decompiled": "const getChainlinkToken = 0 / create contract with 0 wei code: code.data[2440 len 16012], 0, caller",
+      "source": "OperatorFactory: address public immutable getChainlinkToken; new Operator(getChainlinkToken, msg.sender)",
+      "issue": "The LINK token immutable reads as 0 in the pre-deployment runtime code, so every constructor argument for it is 0.",
+      "rule": "None (bytecode artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loops. All 7 functions compared with OperatorFactory.sol (this repository's version, where deployNewOperatorAndForwarder creates the Operator with msg.sender as owner and does no transferOwnership): creation code slices, constructor arguments (including the empty bytes as 128, 0 and the message bytes with padding), s_created writes, events and returns are faithful.",
+  "summary": "A tiny, faithful and readable factory text; only the immutable LINK address prints as 0."
+}

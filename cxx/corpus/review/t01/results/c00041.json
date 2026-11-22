@@ -1,0 +1,58 @@
+{
+  "id": "c00041",
+  "abi_functions": 76,
+  "reviewed": 76,
+  "not_reviewed": [],
+  "source_loops": 10,
+  "loops_shown": {"while": 10, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 59, "P3": 2, "P4": 8, "P6": 19, "P7": 30, "P8": 216, "P9": 10, "P11": 40, "P16": 437},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "totalAssets, totalAssetsWithdrawable, maxWithdraw, maxRedeem, redeem, withdraw, callOnAdaptor, cachePriceRouter, swapPositions, removePosition, forcePositionOut, addPosition, setHoldingPosition ... (437 lines)",
+      "lines": "3001-3060, 996-1003, 1598-1640, 2320-2360 ...",
+      "decompiled": "mem[0] = Mask(32, 32 * (idx % 8), stor[idx / 8 + sha3(10)]) >> 32 * (idx % 8) / if uint1(stor13[Mask(32, 32 * (idx % 8), stor[idx / 8 + sha3(10)]) >> 32 * (idx % 8)].field_256): ...   |   stor[uint32(index2) / 8 + sha3(10)] = 256**(4 * (index2 % 8)) * (Mask(32, 32 * (index1 % 8), stor[..]) >> 32 * (index1 % 8)) | ~(4294967295 * 256**(4 * (index2 % 8))) & ..",
+      "source": "Cellar.sol uint32[] public creditPositions / debtPositions; e.g. :1004 uint32 position = creditPositions[i]; getPositionData[position]; swapPositions: (creditPositions[index1], creditPositions[index2]) = (creditPositions[index2], creditPositions[index1]);",
+      "issue": "def storage knows stor10/stor11 are arrays (it prints stor10.length), but element reads and writes of these packed uint32 arrays (8 elements per slot) stay raw slot arithmetic with shifts by 32 * (i % 8), repeated up to 10 times per loop iteration as the key of getPositionData.",
+      "rule": "For element width w = 256 / k bits: Mask(w, w * (i % k), stor[i / k + sha3(s)]) >> w * (i % k) is element i of the array at slot s, and 'stor[i / k + sha3(s)] = (v << w*(i % k)) | ~(M << w*(i % k)) & stor[..]' is the write stor_s[i] = v; print stor10[idx] (and bind it once).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "getCreditPositions(), getDebtPositions()",
+      "lines": "706-734, 649-677",
+      "decompiled": "mem[160] = stor10[0][0] / if 32 * stor10.length + 160 > 192: mem[192] = stor10[0][1]; idx = 192; s = 4; t = 0 / while 32 * stor10.length + 160 > idx + 32: mem[idx + 32] = uint32(stor[t + (s + 7) / 32 + sha3(10)] / 256**(s - Mask(251, 5, s + 7) / 8 - s * ((s + 7) / 32) + 4)); idx += 32; t = t + (s + 7) / 32; s = s - Mask(251, 5, s + 7) / 8 - s * ((s + 7) / 32) + 4",
+      "source": "Cellar.sol getCreditPositions() returns (uint32[] memory) { return creditPositions; }",
+      "issue": "The compiler's storage-to-memory copy of a packed uint32[] is printed as a twice-rotated loop over a byte offset and a slot counter (s = (s + 4) % 32, t += (s == 28)); a one-line function becomes 25 lines, followed by a second re-encoding loop.",
+      "rule": "A loop writing mem[d + 32k] = uint_w(stor[base + k / (256/w)] >> w * (k % (256/w))) for k < len (offset update s' = (s + w/8) % 32, slot update t' = t + (s + w/8 == 32)) is the copy 'mem[d len 32 * len] = stor10[0 len len]'; fold the peeled first iterations back into it.",
+      "verified": "reading only (checked the offset update: for s in {0,4,..,24} it gives s + 4, for s = 28 it gives 0 and t + 1)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "totalAssets, totalAssetsWithdrawable, maxWithdraw, maxRedeem, callOnAdaptor, cachePriceRouter, setHoldingPosition, setAlternativeAssetData, removePosition (19 loops)",
+      "lines": "3020-3025, 1075, 1184, 1721 ...",
+      "decompiled": "mem[0] = sha3(pos, 13) + 1 / s = 0 / t = 0 / while s < _68: mem[s + mem[64] + 68] = stor[t + sha3(sha3(pos, 13) + 1)]; s = s + 32; t = t + 1",
+      "source": "Cellar._balanceOf / _assetOf: adaptor.balanceOf(getPositionData[position].adaptorData) (bytes storage passed to an external call)",
+      "issue": "Copies of a long storage bytes into call memory are printed as while loops, while calldata/returndata copies are copy lines.",
+      "rule": "'while s < n: mem[a + s] = stor[b + s/32]; s += 32' is the copy 'mem[a len ceil32(n)] = stor[b len ceil32(n)]'; print it as a copy line like the other copies.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "callOnAdaptor, cachePriceRouter, totalAssets ... (distributed mulDiv)",
+      "lines": "4866-4867, 4920-4921",
+      "decompiled": "require SafeMath.sub(10**18, stor18) == (-1 * mem[_155] * stor18 + 10**18 * mem[_155]) / mem[_155] or not mem[_155]  |  u = (10**18 * _156 + _156 * stor18 - 1) / 10**18 * bool(10**18 * _156 + _156 * stor18) + bool(10**18 * _156 + _156 * stor18)",
+      "source": "Cellar.sol callOnAdaptor: minimumAllowedAssets = assetsBeforeAdaptorCall.mulDivUp((1e18 - allowedRebalanceDeviation), 1e18); maximumAllowedAssets = ...mulDivUp((1e18 + allowedRebalanceDeviation), 1e18)",
+      "issue": "Solmate mulDivUp is printed with x * (1e18 +/- d) distributed (P9) and its rounding as '(p - 1) / d * bool(p) + bool(p)', with the product written three times.",
+      "rule": "Keep a * (b + c) undistributed when b + c is an operand of the source; '(p - 1) / d * bool(p) + bool(p)' with p = x*y is ceil(p / d) (mulDivUp); bind p once.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small functions (ERC20/ERC4626 views, owner setters, catalogue add/remove, multicall, swapPositions, getCreditPositions/getDebtPositions, executeOperation's prologue) reviewed in detail; totalAssets/totalAssetsWithdrawable, maxRedeem/maxWithdraw, deposit/mint/redeem/withdraw, multiAssetDeposit, callOnAdaptor, cachePriceRouter, addPosition/removePosition/forcePositionOut reviewed by structure. Loops: 10 source loops compiled here, all whiles: multicall's for ('while True: if s >= data.length: stop', 916), executeOperation's for (2734), _calculateTotalAssetsOrTotalAssetsWithdrawable's 3 fors (credit-withdrawable 1868, credit 3000, debt 3082 and their copies in cachePriceRouter, callOnAdaptor, maxRedeem, maxWithdraw), _makeAdaptorCalls' nested fors (4922 / 4939), _withdrawInOrder (3325, 3678), Uint32Array.add (2320, 2348) and remove (1598 ... 1798). Not counted: PriceRouter._getValues (:594), listed in the pack's reach but reached only through the external call priceRouter.getValues / getValuesDelta. The other whiles are implicit: 30 memory-to-memory copies left as loops (P7: bytes arguments of delegatecalls, the 'Address: low-level delegate call failed' message, ABI encodings of uint256[] for the price router), 19 storage-bytes-to-memory copies (finding 3), 2 packed-array copies with 2 peeled iterations each (P3, finding 2), address re-encodings 'Bytes(12, 0), mem[s + 12 len 20]', 2 calldata decodes of AdaptorCall[] / bytes[]. P11: receive is 'require calldata.size < 4; require not calldata.size'; ~40 Panic(50) checks implied by the loop bound (e.g. 'if idx >= mem[_10]' where mem[_10] = stor10.length, the inner loop's repeated 'if s >= mem[..]'). In callOnAdaptor the same length is read as mem[_155 + ceil32(return_data.size)] before the loop and mem[_155 + ceil32(_1)] inside it (equal values, as no call intervenes before the loop). The storage struct getPositionData (stor13) shows its bytes members as field_256/field_257/field_264 with the short/long string decoding inline.",
+  "summary": "Faithful, and all ten compiled source loops are whiles, but the packed uint32 position arrays are never recognized (437 lines of slot/shift arithmetic, an unreadable rotated copy loop in getCreditPositions), and storage-bytes and memory copies are left as loops."
+}

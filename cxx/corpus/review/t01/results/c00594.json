@@ -1,0 +1,47 @@
+{
+  "id": "c00594",
+  "abi_functions": 45,
+  "reviewed": 45,
+  "not_reviewed": [],
+  "source_loops": 6,
+  "loops_shown": {"while": 6, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 1, "P2": 12, "P6": 27, "P7": 12, "P8": 60, "P14": 573},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "batchCreateV3Markets, batchCreateMarkets, batchCreateFixedTermMarkets, createMarket (unknown46682fee) - every function with the via-IR spill slot",
+      "lines": "528, 557-560, 788-822, 3618-3620 (573 lines use mem[288])",
+      "decompiled": "mem[288] = 0 / ... return memory from mem[288] len mem[288] / idx = mem[288] / call 0x0.mem[_139 len 4] with: value mem[288] wei ... args _81, address(...), 1 / mem[_139 len min(return_data.size, mem[288])] = ... / if mem[288]: revert with memory from mem[288] len mem[288]",
+      "source": "MarketFactory.sol:385-387 for (uint256 j = 0; j < suppliers.length; j++) moolah.setWhiteList(id, suppliers[j], true); (via-IR keeps a zero in memory slot 0x120)",
+      "issue": "A memory slot written once with 0 at entry is re-read as unknown everywhere (P14): returns print as 'return memory from mem[288] len mem[288]', loop counters start at mem[288], call values are 'mem[288] wei', dead 'if mem[288]: revert' branches stay, and setWhiteList's selector (stored at _139 four lines earlier) prints as the function name 'mem[_139 len 4]' while its arguments are decoded.",
+      "rule": "mem[64] is set to 512 before any store at a non-constant address, and every later mem[64] is >= 512, so stores at mem[64] + c never reach [288, 320); fold mem[288] to 0, then fold the dead branches and resolve the selector word read back from the store at the same base.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "every onlyRole function (batchCreate*, createMarket, setters)",
+      "lines": "539-541 and 5 more",
+      "decompiled": "revert with caller >> 32 | 0xe2517d3f00000000000000000000000000000000000000000000000000000000, Bytes(4, uint32(caller)), 0x523a704056dcd17bcf83bed8b68c59416dac1119be77755efe3bde0a64e46e0c",
+      "source": "AccessControlUpgradeable._checkRole: revert AccessControlUnauthorizedAccount(account, role)",
+      "issue": "The custom error with arguments prints as 32-byte words starting at the selector, so the account is split across two words; the non-via-IR contracts of this batch print the same error as 'revert with 0xe2517d3f, caller, <role>'.",
+      "rule": "When revert data has length 4 + 32k, print the 4-byte selector and then the k words starting at offset 4, regrouping the byte concatenation accordingly.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "batchCreateV3Markets, batchCreateFixedTermMarkets, createMarket",
+      "lines": "572-579, 1111",
+      "decompiled": "require not Mask(96, 160, cd[_param1 + cd[32 * s + _param1 + 36] + 36]) / require not mem[s len 12] << 160",
+      "source": "ABI decoding of address members (via-IR cleanup checks iszero(shr(160, x)))",
+      "issue": "Address validations print in two odd forms; the shift in 'not mem[s len 12] << 160' is useless (and relies on 'not' binding looser than '<<').",
+      "rule": "not Mask(96, 160, x) and not (mem[s len 12] << 160) both mean x == address(x) (x < 2**96 makes the shift irrelevant); print 'require x == address(x)'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "via-IR build. Long functions (createMarket ~1,460 lines, batchCreateMarkets ~1,600, batchCreateFixedTermMarkets ~750) reviewed by structure. Source loops (6), all whiles: batchCreateV3Markets' outer for ('while True' with the exit test first, 556) and inner suppliers for (793), batchCreateFixedTermMarkets' for, batchCreateMarkets' for, _createMarket's supplyWhitelist for (e.g. 3620, starting at mem[288]), _registerBrokerToRelayer's search (1117, 'while True' with breaks). V3MarketLib.createV3Market is an external library reached by delegatecall to the linked address 0x11c431dd...; its loop is not in this bytecode. Implicit loops: getRoleMembers' storage copy (285), calldata arrays re-encoded for the library call and for setWhiteList-type calls, return-data decodings (P7). P8: scratch stores to mem[0]/mem[32] for the namespaced-storage hashes kept. Immutables (moolah, liquidators...) read as 0.",
+  "summary": "Faithful with all source loops present, but via-IR's zero spill slot mem[288] is never folded, which leaves returns, loop starts, call values and even a call's function name as memory reads, and custom-error reverts print unaligned."
+}

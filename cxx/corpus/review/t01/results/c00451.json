@@ -1,0 +1,36 @@
+{
+  "id": "c00451",
+  "abi_functions": 60,
+  "reviewed": 60,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {"while": 8, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 26, "P3": 4, "P4": 1, "P6": 7, "P8": 150, "P11": 6},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "bridgeAsset, bridgeMessage, bridgeMessageWETH (inlined _addLeaf); claimAsset, claimMessage (inlined calculateRoot)",
+      "lines": "556-567, 724-740, 3547-3560 (_addLeaf); 1986-1998, 2019-2031, 1372-1410 (calculateRoot)",
+      "decompiled": "s = 0 / t = 0 / while not (_8 + 1 >> t) % 2: if t + 1 >= 32: revert with Panic(1) / s = sha3(stor[t + 51], s + sha3(Bytes(1, 0x01), ...leaf data...)) - sha3(Bytes(1, 0x01), ...leaf data...) / t = t + 1 / s = s + sha3(Bytes(1, 0x01), ...leaf data...) / stor[t + 51] = s",
+      "source": "DepositContractBase.sol:81-104 _addLeaf: node = leaf; for (height < 32) { if (((size >> height) & 1) == 1) { _branch[height] = node; return; } node = efficientKeccak256(_branch[height], node); } assert(false); :129-150 calculateRoot",
+      "issue": "The Merkle node is carried as its difference from the initial leaf hash (s = node - leaf, starting at 0), so the 300-character leaf expression is printed three times per loop and every iteration reads 'sha3(..., s + leaf) - leaf'. The text is exact (the offsets cancel), but the recurrence node = keccak(branch[h], node) is unrecognisable; the loops whose initial value is a plain variable (getRoot, the second calculateRoot loop 't = s') print naturally.",
+      "rule": "Normalise a loop-carried variable to an offset from its initial value only when its update is affine in it (v = v + c); for any other recurrence keep v itself with its initial value (node = leaf; node = sha3(stor[t + 51], node)).",
+      "verified": "reading only (the cancellation s + leaf - leaf is exact modulo 2^256)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "claimAsset, claimMessage; bridgeAsset / bridgeMessage / getRoot (storage naming)",
+      "lines": "1989-1996, 2022-2029; 563-567 vs 269",
+      "decompiled": "if not (uint32(_param1) >> idx) % 2: mem[0] = s + leaf; mem[32] = cd[32 * idx + 4] else: mem[0] = cd[32 * idx + 4]; mem[32] = s + leaf / ... s = sha3(mem[0 len 64]) - leaf  |  stor[t + 51] = s  vs  sha3(stor51[idx], s)",
+      "source": "Hashes.efficientKeccak256(a, b): mstore(0x00, a); mstore(0x20, b); keccak256(0x00, 0x40); _branch[height]",
+      "issue": "The scratch-memory hash written in both arms of the branch is printed as raw mem[0] / mem[32] writes and sha3(mem[0 len 64]), while getRoot prints the same code as sha3(s, t); the _branch array is stor[t + 51] in one function and stor51[idx] in another.",
+      "rule": "When both arms of an if write the same scratch words that the join hashes and nothing else reads, print 'sha3(a, b)' with the arm-specific a and b (a select), as for a single-arm write; print every 'stor[i + N]' access to a fixed array at slot N as storN[i].",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Via-IR build. The pack has no source for the inherited DepositContract functions ('no source definition found in the AST' for getRoot); they were compared with contracts/lib/DepositContractBase.sol directly. bridgeAsset (830 lines), claimAsset / claimMessage (480 / 230), getTokenMetadata, migrateLegacyToken, the initializers and the sovereign-token setters were reviewed by structure, the small functions in full. Source loops (8): DepositContractBase.sol:60 getRoot ('while idx < 32', also inlined in the bridge functions and updateGlobalExitRoot), :91 _addLeaf (3 sites, with the height bound turned into 'if t + 1 >= 32: revert Panic(1)', which is exact because the body has no side effects and assert(false) follows the loop), :137 calculateRoot (6 sites); PolygonZkEVMBridgeV2V1010.sol:1366 and :1376 _returnDataToString (rotated 'while _27' with the condition recomputed at the end, and the byte copy 'while idx < s'; inlined in getTokenMetadata and bridgeAsset); BridgeL2SovereignChainV1010.sol:313, :434, :630 (initialize, setMultipleSovereignTokenAddress, unsetMultipleClaims). _checkValidSubtreeFrontier's loops are not used by this contract. Implicit whiles: calldata decodes of the array arguments (784-835). P2: the token name()/symbol()/decimals() static calls of getTokenMetadata and the bridge message calls keep raw-memory arguments.",
+  "summary": "Faithful and complete with all 8 source loops shown; the Merkle-tree loops are made obscure by carrying the node as an offset from the leaf hash and by raw scratch-memory hashing."
+}

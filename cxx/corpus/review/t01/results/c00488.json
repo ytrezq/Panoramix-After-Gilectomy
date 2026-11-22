@@ -1,0 +1,36 @@
+{
+  "id": "c00488",
+  "abi_functions": 73,
+  "reviewed": 73,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 33, "P6": 9, "P7": 12, "P8": 40, "P11": 8, "P14": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "borrowApr(address)",
+      "lines": "502-516",
+      "decompiled": "s = 1000000000 * 10**18 / t = 15778476 / u = SafeMath.add(ext_call.return_data[0], _1) / while t: require SafeMath.mul(u, u) + 500000000 * 10**18 >= SafeMath.mul(u, u); if not t % 2: _8 = s else: _8 = SafeMath.add2(SafeMath.mul2((SafeMath.mul(u, u) + 500000000 * 10**18) / (1000000000 * 10**18), s), 500000000 * 10**18) / (1000000000 * 10**18); s = _8; t = t / 2; u = (SafeMath.mul(u, u) + 500000000 * 10**18) / (1000000000 * 10**18) / return SafeMath.sub(s, 1000000000 * 10**18) / (10 * 10**6)",
+      "source": "hMath.sol:14 rpow: for { n := div(n, 2) } n { n := div(n,2) } { let xx := mul(x, x) ... x := div(xxRound, b) if mod(n,2) { ... } }; InteractionV3.sol:551-552",
+      "issue": "The Yul loop is a correct while (its first step folded since YEAR is even, and x == 0 folded into the final Panic(17)), but xx = u * u is recomputed three times per iteration (each SafeMath.mul re-printing its check), the new x is inlined into the z update, and RAY, RAY / 2 and 10**7 print as '1000000000 * 10**18', '500000000 * 10**18' and '10 * 10**6'.",
+      "rule": "Bind a non-trivial expression used more than once in a block (xx = u * u, x' = (xx + half) / RAY) to a temporary; print m * 10**k with the largest k.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "addToWhitelist, removeFromWhitelist, addToBlacklist, removeFromBlacklist, addToAuctionWhitelist, removeFromAuctionWhitelist",
+      "lines": "591-599, 626-634, 665-673, 704-712, 743-751, 782-790",
+      "decompiled": "_9 = addrs.length / s = 0 / while s < _9: if s >= addrs.length: revert with Panic(50); mem[0] = Bytes(12, 0), mem[32 * s + 172 len 20]; mem[32] = 115; stor115[concat(Bytes(12, 0), mem[32 * s + 172 len 20])] = 0; _9 = addrs.length; s = s + 1",
+      "source": "InteractionV3.sol:95 for(uint256 i = 0; i < tokens.length; i++) tokensBlacklist[tokens[i]] = 0;",
+      "issue": "In each of the six loops the bound check is implied by the loop condition (P11), the mapping key tokens[i] is a concat of a zero prefix and a 20-byte slice of the memory copy, and the keccak scratch writes are printed.",
+      "rule": "Inside 'while s < n' with n the array length, s >= length is false; concat(Bytes(12, 0), m[a + 12 len 20]) is address(m[a]), here tokens[s] (the memory array is a copy of the calldata array).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small functions line by line; deposit, payback, borrow, withdraw, startAuction, buyFromAuction, setCollateralType, setCores by structure (wards checks, vat/jug/spotter/dog calls, SafeERC20 transfers, events). AuctionProxy.getAllActiveAuctionsForClip is an external library function (delegatecall): its loop is not in this bytecode and is not counted. Source loops (7): the six whitelist/blacklist for loops (each preceded by the implicit abi.decode copy of the address[] parameter) and hMath.rpow's Yul for loop in borrowApr. Implicit loops: the six address[] decodes, SafeERC20/Address bytes copies (1515, 2412, 2440, 2759) and the Sale[] decode/encode of getAllActiveAuctionsForToken (1097, 1120): P7 12. No semantic problem found.",
+  "summary": "Faithful and complete, every source loop (including a Yul rpow loop) shown as a while; minor readability issues: recomputed squares and odd 10**k factorings in rpow, redundant bound checks and concat-of-slice mapping keys in the list loops."
+}

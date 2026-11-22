@@ -1,0 +1,37 @@
+{
+ "id": "c00141",
+ "abi_functions": 42,
+ "reviewed": 42,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 5,
+  "P6": 7,
+  "P7": 8,
+  "P8": 40,
+  "P14": 50
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "close() and the abi.encodePacked copies in stake/preDeposit",
+   "lines": "856-865",
+   "decompiled": "idx = mem[_8] / while idx >= 32: mem[t] = mem[s]; s = s + 32; t = t + 32; idx = idx - 32 / mem[_10 + floor32(max(31, _11)) + 48] = mem[_8 + floor32(max(31, _11)) + 32] & ~(256**(...) - 1) | ...",
+   "source": "abi.encodePacked(...) of a string/bytes in solc 0.7 (word copy with a masked last word)",
+   "issue": "The legacy packed-copy (whole words while at least 32 bytes remain, then a masked merge of the last partial word) is printed as a countdown while plus a long mask expression instead of one copy line.",
+   "rule": "A countdown word-copy loop followed by the masked tail merge copies exactly n bytes: print `mem[t len n] = mem[s len n]` (P7).",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Rocket Pool RocketMinipoolDelegate (old, solc 0.7.6). No explicit loop in the reached source; all 8 whiles are implicit bytes copies (packed encodes for the deposit contract call in stake/preDeposit and in close) (P7). Main flows (stake, refund, finalise, voteScrub, close, distributeBalance) reviewed by structure: storage reads/writes through RocketStorage calls, deposit contract call and events present; P2 lines are calls whose arguments are built from memory with a symbolic free pointer.",
+ "summary": "Loop-free source with faithful text; the only notable noise is legacy bytes-copy loops and a few raw-memory call arguments."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "c00392",
+  "abi_functions": 1,
+  "reviewed": 1,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P8": 2, "P11": 1},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "transfer(address,address,uint256)",
+      "lines": "18-21",
+      "decompiled": "else: / if not ext_call.success: revert with ext_call.return_data[0 len return_data.size] / _2 = ext_call.success and not return_data.size and ext_code.size(_from) > 0",
+      "source": "SafeERC20._safeTransfer:189-196 if and(iszero(success), bubble) { revert } success := and(success, and(iszero(returndatasize()), gt(extcodesize(token), 0)))",
+      "issue": "After the revert on failure, ext_call.success is known true, so the leading 'ext_call.success and' is redundant (P11); the selector/argument stores to mem[0]/mem[4] are kept although the call prints its arguments (P8, mem[0] is still needed for the returned word).",
+      "rule": "On the fall-through of 'if not c: revert', c is true: drop it from later conjunctions.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "25-line text, unoptimized build; the single ABI function compared in full with SafeERC20.safeTransfer/_safeTransfer (OpenZeppelin 5 assembly version): the call with a 32-byte output buffer at 0, the 'success and returned word == 1' fast path, the bubbled revert, the empty-return-data/has-code fallback and the SafeERC20FailedOperation(token) custom error are exact, including reading mem[0] as the partly overwritten word. No loops.",
+  "summary": "Exact and readable; only a redundant 'ext_call.success and' after the bubbling revert."
+}

@@ -1,0 +1,80 @@
+{
+  "id": "c00122",
+  "abi_functions": 51,
+  "reviewed": 51,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {"while": 8, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 9, "P3": 2, "P4": 10, "P6": 4, "P7": 2, "P8": 40, "P11": 10, "P12": 30, "P15": 4, "P18": 8},
+  "findings": [
+    {
+      "kind": "semantics",
+      "severity": "high",
+      "function": "setRewardTokenAddresses(address[])",
+      "lines": "451-453",
+      "decompiled": "log RewardTokenAddressesUpdated(\n      address[] _oldAddresses=Array(len=rewardTokenAddresses.length, data=mem[224 len 32 * rewardTokenAddresses.length], _rewardTokenAddresses.length, mem[32 * rewardTokenAddresses.length + 256 len 32 * _rewardTokenAddresses.length]),\n      address[] _newAddresses=32 * rewardTokenAddresses.length + 96)",
+      "source": "InitializableAbstractStrategy (setRewardTokenAddresses):219-222 emit RewardTokenAddressesUpdated(rewardTokenAddresses, _rewardTokenAddresses)",
+      "issue": "The event has two dynamic arrays; the text prints the second head word (the offset 32 * oldLength + 96) as the value of _newAddresses and appends the new array's length and elements to the first Array, so read literally the event's second argument is a number and its first argument is not the old address list.",
+      "rule": "When decoding log data against a signature with several dynamic parameters, read every head word as an offset into the data, decode each parameter at its own offset, and never print an offset as a parameter value.",
+      "verified": "reading only (data layout worked out from the stores: mem[128] = 64, mem[160] = 32 * L_old + 96, mem[192] = L_old, old at 224, L_new and new after)"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "verifyBalances(...) (unknown1a1a1571), pending-deposits loop",
+      "lines": "1515-1580",
+      "decompiled": "s = uint64(deposits[stor53[0]].field_256)\n...\nwhile s == 10**9 * s / 10**9:\n    if v > 10**9 * s + v: revert with Panic(17)\n    if u + 1 >= stor53.length:\n        stor58 = _221 + 10**9 * s + v + mem[208 len 16]\n        ... log BalancesVerified ...\n        stop\n    ... static call 0x0 with: args mem[...]\n    v = 10**9 * s + v; s = uint64(deposits[stor53[u + 1]].field_256); u = u + 1\n    continue\nrevert with Panic(17)",
+      "source": "CompoundingStakingStrategy.sol:1146-1161 for (i = 0; i < depositsCount; ++i) { verifyPendingDeposit(...); totalDepositsWei += uint256(deposits[root].amountGwei) * 1 gwei; } then 1165-1179",
+      "issue": "The loop is rotated (the first verifyPendingDeposit call is printed before it) and its while condition is the overflow test of amountGwei * 1 gwei, which cannot fail for a uint64, so the trailing Panic(17) is dead; the real bound i < depositsCount is an inner test whose arm holds the whole code after the loop (the lastVerifiedEthBalance write, the snapshot reset, the event).",
+      "rule": "Use the operand range (uint64 times 10**9 fits in 256 bits) to drop the overflow test; then the loop is 'while True' with one exit, and the exit test with the code after it can be turned back into 'while u < stor53.length' followed by that code (undoing the rotation).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "snapBalances, verifyDeposit, verifyValidator (BeaconRoots.parentBlockRoot)",
+      "lines": "346-348, 1029, 638",
+      "decompiled": "static call 0xf3df6d732807ef1319fb7b8bb8522d0beac02.ROOT4146650865() with:\n        gas gas_remaining\n       args Bytes(28, uint64(block.timestamp))",
+      "source": "BeaconRoots.sol parentBlockRoot: BEACON_ROOTS_ADDRESS.staticcall(abi.encode(timestamp))",
+      "issue": "The call data is the 32-byte word abi.encode(uint64 timestamp); its top four bytes are zero, so the text takes them as selector 0x00000000 and names the call after that selector's database entry ROOT4146650865(), with the rest of the word as Bytes(28, ...).",
+      "rule": "Name a call only when its first four bytes are a constant stored as such (a 4-byte store or a constant word with zero low bytes); when they are the high bytes of a variable word, print the input as data words (here block.timestamp).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "stakeEth((bytes,bytes,bytes32),uint64) (unknown4583ef10)",
+      "lines": "1220-1230",
+      "decompiled": "deposits[concat(ext_call.return_data[0])].field_0 = hash\n_49 = deposits[concat(...)].field_256\nuint64(...field_256) = _param2\nuint64(...field_320) = uint64(block.timestamp) / 12\nuint32(...field_384) = mem[... + 396 len 4]\nuint64(...field_256) = _param2\nuint64(...field_320) = uint64(block.timestamp) / 12\nuint32(...field_384) = mem[... + 396 len 4]\nuint8(...field_416) = 1\ndeposits[concat(...)].field_424 = _49 >> 168",
+      "source": "CompoundingStakingStrategy.sol:430-436 deposits[pendingDepositRoot] = DepositData({pubKeyHash, amountGwei, slot, depositIndex: SafeCast.toUint32(depositList.length), status: PENDING})",
+      "issue": "One struct assignment prints as eleven lines: three member writes repeated, a write of the unused high bits with their own old value, and depositIndex as a memory slice instead of uint32(stor53.length) stored four lines earlier.",
+      "rule": "Drop a storage write that a later write to the same bits overwrites with no read or call in between, and a write that stores a field's current value; forward a memory word stored in the same block.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "transferToken(address,uint256), withdraw(address,address,uint256)",
+      "lines": "394-396, 514-516",
+      "decompiled": "call _asset.transfer(address recipient, uint256 amount) with:\n    args Bytes(28, uint128(stor7BEA >> 32)), Bytes(4, uint32(stor7BEA)), _amount",
+      "source": "transferToken: IERC20(_asset).safeTransfer(governor(), _amount); _transferWeth: IERC20(WETH).safeTransfer(_recipient, _amount)",
+      "issue": "The recipient (the governor, or _recipient) is split into two slices by abi.encodeWithSelector's unaligned stores, as in c00505's setCores.",
+      "rule": "Same as c00505: Bytes(32-n, x >> 8n) ++ Bytes(n, x mod 2^(8n)) is x (here address(stor7BEA)).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "checkBalance, deposit, depositAll, withdraw, withdrawAll, collectRewardTokens, supportsAsset, stakeEth, verifyDeposit, verifyBalances, verifyValidator",
+      "lines": "-",
+      "decompiled": "if _asset: revert with 0x24a01144; static call 0x0.balanceOf(...); if caller: revert with 'Caller is not the Vault'; uint64(block.timestamp) / 12",
+      "source": "immutable WETH, vaultAddress, platformAddress, BEACON_PROOFS, BEACON_CHAIN_DEPOSIT_CONTRACT, BEACON_GENESIS_TIMESTAMP",
+      "issue": "solc immutables read as 0: the WETH, vault and beacon-proof calls go to address 0, 'asset == WETH' becomes 'asset == 0', and the genesis timestamp disappears from the slot arithmetic.",
+      "rule": "None: normal for this corpus.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 51 ABI functions and receive reviewed; verifyBalances (about 340 text lines) by structure. No other semantic difference found. Source loops (8, all whiles): setRewardTokenAddresses' check loop, InitializableAbstractStrategy._initialize's asset loop, validatorWithdrawal's pending-deposit loop (printed twice: P12, the ACTIVE/EXITING check splits the whole body), verifyValidator's deposit search, _getPendingDepositValidatorHashes, verifyBalances' reverse validator loop ('while idx'), its inner search ('while True' with two breaks, readable) and the deposits loop (finding). Implicit: getRewardTokenAddresses' storage-to-memory copy (rotated: P3) and address[] encode (P7), setRewardTokenAddresses' three array copies (readable), initialize's three calldata decodes and memory-to-storage copy. P4: deposits[concat(ext_call.return_data[0])] in stakeEth. P18: memory-struct members read back as slices (mem[252 len 4], mem[184 len 8], mem[208 len 16]). P15: the two Initializable bools as 'stor0 is uint16' ('stor0 / 256', 'uint8(stor0.field_8) = 0'). P11: uint64 * 10**9 overflow tests (stakeEth, events), bounds checks after equal-length tests, the fallback's 'require calldata.size < 4' before 'require not calldata.size'. The EIP-7002 address prints as 0x961e...7002 and as 0x00000961...7002 in the same function. Selectors stored with len 4 print in decimal (2835717307). No execution run.",
+  "summary": "Mostly faithful and readable, but one event is decoded wrongly (the second address[] of RewardTokenAddressesUpdated shows as its offset), the beacon-roots staticcall is named after the zero selector, verifyBalances' deposit loop has an overflow test as its condition with the post-loop code inside, and a struct store repeats three member writes."
+}

@@ -1,0 +1,58 @@
+{
+  "id": "c00507",
+  "abi_functions": 26,
+  "reviewed": 26,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {
+    "while": 2,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 39,
+    "P6": 39,
+    "P11": 26,
+    "P18": 183
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "finishUpgrade(), startUpgrade()",
+      "lines": "167-199, 207-282 (copies of GlobalConfig and CoreUpgradeConfig), 283, 290, 305, 347, 361, 439... (183 lines with 'len 20]' slices)",
+      "decompiled": "mem[128 len min(320, return_data.size)] = ext_call.return_data[0 len min(320, return_data.size)] / require min(320, return_data.size) >=′ 320 / require not mem[160 len 12] << 160 / mem[ceil32(min(320, return_data.size)) + 160] = mem[160] ... / static call mem[ceil32(min(320, _1)) + ceil32(min(1216, _2)) + 556 len 20].proxy__getImplementation() with:",
+      "source": "UpgradeTemplate.sol:217-232 GlobalConfig memory g = config.getGlobalConfig(); CoreUpgradeConfig memory c = UpgradeConfig(CONFIG).getCoreUpgradeConfig(); IOracleReportSanityCheckerUpgrade(c.newOracleReportSanityChecker).migrateBaselineSnapshot(); _assertCoreFinalState(g, c); ...",
+      "issue": "The two returned config structs (10 and 38 address words) are decoded into memory copies and every one of the ~300 checks then uses a field as a slice of the second copy (call targets, expected addresses in reverts), with the address validation as 'require not mem[160 len 12] << 160' on the first copy; nothing names the fields.",
+      "rule": "After 'require min(n, return_data.size) >= n' the min is n, so a word of the copy mem[a + k] is ext_call.return_data[k]; a slice mem[b + 12 + k len 20] of a word-aligned copy is address(that word); bind each returned word to a variable (_g1 = address(ext_call.return_data[32]) ...) before the next call overwrites the return data (as c00290's first finding).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "all 26 ABI functions (no parameters)",
+      "lines": "20, 24, 35, 39, ... 166",
+      "decompiled": "require calldata.size - 4 >=′ 0",
+      "source": "every parameterless getter, startUpgrade(), finishUpgrade() (via-IR ABI decoder of zero parameters)",
+      "issue": "The ABI decoder's check for zero parameters is kept although the dispatcher only reaches a function when calldata.size >= 4 (so calldata.size - 4 is in [0, 2^64) and the signed test always holds); it also keeps every constant getter as a 'def' instead of 'const X = 3'.",
+      "rule": "Facts of the dispatcher (calldata.size >= 4 on every selector path) dominate the function body: drop 'require x - 4 >=′ 0' when x >= 4 and x < 2^255 are known, then print a function that only returns a constant as a const.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "CONFIG(), EXPIRE_SINCE_INCLUSIVE(), startUpgrade(), finishUpgrade()",
+      "lines": "34-36, 102-104, 126, 161-163, 168",
+      "decompiled": "def CONFIG(): ... return 0  |  static call 0x0.getGlobalConfig() ... if mem[ceil32(_2) + 140 len 20] != caller: revert with 0x398c97bc / revert with Expired()",
+      "source": "UpgradeTemplate.sol:150 address public immutable CONFIG; :155 uint256 public immutable EXPIRE_SINCE_INCLUSIVE; :193 if (block.timestamp >= EXPIRE_SINCE_INCLUSIVE) revert Expired();",
+      "issue": "The immutables read as 0: every config call targets 0x0, and since block.timestamp >= 0 always holds, startUpgrade ends in Expired() right after the agent check (the rest of its body is dead in this bytecode). Faithful to this bytecode.",
+      "rule": "",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed: the 22 constant/immutable getters, isUpgradeFinished, upgradeBlockNumber and startUpgrade in full; finishUpgrade (5,740 lines) by structure: the agent/finished/transient-start checks and 'isUpgradeFinished = 1' before the post-upgrade calls (as in the source), migrateBaselineSnapshot, then ~300 view calls with their custom-error reverts (IncorrectProxyImplementation, contract version, role holder counts, Aragon permissions, DSM/Lido/SRM migration checks) and the final UpgradeFinished log. No semantic error found. Loops: the 2 source loops (the 8 OracleReportSanityChecker roles at 2228 'while idx < 8', the DSM guardians at 5878) are whiles; the 5 other whiles are the decoding of address[] return values with a per-element address check (implicit, readable). Every external call is followed by the via-IR return-data allocation checks (Panic(65), 244 lines), which are real code. Three calls have an unresolved selector ('static call address(_270).mem[_295 len 4]', P2-like). Custom errors are mostly raw selectors (not in the signature database).",
+  "summary": "Faithful: a long straight-line sequence of checks whose only obscurity is that the two returned config structs are used as slices of memory copies (every call target is 'mem[... + 556 len 20]'); immutables read as 0, so startUpgrade always reverts Expired after the agent check."
+}

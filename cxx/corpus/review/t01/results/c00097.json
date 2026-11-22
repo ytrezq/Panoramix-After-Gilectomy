@@ -1,0 +1,69 @@
+{
+  "id": "c00097",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 411, "P6": 140, "P7": 9, "P8": 150, "P9": 30, "P11": 3, "P14": 40},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "receiveFlashLoan(address[],uint256[],uint256[],bytes)",
+      "lines": "958, 968, 986-993, 1008, 1133, 1146, 1157",
+      "decompiled": "mem[32 * _param1.length + 192 len 32 * _amounts.length] = call.data[_amounts + 36 len 32 * _amounts.length] ... _13 = mem[32 * _param1.length + 192] / if mem[32 * _param1.length + 192] > mem[32 * _param1.length + 192] + mem[32 * _param1.length + 32 * _amounts.length + 224]: revert Panic(17) / if mem[32 * _param1.length + 192] >= 100:",
+      "source": "AaveFoldStrategy.sol:457 uint256 toRepay = amounts[0].add(feeAmounts[0]); :459 _supply(amounts[0]); :327 if (amountUnderlying < 1e2) return;",
+      "issue": "amounts[0] and feeAmounts[0] are read back from the memory copy of the calldata arrays at offsets that depend on the first array's length, instead of as _amounts[0] / _fees[0]; every use in the function repeats these expressions.",
+      "rule": "After a copy line 'mem[a len n] = call.data[b len n]', a read mem[a + k] with 0 <= k < n proven by a dominating bounds check, and no write to the range in between, is cd[b + k]; with the array view this prints as _amounts[k / 32].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "emergencyExit, withdrawAllToVault, withdrawToVault, doHardWork (32 lines)",
+      "lines": "1526, 1632, 2329, 9099, 9115 ...",
+      "decompiled": "if t != t * u / u and u: revert with Panic(17)  |  if _16 + _15 + rd[0] != (-1 * _6 * _16 - _6 * _15 - _6 * rd[0] + _17 * _16 + ... - rd[0] * storedBalance) / (-_6 + _17 - storedBalance) and -_6 + _17 - storedBalance: revert with Panic(17)",
+      "source": "AaveFoldStrategy.sol:122 fee = balanceIncrease.mul(totalFeeNumerator()).div(feeDenominator()); :498 borrowed.mul(_denom)",
+      "issue": "def SafeMath has add, sub and div but no mul, so each checked multiplication prints its raw overflow test; when both factors are sums the product is also distributed into a 9-term polynomial, both in the test and in the use (P9).",
+      "rule": "'if x != 0 and (x * y) / x != y: revert with Panic(17)' guarding later uses of x * y is SafeMath.mul(x, y) (likewise with the operands swapped); add a mul helper and keep the factors undistributed.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "doHardWork, withdrawToVault (loops of _depositNoFlash/_redeemNoFlash)",
+      "lines": "9100-9112, 5218-5230, 1622-1631",
+      "decompiled": "s = (..); t = storA170; u = borrowTargetFactorNumerator; v = stor4E92; w = _3493; x = _3489; y = storA170; z = -_3493 + (..); a = (..); b = borrowTargetFactorNumerator; c = stor4E92 / while w < s:",
+      "source": "AaveFoldStrategy.sol:475 while (borrowed < borrowTarget) { ... borrowed = ..; supplied = ..; }",
+      "issue": "The loops are clear, but carry up to 11 loop variables, most of them loop-invariant copies of storage or of each other (t = y = storA170, u = b, v = c), while only borrowed and supplied change.",
+      "rule": "A loop variable whose value is the same at entry and at every back edge is a loop-invariant: substitute its entry value; merge loop variables that are always equal.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "salvage, doHardWork, withdraw*, emergencyExit, receiveFlashLoan (47 lines)",
+      "lines": "e.g. 690, 1672",
+      "decompiled": "mem[ceil32(return_data.size) + 160 len 4] = 2835717307  |  mem[_245 + 32 len 4] = 157198259",
+      "source": "SafeERC20.safeTransfer / safeApprove: abi.encodeWithSelector(token.transfer.selector, ...)",
+      "issue": "4-byte selectors stored into memory are printed in decimal (0xa9059cbb, 0x095ea7b3).",
+      "rule": "Print a constant stored with 'len 4' (a selector) in hex.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "aToken(), debtToken(), underlying(), vault(), rewardPool() ... and every use",
+      "lines": "89-90, 112-113; e.g. 1010 'static call address(stor8CDE).POOL()'",
+      "decompiled": "def aToken(): return address(stor8CDE)   (def storage: stor8CDE is uint256)",
+      "source": "AaveFoldStrategy.sol:562 function aToken() public view returns (address) { return getAddress(_ATOKEN_SLOT); }",
+      "issue": "Slots read by a getter through address(..) stay storNNNN of type uint256, so the main addresses of the strategy (aToken, debtToken, underlying, storage) are anonymous across the text.",
+      "rule": "A getter whose only effect is 'return address(storX)' (a narrowing of the whole slot) names storX and types it as an address.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Large contract (23 KB, 10180 lines). Small functions and getters, salvage, unsalvagableTokens, isRewardToken, rewardTokens(), receiveFlashLoan, _setCollateralFactorNumerator, continueInvesting reviewed in detail. doHardWork (~3000 lines), withdrawToVault (~2600), withdrawAllToVault (~2400), emergencyExit (~770) reviewed by structure: call order, loops, storage writes and events follow _handleFee/_claimReward/_liquidateReward/_investAllUnderlying and the redeem paths. Loops: 5 source loops, all whiles: _depositNoFlash 'while w < s' (withdrawToVault 6015, doHardWork 9112), _redeemNoFlash 'while v > s' / 'while u > 0' (constant-propagated newBorrowTarget = 0 in emergencyExit 1631 and withdrawAllToVault 4093), _liquidateReward 'while s < rewardTokens.length' (2903, 7925), _isAddressInList 'while True' search (516), getAddressArray 'while s < _9' (506, 536). The other 22 whiles are ABI encodings of memory arrays for external calls/returns: 9 plain word copies left as loops (P7), 12 address re-encodings 'mem[t] = Bytes(12, 0), mem[s + 12 len 20]' (= address(mem[s])), 1 decode of address[] with validation. P2: 411 'args mem[..]' lines (e.g. 'static call address(stor8CDE) with: args mem[mem[64] len _205 - mem[64] + 4]' for POOL()), plus 20 logs with raw-memory data; free-memory offsets appear as sums like 'ceil32(_1) + ceil32(_2) + ... + ceil32(_14) + 128' (38 lines). 118 address range checks print as 'require mem[_x] == mem[_x + 12 len 20]' (rule as in c00600). P11: receive is 'require calldata.size < 4; require not calldata.size'; 'if s >= stor4541: revert Panic(50)' under 'while s < _9 (= stor4541)' (506-510, 536-540). Zero-init of new address[](n) prints as 'mem[160 len 32n] = call.data[calldata.size len 32n]'. '-a - b' is used as the truth value of a + b at 1133 (exact only because the add was checked).",
+  "summary": "Semantically faithful and loops are all found, but the text is buried under unresolved free-memory-pointer calls (411 P2 lines), raw checked-multiplication tests (some distributed into polynomials) and anonymous address slots; flash-loan amounts read back as raw memory offsets."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "c00018",
+  "abi_functions": 64,
+  "reviewed": 64,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P6": 2, "P7": 12, "P9": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "the LBPCommon redeemability loops (unknownba5f9f40, unknown38be241d)",
+      "lines": "499-504, 1336-1352",
+      "decompiled": "if _param2 * mem[32 * idx + 160] + (mulmod(...) < ...) != mulmod(..., -1):\n    if _param2 <= -1 * _param2 * mem[...] + mulmod(...) - (...):\n        revert with Panic(uint256), 17 ^ 3 * (not _param2)",
+      "source": "LBPCommon.sol:386-392, 454-460 Math.mulDiv(balance, bptAmountIn, totalSupply) (OZ 5: Panic.panic(denominator == 0 ? DIVISION_BY_ZERO : UNDER_OVERFLOW))",
+      "issue": "OZ 5's branch-free panic code is printed as '17 ^ 3 * (not d)' instead of 18 when d is 0 and 17 otherwise; the 512-bit overflow test of mulDiv stays a two-level polynomial condition.",
+      "rule": "c ^ (k * bool(x)) with constants is 'c ^ k if x else c' (here Panic(18) if d == 0 else Panic(17)); the test 'p0 + (mm < p0) != mm' is 'high word of a * b != 0'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "onBeforeAddLiquidity and the onlyBeforeSale / redeemability paths",
+      "lines": "-",
+      "decompiled": "(onBeforeAddLiquidity reverts; mulDiv(b, ts, ts) in the redeemability check)",
+      "source": "LBPCommon: immutable _startTime, _minimumTradeAmount, _poolMinimumTotalSupply, _trustedRouter",
+      "issue": "solc immutables read as 0: onlyBeforeSale (block.timestamp >= _startTime) always reverts, so onBeforeAddLiquidity and its _ensureAddedStateIsRedeemable loop are dead, and the remaining redeemability loops compare against a zero minimum.",
+      "rule": "None: normal for this corpus.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 64 ABI functions and the fallback reviewed (most are short BalancerPoolToken/ERC20/permit, getters and vault views). The pack's reached-function list stops at WeightedPool; the loops below were found in WeightedMath.sol and LBPCommon.sol in the source tree. Loops: 4 counted, all whiles: WeightedMath.computeInvariantDown and computeInvariantUp ('while s < _55' with t = 10**18, 1399 and 1684, in computeInvariant), LBPCommon's remove-liquidity redeemability loop (1336/1352) and _isFullyRedeemable's loop (499). Not counted: _ensureAddedStateIsRedeemable's loop, dead because onlyBeforeSale reverts with the zero _startTime (artifact). Implicit: decodes of vault array results ('while s < mem[ceil32(return_data.size) + 128]') and calldata array decodes, readable; about 12 memory copies as whiles (P7). FixedPoint.powDown/LogExpMath are inlined as straight-line arithmetic (P9 in places). No execution run.",
+  "summary": "Faithful and fairly readable; all live loops are clean whiles, the main oddities are OZ 5's branch-free panic code and mulDiv overflow tests printed literally, and immutables that make the add-liquidity hook a bare revert."
+}

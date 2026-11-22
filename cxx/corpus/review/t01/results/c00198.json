@@ -1,0 +1,38 @@
+{
+  "id": "c00198",
+  "abi_functions": 51,
+  "reviewed": 51,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {
+    "while": 8,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P4": 17,
+    "P6": 1,
+    "P7": 24,
+    "P9": 40,
+    "P14": 60,
+    "P17": 9
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "checkpoint, withdraw, increase_unlock_time, deposit_for, increase_amount, create_lock, create_lock_for, merge, totalSupply, totalSupplyAt(T), balanceOfAtNFT, ve_for_at",
+      "lines": "645-700 (checkpoint) and the same block in 10 other functions; 356 Panic(17) lines",
+      "decompiled": "if int128(mem[_2 + 32]) >′ 0 and int128(SafeMath.sub(_40, t)) >′ 0 and int128(mem[_2 + 32]) > 0x7fffffffffffffffffffffffffffffff / int128(SafeMath.sub(_40, t)): revert with Panic(17) / (3 more sign cases) / ... / mem[_2] = int128(-int128(int128(SafeMath.sub(_40, t)) * int128(mem[_2 + 32])) + int128(mem[_2]))  |  if SafeMath.sub(block.number, mem[_2 + 96]) > 0x12725dd1d243aba0e75fe645cc4873f9e65afe688c928e1f21: revert with Panic(17)",
+      "source": "ve.sol:829-870 _checkpoint: last_point.bias -= last_point.slope * int128(int256(t_i - last_checkpoint)); last_point.slope += d_slope; ... block_slope = (MULTIPLIER * (block.number - last_point.blk)) / (block.timestamp - last_point.ts)",
+      "issue": "Each checked int128 multiplication is printed as four sign-case comparisons and each checked add/sub as two, all repeating the full operand expressions over the Point struct kept in memory (mem[_2], mem[_2 + 32] ...), so one source line of _checkpoint becomes 6-8 lines; the bound of 'MULTIPLIER * x' prints as the hex quotient of 2^256-1 by 1e18.",
+      "rule": "Recognise the four-case signed-overflow test of a * b (and the two-case test of a + b) as one 'checked signed mul/add' (like SafeMath.mul for unsigned), bind its operands once, keep the memory struct fields as named locals (P14), and print a constant equal to floor((2^256-1)/10**k) as that quotient.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against ve.sol (the Solidly/Curve-style voting escrow). The functions are all under 510 lines and were read by structure: nonreentrant, _isApprovedOrOwner checks, _checkpoint's 255-week loop (inlined in 10 functions), the binary searches, deposit/withdraw token transfers, merge, ERC-721 transfers with onERC721Received, tokenURI's SVG building with toString and Base64. Loops: 8 source loops (the Base64 Yul for, _find_block_epoch's and balanceOfAtNFT's 128-step binary searches, the totalSupplyAt search, _checkpoint's 255 loop, _supply_at's 255 loop, toString's two while loops) all shown as while in every inlined copy; implicit: the string concatenations and copies of tokenURI (P7, about 24 whiles). P4: user_point_history / slope_changes keys read from memory words. No P2 and only one hidden revert. No execution run.",
+  "summary": "Faithful with all 8 loops present and no P2; the checkpoint arithmetic on int128 is buried under four-case signed-overflow checks repeated for every operation, with the Point struct kept in memory."
+}

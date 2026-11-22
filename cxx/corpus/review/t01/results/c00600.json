@@ -1,0 +1,184 @@
+{
+  "id": "c00600",
+  "abi_functions": 39,
+  "reviewed": 39,
+  "not_reviewed": [],
+  "source_loops": 36,
+  "loops_shown": {
+    "while": 15,
+    "copy_line": 15,
+    "unrolled": 6,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "mint(...), safeTransferFrom(address,address,uint256), safeTransferFrom(address,address,uint256,bytes), pancakeV3MintCallback(uint256,uint256,bytes), collect((uint256,address,uint128,uint128))",
+      "lines": "1857-1870; 782-809; 1025-1056; 1221-1242; 1268-1289; 1259-1266; 1306-1313; 1465",
+      "decompiled": "static call address(sha3(..pool..)) with: args mem[mem[64] len _158 - mem[64] + 94]  |  call to with: args mem[mem[64] len _74]  |  call address(cd[_param3 + 68]) with: args mem[mem[64] len _75]  |  mem[mem[64]] = 0x8c379a0..; mem[mem[64] + 36] = 2; mem[mem[64] + 68] = 0x5354..; revert with memory from mem[64] len 100  |  log Collect(...): mem[mem[64] len _75 + ceil32(return_data.size) - mem[64] + 96]",
+      "source": "NonfungiblePositionManager.sol:160 pool.positions(positionKey); ERC721.sol _checkOnERC721Received: to.functionCall(abi.encodeWithSelector(onERC721Received.selector, _msgSender(), from, tokenId, _data), ...); PeripheryPayments.pay -> TransferHelper.safeTransfer / safeTransferFrom for token1, require(..., 'ST' / 'STF'); NonfungiblePositionManager.sol:374 emit Collect(tokenId, recipient, amount0Collect, amount1Collect)",
+      "issue": "Five external calls lose their function and arguments (positions(bytes32) in mint; onERC721Received(address,address,uint256,bytes) in both safeTransferFrom; transfer(caller, amount1Owed) and transferFrom(payer, caller, amount1Owed) on token1 in the callback), two require messages ('ST', 'STF') stay raw memory reverts, and the Collect event's data stays a memory range. The same constructs are decoded well where the memory base is a constant (token0's payments in the same callback, positions() in increaseLiquidity). Cause: memory addressed from an unknown free-memory pointer is not resolved. mem[64] becomes a phi after an if/else that allocates in one branch (EnumerableMap._set's push of a MapEntry, the branches of pay(), isContract's branches) and then (a) mem[64] is not folded even right after 'mem[64] = mem[64] + 58' (1863 -> 1870), and (b) words written at _72 + 36 and _72 + 68 are not read back through the copy of mem[_72 + 32 len 68]; mem[_72] = 68 written at 1225 is re-read as unknown at 1229.",
+      "rule": "Memory offsets used by an execution that gets past the access are below 2^64 (expanding memory that far costs more gas than any client allows), and so are calldata.size and return_data.size; hence 'b + c' never wraps for an SSA base b and a small constant c. Ranges at b + c1 and b + c2 are then disjoint by their constants alone, and a range at b + c is disjoint from [0, 96) when a range analysis bounds b (every store to mem[64] is a constant >= 96 or the old value plus a non-wrapping amount; a phi keeps the minimum). With that: fold mem[64] to its last stored value, resolve reads of a buffer built at b + k, and decode selector + arguments of the call / data of the log as the text already does for constant bases.",
+      "verified": "reading only (bytecode semantics are right: text_check passes on this contract; the call buffers were traced by hand against the source's abi.encodeWithSelector)"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "multicall(bytes[]), tokenURI(uint256), safeTransferFrom (both), permit(...), pancakeV3MintCallback(...)",
+      "lines": "517-523, 529-535, 554-560 (multicall); 340-346, 349-355 (tokenURI); 797-806, 833-841 and 1043-1053, 1080-1088 (safeTransferFrom); 661-669 (permit); 1230-1239, 1277-1286 (callback)",
+      "decompiled": "s = 0 / while s < _34: mem[_36 + s + 32] = mem[_25 + _30 + s + 68]; s = s + 32 / if s > _34: mem[_34 + _36 + 32] = 0   and   while idx >= 32: mem[t] = mem[s]; s = s + 32; t = t + 32; idx = idx - 32 / mem[_74 + floor32(max(31, _75))] = mem[..] & ~(256**(..) - 1) | mem[..] & 256**(..) - 1",
+      "source": "Multicall.sol:22 revert(abi.decode(result, (string))) and :11 return of bytes[] memory; NonfungiblePositionManager.sol:192 returned string; Address.functionCallWithValue target.call(data) and _verifyCallResult revert(errorMessage); TransferHelper token.call(abi.encodeWithSelector(...)); EnumerableMap._get require(keyIndex != 0, errorMessage)",
+      "issue": "12 of the text's 15 while loops are memory-to-memory copies of a bytes/string, not loops of the source; only 3 whiles are real loops (multicall's for, the zero-initialisation of new bytes[](n), the return encoding's outer loop). Calldata/returndata/storage copies are shown as copy lines, memory-to-memory ones never are.",
+      "rule": "Shape A 's = 0; while s < n: mem[d + s] = mem[a + s]; s = s + 32' then 'if s > n: mem[d + n] = 0' is exactly 'mem[d len n] = mem[a len n]' then 'if n % 32: mem[d + n len 32] = 0'. Shape B 'while k >= 32: mem[t] = mem[s]; s, t += 32; k -= 32' followed by the masked merge of the last partial word is exactly 'mem[d len n] = mem[a len n]'. Both hold for word-wise forward copies when d <= a or the ranges are disjoint (provable here with the base + constant reasoning of the first finding). Also floor32(max(31, n)) == floor32(n).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "collect, decreaseLiquidity, increaseLiquidity, mint",
+      "lines": "1416-1427 (collect); 881-893 (decreaseLiquidity); 2118-2185, 2209-2221 (increaseLiquidity); the same blocks in mint (~1700-1800)",
+      "decompiled": "_70 = 2 * (address(-_68 + _69) / (address(-_68 + _69) & -address(-_68 + _69))) * (2 ^ 3 * (address(-_68 + _69) / (address(-_68 + _69) & -address(-_68 + _69)))) - ...   (lines of 1,000 to 3,000 characters)",
+      "source": "FullMath.mulDiv (512-bit mul/div with Newton inverse) reached from LiquidityAmounts.getLiquidityForAmount0/1 and the fee updates 'FullMath.mulDiv(feeGrowthInside0LastX128 - position.feeGrowthInside0LastX128, liquidity, Q128)'",
+      "issue": "Each inlined mulDiv is unreadable: (a - b) * c is distributed into a*c - b*c in every occurrence of prod0, the odd part of the denominator d / (d & -d) is substituted about 20 times per line, two Newton steps are merged into one degree-4 polynomial (_72 = 4*_71 - 6*_71*_71*D + 4*_71^3*D^2 - _71^4*D^3), and -2^96, -2^128, -2^160 are printed in decimal beside the same powers in hex.",
+      "rule": "Do not distribute * over + / - (or merge consecutive multiplications into a polynomial) when that duplicates a non-atomic operand; bind a non-trivial subexpression used more than twice to a temporary (here d = address(_69 - _68), twos = d & -d, dd = d / twos, prod0 = (rd - f) * L, mm = mulmod(rd - f, L, -1)). Print a negated power of two like the positive one (-0x1000000000000000000000000, or -(x << 96)), and a - b rather than -b + a.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "burn, mint, transferFrom, safeTransferFrom (both)",
+      "lines": "437-448 (burn); 1830-1837 (mint); 377-393 (transferFrom); 732-762 and 973-1003 (safeTransferFrom)",
+      "decompiled": "if stor[sha3(tokenId, sha3(from, 1) + 1)]: ... stor[sha3(_37, sha3(from, 1) + 1)] = _35 ... stor[sha3(tokenId, sha3(to, 1) + 1)] = tokenOfOwnerByIndex[to].length",
+      "source": "slot 1 mapping(address => EnumerableSet.UintSet) _holderTokens; EnumerableSet._add/_remove: set._indexes[value]",
+      "issue": "def storage says 'tokenOfOwnerByIndex is mapping of array of uint256 at storage 1', missing that the mapping's value is a 2-slot struct {bytes32[] _values; mapping _indexes}; the second member's mapping accesses (about 30) stay raw sha3 arithmetic while the first member is named.",
+      "rule": "sha3(k2, sha3(k1, s) + j) with a constant j is element k2 of a mapping stored at member j (bit offset 256*j) of the struct value s[k1]; type slot s as a mapping of a struct and print stor1[k1].field_256[k2] (or a name), as for any other mapping.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "collect, safeTransferFrom (both), mint, permit, tokenURI, pancakeV3MintCallback, sweepToken",
+      "lines": "e.g. 1317-1341, 1357-1376, 1397-1403 (collect); 675-780 (safeTransferFrom, about 45 lines); 1822-1855 (mint); 573-600, 632-633 (permit); 1148-1152 (callback); 246-247 (sweepToken)",
+      "decompiled": "mem[0] = tokenId / mem[32] = 3 / ... / mem[160 len 41] = 'ERC721: owner query for nonexistent token' / mem[903 len 96] = r, s, Bytes(1, v), Bytes(4, 0x1626ba7e), Bytes(27, sha3(...) >> 40)",
+      "source": "the keccak scratch writes of mapping accesses; the errorMessage string of EnumerableMap.get whose require was proven redundant; call buffers and keccak inputs already shown as the call's args / sha3(...)",
+      "issue": "About 130 dead memory writes are printed in these functions (and none in approve, burn, transferFrom, decreaseLiquidity, which have no later read at an unknown offset). Some are misleading: permit 632 shows the transient 96-byte over-copy of abi.encodePacked(r, s, v) (selector and digest bytes) that line 633 then overwrites.",
+      "rule": "A memory write is dead when no later read may alias it; with the bounded, non-wrapping offsets of the first finding, reads at b + c with b >= 96 never alias the scratch words [0, 64), and a write fully overwritten before any read (632 by 633) is dead.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "mint, decreaseLiquidity, increaseLiquidity, collect, permit",
+      "lines": "1818-1819, 1880-1881 (mint); 897, 894 (decreaseLiquidity); 2222, 2225 (increaseLiquidity); 1461 (collect); 583 (permit)",
+      "decompiled": "stor13 = uint176(stor13) | (stor13 >> 176 << 176) + 0x100000000000000000000000000000000000000000000  |  approved[t].field_256 = (_19 << 128) - (params.liquidity << 128) | uint128(approved[t].field_256)  |  uint176(stor13) = uint176(uint176(stor13) + 1)",
+      "source": "_nextPoolId++ (uint80 at slot 13 +22); position.liquidity = positionLiquidity - params.liquidity; position.tokensOwed1 += ...; _nextId++; nonce++",
+      "issue": "Writes of the high field of a packed slot are shown as whole-slot arithmetic; def storage has 'stor13 is uint256' instead of a uint176 and a uint80 field.",
+      "rule": "s = Mask(k, 0, s) | (v << k) (mod 2^256) is the field write s.field_k = v (bits k..255); (a << k) - (b << k) == (a - b) << k; x >> k << k == Mask(256 - k, k, x); uintN(x) = uintN(uintN(x) + 1) == uintN(x) = old + 1. Split a slot into the fields its masked reads and writes use.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "collect, decreaseLiquidity, increaseLiquidity, mint",
+      "lines": "1413-1415, 1458-1460 (collect); 878-880; 2206-2208; 1874-1876",
+      "decompiled": "require ext_call.return_data[0] == ext_call.return_data[16 len 16]  |  require mem[_75] == mem[_75 + 16 len 16]",
+      "source": "abi decoding of uint128 return values of pool.positions() and pool.collect()",
+      "issue": "The uint128 range check is an obscure slice comparison, while address/int24/uint16 checks of slot0() print as 'x == address(x)'.",
+      "rule": "x[a + 32 - n len n] (the low n bytes of the word at a) is Mask(8n, 0, x[a]): print 'x[a] == uint128(x[a])'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "sweepToken(address,uint256,address)",
+      "lines": "247-250",
+      "decompiled": "args recipient, ext_call.return_data[0 len 28], Bytes(4, uint32(ext_call.return_data[28 len 4]))",
+      "source": "PeripheryPayments.sol:39 TransferHelper.safeTransfer(token, recipient, balanceToken)",
+      "issue": "The amount argument is printed as two slices of the same word.",
+      "rule": "Adjacent slices of one source covering [a, a + 32) concatenate to the word x[a] (here ext_call.return_data[0]); the text already does it for symbolic words (_param1 in the callback).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "increaseLiquidity, mint",
+      "lines": "2188-2190; 1804-1806",
+      "decompiled": ".mint(address recipient, int24 tickLower, int24 tickUpper, uint128 amount, bytes data) with: args this.address, ..., uint128(_124), 160, 128, token0, token1, fee, caller",
+      "source": "LiquidityManagement.sol:80-86 pool.mint(..., abi.encode(MintCallbackData({poolKey: poolKey, payer: msg.sender})))",
+      "issue": "The dynamic bytes argument is shown as its raw ABI head offset and length (160, 128) followed by its words.",
+      "rule": "When the signature has a dynamic parameter, decode its offset and length and print one argument, as permit already does for isValidSignature: Array(len=128, data=token0, token1, fee, caller).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "increaseLiquidity, mint",
+      "lines": "1928-2007 and 2019-2098 (increaseLiquidity), the same twice in mint",
+      "decompiled": "if not Mask(1, 1, _13): _16 = _15 / else: _16 = 0xfff97272373d413259a46990580e213a * _15 >> 128   (x19, x4)",
+      "source": "TickMath.getSqrtRatioAtTick: if (absTick & 0x2 != 0) ratio = (ratio * 0xfff9...) >> 128; ...",
+      "issue": "Each one-armed if of the source becomes a two-armed if with an SSA copy in one arm and a negated condition: 4 lines per step, 19 steps, 4 copies.",
+      "rule": "An if/else whose one arm only copies the previous value of the variable the other arm sets is a one-armed if updating that variable in place: 'if _13 & 2: ratio = C * ratio >> 128'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "sweepToken, pancakeV3MintCallback",
+      "lines": "251-264 (sweepToken); 1156-1170, 1187-1201, 1243-1258, 1290-1305 (callback)",
+      "decompiled": "if not return_data.size: _7 = 96 / else: ... _7 = 228 / if not ext_call.success: _13 = 0 / else: if not mem[_7]: _13 = 1 / else: require mem[_7] >= 32; _13 = mem[_7 + 32]",
+      "source": "TransferHelper: require(success && (data.length == 0 || abi.decode(data, (bool))), 'ST')",
+      "issue": "Reads through a phi of memory addresses stay memory reads: mem[_7] is return_data.size on both paths (mem[96] = 0 when it is 0) and mem[_7 + 32] is ext_call.return_data[0].",
+      "rule": "A read at a phi of addresses whose incoming values each resolve is the phi of the resolved values; when they agree (mem[96] == 0 == return_data.size on that path) it is one value: 'if not return_data.size: _13 = 1 else: require return_data.size >= 32; _13 = ext_call.return_data[0]'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "multicall(bytes[])",
+      "lines": "482-490, 539-565",
+      "decompiled": "cd[data + cd[32 * idx + data + 36] + 36]  |  args mem[mem[64] len _21 + cd[...] - mem[64]]  |  while True: if s >= mem[128]: return memory from mem[64] len v - mem[64]",
+      "source": "Multicall.sol:13-26 address(this).delegatecall(data[i]); return results",
+      "issue": "data[i] and data[i].length are raw calldata offset arithmetic; the delegatecall input is a memory range instead of data[idx]; the return loop is 'while True' with its exit inside; mem[128] is not folded to data.length.",
+      "rule": "cd[a + cd[a + 32 + 32 * i] + 32] with a the offset of a bytes[] parameter is data[i].length (and the bytes after it data[i]); a 'while True' whose first statement is 'if c: exit' is 'while not c:' followed by the exit; fold mem[64] as in the first finding.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "all functions touching _positions (burn, collect, decreaseLiquidity, increaseLiquidity, mint, permit, positions, approve, transfers)",
+      "lines": "20 (def storage), e.g. 413, 855, 2225",
+      "decompiled": "approved is mapping of struct of 5 slots at storage 12  ...  approved[params.tokenId].field_384 >= params.liquidity",
+      "source": "slot 12 mapping(uint256 => Position) _positions; getApproved returns _positions[tokenId].operator only",
+      "issue": "The whole 5-slot Position mapping is named after getApproved, which returns one member; liquidity, ticks, fee growths and tokensOwed read as 'approved[x].field_N'.",
+      "rule": "Name a storage variable after a getter only when the getter returns the whole value at that location; when it returns one member of a multi-member struct, name nothing (stor12) or name only that member.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "approve, burn, transferFrom, safeTransferFrom (both), permit",
+      "lines": "209-211 (approve); 422-429 (burn); 373-375 (transferFrom); 723-725, 964-966; 653-669 (permit)",
+      "decompiled": "approved[amount].field_96 = spender / if not stor3[amount]: revert with 'ERC721: owner query for nonexistent token' / assert stor3[amount] - 1 < tokenByIndex.length",
+      "source": "_approve: _positions[tokenId].operator = to; emit Approval(ownerOf(tokenId), to, tokenId) after ownerOf was already checked",
+      "issue": "The owner lookup is re-checked after a write to stor[sha3(tokenId, 12)] because that write is not known to leave stor[sha3(tokenId, 3)] unchanged; in permit the unreachable revert is 13 lines with a copy loop.",
+      "rule": "Only with an explicit axiom (keccak256 has no collisions between distinct 64-byte preimages, which the text already assumes when it names mappings): stores to sha3(k, s1) do not change sha3(k, s2) for s1 != s2. If the axiom is refused, keep it; it is the only reason for these lines.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "burn(uint256)",
+      "lines": "431-436",
+      "decompiled": "if stor8[_value].length: _40 = uint1(stor8[_value]) / _41 = stor8[_value] / ... if 31 < (256 * (not _40) - 1 & _41) / 2: stor[sha3(sha3(_value, 8)) len -sha3(sha3(_value, 8)) + max(((256 * (not _40) - 1 & _41) / 2 + 31) / 32 + sha3(sha3(_value, 8)), sha3(sha3(_value, 8)))] = 0",
+      "source": "ERC721.sol:365-367 if (bytes(_tokenURIs[tokenId]).length != 0) delete _tokenURIs[tokenId];",
+      "issue": "The storage-bytes length is recognised in the condition but not in the body, where the slot read is split into two temporaries (_40, _41); the slot count max(a + n, a) - a is exact but opaque.",
+      "rule": "Recognise ((not (x & 1)) * 256 - 1 & x) / 2 as the length of the bytes at x's slot also through temporaries bound to the same slot read, and do not bind uint1(slot) and slot separately.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 39 ABI functions and the fallback/receive reviewed against the source; no semantic error found. mint's TickMath / getLiquidityForAmounts part (text 1521-1803) is the same expansion as increaseLiquidity's and was reviewed by structure. Checked by disassembly: (1) TickMath's 'type(uint256).max / ratio' has a div-by-zero INVALID in the bytecode (pc 16548-16559) that the text omits ('_36 = -1 / _34'); it is unreachable (ratio >= ~2^52 by interval arithmetic over the 19 constants), so the text is exact. (2) 'revert with Error(string reason), 32, 50, ..., mem[mem[64] + 118 len 14]' (821, 1068) is faithful: solc's legacy encoder CODECOPYs the 50-byte literal without zero padding (the string sits in the data section at byte 22507), so the last 14 bytes really are stale memory. Smaller points not filed: baseURI() printed as 'const baseURI = 32, 0' (an empty string); the fallback's 'require calldata.size < 4' is implied by the next 'require not calldata.size'; collect/decrease keep an early 'mem[501] = sha3(...)' and later print 'mem[501]' inside the pool address (first finding's cause). Loop count: 1 explicit loop (multicall) + 35 implicit (dynamic copies, new bytes[], abi encode/decode of strings and bytes[]); copies resolved into fixed words counted as unrolled (callback token0 payments, sweepToken, permit's isValidSignature bytes, pool.mint's bytes data x2). evmrun is not in build-cmp3 (it is in /home/claude/wt-cxx/cxx/build); no execution run for this contract, nothing left to reproduce.",
+  "summary": "Faithful on every path checked, including rare and owner-only ones, and all loops are present; but memory addressed from an unknown free-memory pointer is never resolved, which hides the function and arguments of 5 external calls, leaves 12 memory copies as while loops and prints about 130 dead memory writes, and the inlined FullMath.mulDiv blocks are unreadable multi-thousand-character polynomials."
+}

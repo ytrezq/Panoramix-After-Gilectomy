@@ -1,0 +1,131 @@
+{
+ "id": "c00026",
+ "abi_functions": 64,
+ "reviewed": 64,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P1": 40,
+  "P2": 34,
+  "P6": 3,
+  "P7": 43,
+  "P8": 150,
+  "P9": 2555,
+  "P11": 6,
+  "P12": 600,
+  "P14": 200,
+  "P17": 295,
+  "P18": 60
+ },
+ "findings": [
+  {
+   "kind": "coverage",
+   "severity": "medium",
+   "function": "stopPriceRatioUpdate()",
+   "lines": "17056-17145",
+   "decompiled": "if SafeMath.mul(_4081, 10**18) > 1: ... if not Mask(255, 1, _4102): revert with Panic(18) / else: ... stor6 = uint96(SafeMath.mul(_4081, 10**18)) ... / ...  # Decompilation aborted",
+   "source": "ReClammPool.sol:701 _startPriceRatioUpdate(currentPriceRatio, block.timestamp, block.timestamp, currentPriceRatio); ReClammPool.sol:796-823 fourthRootScaled18(precomputedStartPriceRatio), toUint96, _priceRatioState = ..., emit PriceRatioStateUpdated, _vault.emitAuxiliaryEvent",
+   "issue": "In the initialized branch the outer Math.sqrt of fourthRootScaled18 takes its general path (input > 1, every realistic ratio) and that path stops after the last Newton division check and falls into the abort. The main path therefore loses the sqrt result, the SafeCast(96) checks, the four _priceRatioState writes, the PriceRatioStateUpdated event and the emitAuxiliaryEvent call; only the not-initialized branch and the degenerate input<=1 branch show them.",
+   "rule": "Coverage limit of the decompiler (path budget); not a rewrite rule.",
+   "verified": "reading only (indentation of lines 17056/17106/17145)"
+  },
+  {
+   "kind": "coverage",
+   "severity": "medium",
+   "function": "startPriceRatioUpdate(uint256,uint256,uint256)",
+   "lines": "18895-18948, 19000-19119",
+   "decompiled": "if mem[_3899]: ... if SafeMath.mul(_3966, 10**18) > 1: ... if not Mask(255, 1, ...): revert with Panic(18) / else: stor6 = ... / else: ... _3990 = -41 * 10**18 <=′ ... /  ...  # Decompilation aborted",
+   "source": "ReClammPool.sol:661-682 _startPriceRatioUpdate(...); require(priceRatioDelta >= _MIN_PRICE_RATIO_DELTA, ...); if (_computeDailyPriceRatioUpdateRate(...) > _MAX_DAILY_PRICE_RATIO_UPDATE_RATE) revert PriceRatioUpdateTooFast(); return actualPriceRatioUpdateStartTime",
+   "issue": "On the main path (pool initialized, sqrt input > 1) the text ends at the last Newton step of fourthRootScaled18: the SafeCast checks, the _priceRatioState writes, the PriceRatioStateUpdated event, the emitAuxiliaryEvent call, the PriceRatioDeltaBelowMin check, the daily-rate powUp, the PriceRatioUpdateTooFast check and the return are all lost. The not-initialized branch also aborts inside LogExpMath.pow (general case of powUp).",
+   "rule": "Coverage limit of the decompiler (path budget); not a rewrite rule.",
+   "verified": "reading only (indentation of lines 18828/18895/18949/19000/19119)"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "stopPriceRatioUpdate(), startPriceRatioUpdate(...), onSwap(...), setCenterednessMargin(uint256), setDailyPriceShiftExponent(uint256), onBeforeInitialize(...), getCurrentLiveBalances(), getTokens(), getTokenInfo(), computeInitialBalancesRaw(address,uint256)",
+   "lines": "16750-16753, 16937, 16964-16968, 18813, 13170-13186, 510, 1009-1014",
+   "decompiled": "_3888 = mem[64] / mem[mem[64]] = uint32(block.timestamp) / log 0x32a9fd44...: mem[_3888]; _4023 = mem[64] / mem[mem[64]] = 0x532cec7c... / static call 0x0.mem[_4023 len 4]; args 0x5669..., 64, mem[_51], mem[_51 + 196 len mem[_51]], Bytes(...); return memory from mem[64] len _5 + 32 * _6 - mem[64] + 64",
+   "source": "ReClammPool.sol:913 emit LastTimestampUpdated(lastTimestamp32); :795 _vault.isPoolInitialized(address(this)); :769 _vault.emitAuxiliaryEvent(\"VirtualBalancesUpdated\", abi.encode(a, b))",
+   "issue": "After `_x = mem[64]` the code writes `mem[mem[64]]` and reads `mem[_x]`, and the two addresses are not identified: 14 events show their first data word as `mem[_x]`, 2 calls lose their selector (isPoolInitialized shown as `0x0.mem[_x len 4]`), 31 emitAuxiliaryEvent calls show the bytes argument as raw memory, and return lengths keep `_5 - mem[64]`. Where `mem[64] = _x + k` intervenes, the store to `mem[_x]` is also not forwarded, because `_x` might equal 64.",
+   "rule": "When a variable is bound to mem[64] and mem[64] is not written before a later use, rewrite the address `mem[64] + k` as `_x + k` (and `_x - mem[64]` as 0). Prove a lower bound for the free-memory pointer per function (initial constant >= 0x80 and every write is `old + k` guarded by the Panic(65) no-wrap check), so writes to mem[64] do not alias `mem[_x + k]`.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "all functions that call the Vault (41 decoded return values)",
+   "lines": "10797-10870, 376-411, 13046-13110, 20954-21060",
+   "decompiled": "_1 = return_data.size ... require min(32, return_data.size) >=′ 32 ... mem[ceil32(min(32, _1)) + ceil32(min(32, _2)) + ceil32(min(96, return_data.size)) + 172 len 20]",
+   "source": "CommonAuthentication.sol:17 _vault.getPoolRoleAccounts(pool).swapFeeManager (and every other `_vault.x(...)` return decode)",
+   "issue": "`ceil32(min(C, return_data.size))` and `ceil32(min(C, _n))` (with `_n` the saved return size) are kept after the dominating `require min(C, return_data.size) >=′ C`, so 1081 lines carry these terms and every memory offset stays symbolic. Folded, the address above is a constant and many struct copies become plain field reads.",
+   "rule": "After `require min(C, x) >= C` (C a positive constant, x unsigned), `min(C, x) == C` on every dominated path: substitute C, fold ceil32(C), and apply the same to variables that hold the same x.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "startPriceRatioUpdate(uint256,uint256,uint256) and the inlined ReClammMath / Math.mulDiv code of the 15 large functions",
+   "lines": "17219, 18726, 18954-18969, 19066, 13160, 21383",
+   "decompiled": "revert with 0xc9767706, (block.timestamp > _param2) * (block.timestamp ^ _param2) ^ _param2, _param3; if (block.timestamp > _param2) * (block.timestamp ^ _param2) ^ _param2 < block.timestamp: revert with InvalidStartTime(); revert with Panic(uint256), 17 ^ 3 * (not _2409)",
+   "source": "GradualValueChange.sol:31 resolvedStartTime = Math.max(block.timestamp, startTime); ReClammPool.sol:786 priceRatioUpdateStartTime < block.timestamp; ReClammMath.sol Math.min(currentTimestamp - lastTimestamp, 30 days); OZ Math.mulDiv Panic.panic(ternary(denominator == 0, 0x12, 0x11))",
+   "issue": "The branchless select `b ^ ((a ^ b) * cond)` is printed raw: max(block.timestamp, _param2) appears in 22 lines (revert data, storage writes, events, return), min(..., 30 days) in the virtual-balance math, and the mulDiv panic code in 53 lines. Because max is not recognized, the dead check `max(now, p2) < now -> revert InvalidStartTime()` stays at 18726.",
+   "rule": "For a 0/1 condition c, `b ^ ((a ^ b) * c)` == `(a if c else b)`; with c = (a > b) it is max(a, b), with c = (a < b) min(a, b). Then `max(a, b) < a` folds to false.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "onBeforeAddLiquidity(...), onBeforeRemoveLiquidity(...), getDailyPriceShiftExponent(), getReClammPoolDynamicData()",
+   "lines": "4662-4669, 7295-7310, 195-197, 20990",
+   "decompiled": "if (_2618 * _param5 + _2618 * _2) / _2618 != _param5 + _2 and _2618: revert Panic(17) ... stor8 = uint128((_2618 * _param5 + _2618 * _2) / _2); return -124649 * stor7_32 + 124649 * 10**18",
+   "source": "ReClammPool.sol:331,338 newPoolTotalSupply = exactBptAmountOut + poolTotalSupply; (vA * newPoolTotalSupply) / poolTotalSupply; ReClammMath.sol:787 (FixedPoint.ONE - dailyPriceShiftBase) * 124649",
+   "issue": "A product of a value and a sum is distributed (`x*b + x*c`), so the checked multiplication `SafeMath.mul(x, b + c)` becomes a long condition and the same distributed expression is repeated in the SafeCast check, the write, the event and the call arguments.",
+   "rule": "Factor `x*b + x*c` into `x*(b + c)` (exact modulo 2^256), at least when `b + c` is already a value of the text (a checked sum), and show the overflow test as SafeMath.mul.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "getAggregateFeePercentages(), getReClammPoolDynamicData(), getTokenInfo(), getTokens(), getReClammPoolImmutableData(), the onlySwapFeeManagerOrGovernance part of 4 functions",
+   "lines": "398, 400, 733, 882, 21043-21045, 10836-10840",
+   "decompiled": "require not mem[352 len 27] << 40; require not 4294967296 * mem[384 len 28]; require not mem[idx len 12] << 160",
+   "source": "ABI decoding of uint40, uint32 and address fields of PoolConfig, IERC20[], PoolRoleAccounts",
+   "issue": "Range checks of decoded fields keep a shift or multiply inside a zero test.",
+   "rule": "`(x << k) == 0` and `(x * 2**k) == 0` are `x == 0` when x has at most 256-k bits (a slice of 32-k/8 bytes); print `require not mem[352 len 27]`.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "naming",
+   "severity": "low",
+   "function": "onRegister(address,address,(address,uint8,address,bool)[],(bool,bool,bool,bool)) and onAfterAddLiquidity / onAfterRemoveLiquidity",
+   "lines": "340-374, 614, 649",
+   "decompiled": "def unknown0b89f182(address _param1, address _param2, array _param3, bool _param4, bool _param5) ... return not _param5",
+   "source": "ReClammPool.sol:270-271 liquidityManagement.disableUnbalancedLiquidity && liquidityManagement.enableDonation == false",
+   "issue": "Parameters are numbered over the offsets the code reads: `_param5` is the word at calldata offset 196 (enableDonation, the 7th head word; JSON params {'100': _param4, '196': _param5}), but the signature reads as 5 parameters and suggests offset 132 (enableAddLiquidityCustom). In unknown976907cc and unknown2754888d the unused uint256 word shifts `_param6`/`_param7` (or `_param4`..`_param7`) the same way.",
+   "rule": "Name a parameter by its head-word index ((offset - 4) / 32 + 1), or list skipped words as unused parameters, so `_paramN` always means the N-th word.",
+   "verified": "disassembly (onRegister reads CALLDATALOAD 0x64 and 0xc4) and dec/c00026.json params"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "whole contract",
+   "lines": "203, 1039, 125-127, 1338-1355, 19064",
+   "decompiled": "if caller: revert with 0x089676d5, caller; static call 0x0.totalSupply(...); stor7_32 = 10**18 / stor7_160 = 0; if 0 < _3960: revert with 0x570bf22e",
+   "source": "immutables _vault, _helper, _MAX_DAILY_PRICE_RATIO_UPDATE_RATE, _INITIAL_*, _actionIdDisambiguator, EIP712 cached values, _TOKEN_*_PRICE_INCLUDES_RATE",
+   "issue": "solc immutables read as 0: all Vault/helper calls target 0x0, onlyVault is `caller != 0`, onBeforeInitialize sets base 1e18 and margin 0 and loses the PoolOutsideTargetRange check, and startPriceRatioUpdate's final check reverts whenever the rate is non-zero.",
+   "rule": "Not a decompiler error (pre-deployment bytecode).",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Long functions reviewed by structure (control flow, calls, storage writes, events, reverts; math bodies spot-checked): getReClammPoolDynamicData 2111 lines, startPriceRatioUpdate 1974, stopPriceRatioUpdate 1924, setCenterednessMargin 1787, computeCurrentFourthRootPriceRatio 1726, and the other ten 1000-1450-line functions, which all inline ReClammMath.computeCurrentVirtualBalances (LogExpMath.pow, Math.sqrt, Math.mulDiv). Small functions (getters, ERC20 forwarding, permit, onRegister, onBeforeInitialize, onSwap tail, add/remove hooks) checked line by line; permit, onBeforeInitialize and the swap math are exact. No explicit loop in the source (ReClammMath, LogExpMath, FixedPoint, OZ Math have none); the 46 whiles are implicit: 43 ABI copies (P7, counted in blocks), 2 TokenInfo[] struct decode/encode loops in getTokenInfo, 1 calldata validation loop in onRegister. P2 = 1 regex line + 2 selectors read from memory + 31 emitAuxiliaryEvent calls whose bytes argument is raw memory. P12 is the tail of each hook duplicated into the early-return arms of computeCurrentVirtualBalances (estimate). P17 = LogExpMath decimal constants printed in hex. Errors and events often show raw selectors/topics (0x486aa307, 0x6dfcc650...) because the signature database lacks them, though they are in the ABI. Sqrt range folding in startPriceRatioUpdate (first steps removed from the MIN/MAX_PRICE_RATIO bounds) is correct and nice.",
+ "summary": "Semantically faithful where complete, but two admin functions (startPriceRatioUpdate, stopPriceRatioUpdate) lose their main path to aborts. Readability suffers from the inlined LogExpMath/sqrt/mulDiv math, unfolded `min(C, return_data.size)` offsets, free-pointer aliasing that leaves event data and call arguments as raw memory, and unrecognized branchless min/max."
+}

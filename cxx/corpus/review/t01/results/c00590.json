@@ -1,0 +1,80 @@
+{
+  "id": "c00590",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 411, "P6": 140, "P7": 22, "P8": 150, "P9": 80, "P10": 30, "P11": 45, "P14": 60, "P15": 1},
+  "findings": [
+    {
+      "kind": "semantics",
+      "severity": "low",
+      "function": "emergencyExit()",
+      "lines": "1631-1633",
+      "decompiled": "if t != t * u / u and u: revert with Panic(17) / if min(SafeMath.add(_74, u), SafeMath.sub(v, SafeMath.div(t * u, collateralFactorNumerator))):",
+      "source": "AaveFoldStrategy.sol:498-502 requiredCollateral = borrowed.mul(_denom).div(collateralFactorNumerator()); toRepay = borrowed.sub(newBorrowTarget); toRedeem = Math.min(supplied.sub(requiredCollateral), amount.add(toRepay))",
+      "issue": "Read left to right, the text checks amount + borrowed (Panic(17)) before the division by collateralFactorNumerator (Panic(18)); the source divides first. With collateralFactorNumerator == 0 and an overflowing sum the revert data would differ. The same loop in withdrawToVault (5232, 6541) prints 'if not collateralFactorNumerator: revert with Panic(18)' as its own statement before the min, which suggests the order was lost only in this specialisation.",
+      "rule": "When folding a reverting helper (checked div/add/sub) into an expression, keep the order of the checks of the bytecode: hoist each check that precedes another reverting check into its own statement, or keep the arguments in evaluation order.",
+      "verified": "reading only (the disassembly was not traced to the two checks; the panic only differs when collateralFactorNumerator is 0, an uninitialised strategy)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "emergencyExit(), doHardWork(), withdrawToVault(uint256), withdrawAllToVault()",
+      "lines": "1623-1629 (emergencyExit); 9100-9110 (doHardWork); the same before 4092, 5229, 6014, 6538, 9587",
+      "decompiled": "s = storA170; t = stor4E92; u = _80; v = _77; w = storA170; x = pendingFee + 1; y = stor8CDE / while u > 0:   |   s = ..; t = storA170; u = borrowTargetFactorNumerator; v = stor4E92; w = _3493; x = _3489; y = storA170; z = -_3493 + ..; a = ..; b = borrowTargetFactorNumerator; c = stor4E92 / while w < s:",
+      "source": "AaveFoldStrategy.sol:475 while (borrowed < borrowTarget) / :497 while (borrowed > newBorrowTarget)",
+      "issue": "Before each inlined loop, a dozen loop variables are introduced: some are never read in the loop (w and x in emergencyExit; u, y, z, a, b, c in doHardWork), others duplicate each other (t and y both storA170, u and b, v and c) or a loop-invariant storage read. Only borrowed and supplied change in the body.",
+      "rule": "Drop a loop-carried variable that is never read; merge two loop variables that are equal on entry and updated alike; replace a variable that is never reassigned in the loop by its initial value.",
+      "verified": "reading only (uses counted in the loop bodies 1630-1883 and 9111-9364)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "emergencyExit(), withdrawAllToVault()",
+      "lines": "2023, 2032, 2041",
+      "decompiled": "mem[_82 + ceil32(return_data.size) + 32] = address(storA170) ... mem[_82 + ceil32(return_data.size) + 356] = Bytes(12, 0), mem[_82 + ceil32(return_data.size) + 44 len 20] ... args this.address, 128, 192, 256, 1, Bytes(12, 0), mem[_82 + ceil32(return_data.size) + 44 len 20], 1, _80, 32, 0",
+      "source": "AaveFoldStrategy.sol:443-446 tokens[0] = _underlying; ... IBVault(bVault).flashLoan(address(this), tokens, amounts, userData)",
+      "issue": "The low 20 bytes of a word written nine lines earlier at the same symbolic base are not forwarded, so the flash-loan token shows as a memory slice instead of the underlying (storA170); the arrays are also printed as raw ABI head words (128, 192, 256, 1, ...).",
+      "rule": "mem[B + k + 12 len 20] after mem[B + k] = X, with only writes at B + j (j outside [k, k + 32)) between, is address(X) (generally a sub-range read of a known word is its slice). Decode a dynamic argument from its offset and length as Array(len=1, data=...).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize(), initialize(address), initialize(address,address,address,address,address,address), initializeBaseStrategy(...), initializeStrategy(address,address)",
+      "lines": "176-188, 456-493, 598-659, 720-820, 822-927",
+      "decompiled": "_1 = stor0 / 256 or not uint8(stor0); if not _1: revert ..; if stor0 / 256: _4 = 0 else: _2 = stor0 / 256; stor0 = 257; _4 = not _2 / _5 = stor0 / 256 or not uint8(stor0); if not _5: revert .. (x6) ... if _8: uint8(stor0.field_8) = 0",
+      "source": "Initializable.initializer on nested initialize functions: require(_initializing || !_initialized); isTopLevelCall = !_initializing; ...",
+      "issue": "After the first modifier, stor0 / 256 is non-zero on both arms (it was, or 257 was just stored), so every nested check (_5, _9, ...) is true, every nested _8, _12, ... is 0 and their 'if _8: uint8(stor0.field_8) = 0' are dead; also _2 is 0 in the else arm, so _4 is 1. About 100 lines of the six initializers say nothing.",
+      "rule": "Propagate facts out of an if/else: a predicate true at the end of both arms holds after the join; substitute the tested value inside each arm (in 'else' of 'if c', c is 0). Then the nested modifiers fold away and the top-level one is 'if not stor0 / 256: stor0 = 257 ... uint8(stor0.field_8) = 0'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "universalLiquidator(), scheduleUpgrade(address), initializeBaseStrategy(...), initializeStrategy(...), unknownb8d3370b() and the big functions (161 lines)",
+      "lines": "e.g. 347-349, 448, 805-806 vs 797-798, 911-912, 576",
+      "decompiled": "require ext_call.return_data[0] == ext_call.return_data[12 len 20] / return Bytes(12, 0), ext_call.return_data[12 len 20]  |  but 797: require ext_call.return_data[0] == address(ext_call.return_data[0])",
+      "source": "returns of address type (controller(), UNDERLYING_ASSET_ADDRESS(), universalLiquidator(), POOL())",
+      "issue": "The same address range check prints as 'x == address(x)' for the first external call of a function and as a 12/20-byte slice comparison for the later ones, and the returned address as 'Bytes(12, 0), x[12 len 20]'.",
+      "rule": "x[a + 12 len 20] is address(x[a]) and Bytes(12, 0), x[a + 12 len 20] is address(x[a]), whatever x is.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "isRewardToken(address), rewardTokens(), doHardWork(), withdrawToVault(uint256), investedUnderlyingBalance(), _fallback",
+      "lines": "509, 539 (Panic(50) in the loop); 9112 (s - w > s in 'while w < s'); 7842-7846; 375-378; 132-133",
+      "decompiled": "while s < _9: ... if s >= stor4541: revert with Panic(50)  |  while w < s: if s - w > s: revert with Panic(17)  |  mem[B] = 2 ... if 0 >= mem[B]: Panic(50); if 1 >= mem[B]: Panic(50)  |  require calldata.size < 4 / require not calldata.size",
+      "source": "getAddressArray result[i] bound check; _depositNoFlash borrowTarget.sub(borrowed) inside while (borrowed < borrowTarget); assets[0], assets[1] of new address[](2); total > fee ? total.sub(fee)",
+      "issue": "Checks implied by the loop condition, by the length just stored, or by the enclosing test are kept (P11).",
+      "rule": "Inside 'while a < b' (b unchanged before the check), a < b holds: b - a cannot underflow and a >= b is false; a bound check against a length written as the constant n folds; 'not x' implies 'x < 4'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "doHardWork (about 3,000 lines), withdrawToVault (2,623), withdrawAllToVault (2,403) and emergencyExit (774) were reviewed by structure (modifiers, call order, storage writes, events, loop shapes) against _handleFee, _claimReward, _liquidateReward, _investAllUnderlying, _redeem*, _deposit*; the other 58 functions line by line. Source loops: _depositNoFlash while (6014, 9111), _redeemNoFlash while (1630 and 4092 specialised to target 0, 5229, 6538, 9587), _liquidateReward for (2902, 7924, with its two 'continue's right), getAddressArray for (506, 536), _isAddressInList for (516, as 'while True' with both exits inside). The other 22 whiles are implicit: abi.decode of address[] (942), abi.encode of address[] / uint256[] arguments of claimAllRewards and bVault.flashLoan (pairs at 3872/3884 ...), the address[] return of rewardTokens() (550): P7. P2 (411 lines) is the main readability problem: after the first allocation most calls (balanceOf, POOL, withdraw, borrow, repay, approve, allowance, flashLoan, claimAllRewards, swap) lose name and arguments, and the same bVault.flashLoan call is decoded in emergencyExit but raw in withdrawToVault/doHardWork. Three ABI events (ProfitLogInReward(address,...), PlatformFeeLogInReward, StrategistFeeLogInReward) print as raw topic0 (24 lines): not in the event database, normal. Slots read through address getters (aToken, debtToken, underlying, vault, ...) keep storXXXX names while uint256 getters name theirs: a missed name, not misleading. P9: (supplied - borrowed) * borrowNum distributed into two products (9079-9108, 7354). P15: stor0 holds _initialized and _initializing as one uint16. 'cd[calldata.size]' / 'call.data[calldata.size len n]' (24 lines) are zero fills.",
+  "summary": "Faithful and complete (no abort), with every source loop shown as a while; readability suffers mostly from P2 (calls after the first allocation lose name and arguments), redundant initializer and bound checks, and bloated loop-variable prologues. One low-severity ordering doubt between two different panics in emergencyExit."
+}

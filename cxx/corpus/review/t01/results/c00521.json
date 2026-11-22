@@ -1,0 +1,36 @@
+{
+  "id": "c00521",
+  "abi_functions": 54,
+  "reviewed": 54,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 1, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 26, "P6": 167, "P8": 120, "P11": 6},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "registeredAssets, spendAssets, borrowableAssets, hasDebt, getAccountData, setReserveId, removeReserve, setSpendAsset ... (211 lines)",
+      "lines": "def storage line 8-10; 559-575, 722-733",
+      "decompiled": "def storage (vyper): ... stor8CDF is mapping of fixed array of struct of 1 slot at storage 0x8cdfbb61..801   |   mem[4] = 2542447506 / mem[0] = 0x8cdfbb61..801 / if uint96(stor8CDF[concat(Bytes(4, 0x978aab92))][0].field_0): .. while idx < uint95(stor8CDF[concat(Bytes(4, 0x978aab92))][0].field_1):",
+      "source": "LendGateway storage $.assets / $.spendAssets are Solady EnumerableSetLib.AddressSet; _rootSlot: mstore(0x04, 0x978aab92); mstore(0x00, set.slot); r := keccak256(0x00, 0x24)",
+      "issue": "Solady's set root slot keccak(set.slot ++ 4-byte seed) is read as a Vyper-style mapping indexed by the constant seed, and that one match flips the header of a solc 0.8.28 contract to 'def storage (vyper)'; the set's packed root (length and first element) becomes field_0/field_1/field_96 of a 'fixed array of struct'.",
+      "rule": "A keccak over (32-byte constant slot ++ constant bytes) has no variable key and is not a mapping access in either convention: print it as a named derived slot (stor[sha3(0x8cdf..801, Bytes(4, 0x978aab92))]) and never infer the compiler from it.",
+      "verified": "reading only (Solady EnumerableSetLib.sol:764 _rootSlot and :52 _ENUMERABLE_ADDRESS_SET_SLOT_SEED = 0x978aab92 checked)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "registeredAssets, spendAssets, borrowableAssets, hasDebt, getAccountData (78 lines)",
+      "lines": "560, 564, 754",
+      "decompiled": "mem[160] = (stor8CDF[..][0].field_96 != 4643283231987334101183) * stor8CDF[..][0].field_96",
+      "source": "Solady EnumerableSetLib.values/at: v := shr(96, sload(..)); ... xor(v, mul(zs, eq(v, zs))) with _ZERO_SENTINEL = 0xfbb67fda52d4bfb8bf",
+      "issue": "The sentinel decoding is a product with a boolean, and the 72-bit sentinel is printed in decimal.",
+      "rule": "For a boolean c, (c) * x is 'x if c else 0' (print it so); print a constant that is not a round decimal in hex (0xfbb67fda52d4bfb8bf).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small views and setters, hasDebt, registeredAssets/spendAssets/borrowableAssets reviewed in detail; borrow, repay, supply, withdraw, getAccountData, removeReserve, setReserveId, setUsingAsCollateral by structure. Source loops: 5. getAccountData's for (2795), hasDebt's for ('while True' with the exit inside, 735), _borrowableAssets' for (871) and Solady EnumerableSetLib.values()' large-set Yul for (565, 607, 846) are whiles; values()' small-set 'for {} 1 {}' block always breaks in its first pass and is printed as straight nested ifs (counted unrolled, correct). The Solady loops are not in the pack's reach lists. Implicit loops: address re-encodings of the returned arrays, 4 checked-exponentiation helpers 'while u > 1' (supplyHeadroom, borrowLiquidity, getAccountData x2; rule as in c00003), uint256[]/bytes encodings in repay/supply. P8: 120 keccak scratch writes 'mem[4] = 2542447506; mem[0] = 0x8cdf..801' (the seed in decimal), repeated before each set access (twice in a row at 739-742). P11: 'if s >= _14: revert IndexOutOfBounds()' in hasDebt recomputes the set length already bounding the loop (Solady at() check, real code but implied). P6: 167 lines.",
+  "summary": "Faithful and loop-complete, but the Solady enumerable sets in namespaced storage are misread as a Vyper-style mapping (and the storage header says vyper), making every set access an obscure seed-indexed struct read."
+}

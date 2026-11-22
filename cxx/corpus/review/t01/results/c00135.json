@@ -1,0 +1,58 @@
+{
+  "id": "c00135",
+  "abi_functions": 30,
+  "reviewed": 30,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 42, "P6": 8, "P7": 57, "P9": 238, "P10": 20, "P11": 15, "P15": 3},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "convertToV3, changeRanges, increaseLiquidity, decreaseLiquidity, collectFees, getTwapFromOracle, checkPoolAndGetCenterPrice",
+      "lines": "e.g. 412-416 (getTwapFromOracle); 238 lines with mulmod",
+      "decompiled": "if -1 * address((_39 >> 32) + _41) * address((_39 >> 32) + _41) + mulmod(address((_39 >> 32) + _41), address((_39 >> 32) + _41), -1) == (mulmod(...) < ...): return address((_39 >> 32) + _41) * address((_39 >> 32) + _41) >> 64, ... | -6277101735386680763835789423207666416102355444464034512896 * address(...",
+      "source": "FullMath.mulDiv / mulDiv (512-bit multiply-divide) inlined in LiquidityManagerCore price math (e.g. mulDiv(sqrtPriceX96, sqrtPriceX96, 1 << 64))",
+      "issue": "The 512-bit mulDiv is expanded into the mulmod/carry arithmetic (P9) and its operand, address((_39 >> 32) + _41) (the sqrt price), is repeated about 15 times in one line; -2^192 and 2^64 print as decimals.",
+      "rule": "Bind a non-trivial subexpression used more than once to one variable; recognize the full-precision product (p0 = a * b, p1 = mulmod(a, b, -1) - p0 - (mulmod(...) < p0)) followed by the exact-division sequence as mulDiv(a, b, d) when it is proven equal for all inputs; print powers of two as 2**k.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "convertToV3, changeRanges, increaseLiquidity, decreaseLiquidity, collectFees",
+      "lines": "e.g. the 22 calls 'static call address(_635).mem[_636 len 4] with'",
+      "decompiled": "static call address(_635).mem[_636 len 4] with: ... args mem[...]  |  static call this.address with  |  static call _285 with",
+      "source": "IUniswapV3Pool(pool).slot0(), observe(secondsAgos), positionManager.positions(...), this.getTwapFromOracle(pool) (try/catch and low-level staticcalls)",
+      "issue": "With the free-memory pointer symbolic (via-IR, after calls whose return data size is unknown) the selector itself prints as a memory slice in 22 call lines and the arguments as raw memory (P2), so several pool and position-manager calls lose their names.",
+      "rule": "Resolve memory relative to the symbolic free-memory pointer; a 4-byte constant stored at the start of call data is the selector, printed by name.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "treasury, balancerVault, olas, factoryV3, positionManagerV3, neighborhoodScanner, bridge2Burner, observationCardinality getters and the calls on them",
+      "lines": "e.g. 45-71; 38 calls 'call 0x0.<fn>'",
+      "decompiled": "def balancerVault(): return 0  |  static call 0x0.getPool(address, address, uint24) with  |  require ext_code.size(0)",
+      "source": "immutable addresses set in the constructor",
+      "issue": "Immutables read as 0 in the undeployed runtime code (solc), so the getters return 0 and the factory, position manager, OLAS and Balancer vault calls target address 0; the Balancer exit path is dead (require ext_code.size(0)).",
+      "rule": "-",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "all no-argument functions; transferToken and the other functions reading call results",
+      "lines": "e.g. 32, 44, 47; 160-166; 151-153",
+      "decompiled": "require calldata.size - 4 >=′ 0  |  if 32 > return_data.size: _3 = return_data.size / _4 = return_data.size else: _3 = 32 / _4 = 32  |  _1 = stor[0] / stor0_176 = 2 / if address(_1) != caller",
+      "source": "-; returndata handling of a call returning uint256; owner (slot 0) and the reentrancy flag packed in slot 0",
+      "issue": "A signed size check that the dispatcher already implies (calldata.size >= 4 to reach a selector) is kept (P11, 15 lines); min(32, return_data.size) is spelled as a two-armed if assigning two equal variables (P10); the owner is read as the whole packed slot stor[0] once the slot is shared with the lock.",
+      "rule": "calldata.size - 4 >=′ 0 holds in every selector's body; an if whose arms assign x and y, then min, is min(x, y), and two variables always equal are one; a whole-slot read used only through address(...) is the address field of the slot (owner).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No explicit loop in the reached source (the NeighborhoodScanner loops belong to another contract, called externally; TickMath.getSqrtRatioAtTick is unrolled in the source and printed the same way). All 57 whiles are implicit (P7): ABI decoding of the address[] and int24[] parameters with element validation, abi.encode copies of arrays for pool, Balancer and error encodings (one 'while True' whose exit is the revert of a two-array custom error), and the uint32[2] secondsAgos encoding ('while idx < 2'). convertToV3 (2,312 lines), changeRanges (1,770), increaseLiquidity and decreaseLiquidity reviewed by structure (calls, events, custom errors); the small functions line by line. Event and error names partly print as hashes/selectors (not in the database).",
+  "summary": "No source loop; the text is faithful on what was read, but the price math is expanded mulDiv arithmetic with heavily repeated operands, several pool calls lose their selector to symbolic memory, and the immutables make many getters and calls read 0."
+}

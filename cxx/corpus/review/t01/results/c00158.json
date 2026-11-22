@@ -1,0 +1,36 @@
+{
+  "id": "c00158",
+  "abi_functions": 58,
+  "reviewed": 58,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 4, "P7": 2, "P8": 40, "P10": 1, "P11": 1},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "setReserveInterestRateStrategyAddress(address,address)",
+      "lines": "917-953",
+      "decompiled": "mem[... + 224] = 0x3737...  (string '77') ... mem[... + 288] = 0x3832... ('82') / if _8: ... stop / ... _20 = ceil32(return_data.size) + 256 / else: ... _20 = ceil32(return_data.size) + 192 / _21 = mem[_20] / while idx < _21: mem[idx + mem[64] + 68] = mem[_20 + idx + 32]; idx = idx + 32 / revert with memory from mem[64] len ceil32(_21) + 68",
+      "source": "Pool.sol:634-643 require(asset != address(0), Errors.ZERO_ADDRESS_NOT_VALID); require(_reserves[asset].id != 0 || _reservesList[0] == asset, Errors.ASSET_NOT_LISTED)",
+      "issue": "The two requires share one revert tail in the bytecode; the text prints it once after the join, so the messages '77' and '82' are reachable only through the phi _20 and a string-copy loop, while the onlyPoolConfigurator require of the same function prints 'revert with '10''.",
+      "rule": "When a join block is a revert whose payload depends only on a phi of constants (here string pointers), duplicate it into each predecessor so that each revert folds to its constant ('revert with '77'', 'revert with '82''); a revert is a dead end, so the duplication cannot change other paths.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "ADDRESSES_PROVIDER() and every function calling the provider (27 calls)",
+      "lines": "e.g. 904",
+      "decompiled": "const ADDRESSES_PROVIDER = 0  |  static call 0x0.getPoolConfigurator()",
+      "source": "Pool.sol IPoolAddressesProvider public immutable ADDRESSES_PROVIDER",
+      "issue": "solc immutables are zero in this pre-deployment bytecode.",
+      "rule": "None (solc immutable placeholder).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Spark (Aave v3.0) L2Pool, same structure as c00117: thin delegatecall wrappers to the linked logic libraries with storage-slot arguments, L2 packed-argument decoding and the access checks (onlyPoolConfigurator, onlyBridge, onlyPoolAdmin through the provider at 0x0). All 58 functions were reviewed, the wrappers and getters in full; same as c00117 for the common wrappers. Source loop in this bytecode: Pool.sol:522 getReservesList ('while idx < stor59_64', correct, with an SSA copy _12 = s in one arm). The other loops of the pack (FlashLoanLogic :93/:116, GenericLogic :84, PoolLogic :55/:88, UserConfiguration :230, ValidationLogic :466/:685) are in external library functions, not in this bytecode. Implicit whiles: mintToTreasury and flashLoan argument encodes (425, 1101), the getReservesList result encode (797, P7), and the merged revert string copy (945, P7).",
+  "summary": "A clean, faithful text of a delegatecall-based pool; the only notable problem is a revert tail shared by two requires, printed as a string-copy loop that hides both messages."
+}

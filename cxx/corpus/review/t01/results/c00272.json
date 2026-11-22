@@ -1,0 +1,36 @@
+{
+  "id": "c00272",
+  "abi_functions": 24,
+  "reviewed": 24,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P7": 2, "P8": 20},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "deposit, withdraw, swapExactIn/Out, previews, totalAssets, convertToShares/Assets",
+      "lines": "3-6, 95-105, 137-152",
+      "decompiled": "const usdc = 0 / const usds = 0 / const rateProvider = 0 ... if _market: revert with 'PSM3/invalid-asset-for-value' / if _amount == 10**18 * _amount / 10**18: revert with Panic(18) / revert with Panic(17)",
+      "source": "PSM3 immutables usdc, usds, susds, rateProvider and their precisions",
+      "issue": "With the immutables read as 0, only token address 0 is a valid asset and the conversions divide by a zero precision, so most entry points end in Panic(18) or Panic(17); the text is short (351 lines) and consistent with that.",
+      "rule": "None (not a decompiler error).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "the pocket transfer paths (e.g. 0x50603df3 setPocket)",
+      "lines": "276-281, 315-320",
+      "decompiled": "idx = 0 / while idx < 100: mem[idx + ceil32(return_data.size) + 260] = mem[idx + ceil32(return_data.size) + 160]; idx = idx + 32 / call 0x0 with: args mem[ceil32(return_data.size) + 260 len 100]",
+      "source": "SafeERC20.safeTransferFrom(asset, pocket, newPocket, balance) (abi.encodeCall copied into the call buffer)",
+      "issue": "P7: constant-length (100 and 68 bytes) word copies stay loops, and the call keeps raw-memory arguments (P2).",
+      "rule": "As in c00441 (a constant-length word copy is one copy line; then the call arguments resolve).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No explicit loops in the source. The two whiles are constant-length call-data copies (P7). Getters, ownership functions and setPocket checked against the source; the asset-dependent paths collapse to reverts because of the immutables. No semantic error found.",
+  "summary": "Short and faithful: with the immutables read as 0 most PSM paths revert, which the text reflects; only two constant-length copy loops and raw-memory call arguments remain to simplify."
+}

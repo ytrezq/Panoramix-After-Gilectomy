@@ -1,0 +1,58 @@
+{
+  "id": "c00124",
+  "abi_functions": 63,
+  "reviewed": 63,
+  "not_reviewed": [],
+  "source_loops": 9,
+  "loops_shown": {"while": 9, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 33, "P3": 2, "P6": 37, "P7": 108, "P8": 300, "P11": 60, "P14": 40, "P18": 20},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "verify, verifyAuthorized, verifyChainAgnostic, cast*, isValidSignature (unknown2a4bf794 ...)",
+      "lines": "3079-3081, 3169, 3262, 3283-3299, 3173-3178",
+      "decompiled": "sha3(Bytes(2, 0x1901), _14, sha3(0xe74ed9f7..., _82, sha3(0x222df8c7..., _93, _94, _95, _96, _97))) repeated; signer3 = ecrecover(mem[mem[64] len _296 - mem[64] + 160]) / if mem[mem[64] - 20 len 20]: _303 = mem[mem[64] - 32]; mem[mem[64]] = 1 / return memory from mem[64] len _376 - mem[64] + 32",
+      "source": "AvocadoMultisigBase._verifySig: digest_ used for nonSequentialNonces, ECDSA.recover and isValidSignature; return true",
+      "issue": "The EIP-712 digest is recomputed inline at each use (47 lines), ecrecover's named result signer3 is never used while the recovered address is read back as mem[mem[64] - 32], and return/revert values (14 returns, 76 reverts incl. custom errors) are raw memory at the free pointer although the word was stored on the line before.",
+      "rule": "Bind a repeated pure sha3 to a temporary; let a precompile call's named result stand for the memory it wrote; with _x = mem[64] and no store to mem[64] in between, mem[mem[64] len _x - mem[64] + 32] is the word just stored (return 1, revert with 0xec925985).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "verify, cast, castAuthorized, castChainAgnostic, estimate*, simulate*, getSigDigest*",
+      "lines": "2892-2919, 3046-3070, 3584",
+      "decompiled": "while idx < _param1 + cd[_param1 + 4] + 32 * cd[_param1 + cd[_param1 + 4] + 4] + 36: ... mem[_5] = cd[_param1 + cd[idx] + cd[_param1 + 4] + 36] ... mem[_7 + 32 len cd[_param1 + cd[idx] + cd[_param1 + 4] + cd[_param1 + cd[idx] + cd[_param1 + 4] + 68] + 36]] = call.data[...]",
+      "source": "CastParams calldata params_ copied to memory (Action[] of (address,bytes,uint256,uint256)) for _castParamsHash / _verifySig",
+      "issue": "ABI decoding of nested calldata structs to memory is printed field by field with offsets re-expanded at every use (41 decoding loops, lines over 300 characters); the struct names and members (actions[i].target, .data, .value, .operation) are invisible (P18).",
+      "rule": "Name decoded calldata sub-objects once (a = _param1 + cd[_param1 + 4] for params_.actions, e = a + cd[idx] for actions[i]) and print members as e.field_N; a decode loop whose body only validates and copies is a copy of the array.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "avoSecondary(), avoForwarder(), avoRegistry(), avoSignersList(), AUTHORIZED_* and the functions delegating to avoSecondary",
+      "lines": "3, 11-12, 17, 20-21, 24, 5535, 5731, 5800",
+      "decompiled": "const unknownb2762036 = 0 ... delegate 0x0 with: ... static call 0x0 with:",
+      "source": "immutable avoSecondary / avoForwarder / avoRegistry / avoSignersList / AUTHORIZED_FEE_COLLECTOR / AUTHORIZED_MIN_FEE / AUTHORIZED_MAX_FEE",
+      "issue": "solc immutables read as 0 in the pre-deployment runtime, so delegatecalls and calls to these addresses print as 0x0 (21 lines).",
+      "rule": "None (bytecode artifact).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "isSigner, signers, verify*, cast*",
+      "lines": "366, 381-382, 3094, 3127, 3140",
+      "decompiled": "mem[160] = cd[calldata.size] / mem[_145 + 32 len 32 * _137] = call.data[calldata.size len 32 * _137] / while idx < _17: if idx >= mem[_16]: revert with Panic(50)",
+      "source": "new address[](1) / new address[](signaturesLength_); for (i < allowedSignersLength_) allowedSigners_[i]",
+      "issue": "Zero fills are shown as calldata reads past calldata.size (28 lines), and bounds checks against the same length as the loop bound are kept inside loops (P11).",
+      "rule": "cd[calldata.size] and call.data[calldata.size len n] are zeros; a bounds check i < len inside a loop whose condition is i < len (no write to len) is dominated.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (each once): getChainAgnosticHashes (340), isSigner (575), _castParamsHash actions (92), _getSigDigestChainAgnostic (170), _verifySig signatures (272) and allowed signers (293, while True with break), _executeActions (659, while s < _N in _callTargets/executeOperation), _validateChainAgnostic (800, while s < _129 with chainid test), Strings.toString while(true) (while u / 10, v / 10). Implicit: 41 ABI-decoding loops of calldata struct arrays (readable but huge), 101 memory copies (abi.encodePacked accumulation of hashes, bytes for calls; P7), 7 address-cleaning encode loops, 2 struct-array allocation loops (while idx - 1, P3). Most functions are unknownXXXXXXXX (tuple signatures). The big cast*/executeOperation/_callTargets functions (700-975 lines) reviewed by structure; verify() checked in detail against _validateParams/_verifySig (faithful, including the isContract_/isAllowedSigner_ flags folded into phi variables).",
+  "summary": "Loops all present and semantics faithful where checked; readability suffers from fully expanded nested-calldata decoding, repeated digest expressions, raw-memory returns/reverts and immutables printed as 0x0."
+}

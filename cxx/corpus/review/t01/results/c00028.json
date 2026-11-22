@@ -1,0 +1,80 @@
+{
+  "id": "c00028",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 12,
+  "loops_shown": {"while": 12, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 34, "P4": 2, "P6": 4, "P7": 60, "P8": 200, "P11": 60, "P15": 30},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "updateWeightsGradually, removeToken, addToken, updateSwapFeeGradually (7 lines)",
+      "lines": "2778, 2843-2846, 4192 and the same expression up to 4 times per line",
+      "decompiled": "if block.timestamp - block.timestamp * (block.timestamp < _param1) + _param1 * (block.timestamp < _param1) > _param2: revert with 'BAL#326'",
+      "source": "GradualValueChange.resolveStartTime -> Math.max(block.timestamp, startTime); Balancer Math.max is 'result := sub(a, mul(sub(a, b), lt(a, b)))'",
+      "issue": "max(block.timestamp, startTime) is printed as a distributed branchless formula and repeated in each later use (the 'BAL#326' check, the stor9 write, the event data).",
+      "rule": "For a boolean c (0 or 1), x * c is 'x if c else 0'; hence a - (a - b) * (a < b) and its distributed form a - a*(a < b) + b*(a < b) equal max(a, b) (likewise with > for min). Recognize before distributing, and bind the result once.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getScalingFactors, getNormalizedWeights, updateWeightsGradually, onJoinPool, onExitPool, onSwap, queryJoin, queryExit (90 lines)",
+      "lines": "409, 2799-2810, 2833-2834, 5463 ...",
+      "decompiled": "mem[_15 + 32 * s + 32] = 10**18 * 10**uint5(stor11[concat(Bytes(12, 0), mem[32 * s + ceil32(return_data.size) + 204 len 20])].field_128)",
+      "source": "ManagedPoolSettings.sol:741 _scalingFactors: scalingFactors[i] = _tokenState[tokens[i]].getTokenScalingFactor()",
+      "issue": "The address key of _tokenState[token] is printed as a concat of a 12-byte zero pad and a 20-byte memory slice, repeated 4-8 times per line in the weight interpolation.",
+      "rule": "concat(Bytes(12, 0), x[a + 12 len 20]) is address(x[a]); print stor11[address(mem[a])] (and bind it once per iteration).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "updateWeightsGradually, removeToken, addToken, updateSwapFeeGradually, setManagementAumFeePercentage ...",
+      "lines": "2846, 2835, 4192",
+      "decompiled": "stor9 = 4294967296 * _param2 | Mask(192, 64, start) | stor9 >> 64 << 64 | uint32(start)   |   stor11[..] = ew << 64 | mem[_119 + 32 * s + 32 len 16] << 128 | stor11[..].field_128 << 128 | mem[_119 + 32 * s + 56 len 8]",
+      "source": "ManagedPoolStorageLib.setWeightChangeData: poolState.insertUint(startTime, 0, 32).insertUint(endTime, 32, 32); ManagedPoolTokenStorageLib.setTokenWeight (WordCodec.insertUint with _require(value >> bitLength == 0, CODEC_OVERFLOW))",
+      "issue": "Packed-slot updates are whole-slot arithmetic that keep terms the dominating CODEC_OVERFLOW checks ('if Mask(224, 32, start): revert BAL#436', 'if mem[sw len 24] << 64: revert BAL#436') prove zero; def storage leaves stor9/stor11 unsplit.",
+      "rule": "After 'if Mask(256 - k, k, x): revert', x < 2^k, so Mask(n, j, x) with j >= k and (x >> j) << j are 0; then 'stor = (stor & ~M) | (x << o)' with x < 2^w is the field write stor.field_o = x: print uint32(stor9.field_0) = start; uint32(stor9.field_32) = end.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "onJoinPool (initialization path)",
+      "lines": "5586-5596",
+      "decompiled": "s = 0 / while s < _327: assert s < mem[_49]; assert s + 1 < mem[_314]; mem[_314 + 32 * s + 64] = mem[_49 + 32 * s + 32]; _327 = mem[_49]; s = s + 1",
+      "source": "ComposablePoolLib.sol:100 prependedArray = new uint256[](array.length + 1); for (i < array.length) prependedArray[i + 1] = array[i];",
+      "issue": "A source loop that is an element-wise copy is shown as a while with two bounds asserts that the loop bound and the allocation of length n + 1 make always true.",
+      "rule": "assert s < n under 's < n', and assert s + 1 < m with m = n + 1 written by the allocation, are implied; a loop whose only effect is mem[d + 32s] = mem[a + 32s] for s < n is 'mem[d len 32n] = mem[a len 32n]'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "onJoinPool, onExitPool, onSwap, removeToken, addToken ... (47 lines)",
+      "lines": "5597 and others",
+      "decompiled": "mem[_314 + 32] = -1 * _220 * _221 + 0x8000000000000000000000000000",
+      "source": "_PREMINTED_TOKEN_BALANCE - bptAmountOut",
+      "issue": "Subtractions print as '-1 * a * b + c'; powers of two print as '4294967296 * x' (x << 32).",
+      "rule": "Print c - a * b for -1 * a * b + c; print 2^k * x as x << k when it builds a packed word.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all",
+      "lines": "e.g. 107, 129, 354-360, 4250",
+      "decompiled": "require ext_code.size(0) / static call 0x0.getPoolTokens(bytes32 poolId) with: args 0 / sha3(0, Bytes(4, call.func_hash >> 224)) / return not _1, Bytes(64, 0)",
+      "source": "immutables _vault, _poolId, _actionIdDisambiguator, pause window and buffer period end times",
+      "issue": "solc immutables read as 0.",
+      "rule": "none (not a decompiler error)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "solc 0.7.1 (no checked arithmetic; out-of-bounds is assert). Small getters, ERC20 functions, permit, getScalingFactors, getNormalizedWeights, updateWeightsGradually, getPausedState and the parameter getters reviewed in detail; onJoinPool, onExitPool, onSwap (2 overloads), queryJoin, queryExit, addToken, removeToken, setCircuitBreakers, the owner-only setters (same authenticate + _isOwnerOnlyAction prologue) reviewed by structure. Loops: the 12 source loops compiled into this bytecode are all whiles: getGradualWeightUpdateParams (:342), setCircuitBreakers (:837), updateWeightsGradually (:359), _startGradualWeightChange (:386), _getNormalizedWeights (:298), _scalingFactors (:741), _upscaleArray (:68), _downscaleDownArray (:81), _downscaleUpArray (:94), prependZeroElement (:100), _getCircuitBreakerStates (:595), _checkCircuitBreakersOnJoinOrExitSwap (:695). Not counted: the loops of ManagedPoolAddRemoveTokenLib.addToken/removeToken (:119, :197) and ManagedPoolAmmLib.checkCircuitBreakers (:235), which are external library functions reached by DELEGATECALL to linked addresses (0x11f0.., 0x11d8.., 0x1191..) and are not in this bytecode. Of the 117 whiles, 60 are memory-to-memory copies left as loops (P7: ABI encoding of uint256[] arguments of the library delegatecalls, events and returns as 'mem[t] = mem[s]', plus 4 bytes copies such as 'while idx < 36: mem[idx + 196] = mem[idx + 160]' and the word loop + 'if idx > len: mem[..] = 0' padding shape), 17 address[] decodes with validation (15 from getPoolTokens return data, 2 from calldata), 2 address re-encodings; the rest are inlined copies of the source loops. P11: ~60 'assert s < mem[..]' bounds checks under a loop bound that equals the array length (e.g. 408 'assert s < mem[_15]' where mem[_15] = numTokens). P8: 200 keccak scratch writes 'mem[0] = Bytes(12, 0), mem[..]; mem[32] = 11' before mapping reads. Calls to linked libraries print as 'delegate 0x11d8.. with: args mem[..]' (P2). getGradualSwapFeeUpdateParams returns 'Mask(62, 128, stor9) >> 128' (unsplit packed slot, P15). Semantics checked on the detailed functions: checks (BAL# codes), packed writes and events match the source.",
+  "summary": "Faithful text whose 12 source loops are all whiles, but solc 0.7's ABI encoders leave 60 memory copy loops, and packed-word arithmetic (unsplit slots, distributed branchless max, address keys as byte slices) makes the weight logic hard to read."
+}

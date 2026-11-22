@@ -1,0 +1,36 @@
+{
+  "id": "c00436",
+  "abi_functions": 61,
+  "reviewed": 61,
+  "not_reviewed": [],
+  "source_loops": 12,
+  "loops_shown": {
+    "while": 12,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 5,
+    "P4": 2,
+    "P6": 4,
+    "P8": 110
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "bridgeMessage(uint32,address,bool,bytes) (unknown240ff378)",
+      "lines": "578-587 (vs 1030-1038, 1672-1680, 2405-2413)",
+      "decompiled": "s = 0 / t = 0 / while not (_8 + 1 >> t) % 2: if t + 1 >= 32: revert with Panic(1) / s = sha3(stor[t + 51], s + LEAF) - LEAF / t = t + 1 / s = s + LEAF / stor[t + 51] = s   (LEAF = sha3(Bytes(1, 0x01), networkID, caller, _param1, _param2, call.value, sha3(metadata)), printed in full three times)",
+      "source": "DepositContractBase.sol:84-101 _addLeaf: node = leaf; ... for (height < 32) { if ((size >> height) & 1 == 1) { _branch[height] = node; return; } node = keccak256(_branch[height], node); } assert(false)",
+      "issue": "In this copy of _addLeaf the loop variable is printed as an offset from its initial value (s = node - leaf), so each iteration adds the 250-character leaf hash and subtracts it again, and the final store adds it once more; the three other inlined copies print the clean recurrence s = sha3(stor[t + 51], s). Exact, but the Merkle update is unrecognisable.",
+      "rule": "Express a loop-carried value as 'initial + offset' only when every update adds a loop-invariant amount; for any other update (here a hash of the variable) keep the variable itself, initialised to the leaf.",
+      "verified": "reading only (the subtraction of LEAF at the end of 583 makes the offset form exact)"
+    }
+  ],
+  "notes": "All 61 ABI functions (some printed as unknownXXXX: claimAsset 0xccaa2d11, claimMessage 0xf5efcd79, forceEmitDetailedClaimEvent 0x567f13e4, ...) and the fallback reviewed; no semantic error found. bridgeAsset, bridgeMessage(WETH), claimAsset / claimMessage, forwardLET / backwardLET, deployWrappedTokenAndRemap, migrateLegacyToken and initialize were reviewed by structure (emergency state, network checks, LeafType, leaf hashing, local balance tree accounting with its underflow error, the two Merkle proof checks, claimed bitmap and global index hash chain, wrapped token deployment through the transparent-proxy init bytecode). Source loops (12): getRoot, _addLeaf (4 copies; the assert after the loop printed as 'if t + 1 >= 32: revert Panic(1)' inside it, equivalent), calculateRoot (proof verification, 2 per claim), _checkValidSubtreeFrontier, the frontier root loop, and the L2 loops of setMultipleSovereignTokenAddress, setMultipleClaims, unsetMultipleClaims, backwardLET, forwardLET, forceEmitDetailedClaimEvent, setLocalBalanceTree: all readable whiles. Implicit: calldata array decodings with validation. This bytecode is shared with one other contract of the corpus.",
+  "summary": "Faithful and mostly readable, with all 12 source loops shown as whiles; one inlined copy of the deposit-tree _addLeaf loop prints its node as an offset from the leaf hash, repeating a 250-character leaf expression three times."
+}

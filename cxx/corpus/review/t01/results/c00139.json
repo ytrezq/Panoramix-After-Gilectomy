@@ -1,0 +1,62 @@
+{
+  "id": "c00139",
+  "abi_functions": 81,
+  "reviewed": 81,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {
+    "while": 11,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 40,
+    "P3": 11,
+    "P6": 31,
+    "P8": 326,
+    "P11": 25,
+    "P12": 4,
+    "P14": 116,
+    "P17": 89
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getAccountLiquidity, getHypotheticalAccountLiquidity, borrowAllowed, redeemAllowed, transferAllowed, liquidateBorrowAllowed, exitMarket (getHypotheticalAccountLiquidityInternal), claimComp x3",
+      "lines": "e.g. 953-1085; 4648-4663; 4612",
+      "decompiled": "_60 = assetsIn[account].length / while s < _60: if s >= mem[576]: revert with Panic(50) ... mem[128] = SafeMath.add(mem[_103] / 10**18, _101) ... _60 = mem[576] ... / _84 = mem[64] / mem[mem[64]] = 0 / mem[_84 + 32] = _76 / mem[_84 + 64] = _77 / return memory from mem[64] len _84 - mem[64] + 96",
+      "source": "Comptroller.sol:728-780 getHypotheticalAccountLiquidityInternal (AccountLiquidityLocalVars memory vars; CToken[] memory assets = accountAssets[account]; loop) and getAccountLiquidity's return (uint(err), liquidity, shortfall)",
+      "issue": "The locals struct lives at fixed addresses (mem[128]..mem[416], 116 lines) and the copied assets array at mem[576..], but after any store at an address derived from mem[64] they are treated as possibly overwritten: the loop bound is re-read from mem[576], the bounds check of assets[i] is kept, and the three return values (and 16 event payloads, 40 call argument lists) are printed as raw memory with a '_84 - mem[64]' length.",
+      "rule": "mem[64] only grows from its first value (here 32 * len + 608 after the static allocations), so every address mem[64] + k (k >= 0) is above the fixed locals and the copied array; with that invariant mem[576] keeps its value (folding the bound and the check), mem[128].. become named locals, and '_84 - mem[64]' folds to 0 so the function returns 0, _76, _77.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "getAssetsIn, getAllMarkets, getAccountLiquidity, getHypotheticalAccountLiquidity, borrowAllowed, redeemAllowed, transferAllowed, liquidateBorrowAllowed, exitMarket (2), claimComp(address) (11 copies)",
+      "lines": "153-162; 503-511; 943-952; 1231-1240; 1461-1470; 1830-1839; 1975-1984; 2403-2412; 2703-2712; 3056-3065; 3791-3800",
+      "decompiled": "if assetsIn[account].length: mem[160] = assetsIn[account][0] / idx = 160 / s = 0 / while 32 * assetsIn[account].length + 160 > idx + 32: mem[idx + 32] = assetsIn[account][s + 1]; idx = idx + 32; s = s + 1",
+      "source": "CToken[] memory assets = accountAssets[account]; return allMarkets (storage address[] copied to memory)",
+      "issue": "The compiler's storage-to-memory copy of an address[] is printed as a rotated while (first element peeled, test 'end > idx + 32'), although the same copy is printed as one copy line in other contracts of this batch (e.g. c00148 getFactoryTargets, c00204 getRoleMembers).",
+      "rule": "A loop whose only effect is mem[d + 32*i] = stor[s + i] for i in [0, n) (after re-rolling the peeled first iteration) is the copy line mem[d len 32n] = stor[s len n]; the test 'd + 32n > idx + 32' with idx = d + 32*i is i + 1 < n.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "claimComp (3 overloads), _setCompSpeeds, updateContributorRewards, mintAllowed / redeemAllowed / transferAllowed / borrowAllowed / seizeAllowed (the COMP index updates)",
+      "lines": "e.g. 4293, 4603-4612, 4648-4654",
+      "decompiled": "_145 = SafeMath.sub(uint32(block.number), stor[_121].field_224) > 0 and stor[_122] > 0  |  _539 * _540 / (1000000000000000000 * 10**18)  |  _180 = stor[_152] > 0 and stor[_152] <= mem[_160]",
+      "source": "compSupplyState[cToken].block / compSupplySpeeds[cToken]; Double math doubleScale = 1e36; grantCompInternal: compAccrued[user] ... comp.balanceOf(address(this))",
+      "issue": "Mapping accesses whose slot was first bound to a temporary are printed as stor[_121] (25 lines) instead of compSupplyState[cToken].field_224 etc., and doubleScale 10**36 is printed as 1000000000000000000 * 10**18 (89 lines).",
+      "rule": "When a temporary holds sha3(key, slot) of a known mapping, print stor[temp] (and stor[temp].field_k) as the mapping access; fold a product of constants into one power of ten.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 81 ABI functions and the fallback reviewed; no semantic error found. Small getters and admin setters read directly; the liquidity, *Allowed hooks, COMP distribution and claim functions (200-470 lines each) by structure, including getHypotheticalAccountLiquidityInternal compared line by line (snapshot error 15, price error 13, tokensToDenom = cf * er * price truncated twice, the two mul_ScalarTruncateAddUInt sums, the cTokenModify branch, the final checked subtractions). Source loops (11): enterMarkets, exitMarket's search (while True), the liquidity loop (7 inlined copies), _addMarketInternal, _setMarketBorrowCaps, fixBadAccruals, claimComp's market loop with its borrower and supplier loops and its holder loop (3 overloads), _setCompSpeeds: all readable whiles. Implicit: the storage address[] copies left as rotated whiles (see the loop finding, counted P3), ABI decoding of address[] parameters and encoding of the returned arrays. P11: the assets[i] / holders[i] bounds checks under their own loop bound (memory length re-read). P12: claimComp's supplier part printed in both arms of the borrowers test. P14: the AccountLiquidityLocalVars fields at mem[128..416]. P17 here: 1e36 printed as 1000000000000000000 * 10**18 (not hex, but the same constant-printing family).",
+  "summary": "Faithful, every source loop is a readable while; readability is lost to the memory model: fixed-address locals and the copied asset list are re-read after every symbolic store, return values and event data are raw memory, and the storage address[] copies are rotated while loops instead of copy lines."
+}

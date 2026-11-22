@@ -1,0 +1,36 @@
+{
+  "id": "c00328",
+  "abi_functions": 14,
+  "reviewed": 14,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "file(bytes32,uint256), vatDaiFlashLoan, flashLoan",
+      "lines": "61, 75, 125, 159",
+      "decompiled": "if data > 1000000000000000000000000000 * 10**18: revert with 'DssFlash/ceiling-too-high'  |  SafeMath.mul(1000000000 * 10**18, amount)",
+      "source": "DssFlash.sol: require((max = data) <= RAD, 'DssFlash/ceiling-too-high'); vat.suck(..., _rad(amount)) with RAD = 10**45, RAY = 10**27",
+      "issue": "RAD (10**45) prints as '1000000000000000000000000000 * 10**18' and RAY (10**27) as '1000000000 * 10**18'.",
+      "rule": "Print m * 10**k with the largest k: 10**45, 10**27.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "vatDaiFlashLoan, flashLoan",
+      "lines": "3-5, 79-104, 128-170",
+      "decompiled": "const vat = 0 / const daiJoin = 0 / const dai = 0 ... static call 0x0.live() ... call 0x0.suck(...)",
+      "source": "DssFlash immutables vat, daiJoin, dai",
+      "issue": "solc immutables read as 0 before deployment (flashFee / maxFlashLoan / flashLoan therefore accept only token == 0).",
+      "rule": "none (build artifact)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 14 functions compared line by line: auth (wards == 1), rely/deny, file with the assignment-in-require order (max written before the check, as in the source), the reentrancy guard (stor2 = locked), the ERC-3156 flashLoan (suck, exit, onFlashLoan with CALLBACK_SUCCESS, transferFrom, join, heal) and vatDaiFlashLoan (suck, onVatDaiFlashLoan with CALLBACK_SUCCESS_VAT_DAI, heal), the two events with their indexed fields. No loops.",
+  "summary": "Small, complete and fully faithful; only the RAD and RAY constants print with odd factorings, and the immutables are 0 as a build artifact."
+}

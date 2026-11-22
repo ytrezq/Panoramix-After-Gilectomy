@@ -1,0 +1,47 @@
+{
+  "id": "c00185",
+  "abi_functions": 24,
+  "reviewed": 24,
+  "not_reviewed": [],
+  "source_loops": 6,
+  "loops_shown": {"while": 6, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 23, "P6": 109, "P7": 24, "P9": 36, "P10": 30, "P11": 4},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getAmountsIn(uint256,address[]), swapTokensForExactTokens, swapETHForExactTokens, swapTokensForExactETH (DeltaSwapLibrary.getAmountsIn with its fee loop), and getAmountsOut / the exact-input swaps (calcPairTradingFee)",
+      "lines": "749-800 (getAmountsIn), 585-596 (getAmountsOut)",
+      "decompiled": "if _117 != _117 * (SafeMath.add(1, SafeMath.div(1000 * _116 * mem[X], 1000 * _117 - _117 * t + t * mem[X] - 1000 * mem[X])) / 2) / (SafeMath.add(1, SafeMath.div(...same...)) / 2) and ... / v = SafeMath.mul2(SafeMath.add(1, SafeMath.div(...same...)) / 2, SafeMath.div(_117 * (...same...), _116)) / 2 + 1 / w = (the same product) / while v < w: w = v / v = SafeMath.add(SafeMath.div((the same product), v), v) / 2",
+      "source": "DeltaSwapLibrary.sol:84-89 while(true) { fee = _fee; amountIn = getAmountIn(amounts[i], reserveIn, reserveOut, fee); _fee = calcPairTradingFee(amountIn, ...); if(_fee == fee) break; }; getAmountIn: numerator / ((reserveOut - amountOut) * (1000 - fee)) + 1; DSMath.calcTradeLiquidity -> DSMath.sqrt",
+      "issue": "amountIn is never bound to a name: its expanded formula (with '(reserveOut - amountOut) * (1000 - fee)' distributed into four products) is repeated up to eight times in single lines of the inlined calcTradeLiquidity and in the sqrt loop's header and body, so the fee fixed-point loop and the Babylonian sqrt are hard to recognise.",
+      "rule": "Bind a pure subexpression used more than once to a variable at its first use (amountIn, the sqrt argument), and keep products of differences factored ((a - b) * (c - d) rather than its four-term expansion).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getAmountsIn and the exact-output swaps (fee loop); swapExactTokensForETH(SupportingFee), swapETHForExactTokens, swapTokensForExactETH (TransferHelper.safeTransferETH)",
+      "lines": "746-749, 791-797 (s, u written but never read; the 'break' after the inner loop is unreachable); 1686-1693",
+      "decompiled": "s = 0 / t = 3 / u = 0 / while True: ... if mem[_156] != t: s = 1000 * _116 * _137 / (...) + 1 / u = t / t = mem[_156] / continue ... continue loop1 / break  |  _120 = mem[64] / mem[mem[64]] = 0 / mem[64] = _120 + 32 / idx = 0 / while idx < mem[_120]: idx = idx + 32",
+      "source": "DeltaSwapLibrary.sol:81-89 (fee, _fee, amountIn); TransferHelper.safeTransferETH: to.call{value: value}(new bytes(0))",
+      "issue": "Two loop variables of the fee loop are dead (written, never read), a 'break' follows a loop that never exits normally, and the copy loop of the empty 'new bytes(0)' is kept as an empty while over mem[_120], which was just set to 0 through mem[mem[64]].",
+      "rule": "Drop loop-carried variables that are never read; drop statements after a loop with no exit edge; with mem[_v] = 0 known (the _v = mem[64] canonicalisation), 'while idx < mem[_v]' never runs and is removed.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "removeLiquidityETH x4, addLiquidityETH, the ETH swaps, receive; factory()/WETH()",
+      "lines": "3-4, 32-88",
+      "decompiled": "const factory = 0 / const WETH = 0 / if token: revert with 'DeltaSwapLibrary: ZERO_ADDRESS' / revert with 'DeltaSwapLibrary: IDENTICAL_ADDRESSES' / if caller: revert with Panic(1)",
+      "source": "DeltaSwapRouter01/02 immutables factory and WETH",
+      "issue": "solc immutables read as 0, so the four removeLiquidityETH functions are bare reverts (sortTokens(token, 0)), the factory is address 0 and receive's assert(msg.sender == WETH) is 'caller != 0'.",
+      "rule": "None (input artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 24 functions reviewed; the swaps (300-450 lines) by structure, the rest line by line. The 6 source loops are whiles: DeltaSwapLibrary.getAmountsOut (5 copies), getAmountsIn ('loop1: while idx', 4 copies) with its inner fee loop ('while True' exiting by 'continue loop1', 4 copies), Router01._swap (6 copies), Router02._swapSupportingFeeOnTransferTokens (3 copies, one as 'while True'), and DSMath.sqrt inside calcTradeLiquidity (10 copies). The 24 other whiles are implicit: TransferHelper calldata copies ('idx < 100'), return encodings of amounts, and 4 empty copy loops of new bytes(0) (P7). No semantic error found; 88 Error(string) reverts of the library checks stay 'revert with memory' (P2 family) although their messages are visible as hex words.",
+  "summary": "Faithful with every loop present, but the fee-iteration and sqrt arithmetic is unreadable because amountIn is never named and its formula is distributed and repeated many times per line; the ETH paths are mostly dead because WETH and factory read as 0."
+}

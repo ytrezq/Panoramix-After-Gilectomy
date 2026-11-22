@@ -1,0 +1,25 @@
+{
+  "id": "c00102",
+  "abi_functions": 58,
+  "reviewed": 58,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 12, "P2": 19, "P3": 1, "P4": 1, "P6": 4, "P7": 1, "P8": 60},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "initialize paths (Initializable checks) and the PPM constant users",
+      "lines": "517-518, 776",
+      "decompiled": "_1 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64",
+      "source": "OpenZeppelin Initializable: InitializableStorage at the ERC-7201 slot 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00 (_initialized, _initializing)",
+      "issue": "An instance of P1 that hides a storage slot: the namespaced slot 0xf0c57e16... is printed as a product with 3600, so the same slot appears both as stor[X * 3600] and as storF0C5_64 in one condition.",
+      "rule": "Never factor a constant used as a storage key (or any 256-bit hash-like constant) by a time unit; print the slot in hex and resolve it to the declared name.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: multicall (MulticallUpgradeable 32, while idx < data.length) and LinkedList.traverse (while (cursor != 0 && iterations > 0) as while True with the test first; inlined in releaseStake and twice in unknownb15d2a2c). traverse's processItem is a delegatecall to the StakeClaims library (0x11bf8548...), shown with raw-memory args. Implicit: new bytes[](n) initialization (while idx - 1, P3) and one result copy (P7). Immutables (getDisputeManager, graph contracts) read as 0 (artifact, not separately reported). 7 events print their data as raw memory at the free pointer.",
+  "summary": "Small, faithful text with both loops present; its worst line factors the Initializable ERC-7201 storage slot by 3600 (P1), and events/calls still use raw memory."
+}

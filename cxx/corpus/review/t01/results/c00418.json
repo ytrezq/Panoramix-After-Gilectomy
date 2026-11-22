@@ -1,0 +1,36 @@
+{
+  "id": "c00418",
+  "abi_functions": 47,
+  "reviewed": 47,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 11, "P3": 1, "P6": 7, "P7": 3, "P8": 150, "P9": 12, "P14": 20, "P18": 20},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "convert(uint256[],uint256[],bool), previewConvert(address,uint256[],uint256[]), claimAllYield() and the other functions calling DEPOS/DEPOSIT_MANAGER after a dynamic allocation",
+      "lines": "1590-1660 (convert loop), 1366-1440 (previewConvert loop)",
+      "decompiled": "_108 = mem[64] / mem[mem[64]] = 0xeb02c301... / mem[_108 + 4] = _104 / static call stor8 with: args mem[mem[64] len _108 - mem[64] + 36] ... / _142 = mem[64] / mem[mem[64]] = 0xc4d4f9bd... / revert with memory from mem[64] len _142 - mem[64] + 36",
+      "source": "ConvertibleDepositFacility.sol:318-336 for (...) { ... _previewConvert(...) -> DEPOS.getPosition(positionId_) ... revert CDF_NotOwner(positionId_) ... DEPOS.setRemainingDeposit(...) }",
+      "issue": "In the main loops of this unoptimized build, DEPOS.getPosition loses its name and argument (P2, 11 lines) and the custom errors (CDF_NotOwner, CDF_PositionExpired, CDF_InvalidAmount, ...) are raw-memory reverts, although '_108 - mem[64]' is 0 (no store to slot 64 after _108 = mem[64]); the returned Position struct is visible only as memory slices (P18).",
+      "rule": "Prove mem[64] >= 128 (it only grows from 128 under the Panic(65) bounds) so stores at mem[64] + k do not alias slot 64; copy-propagate _x = mem[64] and decode the call's selector and arguments, and 'revert memory' of selector + words as 'revert with sel, args'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "requestPermissions(), configureDependencies()",
+      "lines": "542-601, 1056-1066",
+      "decompiled": "mem[_2] = 0x4d494e5452000000000000000000000000000000000000000000000000000000 ... while idx < 5: mem[t] = mem[mem[s] len 5] << 216 ... / return memory from mem[64] len 384 ; while idx < 4: mem[t] = mem[s len 5] << 216",
+      "source": "requestPermissions: requests = new Permissions[](5); requests[0] = Permissions(toKeycode(\"MINTR\"), MINTR.increaseMintApproval.selector) ...; configureDependencies: dependencies = new Keycode[](4)",
+      "issue": "Constant-count (5 and 4) Keycode/Permissions encoding loops are not unrolled, keycodes print as hex words instead of 'MINTR'/'DEPOS', and the return is a raw memory range; the new Permissions[](5) initialisation is rotated (P3).",
+      "rule": "Unroll loops with a small constant trip count and fold the copies; print a word of printable ASCII followed by zero bytes, stored as a bytes5 keycode, as a string literal.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Unoptimized build (solc 0.8.36 noopt). All 47 ABI functions compared; convert (317 lines), previewConvert (217), the deposit/withdraw/yield functions (119-146 lines) by structure (checks, calls, storage writes, events, reverts), the rest in full. No semantic error found; e.g. configureDependencies' 10 ** decimals check folds the zero exponent into the 'OHM decimals' revert and keeps the checked-exponentiation helper loop ('while u > 1', readable) for exponents >= 78. Loops: the three source for-loops (claimAllYield over assets, previewConvert and convert over positionIds_) are readable whiles. The other 6 whiles are implicit: getOperators' storage-to-memory copy (P7), the rotated Permissions[] initialisation (P3), the 5- and 4-element encodings (P7), claimAllYield's address[] decoding and the exponentiation helper. P9: the FullMath.mulDiv of the conversion price expanded (_157/_158 Newton iterations).",
+  "summary": "Faithful on the paths checked with all three source loops readable; as an unoptimized build it is verbose, with raw-memory calls and custom-error reverts inside the convert loops and an expanded mulDiv."
+}

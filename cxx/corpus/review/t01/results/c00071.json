@@ -1,0 +1,36 @@
+{
+  "id": "c00071",
+  "abi_functions": 7,
+  "reviewed": 7,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P15": 1},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "createPool(address,address,uint24)",
+      "lines": "54",
+      "decompiled": "require not this.address",
+      "source": "NoDelegateCall.sol:19 require(address(this) == original) (original is immutable)",
+      "issue": "The immutable `original` reads as 0 in the undeployed bytecode, so the no-delegatecall check prints as `require not this.address`.",
+      "rule": "None needed (artifact of the undeployed bytecode).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "createPool(address,address,uint24), enableFeeAmount(uint24,int24)",
+      "lines": "44-45, 65-70, 76-78",
+      "decompiled": "_7 = stor4[uint24(fee)] ... stor2_184 = stor4[uint24(fee)] ... stor0 = 0; stor1 = 0; uint208(stor[2]) = 0 ... _1 = int24(tickSpacing) >′ 0 and int24(tickSpacing) <′ 16384; require _1",
+      "source": "UniswapV3PoolDeployer.sol:34-36 parameters = Parameters(...); ...; delete parameters; UniswapV3Factory.sol:67 require(tickSpacing > 0 && tickSpacing < 16384)",
+      "issue": "The tickSpacing already held in _7 is read again from storage for the struct write; `delete parameters` clears slot 2 as `uint208(stor[2]) = 0` instead of its three declared fields (stor2, stor2_160, stor2_184); a temporary is used once for a require.",
+      "rule": "Reuse a value already bound to a variable when the same storage read has no intervening write to that slot; split a masked write of a packed slot into the declared fields it covers (here all three of slot 2); inline a single-use temporary into its require.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Uniswap V3 factory; the pool creation code is embedded (create2 with code.data[1721 len 22383]) and not part of this text. All checks, the create2 salt sha3(token0, token1, fee), the reverse getPool write, events and getters match the source. Naming: the mapping feeAmountTickSpacing stays `stor4` because its getter returns int24(stor4[..]) (sign-extended), and stor2_184 (tickSpacing) is declared uint24 while it is read as int24; setOwner's OwnerChanged is printed in the raw `log OwnerChanged(sig): indexed .., indexed ..` form while FeeAmountEnabled uses named fields (cosmetic).",
+  "summary": "Short, faithful text of the Uniswap V3 factory; only the immutable `original` artifact and minor simplifications (re-read tickSpacing, whole-slot delete of the packed parameters slot)."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "c00142",
+  "abi_functions": 11,
+  "reviewed": 11,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 254, "P3": 17, "P6": 8, "P7": 200, "P8": 300, "P11": 40, "P14": 150, "P18": 300},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "getMarketData(address,address), getMarketData(address), getMarkets(...), getRateKeeperState, getInterestRateModelState",
+      "lines": "3; 2546, 2559, 2737, 2750, 3245, 3258, 5582...",
+      "decompiled": "const addressProvider = 0   |   static call 0x0 with: ...",
+      "source": "BaseCompressor: address public immutable addressProvider; MarketCompressor: address internal immutable _gaugeSerializer, _linearInterestRateModelSerializer",
+      "issue": "solc immutables read as 0 in this pre-deployment bytecode: the address-provider calls of _getLatestAddress / _getAddress target 0x0, and the legacy-serializer fallback of getBaseParams is dropped where the serializer immutable is passed.",
+      "rule": "None needed (artifact of analysing pre-deployment runtime code).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getPoolState, getMarketData x2, getMarkets (the _appendPostfix code)",
+      "lines": "760-801",
+      "decompiled": "mem[ceil32(return_data.size) + 1056 len 4] = 3714338674 ... _12 = mem[64] ... mem[64] = mem[64] + 64 ... mem[mem[64]] = _12 - mem[64] + mem[_12] + 70 ... _42 = mem[_35 + mem[_35]] << -8 * mem[_35] + 256",
+      "source": "BaseCompressor.sol:49-57 abi.encodeWithSignature('basisPointsRate()'); string.concat(contractType.fromSmallString(), '::USDT').toSmallString()",
+      "issue": "The concatenated length mem[_12] + 6 is printed as '_12 - mem[64] + mem[_12] + 70' right after 'mem[64] = mem[64] + 64' with _12 = mem[64]; the selector of basisPointsRate() prints in decimal (3714338674 = 0xdd644f72); the shift is '-8 * len + 256'.",
+      "rule": "After 'b = mem[64]' and 'mem[64] = mem[64] + k' with no other store to 64, mem[64] is b + k (the same free-pointer folding as the known P2 root cause); a constant stored to a 4-byte slice prints as Bytes(4, 0x...); print c - k*x rather than -k*x + c.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The pack has no source for any function ('no source definition found in the AST') and an empty storage layout (the contract has no storage, only constants and immutables); the review used MarketCompressor.sol, BaseCompressor.sol, BaseLib.sol, solady LibString.fromSmallString/toSmallString and OptionalCall directly. Source loops (11, all shown as while): getMarkets' loop (7774), getMarketData's creditManagers loop (2920, 5956, 9389), getPoolState's (1127 and inlined copies), getQuotaKeeperState's (570...), getRateKeeperState's (378...), _getPools' three loops (7392, 7467, 7517 with both 'continue' filters and the num++ overflow check, plus the trimming store 'mem[_179] = t'), _contains ('while True' with two breaks, 7525), _getTokens (2634, 5670, 9102), and the Yul null-byte scan of fromSmallString shown readably as 'while byte(s, 0x504f4f4c...): s = s + 1' (781 and 3 copies). 292 while heads = 27 renderings of those loops + 17 rotated allocations of new Struct[](n) printed as the first element then 'while idx - 1:' (P3) + 48 validated ABI decodings of returned arrays (require mem[idx] == mem[idx + 12 len 20] ...) + about 200 memory copies and ABI encodings of the nested MarketData/PoolState structs (P7, including the outer encoding loop of getMarkets' result at 10201, a 'while True' that returns from inside). getLossPolicyState, getInterestRateModelState (try/catch of version, contractType, serialize), getRateKeeperState, getPoolState's head and _getPools were read line by line; getMarketData x2 (2932 and 3036 lines) and getMarkets (3456 lines) by structure. Bounds checks implied by the loop test are kept (P11, e.g. 'if s >= mem[_35 + ceil32(_1)]' under 'while s < _77' with _77 = that length). Struct members are written as memory slices (mem[mem[32 * s + mem[160] + 32] + 32] = Bytes(30, 0), mem[... + 62 len 2] for rates[i].rate, P18).",
+  "summary": "Faithful text of a view-only aggregator: all 11 source loops (including a Yul scan) are found as whiles, but they drown among about 265 compiler loops for ABI decoding, encoding and struct-array allocation, with undecoded calls (254 P2 lines) and struct fields visible only as memory slices."
+}

@@ -1,0 +1,50 @@
+{
+  "id": "c00060",
+  "abi_functions": 53,
+  "reviewed": 53,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {
+    "while": 3,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 32,
+    "P3": 4,
+    "P4": 54,
+    "P6": 31,
+    "P7": 70,
+    "P8": 150,
+    "P18": 300
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "completeTransfer*, createWrapped, updateWrapped, registerChain, upgrade, submitRecoverChainId, submitSetPauserAddresses (all VM consumers)",
+      "lines": "3987-4144 and the same block in each",
+      "decompiled": "mem[ceil32(encodedVm.length) + 160 len return_data.size] = ext_call.return_data[0 len return_data.size] ... mem[ceil32(return_data.size) + ceil32(encodedVm.length) + 192] = mem[_9 + ceil32(encodedVm.length) + 192] ... if bridgeContracts[concat(Bytes(30, 0), mem[ceil32(return_data.size) + ceil32(encodedVm.length) + 286 len 2])] != ...",
+      "source": "Bridge.verifyBridgeVM / _completeTransfer: (IWormhole.VM memory vm, bool valid, string memory reason) = wormhole().parseAndVerifyVM(encodedVm); bridgeContracts(vm.emitterChainId) != vm.emitterAddress; parseTransfer(vm.payload)",
+      "issue": "The returned VM struct is decoded field by field into memory and then used only as slices of that copy (337 'mem[... len 1/2/4/20]' reads), so emitterChainId, emitterAddress, the payload type byte and the transfer fields (amount, tokenAddress, tokenChain, to, toChain, fee) appear as 'Bytes(30, 0), mem[X + 286 len 2]', 'mem[X + 545]' and so on, and mapping keys become one-element concats (P4).",
+      "rule": "Forward reads through the ABI decode of return data: a field copied from ext_call.return_data[k] is ext_call.return_data[k] (or a named _vm_k), a 'len n' slice of it is Mask(8n, 256 - 8 * (off % 32) - 8n, word) printed as uintN(...); a single-word concat key is the word itself.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "updateWrapped(bytes), createWrapped(bytes)",
+      "lines": "2297-2302, 2320-2325; 2972-2977, 2995-3000",
+      "decompiled": "_100 = bool(mem[X + 612 len 1] << 248)\ns = 0\nwhile _100:\n    _100 = SafeMath.inc(s) < 32 and bool(byte(SafeMath.inc(s), mem[X + 612]))\n    s = SafeMath.inc(s)\n    continue",
+      "source": "Bridge.sol:948-951 while (i < 32 && input[i] != 0) { i++; }",
+      "issue": "The loop is rotated: the test for i = 0 is hoisted before the loop (with 'i < 32' folded), and the test for the next i is computed at the end of the body into a flag, with the checked increment SafeMath.inc(s) evaluated three times.",
+      "rule": "Undo the rotation: a flag set to cond(s0) before 'while flag' and to cond(next) at the end of the body, with s = next, is 'while cond(s): s = next'; a pure helper call on the same argument is one value.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 53 ABI functions and the fallback reviewed; the long ones (completeTransfer and its three variants, transferTokens(WithPayload), createWrapped, updateWrapped, the governance submit functions) by structure: VM verification, emitter checks, replay protection (isTransferCompleted / governanceActionIsConsumed writes), payload parsing with the BytesLib bounds reverts, normalize/denormalize with the 10 ** (decimals - 8) helper, token mint/transfer/burn calls, LogMessagePublished via wormhole.publishMessage with value, pause checks; no semantic error found. Loops: 3 explicit, all whiles: bytes32ToString's while (rotated, finding 2) and for (byte copy with the 32-bound check), BytesLib.slice's Yul copy loop (4 copies). Implicit: abi.decode of the VM signatures array ('while idx < _24' with per-element checks), checked-exponent helpers ('while u > 1', 18, readable), and 70 memory-to-memory copies as whiles (P7). The 85 raw call/revert lines (P2) all follow a named read of mem[64] or a symbolic write to it, as in c00585. TokenImplementation functions listed as reached are external calls, not inlined. No execution run.",
+  "summary": "Faithful with all loops present; readability suffers from the VM struct being used only through slices of its memory copy (about 340 slice reads and 54 one-element concat keys), 70 copy loops and a rotated bytes32ToString loop."
+}

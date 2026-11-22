@@ -1,0 +1,36 @@
+{
+  "id": "c00430",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 13,
+  "loops_shown": {"while": 12, "copy_line": 1, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 40, "P4": 3, "P6": 4, "P7": 6, "P8": 116, "P11": 6},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "backwardLET (unknownfd7640e8)",
+      "lines": "525-540",
+      "decompiled": "_18 = bool(_param1) / s = 0 / t = _param1 / while _18: / if s >= 32: revert Panic(50) / ... / _18 = t / 2 and s + 1 < 32 / s = s + 1 / t = t / 2",
+      "source": "DepositContractBase.sol:168 while (index != 0 && height < _DEPOSIT_CONTRACT_TREE_DEPTH) { ... height++; index >>= 1; }",
+      "issue": "The loop condition is carried in a flag computed at the end of the body (on the next values), so the test reads 'while _18' instead of 'while t and s < 32'; the bounds check of subTreeFrontier[s] stays though s < 32 holds.",
+      "rule": "When a loop flag is set before the loop to c(x0) and at the end of the body to c(x_next) with the loop variables updated to x_next, substitute: the loop is 'while c(x)'; then drop checks implied by c.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "forwardLET (unknownf0e70808), bridgeAsset/bridgeMessage paths (_addLeaf), backwardLET",
+      "lines": "1676-1698; 557, 578; 1688-1696 vs 248-255",
+      "decompiled": "mem[_54 + 32] = mem[_30] << 248 / ... / mem[_54] = 113 / u = sha3(mem[_54 + 32 len mem[_54]])  |  var53250 = depositCount / log 0x2f8b...: var53250, s, _param1, t  |  stor[v + 51] = u  vs  stor51[idx]",
+      "source": "keccak256(abi.encodePacked(leafType, originNetwork, originAddress, destinationNetwork, destinationAddress, amount, metadataHash)); emit BackwardLET(previousDepositCount, ...); _branch[height] = leaf",
+      "issue": "The leaf hash input (113 packed bytes built through the free-memory pointer) is not resolved, a variable gets the odd name var53250, and _branch is printed as stor[v + 51] in one place and stor51[idx] in others.",
+      "rule": "Same free-memory-pointer forwarding as c00409 for the packed keccak input; name every access to the static array at slot 51 the same way (stor51[i]).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "62 ABI functions plus the fallback reviewed. The pack has no source for 30 functions ('no source definition found in the AST', via-IR build) and its storage layout stops at slot 162 while the text uses slots 165-167; I reviewed against the source files directly (AgglayerBridgeL2FromEtrog -> AgglayerBridgeL2 -> AgglayerBridge -> DepositContractV2/Base). Read in full: getRoot, backwardLET, forwardLET, the claim path structure (proof loops, claimedBitMap XOR and check, hash chain, local balance tree, token mint/transfer/deploy), the multi-claim/sovereign-token/local-balance setters. Loops: 13 explicit in this bytecode: DepositContractBase getRoot (for, many inlined copies), _addLeaf (for, printed as 'while not (count >> h) % 2' with the depth assert inside, exact), verifyMerkleProof (for), _checkValidSubtreeFrontier's two whiles, the AgglayerBridgeL2 loops of setMultipleSovereignTokenAddress, setMultipleClaims, unsetMultipleClaims, forwardLET, forceEmitDetailedClaimEvent, setLocalBalanceTree, initializeFromEtrog's loop (all whiles), and backwardLET's 'for (i < 32) _branch[i] = newFrontier[i]' shown as the copy line 'stor[51 len 32] = call.data[36 len 1024]'. BridgeLib's loops (_returnDataToString) run in the separate BridgeLib contract (immutable bridgeLib), not counted. No semantic error found.",
+  "summary": "Faithful and readable: all 13 loops present (one recognized as a storage copy line), Merkle loops clean; minor issues are a loop test carried in a flag, an unresolved packed-leaf hash and inconsistent names for _branch."
+}

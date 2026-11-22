@@ -1,0 +1,188 @@
+{
+ "id": "c00409",
+ "abi_functions": 41,
+ "reviewed": 41,
+ "not_reviewed": [],
+ "source_loops": 7,
+ "loops_shown": {
+  "while": 7,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 320,
+  "P3": 1,
+  "P4": 88,
+  "P6": 133,
+  "P7": 3,
+  "P8": 330,
+  "P10": 20,
+  "P11": 95,
+  "P12": 2000,
+  "P13": 1,
+  "P15": 50,
+  "P16": 285,
+  "P18": 630
+ },
+ "findings": [
+  {
+   "kind": "coverage",
+   "severity": "medium",
+   "function": "getPrice(address,uint256,bool,bool), getPriceDetailed(address,uint256,bool,bool), _getPriceImplNoWrite(address,uint256,bool,bool)",
+   "lines": "10951-15387 (abort 15387); 15389-19817 (abort 19817); 9006-10949 (abort 10949)",
+   "decompiled": "_4383 = mem[_14 + 64] and (1 == uint8(tokenConfig[_param1].field_936) or ...)   (path ends here) ... `  ...  # Decompilation aborted` at the end of the function",
+   "source": "main.sol:1261-1306 _getPriceWithAlt; 1183-1225 _readComposedPrice (2nd/3rd leg); 1346-1392 _getPegResolvedPrice",
+   "issue": "Only the single-source price paths reach a return (4 returns in _getPriceImplNoWrite, 8 in getPrice); every path through _getPriceWithAlt (alt fallback, deviation check, cross-path cap: error 310019 MaxDeviation never appears) and every path with a 2nd or 3rd source leg ends mid-computation and falls to one abort marker printed 1,000 lines later at function level.",
+   "rule": "Coverage limit (path explosion of inlined copies of _readSource/_applyMultiplier). Sharing the inlined leg-read subgraph instead of duplicating it per path, and removing the always-overflowing exponent loops (see below), would shrink the state space. When a path is abandoned, print the abort marker at the point where that path stops, not after the enclosing if-tree.",
+   "verified": "reading only (counted returns and error codes per function)"
+  },
+  {
+   "kind": "coverage",
+   "severity": "medium",
+   "function": "getPriceRawForMode(address,uint8), getPricesRawForMode(address[],uint8[])",
+   "lines": "6605-7687 (abort 7687); 7689-8965 (7 aborts: 8014, 8018, 8276, 8280, 8286, 8886, 8965)",
+   "decompiled": "if not uint8(tokenConfig[_param1].field_176): _2469 = not _2341 and uint1(tokenConfig[_param1].field_232) / else: ... call getExchangeRate() ... (paths end)",
+   "source": "main.sol:1520-1569 _priceRawForMode; 1229-1247 _readComposedPriceRaw",
+   "issue": "Paths with a second source (sourceType2 set) and the fallback read of the alt bucket (priceRaw == 0 && hasFallbackAlt) are aborted; only single-source raw prices and the early (0, decimals, tokenType) returns are shown. In getPricesRawForMode the aborts are inside the loop body.",
+   "rule": "Same coverage limit as the price functions.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "coverage",
+   "severity": "medium",
+   "function": "getConfiguredTokenOracles(address)",
+   "lines": "24779; 25756",
+   "decompiled": "if s >= mem[_6]: ...  # Decompilation aborted   |   (70-space-deep branch) ... `      ...  # Decompilation aborted` at loop-body level",
+   "source": "main.sol:1580-1582 and 1689-1748 _buildConfiguredTokenOracle",
+   "issue": "The first abort only loses the (unreachable) out-of-bounds Panic of infos_[i]; the second loses the deepest combinations of the alt/additional flags and source types inside the loop body (paths that do not reach 's = s + 1; continue').",
+   "rule": "Same coverage limit.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "every function after a loop or a call whose return size is unknown: remove*SourceConfig, setTokenType, set*SourceConfig, all price functions, getConfiguredTokenOracles, sequencerL2Data",
+   "lines": "e.g. 593-595, 621-627 (removeAdditionalAltSourceConfig); 995-1002 (sequencerL2Data loop); 1240-1259 (setTokenType); 1337-1351 (removeSourceConfig); 2184-2199 (setSourceConfig); 783-816 (getPriceView)",
+   "decompiled": "_47 = mem[64] / mem[mem[64] + 32] = _param1 / ... / mem[mem[64]] = _47 - mem[64] + 128 / mem[0] = sha3(mem[_48 + 32 len mem[_48]])  |  log 0x7a07...: mem[mem[64] len _46 - mem[64] + 64]  |  require mem[_28] == mem[_28 + 22 len 10]; if mem[_28 + 32]: ...  |  static call _param3 with: args mem[mem[64] len _33 + ceil32(return_data.size) - mem[64] + 4]  |  static call this.address with: args mem[_90 + 164 len _94]",
+   "source": "_keyHash(token_, cm_.eMode, ...) in _revertIfTokenKeysBlockAltRemoval (main.sol:81); emit LogTokenConfigGovernanceApproved (278); getRoundData return values (sequencerL2.sol:89); IERC20Metadata(token_).decimals() (main.sol:222); getExchangeRateOperateDebt() (665); _getPriceImplStatic's abi.encodeCall (1647)",
+   "issue": "Once mem[64] is symbolic, a store at mem[64]+k is assumed to possibly overwrite slot 0x40 itself, so nothing written through the free-memory pointer is forwarded: keccak inputs, event data, revert data and call inputs stay raw memory (the call loses its name: getExchangeRateOperateDebt, decimals, symbol, readFromStorage, _getPriceImplNoWrite), returned words are read as mem[_28 + 32] and ABI range checks as byte slices; '_47 - mem[64]' is 0 but not folded.",
+   "rule": "Track that the free-memory pointer is never below 0x80 (it starts at 0x80 and each write stores old value + non-negative size; RETURNDATASIZE and allocation sizes are < 2^64 on any execution that does not run out of gas), so mstore(p + k) with p = mload(0x40), k >= 0 cannot alias slot 0x40; then forward such stores to later loads, and read a copied return buffer mem[p + k] as ext_call.return_data[k].",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "price functions (keyConfig_, meta_, ctx_ memory structs); setOverallCap event",
+   "lines": "9068-9085, 9306-9321, 9547 (_getPriceImplNoWrite); 1851-1854, 1963-1967 (setOverallCap)",
+   "decompiled": "if uint8(stor0[...].field_0): _8 = 544 else: ... _8 = 896 / if not mem[_8 + 31 len 1]: revert 310005 / _23 = mem[_8 + 157 len 3] > 0 / _32 = _23 or mem[_8 + 160] % 2  |  _3311 = mem[_14 + 64] and (...)  |  mem[mem[64]] = Bytes(12, 0), mem[_217 + 12 len 20] ... log 0x43c6...: mem[mem[64] len 128], _param1, _param2",
+   "source": "main.sol:1612-1618 keyConfig_ = _configs[...] (memory copy, eMode fallback); 1627-1631 ctx_ (isWrite: false in _getPriceImplNoWrite); 931 emit LogOverallCapSet(_getRegisteredKey(), ...)",
+   "issue": "Memory structs whose base pointer is a phi of constants or of two allocations are read back as byte slices (priceMode, maxDeviationBPS, flagsBitmap, overallCapMode) instead of the stored values; ctx_.isWrite, written 0 at 9077, is not forwarded, so _getPriceImplNoWrite shows the state-changing Write-getter CALLs (unknownfac80f7e, 916499f9...) of a branch that can never run; setOverallCap's event key, written identically in all 9 arms, is printed as memory slices.",
+   "rule": "When every reaching path wrote mem[b_i + k] = v_i(k) after defining its base b_i, a read mem[phi(b_i) + k] is phi(v_i(k)), and equal v_i fold to one value; a read through the same symbolic base as the write (mem[_14 + 64] after mem[_14 + 64] = 0) forwards when the intervening stores are proven disjoint (free-pointer monotonicity).",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "all price functions (_applyMultiplier inlined 59 times)",
+   "lines": "e.g. 9111-9131, 9483-9502 (_getPriceImplNoWrite), 11286 (getPrice), 20344 (getConfiguredTokenOracles)",
+   "decompiled": "if uint8(field_160) >= 78 and uint8(field_160) >= 32: / s = 10 / t = 1 / u = uint8(field_160) / while u > 1: if s > -1 / s: revert Panic(17) ... / if t > -1 / s: revert Panic(17) / _1065 = s * t / else: _1065 = 10**uint8(field_160)",
+   "source": "main.sol:1001 rate_ * uint256(10 ** uint8(multiplier_))",
+   "issue": "solc's checked exponentiation helper is printed in full 59 times (all 59 'while u/v > 1' loops), though with base 10 and exponent >= 78 the result always exceeds 2^256, so the branch is just 'revert with Panic(17)'; the guard also keeps the implied '>= 32'.",
+   "rule": "For checked exponentiation with a constant base b, a branch restricted to exponents e with b^e >= 2^256 always panics: replace it by the panic; and 'x >= 78 and x >= 32' is 'x >= 78'.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "setAltSourceConfig, setAdditionalSourceConfig, setAdditionalAltSourceConfig (also setOverallCap, enableDeviationCheck, enableFallback, registerTransientOracleKey, setTokenType, setSourceCapMode)",
+   "lines": "2697-3315 vs 3317-3943 (setAltSourceConfig); same shape 3951-5278 and 5278-6605; 1744-1854 vs 1856-1966; 334-348 vs 350-364; 456-466 vs 468-478; 203-216",
+   "decompiled": "if address(ext_call.return_data[0]) != caller: if caller != 0x4f6f...: revert 310002 / <620 lines> / else: <the same 620 lines>",
+   "source": "main.sol:422-446 onlyGovernanceOrMultisig then one body",
+   "issue": "The authorization test splits the function and the whole body (validation of 3 sources, writes, events) is printed in both arms; about 2,000 duplicated lines in the contract.",
+   "rule": "When both arms of an if end with the same statement sequence (equal up to renaming of temporaries), print the differing prefix in the arms and the common tail once after the if.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "getTokenConfig, isTokenConfigGovernanceApproved, enable*, remove*, set*SourceConfig, price functions",
+   "lines": "49, 73, 246, 346, 464, 573, 1436, 1623",
+   "decompiled": "bool(2 * uint1(tokenConfig[token].field_209))  |  bool(8 * uint1(tokenConfig[_param1].field_235))  |  if not 4 * uint1(tokenConfig[_param1].field_234)",
+   "source": "pauseState & PAUSED_LIQUIDATE != 0; flagsBitmap & FLAG_GOVERNANCE_APPROVED != 0; flagsBitmap & FLAG_HAS_ADDITIONAL_ALT_SOURCES == 0",
+   "issue": "A one-bit field is scaled back to its bit weight before a truth test.",
+   "rule": "In a boolean context (bool(), not, if, and/or), c * x with a non-zero constant c and x < 2^256/c is x.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "setPriceMode(uint8)",
+   "lines": "1668, 1681, 1703-1724",
+   "decompiled": "if _param1 != 2: ... _121 = uint8(stor0[...].field_0) and 2 == uint8(field_216) and 2 == _param1  |  else: _184 = ... / if not _29: <18-line push block>",
+   "source": "main.sol:788 if (exists_ && _isStablePeg(tokenType_, priceMode_))",
+   "issue": "'2 == _param1' is not folded under 'if _param1 != 2' (always false) nor in the else arm (always true); and the push block under 'if not _29' in the else arm of 'if not _128' is dead because _128 implies _29 (exists).",
+   "rule": "Fold a comparison whose value is fixed by a dominating branch condition, and drop a branch whose condition contradicts one implied by an enclosing condition.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "removeConfig()",
+   "lines": "650-662",
+   "decompiled": "uint240(stor1[t0][s].field_0) = uint240(stor1[t0][len - 1].field_0) / ... / uint240(stor1[t0][s].field_0) = _53 / ... / stor1[t0][s].field_248 = _52 >> 248 / uint240(stor1[t0][s].field_0) = _53 / uint8(...field_240) = bool(_54) / stor1[t0][s].field_248 = bool(stor1[t0][_51 - 1].field_248)",
+   "source": "main.sol:826 arr_[i] = arr_[arr_.length - 1]",
+   "issue": "The struct copy is printed as 9 field writes, 3 of field_0 and 2 of the others, one of them writing back the field's own old value; the final state is right (checked for s == len-1 too).",
+   "rule": "A store to a bit-range of a slot is dead when a later store to the same slot covers that range with no read of that range in between (reads of other ranges or other slots do not count); a store of a field's own current value is a no-op.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "sequencerL2Data and the 6 guarded price functions (sequencer loops); setSourceConfig family; setTokenType",
+   "lines": "976-980, 1005-1006, 1061-1062 (s, t never read); 972; 1190, 1249; 2380 (35 lines)",
+   "decompiled": "s = mem[_28 + 64] / t = mem[_28 + 32]  |  if ext_call.return_data[64] <= 0  |  require ext_call.return_data[0] == ext_call.return_data[31 len 1]  |  if -mem[_684 + 31 len 1] + 27 >′ 27: revert Panic(17)",
+   "source": "sequencerL2.sol:88-94, 106, 115-122; main.sol:222 decimals(); 713 int256(27) - int256(uint256(feedDecimals_))",
+   "issue": "Loop variables assigned but never read are kept; 'x <= 0' unsigned is 'x == 0'; the uint8 range check is a byte slice; the signed-sub overflow check of 27 - d is kept although d is a uint8.",
+   "rule": "Drop loop-carried variables with no use; fold unsigned x <= 0 to not x; print w[31 len 1] as uint8(w); with d in [0, 255], 27 - d >′ 27 is false.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "isEmodeValid(uint256,address)",
+   "lines": "78-88",
+   "decompiled": "while True: if s >= stor1[_param2].length: _5 = 0; break / if uint240(...) != _param1: s = s + 1; continue / _5 = 1; break / return bool(_5)",
+   "source": "main.sol:57-62 for (i < len_) { if (maps_[i].eMode == eMode_) return true; } return false",
+   "issue": "The loop test is hidden in the body; the result goes through a flag.",
+   "rule": "When a loop's exits only set a variable that is returned right after the loop, return from the exits; a leading 'if c: return' then becomes the loop test 'while not c'.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "getPriceDetailedViewRaw(address,uint256,bool,bool), getPriceView, getPriceDetailedView",
+   "lines": "264-271; 793, 933",
+   "decompiled": "mem[292 len 132] = uint128(_param1 >> 32) | 0x76c8121a000..., Bytes(4, uint32(_param1)), _param2, _param3, _param4 / static call this.address.unknown76c8121a(?) with: args Bytes(28, uint128(_param1 >> 32)), Bytes(4, uint32(_param1)), _param2, ...  |  mem[_91 + 32 len 4] = 1992823322",
+   "source": "main.sol:1647 abi.encodeCall(this._getPriceImplNoWrite, (token_, emode_, isOperate_, isCollateral_))",
+   "issue": "The address argument is split at the 4-byte selector offset and not rejoined; the selector is printed in decimal.",
+   "rule": "Bytes(28, x >> 32), Bytes(4, uint32(x)) is the word x when x < 2^224; print a 4-byte store of a constant as hex.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "all governance-gated functions, guarded price functions, proxiableUUID, upgradeTo, upgradeToAndCall",
+   "lines": "3, 94-96, 962, 61-63, 163-166",
+   "decompiled": "const LIQUIDITY = 0 / static call 0x0.unknownb5c736e4(?) ... / static call 0x0.latestRoundData() / if this.address: revert with 'UUPSUpgradeable: must not be called through delegatecall'",
+   "source": "variables.sol:110 LIQUIDITY immutable; sequencerL2.sol:14 _SEQUENCER_ORACLE immutable; OZ UUPSUpgradeable __self immutable",
+   "issue": "solc immutables read as 0 in the undeployed runtime code (governance read, sequencer feed, __self).",
+   "rule": "none (input artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "41 ABI functions (incl. 2 constants and proxiableUUID) plus the fallback ('revert') reviewed. Reviewed by structure (control flow, calls, storage writes, events, reverts, loops) because of their size: getConfiguredTokenOracles (~6,000 lines), getPrice and getPriceDetailed (~4,400 each), _getPriceImplNoWrite (~1,950), getPricesRawForMode, getPriceRawForMode, setAltSourceConfig, setAdditionalSourceConfig, setAdditionalAltSourceConfig (setSourceConfig read in full). Same code: getPriceDetailed = getPrice + 2 storage reads; getPriceDetailedView = getPriceView + 2 reads; setAdditional*/setAlt* = setSourceConfig's validation and writes on other slots; remove*SourceConfig share the _revertIfTokenKeysBlockAltRemoval loop (8 copies). No semantic error found on the paths shown: checked all error codes against errorTypes.sol, every storage write offset against the layout (TokenSources bit offsets, altSrc = slot+3), the sequencer do-while loops, removeConfig's swap-and-pop, setPriceMode's multisig rules, the UUPS paths. Loops: 7 explicit (2 sequencer do-whiles inlined 15 times, _tokenHasEmodeInConfigsMap, _revertIfTokenKeysBlockAltRemoval, removeConfig, getPricesRawForMode, getConfiguredTokenOracles), all readable whiles; the sequencer loops are live in the text although the feed address is the zero immutable. The other 84 whiles are implicit: 59 checked-exp helpers, configsMap storage-to-memory copy, new ConfiguredTokenOracle[] init (rotated, P3: 130 lines peeled), 3 array return copies (P7), the struct-array ABI encode loop. P2 counted with log data and keccak inputs (header regex: 292). P16 here is a dynamic calldata array (tokens_[i] as cd[32 * idx + _param1 + 36]). P13: tokenConfig names _tokenSources after getTokenConfig. Event/error names are raw topics/selectors (not in the signature DB).",
+ "summary": "Faithful on every path shown, but the main pricing logic is mostly lost to aborts (all alt/fallback/deviation and multi-source paths), and what is shown is buried under raw memory (no free-memory-pointer reasoning), 59 always-panicking exponent loops and ~2,000 lines of arm duplication."
+}

@@ -1,0 +1,47 @@
+{
+  "id": "c00164",
+  "abi_functions": 44,
+  "reviewed": 44,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 8, "P3": 7, "P6": 2, "P8": 30, "P9": 4, "P17": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "tokenURI(uint256) (NFTMetadataGenerator.generateTokenURI / generateSVG / Base64.encode)",
+      "lines": "2670-2700, 2735-2750",
+      "decompiled": "_153 = mem[_73 + floor32(_121 + 1284) + floor32(_74 + _75 + _76 + _77 + _78 + _79 + _80 + _81 + _82 + _83 + 1724) + 1728] / ... / while idx < _73 + _153 + floor32(_121 + 1284) + floor32(_74 + _75 + ... + _83 + 1724) + 1728: ...",
+      "source": "NFTMetadataGenerator: string(abi.encodePacked(...)) of many pieces, then Base64.encode(bytes(svg)) (Base64.sol:75 for {} lt(dataPtr, endPtr) {} {...})",
+      "issue": "The address of each concatenated string is printed as the full sum of all earlier lengths (a 120-character expression repeated a dozen times per line group), so the Base64 loop and the copies are very hard to follow although their shape is right.",
+      "rule": "Name a memory pointer once where it is computed (the start of each abi.encodePacked result, the Base64 table and output) and use the name in later addresses and loop bounds.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "tokenURI(uint256) (Strings.toString with constant and variable arguments)",
+      "lines": "2125-2135, 2150-2160, 2164-2174, 2222-2232",
+      "decompiled": "mem[_14 + floor32(_15 + 64) + 32] = cd[calldata.size] / mem[_14 + floor32(_15 + 64) + 34 len 1] = 48 / s = ... + 35 / t = 250 / while t / 10: mem[s - 2 len 1] = byte(t / 10 % 10, 0x3031..) ...",
+      "source": "Strings.sol:53 while (true) { ptr--; mstore8(ptr, byte(mod(value, 10), HEX_DIGITS)); value /= 10; if (value == 0) break; }  called as Strings.toString(250), (30), (22) and (tokenId)",
+      "issue": "The do-while is printed rotated (the first digit stored before the loop, P3) and the calls with constant arguments keep a loop although the result is the constant string ('250'); calldata read past its end prints as cd[calldata.size] instead of 0.",
+      "rule": "A do-while 'body; if c: break' prints as one loop with its test at the end; a loop with constant inputs and only memory effects on fresh memory can be evaluated; cd[x] with x >= calldata.size is 0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "createRedemption(uint256,address), claimRedemption(uint256), queryGraph(uint256,uint256) (StakingGraph.update / query)",
+      "lines": "617-618 (createRedemption); 322-335 (queryGraph)",
+      "decompiled": "stor24[s] = uint112(-_42 + _74) | -5192296858534827628530496329220096 * _40 * _42 + (stor24[s] >>′ 112 << 112)  |  s = t0 / t = t0 / while s: if not uint1(stor24[t].field_111) << 111: ... s = t - (t & -t) ... t = t - (t & -t)",
+      "source": "StakingGraph.sol:167 graph[index] = (uint256(ad) & DELTA_MASK) | uint256(ap << DELTA_BITS); :185-204 while (index > 0) { ... index := sub(index, and(index, sub(0, index))) }",
+      "issue": "'(-amount * expiration) << 112' prints as a multiplication by the decimal constant -2^112, the packed product is split as (x << 112) + ((p >> 112) << 112), the query loop carries two copies of the index (s and t), and the sign-bit test keeps a useless '<< 111'.",
+      "rule": "Print x * 2^k as x << k (and constants 2^k as 2**k); (a << k) + ((b >> k) << k) is (a + (b >> k)) << k; merge loop variables that always hold the same value; in a boolean context (bit << k) is bit.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: StakingGraph.addStake while (581), update while (605/618 and 1679/1696), query while (326/340), Base64._encode Yul for (2680, 2739), NFTMetadataGenerator._generateTokenIdText outer and inner for (2199, 2210), Strings.toString while(true) (2131 etc., rotated); all shown as while. The pack's Strings.toString section shows the wrong source text (ReentrancyGuardTransient); the loop was checked in lib/openzeppelin-contracts/contracts/utils/Strings.sol. Semantics checked: addStake's power-of-two rounding and copy loop, update's packing and range requires, query, the redemption arithmetic, ERC721 enumerable updates, tokenURI pieces. 44 ABI functions read; tokenURI (700 lines) by structure.",
+  "summary": "All seven source loops are found and the semantics match; readability suffers from huge unnamed pointer sums in the tokenURI string building, rotated toString loops (even on constants) and arithmetic printed with -2^112 as a decimal factor."
+}

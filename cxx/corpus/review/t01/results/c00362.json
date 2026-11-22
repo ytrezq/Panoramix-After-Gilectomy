@@ -1,0 +1,25 @@
+{
+  "id": "c00362",
+  "abi_functions": 14,
+  "reviewed": 14,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P8": 8},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "make(), make(address) (unknown1060930d)",
+      "lines": "105, 109, 134, 138",
+      "decompiled": "mem[128 len 726] = Bytes(726, 0x6080604052...0032) / create contract with 0 wei code: Bytes(726, 0x6080604052...0032), caller, gem",
+      "source": "join-4.sol:99 bag = address(new GemBag(address(usr), address(gem)));",
+      "issue": "The 726-byte GemBag creation code is printed in full twice per function (four 1,500-character lines), once for the memory copy and once in the create.",
+      "rule": "Print a CODECOPY'd constant blob once (as a named constant or code.data[offset len n]) and refer to it in the create.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loops. All functions compared with join-4.sol: auth (require 1 == wards[caller]), live and negative-amount checks, GemBag.exit, vat.slip with +wad/-wad, gem.transfer with 'GemJoin4/failed-transfer', and the LibNote anonymous log4 (msg.sig, caller, cd[4], cd[36], 224 bytes of calldata) are faithful; make(address) shows a second parameter only because the note modifier reads cd[36].",
+  "summary": "A small, faithful and readable text; only the embedded GemBag creation code is printed redundantly."
+}

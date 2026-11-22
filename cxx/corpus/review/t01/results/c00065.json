@@ -1,0 +1,50 @@
+{
+  "id": "c00065",
+  "abi_functions": 68,
+  "reviewed": 68,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {
+    "while": 2,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 6,
+    "P6": 16,
+    "P7": 18,
+    "P8": 200,
+    "P9": 2,
+    "P13": 2,
+    "P15": 1
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "calculateVDHT(uint256,uint256,uint256,uint256) and its inlined uses (vDHTBalanceOf, vDHTBalanceOfStake, tokenURI)",
+      "lines": "398-405",
+      "decompiled": "if (-1 * _param1 * _param2 + _param2 * _param3) / _param2 != SafeMath.sub(_param3, _param1): revert with 'SafeMath: multiplication overflow' / _1 = -1 * _param1 * _param2 + _param2 * _param3",
+      "source": "DhedgeStakingV2VDHTCalculator.sol:55-59 secondsPast = stakeFinishTime.sub(stakeStartTime); vDHT = dhtAmount.mul(secondsPast).div(maxVDurationTime)",
+      "issue": "dhtAmount * secondsPast is printed distributed over the subtraction, so the SafeMath.mul overflow check no longer reads as 'c / a != b' with c = a * b (P9; same rule as the c00037 finding).",
+      "rule": "Do not distribute a product over a sum or difference; name secondsPast once (it is already computed as SafeMath.sub(_param3, _param1)) and print 'dhtAmount * secondsPast'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "tokenURI, safeTransferFrom (both), newStake, unstake and others (29 sites)",
+      "lines": "e.g. 2156",
+      "decompiled": "revert with Error(string reason), 32, 33, 'SafeMath: multiplication overflow', mem[mem[64] + 101 len 31]",
+      "source": "SafeMath.mul(a, b) (OpenZeppelin 3.x): require(c / a == b, 'SafeMath: multiplication overflow')",
+      "issue": "Where the message is copied from a constant into a buffer at the free-memory pointer, the revert prints the ABI words (offset 32, length 33) and the 31 padding bytes as a raw memory slice, while the same require elsewhere prints 'revert with 'SafeMath: multiplication overflow''.",
+      "rule": "An Error(string) payload with offset 32, constant length n and n data bytes equal to a known string prints as that string when its padding bytes are known zero (fresh memory above every write is zero); only when the padding may hold earlier data must the slice stay.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Solc 0.7.6, ERC721Enumerable (OpenZeppelin upgradeable 3.x) staking NFT. All 68 functions were reviewed: the ERC721 functions (safeTransferFrom with onERC721Received and its bytes copies, approvals, enumeration getters), the staking functions (newStake, addToStake, unstake, claim...) by structure, and the pure calculators and small getters in full. Source loops: DhedgeStakingV2.sol:424 dhtBalanceOf and :402 vDHTBalanceOf, both shown as 'while idx < tokenOfOwnerByIndex[_param1].length' (balanceOf is the set length; tokenOfOwnerByIndex's bounds check is correctly gone since the loop test implies it in a view). The other 18 whiles are solc 0.7 copies of strings and bytes (tokenURI's abi.decode / encode for tokenJson, the _checkOnERC721Received call data and revert reason: P7). tokenURI calls tokenPrice() twice because currentRewardsForStake also does, as in the source. Storage: slot 0 (Initializable's two bools) is one uint16 (P15); _holderTokens and _tokenOwners are named after the tokenOfOwnerByIndex / tokenByIndex getters (P13, not misleading).",
+  "summary": "Faithful and complete with both source loops shown well; the remaining issues are solc 0.7 copy loops, a distributed product in calculateVDHT, and require messages printed as raw ABI words at some sites."
+}

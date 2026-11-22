@@ -1,0 +1,47 @@
+{
+  "id": "c00468",
+  "abi_functions": 68,
+  "reviewed": 68,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 101, "P4": 1, "P6": 36, "P8": 40, "P9": 10, "P11": 10, "P12": 6},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "mint(address,uint256,address,bool) (basket mode)",
+      "lines": "2814-2824 (loop1: while True), 3003-3060 (while e <= c + e)",
+      "decompiled": "loop1: while True: ... (first _mint: approve, deposit, fees) ... while e <= c + e: if d + 1 >= registeredAssets.length: ... return memory ...; ... if not _1061: d = d + 1; e = c + e; c = 0; f = _1061; continue",
+      "source": "HoneyFactory.sol:345-350 for (uint256 i = 0; i < registeredAssets.length; i++) { amount = refAmount * weights[i] / 1e18; amount = vaults[registeredAssets[i]].convertToAssets(amount); honeyToMint += _mint(registeredAssets[i], amount, receiver, true); }",
+      "issue": "The basket loop is split into an outer 'while True' and an inner loop whose header is the overflow test of 'honeyToMint += ...' (e <= c + e), whose exit only reaches the Panic(17) revert; the real bound i < registeredAssets.length is tested inside as 'if d + 1 >= registeredAssets.length: return'. The first iteration's prefix is printed before the loops.",
+      "rule": "As for c00557's claimComp: never use as a while condition a test whose exit edge reaches only a revert; print it as a require in the body and use the remaining exit test (d + 1 < registeredAssets.length) as the loop condition.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "mint, redeem, liquidate, recapitalize (Solady SafeTransferLib)",
+      "lines": "2825-2846, 3039-3055",
+      "decompiled": "mem[96] = _1061 / mem[64] = this.address / mem[44] = caller << 96 / mem[12] = 0x23b872dd... / call registeredAssets[d + 1].transferFrom(address sender, address recipient, uint256 amount) with: args Bytes(12, 0), caller << 96, Bytes(20, this.address), _1061 ... _969 = uint96(mem[84 len 12]) / mem[uint96(mem[84 len 12])] = 0x6e553f65...",
+      "source": "SafeTransferLib.safeTransferFrom(asset, msg.sender, address(this), amount) and safeApprove (scratch-space encoding, then 'mstore(0x34, 0)' / 'mstore(0x60, 0)' restores)",
+      "issue": "The name of transferFrom is found but its arguments print as a byte concatenation that crosses word boundaries instead of (caller, this.address, _1061); after safeApprove restores the high bytes of the free-memory pointer with mem[52] = 0, the pointer prints as uint96(mem[84 len 12]) and the deposit call that follows falls back to raw memory.",
+      "rule": "Before printing call arguments of a known signature, regroup the argument bytes into 32-byte words: Bytes(12, 0) ++ first 20 bytes of (x << 96) is address(x), and the 12 zero low bytes of x << 96 ++ Bytes(20, y) is address(y). After 'mem[52 len 32] = 0', mem[64] == uint96(mem[84 len 12]) when bytes 64..84 are known zero; keep the name mem[64] (or its last value).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setFeeReceiver(address)",
+      "lines": "452-462",
+      "decompiled": "_3 = stor[1] / feeReceiver = _feeReceiver / ... collectedFees[address(_3)][registeredAssets[idx]]",
+      "source": "VaultAdmin.sol:225 address oldFeeReceiver = feeReceiver;",
+      "issue": "A read of the whole slot 1 whose every use is address(_3) is printed as stor[1] although def storage names slot 1 feeReceiver and the write two lines below uses the name.",
+      "rule": "When every use of a full-slot read is masked to a named field's bits, print the field name (_3 = feeReceiver).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (11), all whiles: isBasketModeEnabled's for, the two loops of _getWeights, _isCappedGlobal's (as 'while True' with breaks, printed in both arms of 'if s:' - P12), _lookupRegistrationIndex, mint's basket for (rotated, see finding), redeem's two fors, setFeeReceiver's (456, clean), setGlobalCap's max loop, withdrawAllFees' for. Implicit: the checked-exponentiation helper of Utils.changeDecimals ('while u > 1', 2502, 2721). P2: 101 call lines with raw memory (convertToAssets, deposit, redeem, totalSupply on vaults...). Custom errors print as raw selectors (0x1a2a9e87 ...) where the signature database lacks them. Long functions (mint ~1,250 lines, redeem ~1,000) reviewed by structure.",
+  "summary": "Faithful, with all source loops present, but mint's basket loop is rotated around an overflow check, Solady scratch-space calls print with byte-concatenated arguments, and 101 call lines keep raw memory arguments."
+}

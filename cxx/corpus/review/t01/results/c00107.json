@@ -1,0 +1,25 @@
+{
+  "id": "c00107",
+  "abi_functions": 58,
+  "reviewed": 58,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 39, "P6": 40, "P7": 31, "P8": 80},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "deposit, depositFor, withdraw, doHardWork, rebalance, setStrategy, migrateUnderlying (every SafeERC20 call)",
+      "lines": "854-876, 896-907 and the same block in each",
+      "decompiled": "_112 = mem[64]\nmem[mem[64]] = 100\nmem[64] = mem[64] + 132\nmem[_112 + 32 len 4] = 599290589\n...\n_117 = mem[_112]\nwhile idx < _117: mem[idx + mem[64]] = mem[_112 + idx + 32] ...\ncall address(stor1994) with: args mem[mem[64] len _117]\n...\nrevert with Error(string reason), 32, mem[mem[64] + 36 len ceil32(_128) + 32]",
+      "source": "SafeERC20.safeTransferFrom(underlying, msg.sender, address(this), amount) via Address.functionCall(data, \"SafeERC20: low-level call failed\")",
+      "issue": "The data length is written through mem[mem[64]] and read back through the alias _112 = mem[64], so _117 is not known to be 100: the copy of the encoded data into the call buffer stays a while loop (P7), the call loses transferFrom(caller, this.address, _amount) (P2), the selector prints in decimal (0x23b872dd), and the fallback revert copies the constant message 'SafeERC20: low-level call failed' through a second loop instead of printing it.",
+      "rule": "Unify a named read of mem[64] with later reads until the next write (c00585): then mem[_112] = 100, the copy is a 100-byte copy of known words, the call decodes, and the revert is revert with 'SafeERC20: low-level call failed'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "solc 0.6.12. All 58 ABI functions and the fallback reviewed; deposit/withdraw/doHardWork/migrateUnderlying by structure (share math with OZ SafeMath messages, Transfer/Deposit/Withdraw events, strategy and vault calls, the Balancer exit in migrateUnderlying): no semantic error found. Loops: 1 explicit (VaultMigratable_balStMatic._balancerWithdraw's 'for (i < _nTokens) assets[i] = poolTokens[i]', 2544, a readable while with the 0.6 bounds assert). Implicit: 31 memory-to-memory copies as whiles (P7): Address.functionCall data copies and revert-message copies in every token call, string concatenations of the vault name/symbol in initializeVault, the ExitPoolRequest encoding in migrateUnderlying. No execution run.",
+  "summary": "Faithful; the one source loop is a clean while, but every SafeERC20 call is hidden behind a copy loop with a length the decompiler does not resolve, because a named read of mem[64] is not unified with mem[mem[64]] writes."
+}

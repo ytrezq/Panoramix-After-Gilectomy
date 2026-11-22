@@ -1,0 +1,25 @@
+{
+  "id": "c00377",
+  "abi_functions": 5,
+  "reviewed": 5,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P4": 1, "P7": 4, "P11": 3},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setWhitelist(address[],bool[]), triggerConsumers(address,address[])",
+      "lines": "setWhitelist loop body; triggerConsumers loop body",
+      "decompiled": "if _adds.length != _values.length: revert with 'INVALID_INPUT' / ... while s < _15: / if s >= _values.length: revert with Panic(50) / if s >= _adds.length: revert with Panic(50) / mem[0] = Bytes(12, 0), mem[32 * s + 172 len 20] / mem[32] = 1 / isAllowed[concat(Bytes(12, 0), mem[32 * s + 172 len 20])] = bool(mem[32 * s + 32 * _adds.length + 192])",
+      "source": "Whitelist.sol:62-66 require(user.length == val.length, \"INVALID_INPUT\"); for (uint256 i = 0; i < user.length; i++) { isAllowed[user[i]] = val[i]; }",
+      "issue": "Both bounds checks are implied (s < _adds.length is the loop test and _values.length == _adds.length was just required), the mapping key is a concat of a memory slice instead of the address element, and the hash scratch writes are kept.",
+      "rule": "Inside 'while s < n' with n invariant, a check s >= n is dead, and so is s >= m after 'require n == m'. A key written to mem[0] as Bytes(12, 0), x[12 len 20] is address(x): print isAllowed[address(...)] (P4) and drop the scratch writes.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small contract, read in full. Source loops: setWhitelist (isAllowed[user[i]] = val[i]) and triggerConsumers (updateWhitelistSource(newWhitelist) on each target, then WhitelistUpgraded with the targets array), both clean whiles. Implicit: the three calldata-to-memory decode loops of the address[]/bool[] arguments with their per-element type checks, and the event's array encode loop (P7). ONLY_OWNER checks, setOwner and getters correct.",
+  "summary": "Faithful and readable; both source loops are clean whiles, with only implied bound checks and a concat mapping key as noise."
+}

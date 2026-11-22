@@ -1,0 +1,62 @@
+{
+ "id": "c00591",
+ "abi_functions": 62,
+ "reviewed": 62,
+ "not_reviewed": [],
+ "source_loops": 5,
+ "loops_shown": {
+  "while": 5,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 411,
+  "P6": 140,
+  "P7": 22,
+  "P8": 250,
+  "P9": 30,
+  "P11": 10,
+  "P12": 1500,
+  "P14": 300
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "doHardWork(), withdrawToVault(uint256), withdrawAllToVault(), emergencyExit(), receiveFlashLoan(...)",
+   "lines": "7929-7935, 2486-2497, 2510-2522",
+   "decompiled": "_2020 = mem[64] / mem[mem[64]] = 0x70a08231... / mem[_2020 + 4] = this.address / static call rewardTokens[s] with: args mem[mem[64] len _2020 - mem[64] + 36]; _264 = mem[64] / mem[64] = ceil32(return_data.size) + mem[64] ... log 0x1072be0f...: mem[mem[64] len _264 + ceil32(return_data.size) - mem[64] + 96]",
+   "source": "AaveFoldStrategy.sol:277 IERC20(token).balanceOf(address(this)); BaseUpgradeableStrategy.sol:151 emit ProfitLogInReward(_rewardToken, 0, 0, block.timestamp)",
+   "issue": "In the five large functions 411 calls lose their function name and arguments, 173 revert strings (SafeERC20, 'Unable to withdraw...') stay as `revert with memory`, and 20 events show their data as a memory slice. The free pointer is not lost here: it is the symbolic `previous + ceil32(return_data.size)`, but `_x = mem[64]` is not identified with the following `mem[64]` read, nor `mem[64]` with the value just stored into it.",
+   "rule": "Track mem[64] symbolically: after `mem[64] = e` (or `_x = mem[64]`) and until the next write to mem[64], rewrite reads of mem[64] as e (or _x). Then `args mem[_2020 len 36]` is `0x70a08231 ++ this.address` (balanceOf(this)) and the event data is `0, 0, block.timestamp`. Same root cause as c00026's free-pointer finding and P2.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "loop",
+   "severity": "medium",
+   "function": "doHardWork(), withdrawToVault(uint256), withdrawAllToVault(), emergencyExit()",
+   "lines": "9098-9111, 9576-9587, 5229, 6014, 6538, 4092, 1630",
+   "decompiled": "s = (_3489 * borrowTargetFactorNumerator - _3493 * borrowTargetFactorNumerator) / (stor4E92 - borrowTargetFactorNumerator) / t = storA170 / u = borrowTargetFactorNumerator / v = stor4E92 / w = _3493 / x = _3489 / y = storA170 / z = ... / a = ... / b = borrowTargetFactorNumerator / c = stor4E92 / while w < s: ... w = _3915 / x = mem[_3919] / continue",
+   "source": "AaveFoldStrategy.sol:475-486 while (borrowed < borrowTarget) {...}; :497-510 while (borrowed > newBorrowTarget) {...}",
+   "issue": "The fold loops are found and their conditions are right, but each is printed with 11 single-letter loop variables of which only 2 (borrowed, supplied) change in the body; the other 9 are loop-invariant copies, several of them duplicates (t = y = storA170, u = b, v = c, s = a), so the body reads `u * v / collateralFactorNumerator` instead of `stor4E92 * borrowed / collateralFactorNumerator`.",
+   "rule": "A loop-carried variable that the body never reassigns is invariant: substitute its initial value and drop it from the loop header; merge loop variables with the same initial value and the same updates.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "doHardWork(), withdrawToVault(uint256)",
+   "lines": "9097-9099, 9576",
+   "decompiled": "if borrowTargetFactorNumerator != (_3489 * borrowTargetFactorNumerator - _3493 * borrowTargetFactorNumerator) / (_3489 - _3493) and _3489 != _3493: revert with Panic(17)",
+   "source": "AaveFoldStrategy.sol:472-473 balance = supplied.sub(borrowed); borrowTarget = balance.mul(_borrowNum).div(_denom.sub(_borrowNum))",
+   "issue": "(supplied - borrowed) * num is distributed into `supplied*num - borrowed*num`, so the checked multiplication and every later use repeat the distributed form.",
+   "rule": "Factor `x*a - y*a` into `(x - y)*a` (exact modulo 2^256) when `x - y` is already a checked value of the text, and print the overflow test as SafeMath.mul. (Same as c00026.)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Harvest AaveFoldStrategy (solc 0.8.26, no via-IR). Source loops reached: getAddressArray (while in isRewardToken and rewardTokens()), _isAddressInList (while True/break in isRewardToken), _liquidateReward for over rewardTokens (while s < rewardTokens.length in doHardWork and withdrawAllToVault), _depositNoFlash while (doHardWork, withdrawToVault), _redeemNoFlash while (doHardWork, withdrawToVault x2, withdrawAllToVault and emergencyExit, where the target folds to 0: `while u > 0`). setAddressArray/getUint256Array loops are unreached. The other 22 whiles are implicit ABI encode/decode loops (flashLoan token/amount arrays, claimAllRewards assets, receiveFlashLoan decode, rewardTokens() encode): P7. Large functions reviewed by structure (doHardWork 3002 lines, withdrawToVault 2623, withdrawAllToVault 2403, emergencyExit 774): calls, storage writes (pendingFee, storedBalance, suppliedInUnderlying/borrowedInUnderlying, makingFlash flags), loops and events present; call targets/arguments mostly hidden by P2. P11: dead `if s - w > s` inside `while w < s`, dead `if s >= stor4541: Panic(50)` inside `while s < stor4541`. P6 is mostly the Error(string) selector 0x08c379a0 written to memory for undecoded reverts. Zero-fill of a new array prints as `mem[160 len n] = call.data[calldata.size len n]` (could be Bytes(n, 0)). P12 (tails duplicated into the arms of flash-loan/no-flash branches) is an estimate.",
+ "summary": "Loops are all found and shown as whiles, and the semantics are intact, but the large strategy functions are dominated by P2: hundreds of calls, reverts and events read from raw memory because the symbolic free-memory pointer is not tracked, and the fold loops carry nine invariant single-letter loop variables."
+}

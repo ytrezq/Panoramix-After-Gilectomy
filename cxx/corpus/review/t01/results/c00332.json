@@ -1,0 +1,36 @@
+{
+  "id": "c00332",
+  "abi_functions": 12,
+  "reviewed": 12,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 19, "P3": 3, "P6": 4, "P7": 6},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "refreshTopology() (unknown043ac3c8), and the calls to multiCollateralGuard",
+      "lines": "253-379, 266",
+      "decompiled": "while True: if s >= _1: ... revert with memory ('DOC bucket not found') / static call 0x0 with: ... / mem[... + 32] = t + sha3(Bytes(64, 0), _1)",
+      "source": "PriceProviderUsdRifUsd.sol:167-207 keccak256(abi.encode(address(multiCollateralGuard), docBucket, bucketAmount)); if (bucketAddress == docBucket) {...} else {...}; require(docBucketFound, 'DOC bucket not found'); topologyHash = ...",
+      "issue": "multiCollateralGuard and docBucket are immutables read as 0: since every bucket address is checked nonzero, 'bucketAddress == docBucket' is always false, so the DOC branch, the success path (topologyHash, lastTopologyRefreshBlock, event) are dead and the loop exit always reverts; the text correctly shows only that.",
+      "rule": "none (pre-deployment bytecode)",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "refreshTopology()",
+      "lines": "309, 316, 378",
+      "decompiled": "mem[_49 + ceil32(return_data.size) + 32] = t + sha3(Bytes(64, 0), _1) / ... u = sha3(mem[_55 + 32 len mem[_55]]) ... / t = u - sha3(Bytes(64, 0), _1)",
+      "source": "PriceProviderUsdRifUsd.sol:167, 181, 187 newTopologyHash = keccak256(abi.encode(newTopologyHash, ...))",
+      "issue": "The loop-carried hash newTopologyHash is printed as an offset t from its initial value (used as t + h0, updated as u - h0), which hides that it is simply the running hash; the hashes over the buffers built at mem[64] also stay raw.",
+      "rule": "Do not rebase a loop variable by a loop-invariant constant: when every use of t is t + c and every assignment is t = e - c (or t = 0 initially for the value c), print the variable w = t + c directly.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (5), all whiles: refreshTopology's bucket loop ('while True' with the exit test first), its inner pegContainer loop (317) and price-info loop (356); getPriceInfo/peek's nested loops over cachedBuckets and cachedPriceProviders (63/80, 399/416, 578/595 in the inlined copies). Implicit: 'delete cachedBuckets' as a range clear copy line and 'delete cachedPriceProviders' as a while over the outer array with range clears inside (239), rotated zero-inits of memory struct arrays (P3: 54, 390, 569), return encodings (P7). P2: calls with raw memory arguments to the guard (0x0) and the buckets/price providers.",
+  "summary": "Faithful; all five loops are whiles, and the apparently always-reverting refreshTopology is a consequence of immutables read as 0, not a decompiler error; small readability issues remain (raw-memory calls, a rebased loop variable)."
+}

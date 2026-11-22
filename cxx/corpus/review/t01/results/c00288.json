@@ -1,0 +1,58 @@
+{
+  "id": "c00288",
+  "abi_functions": 9,
+  "reviewed": 9,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 16,
+    "P6": 6,
+    "P7": 12,
+    "P8": 13
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "authorizeAndDeposit (0xd5db8c67), authorizeAndDepositWithPermit (0xa6d061fb), deposit (0xc9630cb0), depositWithPermit (0x6807c8dc)",
+      "lines": "authorizeAndDeposit 330-509; authorizeAndDepositWithPermit 564-771; deposit 48-62, 97-114; depositWithPermit 186-198, 235-250",
+      "decompiled": "mem[mem[64]] = 0x85513663.. / .. / call 0x0 with: args mem[mem[64] len 32 * _20 + t - mem[64] + 32] / .. static call 0x0 with: args mem[mem[64] len 100] / .. call 0x0 with: args mem[mem[64] len _34] / .. log 0xec286cce..: mem[mem[64] len 64], indexed caller / return memory from mem[64] len ..  |  while idx < 100: mem[idx + ceil32(return_data.size) + 260] = mem[idx + ceil32(return_data.size) + 160] .. / call 0x0 with: args mem[ceil32(return_data.size) + 260 len 100]",
+      "source": "ppm_.setLenderBitmaps(lender, bitmap); ... require(IPoolPermissionManagerLike(poolPermissionManager).hasPermission(poolManager, owner_, 'P:deposit'), 'SR:D:NOT_AUTHORIZED'); require(ERC20Helper.transferFrom(asset, owner_, address(this), amount_), ..); shares_ = IPoolLike(pool_).deposit(amount_, address(this)); require(ERC20Helper.transfer(pool_, owner_, shares_), ..); emit DepositData(owner_, amount_, depositData_);",
+      "issue": "In the two authorize functions every call after the signature check (setLenderBitmaps, hasPermission, the asset transferFrom, pool.deposit, the share transfer) is a nameless call on raw memory, the NOT_AUTHORIZED / TRANSFER revert strings are hex words, and the DepositData data and the returned shares are raw memory: a store at mem[mem[64]] is assumed to possibly change mem[64]. In deposit and depositWithPermit, ERC20Helper's 100-byte transferFrom call data is copied by a 'while idx < 100' loop instead of a copy line, so that call is nameless too.",
+      "rule": "mem[64] only ever holds 0x80 plus non-negative bounded sizes, so a store at mem[64] + k (k >= 0) never changes mem[64]; and a word-by-word memory copy of a constant length is a copy line mem[d len n] = mem[s len n]. With both, the calls get their selectors' names and arguments and the event and return print their values.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "deposit (0xc9630cb0)",
+      "lines": "29, 136",
+      "decompiled": "def deposit(uint256 usdtAmount, bytes32 token): ... log 0xec286cce..: usdtAmount, token, indexed caller",
+      "source": "function deposit(uint256 amount_, bytes32 depositData_) external returns (uint256 shares_)",
+      "issue": "The parameter names come from another contract's deposit(uint256,bytes32) in the signature database; the deposit data tag is called 'token'.",
+      "rule": "Do not take parameter names from a selector database entry unless they come from the contract's own ABI; print neutral names otherwise.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "asset, pool, poolManager, poolPermissionManager and all calls",
+      "lines": "35-62, 85-114, 145-198",
+      "decompiled": "require ext_code.size(0) / static call 0x0.hasPermission(..) with: args 0, caller, 'P:deposit' / .. (no code-size test) .. call 0x0 with: args mem[.. len 100]",
+      "source": "address public immutable override asset; pool; poolManager; poolPermissionManager; ERC20Helper._call: if (token_.code.length == uint256(0)) return false;",
+      "issue": "The immutables read as 0, so every call targets address 0 and poolManager is 0 in hasPermission; because asset and poolPermissionManager are the same address 0, the earlier 'require ext_code.size(0)' makes ERC20Helper's code-length test on the asset dominated, and it is dropped before the transferFrom (it stays before the share transfer, after a state-changing call). Not a decompiler error.",
+      "rule": "None (corpus artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 9 ABI functions (4 immutable constants) and the fallback reviewed; no semantic error found. No source loops; the 12 whiles are compiler copies (100-byte call data, the two one-element arrays of setLenderBitmaps, return-data bytes; P7). _authorize's digest sha3(0x1901, chainid, this, caller, nonce, bitmap, deadline), the malleability check, nonces++ and the permissionAdmins check (selector 0x29206d6f, not in the decompiler's list) match. new address[](1) / new uint256[](1) zero words print as cd[calldata.size]. ERC20Helper's selectors are printed in decimal (599290589, 2835717307).",
+  "summary": "Faithful, but in the authorize-and-deposit paths every external call after the signature check, the event and the return are raw memory, so the deposit flow is only visible by reconstructing memory."
+}

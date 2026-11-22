@@ -1,0 +1,25 @@
+{
+  "id": "c00184",
+  "abi_functions": 58,
+  "reviewed": 58,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P3": 1, "P6": 2, "P7": 12, "P9": 165, "P11": 11},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "convertToShares, convertToAssets, previewDeposit / Mint / Withdraw / Redeem, deposit, mint, redeem, withdraw, maxWithdraw (Math.mulDiv inlined)",
+      "lines": "e.g. convertToShares: the 'if _13 * assets + (mulmod(...) < _13 * assets) != mulmod(...)' block (165 lines in all)",
+      "decompiled": "if lastPricePerShare <= -1 * _13 * assets + mulmod(assets, _13, -1) - (...): revert with Panic(uint256), 17 ^ 3 * (not lastPricePerShare) / _14 = -6 * (lastPricePerShare / (lastPricePerShare & -lastPricePerShare)) * (2 ^ 3 * ...) ... / _18 = 2 * _16 * (...) - _16 * _16 * (...)",
+      "source": "OZ Math.mulDiv(assets, 10 ** decimals, lastPricePerShare) (512-bit multiply, Newton inverse of the odd part of the denominator)",
+      "issue": "Every conversion expands the full-precision mulDiv into five 400+ character lines of Newton-iteration algebra, and the panic code is the arithmetic '17 ^ 3 * (not lastPricePerShare)' (Panic 18 when the denominator is 0, else 17).",
+      "rule": "Known pattern P9. Recognise the 512-bit product (mulmod(a, b, -1) with the borrow) and the inverse-by-Newton sequence on d / (d & -d) as one exact operation mulDiv(a, b, d) with its overflow condition; c ^ k * (not x) is (c ^ k) if x == 0 else c.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Clean apart from mulDiv. The only source loop is manage's (requiresAuth via authority.canCall or owner, then per target canCall + functionCallWithValue), shown as a while with the results zero-init rotated before it (P3). Each conversion function also has the compiler's checked exponentiation loop for 10 ** decimals ('while u > 1', 11 copies, P7) under 'if decimals >= 78 and decimals >= 32' (the second test implied, P11). Getters, ERC20 and admin functions checked.",
+  "summary": "Faithful; the single source loop is a clean while, but the inlined mulDiv in every ERC-4626 conversion is expanded into unreadable algebra (P9)."
+}

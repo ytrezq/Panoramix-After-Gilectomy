@@ -1,0 +1,13 @@
+{
+  "id": "c00379",
+  "abi_functions": 11,
+  "reviewed": 11,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [],
+  "notes": "Truffle example ERC20 (solc 0.6.12, unchecked arithmetic). transfer prints 'require(balances[msg.sender] >= _value); balances[msg.sender] -= _value' as SafeMath.sub (the text's helper is exactly 'require b <= a; return a - b'), the unchecked '+=' keeps no overflow check (correct for 0.6), transferFrom keeps the combined require and the MAX_UINT256 allowance exemption; the allowance is read after the require instead of before (no write in between, same value). No loops. No issue found.",
+  "summary": "Clean and faithful text of a simple ERC20; nothing to simplify."
+}

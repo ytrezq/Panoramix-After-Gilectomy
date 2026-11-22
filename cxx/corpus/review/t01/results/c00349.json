@@ -1,0 +1,25 @@
+{
+  "id": "c00349",
+  "abi_functions": 18,
+  "reviewed": 18,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P10": 1, "P15": 1},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "tend(uint256,uint256,uint256)",
+      "lines": "tend body: 'if not bids[id].field_0: _9 = 0; _10 = 1 / else: _9 = beg * bids[id].field_0; _10 = beg * bids[id].field_0 / bids[id].field_0 == beg / require _10 / require SafeMath.mul(10**18, bid) >= _9'",
+      "decompiled": "if not bids[id].field_0: / _9 = 0 / _10 = 1 / else: / _9 = beg * bids[id].field_0 / _10 = beg * bids[id].field_0 / bids[id].field_0 == beg / require _10 / require SafeMath.mul(10**18, bid) >= _9",
+      "source": "flap.sol:129 require(mul(bid, ONE) >= mul(beg, bids[id].bid)); with DSMath mul: require(y == 0 || (z = x * y) / y == x)",
+      "issue": "Of the two identical checked multiplications in one require, one is folded into SafeMath.mul and the other is printed as a two-arm if setting a product and a flag.",
+      "rule": "'if not y: z = 0; ok = 1 else: z = x * y; ok = z / y == x' followed by 'require ok' is z = SafeMath.mul(x, y), whichever operand is tested for zero.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "This is a test variant of the MakerDAO Flapper (kick sets end = 0 and its vat.move is commented out; deal no longer requires tic != 0; cage and deal skip the vat) and the text matches it exactly: wards/live checks, kicks++ with the uint(-1) bound, the packed Bid struct (guy, tic = field_672, end = field_720 in slot +2), tick's uint48 add check and packed write of end (whole-slot arithmetic, P15), tend's bid checks and two gem.move calls, deal's gem.burn and delete, yank, file with its three keys, and the anonymous LibNote events (log call.func_hash with caller, arg1, cd[36] topics). No loops.",
+  "summary": "Short and faithful to this test variant of the Flapper; only one checked multiplication is printed as an expanded if instead of SafeMath.mul."
+}

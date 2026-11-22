@@ -1,0 +1,13 @@
+{
+  "id": "c00052",
+  "abi_functions": 68,
+  "reviewed": 68,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P8": 20},
+  "findings": [],
+  "notes": "Unoptimised MapleGlobals (68 small functions: governor / pending governor, protocol pause, function pause, valid borrower / pool-delegate / instance flags, timelocks, oracle prices, scheduled calls). All were reviewed in full; the governor checks read the EIP-1967 admin slot (storB531), the price oracle path, the timelock scheduling and the events are correct. Source loop: MapleGlobals.sol:312 setTimelockWindows ('while idx < cd[_param2 + 4]' with the delays_[i] / durations_[i] bound checks and uint128 range checks of the source, writing both struct fields of stor17[contract][functionId] and the event); correct. P8: the dead allocation 'mem[64] = mem[64] + 64' of the TimelockParameters memory struct in the loop and similar scratch writes. The two field writes of the same struct print in two forms ('uint128(stor17[..].field_0) = ...' and 'stor17[..].field_128 = uint128(...)'), cosmetic.",
+  "summary": "A clean, faithful text of a simple settings contract; its one loop is shown well."
+}

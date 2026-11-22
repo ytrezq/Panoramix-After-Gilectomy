@@ -1,0 +1,13 @@
+{
+  "id": "c00081",
+  "abi_functions": 45,
+  "reviewed": 45,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 27, "P4": 12, "P6": 11, "P7": 16, "P8": 94, "P10": 5, "P11": 3},
+  "findings": [],
+  "notes": "All 45 ABI functions reviewed; the three deliverMarketplaceWithSignatures variants (440-480 lines each), deliverMarketplace and the two request functions by structure (loops, calls, storage writes, events, custom errors), the rest line by line. The 7 source loops are readable whiles, each in its own function: deliverMarketplace (L972), the three overloads of _deliverMarketplaceWithSignatures (L246, L334, L400), _requestBatch (L571, in request and requestBatch), setMechFactoryStatuses (L831), setPaymentTypeBalanceTrackers (L856). The other 26 whiles are implicit: calldata decodes of the DeliverWithSignature[] / bytes[] arguments, ABI encodings of the event and call arrays (readable), and 16 memory copy loops (P7). Checked: the nonReentrant slot (stor7), WrongArrayLength, checkMech (stor15, getOperator), the per-request status checks and the karma/balance-tracker calls (karma, serviceRegistry and chainId are immutables read as 0: artifact, 'call 0x0.unknown4225d37a'). The keccak scratch stores (mem[0], mem[32]) are kept beside symbolic mapping accesses (P8) and stor16[concat(_3)] is the one-element concat key (P4). No semantic error found.",
+  "summary": "Faithful and its 7 loops are all readable whiles; only the known patterns (raw-memory calls, copy loops, keccak scratch stores, concat keys) reduce readability."
+}

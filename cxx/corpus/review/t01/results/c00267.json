@@ -1,0 +1,58 @@
+{
+  "id": "c00267",
+  "abi_functions": 31,
+  "reviewed": 31,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P9": 12,
+    "P11": 42,
+    "P13": 139,
+    "P15": 3
+  },
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "vest(uint256), vest(uint256,uint256), vat(), join(), daiJoin(), chainlog()",
+      "lines": "3-6, 368-392, 498-522",
+      "decompiled": "const vat = 0 ... require ext_code.size(0); static call 0x0.live() ... static call 0x0.getAddress(bytes32 id) ... call 0x0.suck(...) ... call 0x0.exit(...)",
+      "source": "DssVest.sol:430-432, 456-460 immutable vat/join/chainlog; pay(): vat.live(), vat.suck(chainlog.getAddress(\"MCD_VOW\"), address(this), mul(_amt, RAY)), join.exit(_guy, _amt)",
+      "issue": "solc immutables read as 0, so pay()'s four calls all target 0x0. Sampled executions stop at the first require ext_code.size(0), so the rest of vest (calls, log Vest, unlock) is never execution-checked.",
+      "rule": "Not a decompiler error (pre-deployment bytecode).",
+      "verified": "disassembly: 4 extcodesize checks at 0x1f2a/0x2047/0x20e0/0x216f; the text keeps the 1st and 4th, the 2nd and 3rd follow STATICCALLs to the same address (sound elimination)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "yank(uint256), yank(uint256,uint256), accrued(uint256), unpaid(uint256), vest(uint256), vest(uint256,uint256)",
+      "lines": "220-223, 232, 250-253, 262, 296-319, 344-347, 356, 426-449, 474-477, 486",
+      "decompiled": "if uint48(block.timestamp) != block.timestamp: revert ...; if uint48(bgn[id].field_160) > uint48(block.timestamp): ... else: if uint48(block.timestamp) < bgn[id].field_208: ... else: if block.timestamp < bgn[id].field_208: _40 = 0 ... if block.timestamp >= uint48(bgn[id].field_160): if block.timestamp < _19: if _19 - uint48(bgn[id].field_160) > _19: revert 'sub-underflow' ... assert _19 != uint48(bgn[id].field_160)",
+      "source": "DssVest.sol:263-271 accrued(), 294-296 unpaid() inlined into _yank (351-367) and _vest",
+      "issue": "Checks and arms decided by dominating conditions are kept: in _yank's last arm t < clf, t >= bgn and t < old fin are already known, and in every inlined accrued() the two sub-underflow checks and the assert follow from bgn <= t < fin. About 42 lines, 3 dead arms per yank.",
+      "rule": "Propagate range facts from dominating branch conditions, and treat x and uint48(x) as equal after a passed require x == uint48(x); then fold a - b > a to false when b <= a is known, a != b to true when b < a is known (also through a transitive chain b <= t < a), and drop arms whose condition is decided.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "vest(uint256,uint256)",
+      "lines": "494-525",
+      "decompiled": "if SafeMath.add(bgn[_id].field_640, min(_20, _maxAmt)) != uint128(SafeMath.add(bgn[_id].field_640, min(_20, _maxAmt))) ... (min(_20, _maxAmt) << 128) ... SafeMath.mul(1000000000 * 10**18, min(_20, _maxAmt)) ... args _23, min(_20, _maxAmt) ... amt=min(_20, _maxAmt)",
+      "source": "DssVest.sol:238 amt = min(amt, _maxAmt);",
+      "issue": "The same pure value min(_20, _maxAmt) is printed 6 times (and SafeMath.add(...) twice in one line) instead of being bound once as the source's amt.",
+      "rule": "Bind a pure subexpression that is used more than once to a fresh local at its first use.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loops in the source or the text. All 31 ABI functions reviewed; TWENTY_YEARS, vat, join, daiJoin, chainlog are consts. The tau-zero require of create() is folded with the next division into a contract-specific helper 'SafeMath.div(a, b): if b <= 0: revert with DssVest/tau-zero' - exact at its single use (same order). The printed helper 'SafeMath.mul(a, b): if a * b / a != b: revert' is exact only for a != 0; both uses have a = 10^27, so the text is exact here. awards mapping named bgn after the bgn(uint256) getter though awards(uint256) returns the whole struct (P13). Packed field writes of create/vest use distributed shifts ((_bgn << 208) + (_eta << 208), (_19 << 128) + (rxd << 128)) - exact after the toUint48/toUint128 checks (P15). id = ++ids is printed as _2 = ids; ids++ and _2 + 1 four times. yank uses the saved old fin (_19) in the inlined unpaid, as the source's memory copy does - correct. Order of the sub checks in accrued (fin - bgn before t - bgn) is solc's right-operand-first evaluation - faithful.",
+  "summary": "Compact, faithful text with no semantic discrepancy found; the noise is in the inlined accrued/unpaid formula (dominated checks kept, P11; distributed product, P9), the awards mapping named after the bgn getter (P13), and solc immutables read as 0 (artifact)."
+}

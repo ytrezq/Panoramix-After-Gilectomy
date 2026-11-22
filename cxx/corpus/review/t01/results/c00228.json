@@ -1,0 +1,69 @@
+{
+  "id": "c00228",
+  "abi_functions": 14,
+  "reviewed": 14,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P6": 4, "P7": 1, "P8": 175, "P9": 100, "P10": 76, "P11": 12, "P18": 18},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "deposit (unknownc82cb114), withdraw (unknowncd8e305c)",
+      "lines": "635-657, 665-669; 1101-1123, 1180-1186",
+      "decompiled": "_291 = mem[64]\nmem[64] = ceil32(return_data.size) + mem[64]\n...\nrevert with memory from mem[64] len _291 + ceil32(return_data.size) - mem[64] + 100\n...\nlog 0x7881ccc0...: mem[mem[64] len _291 + ceil32(return_data.size) - mem[64] + 128], indexed caller, indexed _param1, indexed _param2",
+      "source": "DepositorUniV3.sol:247-248 require(..., \"DepositorUniV3/exceeds-slippage\"); require(..., \"DepositorUniV3/exceeds-due-amt\"); :254 emit Deposit(msg.sender, p.gem0, p.gem1, p.fee, liquidity, amt0, amt1); :282-283, :298 the same in withdraw",
+      "issue": "mem[64] was just set to _291 + ceil32(return_data.size), so each length folds to 100 (or 128, 192) and the 4 reverts are Error('DepositorUniV3/exceeds-slippage' / 'exceeds-due-amt'), and the Deposit and Withdraw events carry the 4 and 6 words written just before; the text shows none of these values. The same unresolved pointer leaves the mint and collect calls as P2 and the burn/mint/collect results as mem[_291], mem[_339 + 16 len 16].",
+      "rule": "Forward the last write of mem[64] into later reads of mem[64] when no write to it intervenes, so that e - mem[64] folds to a constant; a word read at p after mem[p len min(n, rds)] = ext_call.return_data[...] and require rds >= n is ext_call.return_data[...]. Same root as c00178 (setExitConfig, upgrade).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "deposit, withdraw (PairLimit memory limit)",
+      "lines": "242-280, 649-664; 730-768, 1115-1148",
+      "decompiled": "mem[ceil32(return_data.size) + 544] = uint96(stor1[_param1][_param2][_param3].field_256)\n...\n_300 = mem[_291] <= mem[ceil32(_1) + 564 len 12] and mem[_291 + 32] <= mem[ceil32(_1) + 596 len 12]\nuint32(stor1[_param1][_param2][_param3].field_448) = mem[ceil32(_1) + 636 len 4]",
+      "source": "DepositorUniV3.sol:223-233 PairLimit memory limit; limit.due0 = limits[...].due0; ... if (block.timestamp >= limit.end) { limit.due0 = limits[...].cap0; ... }",
+      "issue": "The local struct's members are written in both arms of the batch reset and then read back as sub-word slices of memory, so limit.due0/due1/end never appear as values; the reader must match offsets 564/596/636 to the writes at 544/576/608.",
+      "rule": "As in c00178: a slice mem[a len n] inside a word that every predecessor wrote is a phi of the written values' low n bytes (here uint96/uint32 values, so the values themselves); bind it as for whole-word reads.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "deposit, withdraw (FullMath.mulDiv inlined)",
+      "lines": "516-517, 523, 581; 1004-1005, 1011, 1069",
+      "decompiled": "require address(-address(_189) + address(_190)) > -79228162514264337593543950336 * _param8 + mulmod(_param8, 0x1000000000000000000000000, -1) - ...\n_192 = ... >> 96 | -1461501637330902918203684832716283019655932542976 * address(_187) * address(_188) + (mulmod(...) << 160) - ((...) << 160)",
+      "source": "FullMath.sol:32-34 prod0 := mul(a, b) with b = FixedPoint96.Q96; :88 prod0 |= prod1 * twos",
+      "issue": "2^96 and 2^160 print in decimal in the same expressions that print 2^96 as 0x1000000000000000000000000 and shift by 160; -2^96 * x is -(x << 96) and the 2^160 term is (prod1) << 160 distributed over prod1's parts (P9).",
+      "rule": "Print a constant 2^k (k >= 32) as hex or 2**k, a product c * x with c = 2^k as x << k, and keep (a - b - c) << k factored instead of distributing the shift.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "withdraw (unknowncd8e305c)",
+      "lines": "1176-1179",
+      "decompiled": "if -_298 + mem[_339 + 16 len 16] > mem[_339 + 16 len 16]:\n    revert with Panic(17)",
+      "source": "DepositorUniV3.sol:296 (fees0, fees1) = (collected0 - amt0, collected1 - amt1)",
+      "issue": "The checked subtraction's test is printed as solc computes it (x - y > x) instead of as the comparison it is (amt0 > collected0).",
+      "rule": "For all words, (x - y mod 2^256) > x holds exactly when y > x: print the test as y > x.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "auth modifier (all writers), _getPool, uniswapV3MintCallback, collect, withdraw",
+      "lines": "1, 44-46, 104, 108-110, 168, 176",
+      "decompiled": "const roles = 0 / static call 0x0.unknown784c0a91(?) with: args 0, caller, this.address, call.func_hash\naddress(sha3(Bytes(21, 0xff0000000000000000000000000000000000000000), sha3(_param1, _param2, _param3), 0xe34f...))\ncall address(cd[data + 36]).transferFrom(...) with: args 0, caller, amount0",
+      "source": "DepositorUniV3.sol:77-80 immutables roles, ilk, uniV3Factory, buffer",
+      "issue": "solc immutables read as 0: roles.canCall is a call to address 0 with ilk 0, the CREATE2 pool address hashes a zero factory, and buffer is 0 in transferFrom/collect. Not a decompiler error.",
+      "rule": "None (bytecode before deployment).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 14 ABI functions present and reviewed; no semantic error found. The source has no loop (TickMath is 19 one-armed ifs, unrolled in the source; FullMath has none); the only while is deposit's copy of abi.encode(MintCallbackData) into the mint call (P7). TickMath's 'type(uint256).max / ratio' has a Panic(0x12) zero check in the bytecode (0x250f-0x251e) that the text drops; the interval analysis (src/algebra/ranges.hpp) bounds ratio above ~2^52 for every bit pattern, so the drop is exact. P10: the 76 TickMath 'if not Mask(1, k, t): r2 = r1 else: r2 = C * r1 >> 128'. P11: the uint160 subtraction checks B - A > 2^160 - 1 after the operands were ordered by the swap or the branch (8), and the inner getLiquidityForAmount0/1 swaps of already-ordered values (4). P8: mapping-key writes repeated 6 times per limits access, the decoded LiquidityParams struct in memory, the canCall and _getPool encodings, zero-inits; in deposit/withdraw the dead 'mem[0] = caller; mem[32] = 0' splits auth's 'a or 1 == wards[caller]' into an if/else. Smaller: withdraw tests _param11 twice in a row (1149-1156); getPosition returns feeGrowthInside0/1 as one ext_call.return_data[32 len 64]; uint32(uint32(a) + uint32(b)) and uint128(_215) after range checks are redundant masks; collect's uint128 checks print as ext_call.return_data[0] == ext_call.return_data[16 len 16] and its returns/event as Bytes(16, 0), slice (same as c00178's address slices). TickMath and FullMath reviewed here for the batch.",
+  "summary": "Faithful text with no loops to find; readability suffers from the expanded mulDiv (P9), TickMath's two-armed ifs (P10), ~175 dead memory writes and an unresolved free pointer that hides 4 revert messages, 2 event payloads, 2 calls and the limit struct's members."
+}

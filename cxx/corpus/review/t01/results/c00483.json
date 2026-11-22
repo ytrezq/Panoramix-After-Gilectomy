@@ -1,0 +1,27 @@
+{
+ "id": "c00483",
+ "abi_functions": 60,
+ "reviewed": 60,
+ "not_reviewed": [],
+ "source_loops": 8,
+ "loops_shown": {
+  "while": 8,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 48,
+  "P4": 3,
+  "P6": 29,
+  "P7": 14,
+  "P8": 60,
+  "P11": 24,
+  "P14": 100
+ },
+ "findings": [],
+ "notes": "Lista PancakeSwapV3LpProvider (solc 0.8.10, no via-IR). Source loops reached and shown as whiles: StringsUpgradeable.toHexString in every onlyRole revert message (24 copies of `while idx > 1`, readable, with the \"0x\" prefix folded into the revert string), claimableStakingRewards (245), vaultClaimStakingReward (740), claimLeftOverLpTokens (1064), batchSyncUserLpValues (`while True` with break, 1579), liquidation's token loop (3320), _removeToken and _syncUserLpTotalValue (loops over stor406[user], inlined in release, liquidation, onERC721Received, syncUserLpValues, batch sync). PcsV3LpNumbersHelper.getLatestUserTotalLpValue is a public library function (external call) and the LiquidationHelper auctions loop was not found inlined; neither is counted. The other whiles are implicit ABI encode/decode loops (P7). P11: the `if idx >= 42/66: Panic(50)` inside each toHexString loop is dead (idx starts at 41/65 and decreases). P2 calls concentrate in release (36), sync and liquidation functions; same free-pointer identification issue as c00026. release and liquidation (about 600 lines each) reviewed by structure.",
+ "summary": "Faithful text whose eight source loops are all shown as whiles, with readable AccessControl hex-string loops; readability suffers mainly from raw-memory calls in the release/liquidation/sync paths and dead bounds checks."
+}

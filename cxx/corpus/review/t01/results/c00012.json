@@ -1,0 +1,47 @@
+{
+  "id": "c00012",
+  "abi_functions": 31,
+  "reviewed": 31,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 4, "P2": 414, "P6": 28, "P7": 675, "P8": 800, "P10": 450, "P11": 32, "P14": 165, "P18": 369},
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "validate((address,bytes32,uint256,address),bool), validate((address,bytes32,bytes32,bytes32,uint256,address),bool), validateWithOverrides(..4-field input..,bool,(address,address)), validateWithOverrides(..6-field input..,bool,(address,address))",
+      "lines": "9992-14735 (41fe5385; e.g. 13298-13299, 13312-13314, 13455-13458, 14560-14571, 14729-14735); 601-5291 (9793d84f); 5293-9990 (44c3e085); 14737-19480 (0e9d5cb9)",
+      "decompiled": "_5804 = mem[_5743] > 0 and not _param5 / if _5804: ... mem[mem[64] + 32] = 0x4f50436f6e74...  (then nothing) ... while idx < _5811: ... / ...  # Decompilation aborted, sorry",
+      "source": "OPContractsManagerStandardValidator.sol:1006-1027 assertValidETHLockbox (LOCKBOX-10..50), getOverridesString, if (bytes(_errors).length > 0 && !_allowFailure) revert(string.concat(\"OPContractsManagerStandardValidator: \", finalErrors)); return finalErrors; and the tail of assertValidZKDisputeGame (ZKDG-20..160)",
+      "issue": "None of the four validate entry points has a single return: every path stops inside assertValidETHLockbox, inside the ZK dispute game checks, or just after the 'OPContractsManagerStandardValidator: ' prefix of the final revert, and falls into the one abort marker at the function's end. The success path (return finalErrors), the final revert, the override-string prefix and the last LOCKBOX checks are lost in all four functions.",
+      "rule": "Coverage limit of the decompiler (path explosion: every internalRequire doubles the paths, each string.concat adds copy loops); merging paths at the join after each 'if cond: errors = concat(errors, msg)' (the phi already exists as _92 = ...) instead of duplicating the continuation would keep the function linear.",
+      "verified": "reading only (grep: 0 'return' lines in the four functions, 1 abort marker each)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "validate((address,bytes32,uint256,address),bool) and validate((address,bytes32,bytes32,bytes32,uint256,address),bool) (also the input fields in all four validate functions)",
+      "lines": "10010-10018 then 10677, 12113-12117, 12164-12167, 12676-12677, 13027, 14007-14010, 14623-14626 (41fe5385); 4604 and the mem[332 len 20] tests (9793d84f)",
+      "decompiled": "mem[448] = _param1 ... mem[512] = 0 / mem[544] = 0 / mem[640] = 0 / mem[672] = 0 / mem[64] = 736 ... _1231 = mem[448] ... if not mem[652 len 20]: _2442 = stor1 else: _2442 = mem[640] ... _3102 = mem[512] ... if not mem[684 len 20]: _3157 = challenger else: _3157 = mem[672]",
+      "source": ":879 _toValidationInputDev(_input) (cannonKonaPrestate = zkPrestate = 0); :886 ValidationOverrides({l1PAOMultisig: address(0), challenger: address(0)}); :222-235 expectedL1PAOMultisig / expectedChallenger",
+      "issue": "After the first store through the free-memory pointer the text stops knowing the words of the input and overrides structs, though every later store is at mem[64] + k with mem[64] >= 736 (or 416): _input.sysCfg reads as mem[448] instead of _param1, the zero prestates as mem[512] / mem[544], and in the two functions without overrides the dead override branches 'else: _2442 = mem[640]' (l1PAOMultisig and challenger overrides, always zero) are kept around every expectedL1PAOMultisig/expectedChallenger.",
+      "rule": "Track a lower bound of the free-memory pointer: after mem[64] = e with e >= B (e = ceil32(x) + 736, sizes < 2^64, no wrap), and with mem[64] only growing, a store at mem[64] + k (k >= 0) cannot alias a word below B; such words keep their constant or parameter value, so mem[652 len 20] folds to 0 and the else arm is dead.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "the four validate functions (getGameImplementation -> _decodeDisputeGameImpl / getSuperPermissionedGameImplementation)",
+      "lines": "12454-12505, 12822-12865, 13723-13764, 14245-14286 (41fe5385); 3445, 4346, 4868 (9793d84f); 8144, 9045, 9567 (44c3e085); 17600 (0e9d5cb9)",
+      "decompiled": "_2681 = mem[_2611 + ceil32(return_data.size)] ... if 40 == _2681: ... if mem[_2611 + ceil32(return_data.size)] != 40: ... revert with memory from mem[64] len _2867 - mem[64] + 4  |  if 124 == _3391: ... _3850 = mem[X] != 164 and mem[X] != 124 / if _3850: revert ... / if mem[X] != 164: _3883 = 0 ... else: _3883 = mem[X + 156 len 20]",
+      "source": ":1043-1071 assertGameArgsLength returns early unless len == 40 / 124 / 164; LibGameArgs.sol:65 decode reverts InvalidGameArgsLength() unless len is 124 or 164; :127 decodeSuperPermissioned likewise; :87 if (len == PERMISSIONED_ARGS_LENGTH) read proposer/challenger",
+      "issue": "Inside 'if 40 == len' / 'if 124 == len' the decode's own length checks are kept although the dominating equality decides them: the InvalidGameArgsLength revert (shown as raw 'revert with memory', selector 0xbff6e416) is dead, and in the 124 branch 'if len != 164' is always true, so the proposer/challenger reads are a dead else arm. Also the memory size of the revert data, _2867 - mem[64] + 4 with _2867 = mem[64], is not folded to 4.",
+      "rule": "Propagate an equality from a dominating test (len == c) into the region it guards, deciding len != c' and len == c' there; the value read from the same address with no store that can alias it in between is the same SSA value (see the free-pointer bound of the previous finding). x - x folds to 0 when both are the same read.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The four validate functions (4,700 lines each) were reviewed by their structure (external call sequence, the internalRequire error codes, constants, branch conditions) against validateWithOverrides; they are the same body with different preambles (diff: 215 lines of offsets). Spot checks were exact: SYSCON-10..140 (version hashes, gasLimit <= 500*10**6, scalar != 0, getProxyImplementation == stor6, resourceConfig fields 20*10**6 / 10 / 8 / 10**6 / 10**9 / 2^128-1), isSuperGame as raw in {4,5,7,9,10}, isDevFeatureEnabled(.., SUPER_ROOT_GAMES_MIGRATION) folded to true (correct: hasFlag(f, f)), isRespectedGameTypeValidated, the SCKDG/CKDG/SPDG prefixes, LibGameArgs.decode offsets (vm at +32, asr +52, weth +72, l2ChainId +92, proposer +124, challenger +144 into the struct order of DisputeGameImplementation). The source has no explicit loop: all 687 whiles are implicit: 675 are solc's memory-to-memory copy loop (returned strings, string.concat, ABI encoding of strings) left as while (P7), and 12 (6 per validateMigratedChain function) are the readable ABI decode/encode loops of the address[], struct[] and (uint32,uint256)[] members of MigrationValidationInput. validateMigratedChain(WithOverrides) are exact (input decoding, SharedImplementations stor10, stor11, stor5, stor12, stor13, stor16, stor17, stor20 and SharedConfig stor1, stor0 in source order) but the call to migrationValidator (stor21) is P2. 24 getters and the two string constants are exact; storage names are storN because the getters are not in the signature database. P8: the zero-initialised struct allocations (14-word DisputeGameImplementation blocks etc.) are written and overwritten without being read. P10: each internalRequire leaves a phi with an SSA copy in one arm ('else: _92 = errors').",
+  "summary": "Faithful where it reaches, but each of the four 4,700-line validate functions is cut off before its end (no return, no final revert), and the text is very obscure: 414 calls with raw-memory arguments, 675 string-copy while loops, struct fields as memory slices, and input/override words read back as mem[448] / mem[652 len 20] with dead override branches."
+}

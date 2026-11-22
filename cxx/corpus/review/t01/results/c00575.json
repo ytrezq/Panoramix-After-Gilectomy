@@ -1,0 +1,36 @@
+{
+  "id": "c00575",
+  "abi_functions": 26,
+  "reviewed": 26,
+  "not_reviewed": [],
+  "source_loops": 15,
+  "loops_shown": {"while": 15, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 2, "P7": 15, "P8": 30, "P11": 15},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "the 14 array-returning getters (getTotalStaked, getFees, getTokenBalances, getStakingInfo, getTokenBalancesWithSupplies, getPairInfo, getPrices, getVestingInfo, getFundingRates, getPositions, getVaultTokenInfo(V2), getFullVaultTokenInfo)",
+      "lines": "120, 162, 208, 259, 462, 632, 855, 965, 1089, 1186, 1344, 1523, 1728",
+      "decompiled": "s = 0 / while s < 32 * mem[32 * cd[_param1 + 4] + 160]: mem[...] = mem[...]; s = s + 32 / ... return memory ...",
+      "source": "return amounts; (uint256[] memory returned by each getter; solc 0.6 ABI encoding)",
+      "issue": "Every getter ends with the word-by-word copy of its result array into the return buffer printed as a loop (P7), after the real loop; the reader sees two loops per function where the source has one.",
+      "rule": "A loop copying 32 * n bytes word by word between disjoint memory ranges is one copy line (c00600's shape A); then 'return Array(len=n, data=...)'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getTokenSupply(address,address[]) and the other SafeMath.sub users",
+      "lines": "296-322",
+      "decompiled": "_16 = mem[64] / mem[64] = mem[64] + 64 / mem[_16] = 30 / mem[_16 + 32] = 0x536166654d6174683a20737562747261..  / if ext_call.return_data[0] <= t: ... continue / ... while idx < _19: mem[idx + mem[64] + 68] = mem[_16 + idx + 32] ... / revert with Error(string reason), 32, mem[mem[64] + 36 len floor32(_19) + 64]",
+      "source": "SafeMath.sub(a, b) -> sub(a, b, \"SafeMath: subtraction overflow\") with require(b <= a, errorMessage) (solc 0.6, message passed as memory string)",
+      "issue": "The constant message is allocated in every iteration and copied by a loop into a half-decoded Error(string) revert, instead of revert with 'SafeMath: subtraction overflow'; 'assert s < mem[128]' is implied by the loop bound (P11).",
+      "rule": "A string written to fresh memory and only read by the Error(string) encoding of a revert is that literal (as c00561); drop the allocation and the copy loop.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: one for loop per getter (15: getFees, getFullVaultTokenInfo, getFundingRates, getPairInfo ('while s < _14 / 2'), getPositions, getPrices, getStakingInfo, getTokenBalances, getTokenBalancesWithSupplies, getTokenSupply, getTotalBalance, getTotalStaked, getVaultTokenInfo, getVaultTokenInfoV2, getVestingInfo), all while. The 14 return-copy loops and getTokenSupply's message copy (311) are implicit (P7). P8: e.g. 'mem[x] = 0' then 'mem[x] = 0x18160ddd..' (273-274). All 26 ABI functions read.",
+  "summary": "Every source loop is found and the getters match the source; each array getter adds a second, implicit copy loop for its return value, and SafeMath messages stay half-decoded reverts with copy loops."
+}

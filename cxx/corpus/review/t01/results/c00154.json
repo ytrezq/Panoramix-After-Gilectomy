@@ -1,0 +1,47 @@
+{
+  "id": "c00154",
+  "abi_functions": 42,
+  "reviewed": 42,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 9, "P3": 2, "P6": 141, "P7": 124, "P8": 60},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "tryTransitionAccountingPeriod, removeBudget, setBudget, setPeriodDuration, deposit, newImmediatePayment, newScheduledPayment, executePayment, receiverExecutePayment, recoverToVault, _fallback (92 copies)",
+      "lines": "453-472, 491-510, 513-532, 737-756",
+      "decompiled": "_23 = mem[64] / mem[64] = mem[64] + 64 / mem[_23] = 19 / mem[_23 + 32] = 0x4d41544836345f4144445f4f5645... / if ...: mem[mem[64] + 36] = mem[_23] / _27 = mem[_23] / if 0 >= mem[_23]: revert ... / idx = 32 / while idx < _27: mem[idx + mem[64] + 68] = mem[_23 + idx + 32] ... / revert with Error(string reason), 32, mem[mem[64] + 36 len floor32(_27) + 64]",
+      "source": "SafeMath64.add: require(c >= _a, ERROR_ADD_OVERFLOW) with string private constant ERROR_ADD_OVERFLOW = \"MATH64_ADD_OVERFLOW\" (and every require(..., ERROR_X) of Finance)",
+      "issue": "The revert reason is a constant string whose length (19) and content are stored five lines above, yet each failing require prints a 15-line string-copy loop with tests on mem[_23] instead of revert with 'MATH64_ADD_OVERFLOW' (92 such loops; the same strings are folded elsewhere, e.g. line 191).",
+      "rule": "After '_t = mem[64]; mem[64] = _t + 64', mem[mem[64] + k] is mem[_t + 64 + k], disjoint from [_t, _t + 64): fold mem[_t] and mem[_t + 32] to the stored constants; the copy loop then has a constant trip count and the payload is Error(string) of the constant.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "removeBudget(address), setBudget(address,uint256)",
+      "lines": "608-725, 811-930",
+      "decompiled": "if uint64(block.timestamp) <= uint64(stor8[uint64(periodsLength - 1)].field_64): stor2[_token] = 0 ... log SetBudget(...); stop / s = sha3(...) / t = -1 / while uint64(t): ... if <timestamp <= endTime>: stor2[_token] = 0 ... log SetBudget(...); stop / s = sha3(_149, 8) / t = t - 1 / continue / revert FINANCE_COMPLETE_TRANSITION (as a copy loop)",
+      "source": "Finance.sol:763-780 while (timestamp > currentPeriod.endTime) { if (_maxTransitions == 0) return false; _maxTransitions -= 1; ... }, called with getMaxPeriodTransitions() = MAX_UINT64 by the transitionsPeriod modifier",
+      "issue": "Here the transition loop is rotated: its real condition (timestamp > endTime) is printed as an if before the loop and again at the end of the body, the counter test 'uint64(t)' becomes the while condition, and the rest of the function (budget writes and SetBudget) is printed twice. In tryTransitionAccountingPeriod the same loop reads 'while uint64(block.timestamp) > uint64(stor[s].field_64): if not uint64(t): return 0'.",
+      "rule": "Prefer as while condition the test that guards the loop entry and whose exit leads to the shared continuation; when an if before the loop and the last test of the body are the same condition with the same continuation, merge them into the while condition and print the continuation once after the loop.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "executePayment(uint256), receiverExecutePayment(uint256), newScheduledPayment(...)",
+      "lines": "4697-4760, 3399-3460, 2934-2980",
+      "decompiled": "s = 0 / while True: ... if payment[_paymentId].field_1216 >= uint64(payment[_paymentId].field_1152): _915 = 18446744073709551615 <= uint64(block.timestamp) and uint64(s) < 20 / if not _915: if uint64(s): stop ...",
+      "source": "Finance.sol:604 while (_nextPaymentTime(_paymentId) <= getTimestamp64() && paid < MAX_SCHEDULED_PAYMENTS_PER_TX) { ... }",
+      "issue": "The payment loop is found but printed as 'while True' with _nextPaymentTime's branches inlined into the exit tests (MAX_UINT64 <= now and paid < 20 in one arm, the time computation in the other), so the loop condition cannot be read off.",
+      "rule": "When every exit of a 'while True' is the failure of one condition that only depends on values computed at the top of the body, hoist that condition (a phi of the arms' conditions) into the while header.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 42 ABI functions reviewed (getters read; the payment and budget functions by structure: auth via kernel.hasPermission with the params array, transitionsPeriod, storage writes, NewPeriod/SetBudget/NewPayment/NewTransaction events). The 2 source loops are shown as whiles in every inlined copy (11 transition loops, 3 payment loops). Of the 139 whiles, 92 are the revert-reason copy loops of solc 0.4.24 (first finding), 32 other string/array memory copies and 1 copy of the ACL params array (P7). Dead scratch writes such as 'mem[0] = 0x4150505f...; mem[0] = address(_token)' are kept (P8). P6 is the Error(string) selector 0x08c379a0 printed with 63 digits.",
+  "summary": "Faithful, with both loops found, but readability is dominated by 92 revert-reason copy loops that should fold to constant strings, and the period-transition loop is rotated with duplicated tails in removeBudget/setBudget."
+}

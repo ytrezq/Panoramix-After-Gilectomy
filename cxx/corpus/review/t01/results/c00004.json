@@ -1,0 +1,50 @@
+{
+  "id": "c00004",
+  "abi_functions": 58,
+  "reviewed": 58,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {
+    "while": 11,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 6,
+    "P3": 11,
+    "P4": 8,
+    "P6": 45,
+    "P7": 15,
+    "P8": 195,
+    "P11": 10
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "fulfillRandomWords, getRandomnessFromProofExternal (unknownba2f7379 / unknown330987b3: VRF.fieldHash, hashToCurve, the proof hashes), and every Error(string) revert after the first allocation",
+      "lines": "1937-1946, 1995-2011; e.g. 1961-1969 (55 'revert with memory', 20 opaque sha3, 5 logs, 4 returns)",
+      "decompiled": "s = sha3(mem[_229 + 32 len mem[_229]]) / while s >= 0xffff...fffefffffc2f: _236 = mem[64]; mem[mem[64] + 32] = s; _237 = mem[64]; mem[mem[64]] = _236 - mem[64] + 32; mem[64] = _236 + 64; s = sha3(mem[_237 + 32 len mem[_237]])",
+      "source": "VRF.sol:203-205 while (x_ >= FIELD_SIZE) { x_ = uint256(keccak256(abi.encodePacked(x_))); } and hashToCurve's keccak256(abi.encodePacked(HASH_TO_CURVE_HASH_PREFIX, pk, input))",
+      "issue": "Because a store at mem[mem[64]] is assumed to possibly change mem[64], the length word of every abi.encodePacked buffer is kept symbolic, so the body of fieldHash's loop, which is x = keccak256(x), reads as a hash of an unknown memory range; the same holds for the hash-to-curve and proof hashes, the revert reasons ('bigModExp failure!', 'invalid x-ordinate'...) and 5 event payloads.",
+      "rule": "mem[64] >= 0x80 on every path, so a store at address mem[64] leaves mem[64] unchanged; then the length word folds to a constant and sha3(mem[p + 32 len 32]) with mem[p + 32] = s is sha3(s).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "migrate (0x405b84fa), getSubscription, getSubscriptionConfig, pendingRequestExists, removeConsumer, cancelSubscription, ownerCancelSubscription; VRF functions",
+      "lines": "1304-1315 (vs isTargetRegisteredExternal 166-172); e.g. 565, 630, 673; 1953-1955 vs 1938",
+      "decompiled": "if 0 >= stor19.length: revert with 0x5428d449, _to / mem[0] = 19 / _3 = sha3(19) / s = 0 / while -_to + address(stor[_3 + s]): if SafeMath.inc(s) >= stor19.length: revert ... ; mem[0] = 19; _3 = sha3(19); s = SafeMath.inc(s)  |  while 32 * stor5[_param1].field_512 + 352 > idx + 32: mem[idx + 32] = ...  |  addmod(mulmod(s, mulmod(s, s, -4294968273), -4294968273), 7, -4294968273) vs while s >= 0xffff...fffefffffc2f",
+      "source": "VRFCoordinatorV2Plus.sol:626 isTargetRegistered (for i < s_migrationTargets.length: if (s_migrationTargets[i] == target) return true), inlined in migrate; s_subscriptionConfigs[subId].consumers copied to memory; VRF FIELD_SIZE",
+      "issue": "The same search loop is printed cleanly in isTargetRegisteredExternal but, inlined in migrate, as an inverted loop whose condition is a difference, with the array slot recomputed in the body (stor[_3 + s] instead of stor19[s]) and i++ checked twice; the consumers' storage-to-memory copies are rotated whiles (P3, 11); FIELD_SIZE is printed as -4294968273 in modular arithmetic and as 0xffff..fc2f in comparisons.",
+      "rule": "In a boolean context a - b is a != b; stor[sha3(slot) + i] is slot's array element i even when sha3(slot) sits in a temporary; a storage-to-memory word loop is a copy line; print a constant in one form (here the 2^256 - k form for moduli near 2^256 or always hex).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 58 ABI functions and the fallback reviewed; no semantic error found. The two VRF proof functions (fulfillRandomWords ~850 lines, getRandomnessFromProofExternal ~620) were reviewed by structure: the proving-key lookup, hashToCurve with its nested fieldHash loop and the bigModExp square root, the curve and ordinate checks, the scalar multiplication verifications through ecrecover, the commitment check, the numWords loop (randomWords[i] = keccak(randomness, i)), the payment computations and their reverts. Source loops (11): deregisterProvingKey, fulfillRandomWords' numWords loop, pendingRequestExists' nested loops, removeConsumer, isTargetRegistered, deregisterMigratableCoordinator, migrate's setCoordinator loop, getActiveSubscriptionIds, deleteSubscription, VRF.fieldHash and VRF.hashToCurve: all whiles (pendingRequestExists / deleteSubscription / isTargetRegistered also appear inlined in several functions). Implicit: the storage consumers copies (rotated whiles, P3), ABI encodings (15 plain copies, P7), the 2-word proof-key copies (while idx < 2). Test helpers (set*TestingOnlyXXX, computeRequestIdExternal, isTargetRegisteredExternal, getRandomnessFromProofExternal) are faithful.",
+  "summary": "Faithful, with all 11 source loops shown as whiles; the VRF code is hard to read because the free-memory-pointer aliasing assumption turns every abi.encodePacked hash (even fieldHash's x = keccak(x)) and every revert reason into opaque memory, and the inlined copy of isTargetRegistered prints as an inverted loop."
+}

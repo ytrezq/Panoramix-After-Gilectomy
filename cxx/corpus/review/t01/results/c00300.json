@@ -1,0 +1,45 @@
+{
+ "id": "c00300",
+ "abi_functions": 21,
+ "reviewed": 21,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P8": 2,
+  "P11": 1
+ },
+ "findings": [
+  {
+   "kind": "coverage",
+   "severity": "medium",
+   "function": "performNextStage()",
+   "lines": "68-82",
+   "decompiled": "assert stageActivationTime.length < stor1.length\nmem[0] = 1\n...  # Decompilation aborted, sorry: ('jump to a parameter computed at runtime', 864)",
+   "source": "BaseCoordinator.sol:101-103 _coordinatorStages[getCurrentStage()](); _advanceCurrentStage();",
+   "issue": "The call through the internal function pointer stored in _coordinatorStages (a JUMP to a value loaded from storage) aborts the function, so the text loses the whole stage: _firstStage (_setupNewGaugeAdder's grantRole/addGaugeType x7/setGaugeFactory x6/renounceRole calls and _deprecateOldGaugeAdder's revokeRole), then _advanceCurrentStage (push of block.timestamp, isComplete, _afterLastStage's renounceRole of DEFAULT_ADMIN_ROLE) and the nonReentrant exit.",
+   "rule": "When a jump target is a value read from storage and every store to that storage location in the contract writes a constant JUMPDEST (here only 1790, written by registerStages and performNextStage), decompile the jump as a dispatch over that finite set (one target: a direct call of the internal function at 1790).",
+   "verified": "pancxx disasm: 0x360 is the jump to the loaded pointer; 0x6fe (1790) is a JUMPDEST that calls 0x863 (_setupNewGaugeAdder) then 0x1679 (_deprecateOldGaugeAdder)"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "13 immutable getters, getAuthorizer(), getActionId(bytes4)",
+   "lines": "3-15, 40-55",
+   "decompiled": "const newGaugeAdder = 0 ... const polygonRootGaugeFactory = 0\nstatic call 0x0.getAuthorizer()\nreturn sha3(0, Bytes(4, selector >> 224))",
+   "source": "GaugeAdderMigrationCoordinator.sol immutables; SingletonAuthentication._vault, _actionIdDisambiguator",
+   "issue": "All immutables are 0 in this build: the 13 address getters are constants 0, getAuthorizer calls 0x0, and getActionId hashes a zero disambiguator.",
+   "rule": "none (build artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "solc 0.7.6 optimized, 84-line text. No source loops. nonReentrant's 'BAL#400' revert is rebuilt from the _revert assembly correctly; registerStages' push of the stage pointer (stor1 is the function()[] _coordinatorStages, uint64 elements, value 1790 = the _firstStage JUMPDEST), isComplete, getCurrentStage/getStagesLength and getStageActivationTime's bounds assert match the source. P8: mem[0] = 1 (keccak scratch for the array's data slot) printed twice in performNextStage; P11: assert stageActivationTime.length < stor1.length is implied by the preceding not-isComplete test and the non-empty stages array.",
+ "summary": "Correct where it decompiles, but the contract's only real operation, performNextStage's call through a stored internal function pointer, aborts, losing every governance call of the migration."
+}

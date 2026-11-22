@@ -1,0 +1,36 @@
+{
+  "id": "c00218",
+  "abi_functions": 21,
+  "reviewed": 21,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P3": 2, "P4": 4, "P6": 10, "P7": 14, "P8": 100, "P9": 5},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getAllowedPairs(), serialize()",
+      "lines": "85-101, 162-178",
+      "decompiled": "mem[0] = mem[32 * idx + 160] / mem[32] = 5 / _25 = sha3(mem[32 * idx + 160], 5) / mem[_26] = address(stor5[concat(mem[32 * idx + 160])].field_0) / mem[_26 + 32] = address(stor[_25 + 1]) / mem[_26 + 64] = address(stor[_25 + 2]) / if uint8(stor[_25 + 2].field_160) > 1: ...",
+      "source": "PendleRouterAdapter.sol:498-499 for (...) pairs[i] = _hashToPendlePair[allowedHashes[i]];",
+      "issue": "The copied struct's first member is printed as a mapping access with a one-element concat key (P4), but the other members of the same entry as raw stor[_25 + 1] / stor[_25 + 2]; the key itself is the memory copy of _allowedPairHashes (mem[32 * idx + 160]) instead of stor3[idx].",
+      "rule": "stor[sha3(k, S) + m] is member m of the struct mapping S[k]; print every member that way, and forward mem[160 + 32*idx] through the preceding storage-to-memory copy line to stor3[idx].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all swap/liquidity adapter functions and setPairStatusBatch",
+      "lines": "225, 248, 660 and the other 'static call 0x0' / 'call 0x0' lines",
+      "decompiled": "static call 0x0.creditFacade() ... static call 0x0.isConfigurator(address account)",
+      "source": "AbstractAdapter: address public immutable creditManager; ... ACLTrait.acl immutable",
+      "issue": "The creditManager/acl/targetContract immutables read as 0 in this pre-deployment code, so every adapter call targets address 0.",
+      "rule": "none (not a decompiler error)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 21 ABI functions compared: the 12 adapter functions by structure (creditFacade check, token-type/status checks, the router calldata built with abi.encodeCall shown inline as 'args 32, 740, Bytes(4, 0x60da0860), ...', the execute call and the safe-approve sequence), getAllowedPairs/serialize/setPairStatusBatch and the getters in full. No semantic error found (setPairStatusBatch's PT/LP branches, readTokens check, ptToMarket and EnumerableSet add/remove match). Loops: getAllowedPairs' for (also inlined in serialize) and setPairStatusBatch's for are readable whiles; _allowedPairHashes.values() is a storage-to-memory copy line. The other 17 whiles are implicit: 2 rotated new PendlePairStatus[] initialisations (P3), the struct-array encodings and the bytes copies of the router calldata (P7). P9: the leftover-amount arithmetic diff * rate distributed (-1 * a * b + b * c).",
+  "summary": "Faithful and fairly readable adapter text; the external calls target address 0 because of immutables, and mapping-of-struct members after the first print as raw stor[hash + k]."
+}

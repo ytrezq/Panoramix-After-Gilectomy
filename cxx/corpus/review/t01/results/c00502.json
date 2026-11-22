@@ -1,0 +1,36 @@
+{
+  "id": "c00502",
+  "abi_functions": 43,
+  "reviewed": 43,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {"while": 8, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P3": 14, "P4": 2, "P6": 1, "P7": 20, "P8": 30},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "sendRequestToProposed(uint64,bytes,uint16,uint32,bytes32) (getProposedContractById inlined)",
+      "lines": "1752-1765",
+      "decompiled": "if 0 >= stor13.length: revert with 0x80833e33, _param5 / mem[0] = 13 / _5 = sha3(13) / s = 0 / while _param5 - stor[_5 + uint8(s)]: if uint8(s) == 255: revert with Panic(17) / if uint8(uint8(s) + 1) >= stor13.length: revert with 0x80833e33, _param5 / mem[0] = 13 / _5 = sha3(13) / s = uint8(s) + 1",
+      "source": "FunctionsRouter.sol:490-495 for (uint8 i = 0; i < s_proposedContractSet.ids.length; ++i) { if (id == s_proposedContractSet.ids[i]) return s_proposedContractSet.to[i]; } revert RouteNotFound(id);",
+      "issue": "Inlined here, the search loop's condition is the 'not found' test, the index bound is a revert inside the body (peeled for i = 0 before the loop), the array element is raw stor[_5 + uint8(s)] with sha3(13) recomputed in every iteration; the same loop in getProposedContractById (68) reads 'while uint8(s) < stor13.length'.",
+      "rule": "Take the loop condition from the index test and keep the match as an exit ('if id == ids[s]: break'); print stor[sha3(slot) + i] as the array element slot[i] and hoist loop-invariant sha3(slot).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "pendingRequestExists, getSubscription, getConfig, getContractSetConfig (unknownbadc3eb6), removeConsumer, cancelSubscription, ownerCancelSubscription, sendRequest(ToProposed), getSubscriptionsInRange",
+      "lines": "e.g. 318, 367, 709, 1059, 1449",
+      "decompiled": "while 32 * stor3[subId].field_512 + 160 > idx + 32: (copy of subscription.consumers to memory, first element peeled)",
+      "source": "Subscription memory subscription = s_subscriptions[subscriptionId]; address[] memory consumers = ...",
+      "issue": "Every storage-to-memory copy of an address array is a rotated while over byte addresses (P3, 12 lines) instead of one copy line.",
+      "rule": "mem[d + 32 i] = stor[sha3(s) + i] for i < n is mem[d len 32 n] = stor[sha3(s) len n].",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (8): getProposedContractById's for (68; inlined in sendRequestToProposed, finding 1), getSubscriptionsInRange's for ('while idx <= uint64(-_param1 + _param2)'), _isExistingConsumer/pendingRequestExists' for ('while True' with returns), proposeContractsUpdate's for, removeConsumer's for, timeoutRequests' for, updateContracts' for, _cancelSubscriptionHelper's for (cancelSubscription, ownerCancelSubscription). The other ~33 whiles are implicit: storage-array copies (P3), ABI decoding of the proposal arrays and timeout commitments, array initialisation, and bytes/array copies (P7). fulfill (405 pack lines) reviewed by structure (callback call, events, storage writes); the rest line by line.",
+  "summary": "Faithful, with all eight source loops present; the inlined proposed-contract search is shaped around its match test with raw storage elements, and storage-array copies are rotated loops."
+}

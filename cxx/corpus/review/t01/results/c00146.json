@@ -1,0 +1,37 @@
+{
+  "id": "c00146",
+  "abi_functions": 36,
+  "reviewed": 36,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 3,
+    "P6": 2,
+    "P7": 12,
+    "P8": 12,
+    "P11": 6
+  },
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "computeBalance, computeInvariant, onSwap (and every function reading the vault or the E-CLP parameters)",
+      "lines": "189-215, 217-244, 455-495; 'if caller: revert with 0x089676d5, caller'",
+      "decompiled": "... if mem[160] + mem[192] <=′ 10000000000000000 * 10**18: revert with 0x0a0c22c7 / revert with 0x2da2a5e5   |   if caller: revert with 0x089676d5, caller",
+      "source": "GyroECLPPool: immutable _paramsAlpha/_paramsBeta/_paramsC/_paramsS/_paramsLambda and the derived tau/u/v/w/z/dSq; the Vault address is immutable (onlyVault); GyroECLPMath computations",
+      "issue": "solc immutables read as 0, so the E-CLP parameters are all zero and the math folds into an unconditional revert after the balance checks; the three core functions of the pool are bare reverts in this text and onSwap requires caller == 0.",
+      "rule": "none (expected for this corpus)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against GyroECLPPool.sol, GyroECLPMath, SignedFixedPoint and the Balancer v3 BalancerPoolToken base. All 36 ABI functions were read (1,012 lines). Because the E-CLP parameters are immutables (read as 0), computeBalance, computeInvariant and onSwap reduce to their input checks (array bounds, int256 conversion with SafeCastOverflowedUintToInt 0x24775e06, the signed-overflow test of x + y, the invariant bound) followed by an unconditional revert, so the GyroECLPMath code cannot be compared; the remaining functions (ERC-20 forwarding to the Vault, permit, getters of pool data from the Vault with their ABI decode/encode loops, EIP-712) are faithful. The pack lists no source loop in the reached code; the 22 whiles are ABI decode/encode loops (calldata/returndata arrays, P7 for the pure copies). No execution run.",
+  "summary": "Faithful, but most of the pool is lost to the artifact: with the immutable E-CLP parameters read as 0, computeBalance, computeInvariant and onSwap fold into unconditional reverts; the rest is plain Vault forwarding with ABI copy loops."
+}

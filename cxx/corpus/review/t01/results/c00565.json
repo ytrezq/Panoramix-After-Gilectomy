@@ -1,0 +1,36 @@
+{
+  "id": "c00565",
+  "abi_functions": 1,
+  "reviewed": 1,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 7,
+    "P6": 6,
+    "P7": 5,
+    "P8": 60
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "deployL2Contracts (unknownb1c7a870)",
+      "lines": "114-150 and similar blocks after each create2; 509, 569, 605, 725 (memory copies)",
+      "decompiled": "mem[ceil32(cd[_param1 + cd[_param1 + 164] + 4]) + cd[_param1 + cd[_param1 + 164] + 4] + 2694] = 0x946d9204... / mem[... + 2698] = 57005 / ... / call _3.initialize(address _pool, address[] _rewardTokens) with: args 57005, 64, 0  |  while idx < _224: mem[_223 + idx + 64] = mem[...]",
+      "source": "L2AtomicTokenBridgeFactory: UpgradeExecutor(logic).initialize(ADDRESS_DEAD, new address[](0)); executor.initialize(executor, [rollupOwner, aliasedL1UpgradeExecutor]); proxy creation code copied with abi.encodePacked before create2",
+      "issue": "Every call and create2 is preceded by its ABI buffer written word by word at addresses built from the calldata lengths (about 60 dead writes once the call shows its resolved arguments), the encodePacked creation-code copies stay while loops (P7), and initialize(address,address[]) carries parameter names from another contract (_pool, _rewardTokens) for UpgradeExecutor.initialize(admin, executors).",
+      "rule": "Drop memory stores whose only reader is a call or create whose arguments are printed resolved; a loop 'mem[d + i] = mem[s + i]' step 32 to n is a copy line.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against L2AtomicTokenBridgeFactory.sol (one external function, deployL2Contracts). The text (761 lines) was read in full: the CREATE2 deployments of the router, standard gateway, custom gateway, WETH gateway and upgrade executor with their proxies (creation code taken from the calldata, 'Create2: Failed on deploy' checks), ProxyAdmin.upgrade calls, the initialize calls with their arguments (UpgradeExecutor logic initialized with 0xdead and an empty array, the executor with its two executors), ownership transfers. The pack lists no source loop; the whiles are the fixed 2-element address[] encode and memory copies (P7). No execution run.",
+  "summary": "Faithful; one long deployment function whose create2 and initialize calls are resolved, with dead ABI-buffer stores and memory copies left as loops as the main clutter."
+}

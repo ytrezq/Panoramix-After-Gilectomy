@@ -1,0 +1,47 @@
+{
+ "id": "c00320",
+ "abi_functions": 7,
+ "reviewed": [
+  "all 7 ABI functions (pause, deploy, id, planned x2, drop x2)"
+ ],
+ "not_reviewed": [],
+ "source_loops": 1,
+ "loops_shown": {
+  "while": 1,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 1,
+  "P7": 2
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "drop(Plan[]) (unknown45a6ec8e)",
+   "lines": "129-146, 162-166",
+   "decompiled": "_15 = mem[64]; mem[mem[64]] = 0x162c7de3...; ... call 0x0 with: gas gas_remaining args mem[mem[64] len _15 + ceil32(_16) - mem[64] + 164] ... _24 = mem[64]; mem[mem[64]] = _20 + ceil32(_21) - mem[64] + 160; ... log 0x10bcdd59...: mem[_20 + ceil32(_21) + 192]",
+   "source": "drop(_plans[i].usr, _plans[i].tag, _plans[i].fax, _plans[i].eta); -> DsPauseLike(pause).drop(_usr, _tag, _fax, _eta); emit Drop(id(_usr, _tag, _fax, _eta));",
+   "issue": "In the loop the inlined pause.drop call is a raw call with argument memory and the Drop id is the hash of a raw memory range, while the four-argument drop() shows the same call as 'call 0x0.drop(usr, tag, 128, eta, ...)' and the id as 'sha3(usr, tag, 128, eta, ...)', because the buffers start at a copy of mem[64].",
+   "rule": "Treat a variable assigned mem[64] as equal to mem[64] until the next store to slot 64, then decode the call and the hashed abi.encode as for constant offsets.",
+   "verified": "by reading: _15 = mem[64] directly precedes the selector store; lines 98-100 and 106 show the decoded forms"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "planned x2, drop x2",
+   "lines": "3, 14, 74, 98, 143-144",
+   "decompiled": "const pause = 0; static call 0x0.plans(bytes32); call 0x0.drop(...)",
+   "source": "address public immutable pause;",
+   "issue": "solc immutable read as 0, so every DsPause call goes to 0x0.",
+   "rule": "Known artifact of immutables in runtime code; show them as named unknown constants rather than 0.",
+   "verified": "source declares pause immutable"
+  }
+ ],
+ "notes": "Source loop: Protego L128 (drop(Plan[]), text 116, 'while True' with stop). The two inner whiles copy the fax bytes (P7). deploy's CREATE with constructor arguments (this, usr, tag, fax, eta), id's abi.encode hash and both planned overloads match the source.",
+ "summary": "All 7 functions reviewed; the single source loop is a while and the semantics match. In the batch drop the pause.drop call and the Drop id are raw memory (free-pointer aliasing), unlike the single drop; the pause immutable reads as 0."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "c00421",
+  "abi_functions": 46,
+  "reviewed": 46,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 16, "P3": 2, "P6": 8, "P7": 14, "P9": 3},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "migrate(uint256,address) (and the consumer/target searches using raw slots)",
+      "lines": "826-833, 171-175, 529-540",
+      "decompiled": "while -_to + address(stor[_3 + s]): if SafeMath.inc(s) >= stor17.length: ... ; if uint64(stor4[address(stor[idx + sha3(sha3(_param1, 5) + 2)])]...",
+      "source": "VRFCoordinatorV2_5._isTargetRegistered: for (i < s_migrationTargets.length) if (s_migrationTargets[i] == target) return true; and the s_subscriptionConfigs[subId].consumers loops",
+      "issue": "The target search is rotated with its condition written as a difference (`-_to + address(...)` for `!=`), and array elements are read through raw slots `stor[_3 + s]` / `stor[idx + sha3(sha3(id, 5) + 2)]` although the same arrays are named `stor17` and `stor5[id].field_512` (its length) in the neighbouring lines.",
+      "rule": "Print a difference used as a truth value as `!=`; recognise `sha3(slot_of(array)) + i` as `array[i]` when slot_of(array) is a known variable or struct member (`stor17[s]`, `stor5[id].consumers[idx]`).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "fulfillRandomWords (unknown301f42e9)",
+      "lines": "1665",
+      "decompiled": "_459 = SafeMath.div(35584 * _364 * (_372 % 268435456) + 2224 * _380 * uint32(_384) + 256 * calldata.size * _364 * (_372 % 268435456) + 16 * callda...",
+      "source": "OptimismL1Fees._getL1CostWeiForCalldata: local calldata-gas cost mode ((calldata size + padding) * 16 * fee scalars ...)",
+      "issue": "The L1 calldata cost is distributed over the size terms (P9), so `(calldata.size + K) * 16 * ...` appears as several unrelated products of constants.",
+      "rule": "Don't distribute a product over a sum; factor common factors back when printing.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "fulfillRandomWords (unknown301f42e9, ~800 lines) and migrate reviewed by structure; the other 44 functions fully. Source loops (11), all whiles: pendingRequestExists (`while idx < stor5[_param1].field_512`), _isTargetRegistered (in registerMigratableCoordinator and migrate, the latter rotated), deregisterMigratableCoordinator, deregisterProvingKey, getActiveSubscriptionIds, removeConsumer, _deleteSubscription (`while s < t`, 3 copies), migrate's consumer loop, fulfillRandomWords' numWords loop, VRF._fieldHash (`while s >= 0xffff...`), VRF._hashToCurve (`while addmod(mulmod(...)) ...` = !_isOnCurve). Not counted: GasPriceOracle._getCalldataGas and the 6 Yul loops of LibZip.flzCompress listed in the pack as reached; they belong to the OVM GasPriceOracle predeploy that this contract calls externally (`static call 0x420000000000000000000000000000000000000f`), so they are not in this bytecode; also a `for (sx,sy)` match inside a comment of VRF._projectiveECAdd. Implicit: `while idx < 2` copies of uint256[2] proof fields, bytes copies for the precompile calls and abi.encode (P7), and checked-exp helpers (`while u > 1`). No semantic error found.",
+  "summary": "Faithful, abort-free text with all 11 in-contract source loops shown as whiles (including the VRF hash-to-curve loops); readability suffers from raw slot arithmetic for array elements, a rotated search with a difference as its condition, and distributed fee arithmetic."
+}

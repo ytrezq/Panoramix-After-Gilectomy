@@ -1,0 +1,34 @@
+{
+ "id": "c00381",
+ "abi_functions": 5,
+ "reviewed": 5,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P8": 3,
+  "P18": 3
+ },
+ "findings": [
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "relay(address,bytes), l1Eid()",
+   "lines": "3, 59",
+   "decompiled": "const unknown8f879e44 = 0; _4 = caller == stor0 and not uint32(ext_call.return_data[0])",
+   "source": "L2GovernanceRelay.sol:30 uint32 immutable public l1Eid; :42 messageOrigin.srcEid == l1Eid",
+   "issue": "The l1Eid immutable reads as 0 in the pre-deployment bytecode, so the origin check becomes srcEid == 0.",
+   "rule": "Not a decompiler error (solc immutables before deployment).",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Sky L2GovernanceRelay (solc 0.8.22). No loop. file() (two bytes32 keys, sender-not-this check, File event) and relay() (messageAuth through l2Oapp.messageOrigin(), delegatecall, revert bubbling or 'delegatecall-error') are faithful. The MessageOrigin struct copy shows srcSender as `mem[ceil32(return_data.size) + 172 len 20]` rather than address(ext_call.return_data[32]) (P18).",
+ "summary": "Tiny, faithful relay text; only the immutable-as-zero artifact and a struct field read through a memory slice."
+}

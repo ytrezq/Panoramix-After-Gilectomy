@@ -1,0 +1,73 @@
+{
+  "id": "c00578",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {
+    "while": 5,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 411,
+    "P6": 140,
+    "P7": 21,
+    "P8": 4,
+    "P9": 38,
+    "P10": 30,
+    "P11": 10,
+    "P15": 60
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "doHardWork, withdrawAllToVault, withdrawToVault, emergencyExit (P2 root cause)",
+      "lines": "7217-7225 (doHardWork, first unresolved call); 6348-6351 (withdrawToVault); 411 lines in all",
+      "decompiled": "_15 = mem[64] / mem[64] = ceil32(return_data.size) + mem[64] / mem[_15 + ceil32(return_data.size)] = 0x70a08231... / static call address(stor8CDE) with: args mem[mem[64] len _15 + ceil32(return_data.size) - mem[64] + 36]   |   _1007 = mem[64] / mem[mem[64] + 32] = 0 / mem[mem[64]] = _1007 - mem[64] + 32",
+      "source": "AaveFoldStrategy.sol:97-99 IAToken(aToken()).balanceOf(address(this)).sub(...); :408 bytes memory userData = abi.encode(0)",
+      "issue": "Right after the text itself writes mem[64] = _15 + ceil32(return_data.size) (or reads _1007 = mem[64]), it cannot use that value, because the next write mem[_15 + ceil32(...)] / mem[mem[64] + 32] might alias the word at 64; so every later call loses its name and arguments (balanceOf(this) above) and lengths read as 'X - mem[64] + 36'. This one cause produces most of the 411 P2 lines of this contract.",
+      "rule": "Keep a lower bound on mem[64] by dataflow: when every store to mem[64] in the function is a constant >= 128 or mem[64] + k / ceil32(x) + mem[64] (k >= 0; no wrap, since a successful access below 2^64 bounds memory), then mem[64] >= 128 everywhere, a write to mem[mem[64] + k] (k >= 0) cannot alias mem[64..95], and reads of mem[64] fold through it.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "doHardWork, withdrawAllToVault, withdrawToVault, emergencyExit (_accrueFee, _depositWithFlashloan, _redeemWithFlashloan, _depositNoFlash)",
+      "lines": "4732-4734 (withdrawToVault _accrueFee); 4879-4883, 6358 (withdrawToVault); about 9040-9100 (doHardWork); 38 lines in all",
+      "decompiled": "if _69 + _91 + mem[_100] != (-1 * _23 * _69 - _23 * _91 - _23 * mem[_100] + _29 * _69 + _29 * _91 + _29 * mem[_100] - _69 * storedBalance - _91 * storedBalance - mem[_100] * storedBalance) / (-_23 + _29 - storedBalance) and -_23 + _29 - storedBalance: revert with Panic(17)  |  s = (_3489 * borrowTargetFactorNumerator - _3493 * borrowTargetFactorNumerator) / (stor4E92 - borrowTargetFactorNumerator)",
+      "source": "AaveFoldStrategy.sol:121-122 balanceIncrease = currentBalance().sub(storedBalance()); fee = balanceIncrease.mul(totalFeeNumerator()).div(feeDenominator());  :391-392 balance = supplied.sub(borrowed); borrowTarget = balance.mul(_borrowNum).div(_denom.sub(_borrowNum));",
+      "issue": "Products of differences and sums are distributed term by term ((a - b - c) * (x + y + z) as 9 products, (s - b) * B as s*B - b*B), in the overflow checks and in every later use (loop bounds, flash-loan amounts). The arithmetic is exact modulo 2^256, but the 'balance * factor' structure of the source is lost.",
+      "rule": "Do not distribute multiplication over addition when printing (or re-factor: a*c - b*c is (a - b)*c, and a sum of all products of two sums is their product); prefer the form whose factors already appear as subexpressions (here SafeMath.sub(_29, _23) and the checked sum _69 + _91 + mem[_100]).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "about 40 functions (every getter of an address returned by a call, the restricted modifier, Address/SafeERC20 code)",
+      "lines": "e.g. 348-349 (universalLiquidator), 448 (scheduleUpgrade), 576 and 588 (totalFeeNumerator), 805-806 (initializeBaseStrategy), 520 (isRewardToken); 156 lines",
+      "decompiled": "require ext_call.return_data[0] == ext_call.return_data[12 len 20] / return Bytes(12, 0), ext_call.return_data[12 len 20]  |  if mem[32 * s + 172 len 20] != _token",
+      "source": "BaseUpgradeableStrategyStorage.sol:192-194 return IController(controller()).universalLiquidator();",
+      "issue": "The low 20 bytes of an aligned word are printed as a 12..32 byte slice, while the same check elsewhere in the same function prints address(ext_call.return_data[0]).",
+      "rule": "A slice w[12 len 20] of an aligned 32-byte word w is address(w); Bytes(12, 0) ++ w[12 len 20] is address(w) as a word; mem[a + 12 len 20] with a word-aligned a is address(mem[a]).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "doHardWork, withdrawAllToVault, withdrawToVault, emergencyExit, isRewardToken, rewardTokens()",
+      "lines": "e.g. 6343, 6347 (withdrawToVault); 503, 533; 24 lines",
+      "decompiled": "mem[_1003 + ceil32(return_data.size) + 32] = cd[calldata.size]  |  mem[160 len 32 * stor4541] = call.data[calldata.size len 32 * stor4541]",
+      "source": "AaveFoldStrategy.sol:440-441 address[] memory tokens = new address[](1); uint256[] memory amounts = new uint256[](1);",
+      "issue": "The zero-initialisation of a new memory array (a CALLDATACOPY from offset calldatasize) is printed as a calldata read instead of zeros.",
+      "rule": "Calldata bytes at offsets >= calldata.size are zero: cd[calldata.size + k] (k >= 0) is 0 and call.data[calldata.size len n] is Bytes(n, 0).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 66 ABI functions and the fallback (receive: 'require calldata.size < 4' then 'require not calldata.size', exact; the first check is implied by the second) reviewed; the 50 getters/setters/initializers in full, doHardWork (3,000 lines), withdrawAllToVault, withdrawToVault (2,600 lines each), emergencyExit and receiveFlashLoan by structure (control flow, loops, calls, storage writes, events, reverts) plus a detailed check of _accrueFee, the restricted/updateSupplyInTheEnd modifiers (the early return of withdrawToVault keeps the supplied/borrowed updates and skips _updateStoredBalance, as in the source), _redeemWithFlashloan/_redeemNoFlash (the target 0 is folded: 'while u > 0'), _depositWithFlashloan's checked mul/div, receiveFlashLoan's guards, salvage/SafeERC20. No semantic error found. Verified by disassembly that totalFeeNumerator's order profitSharing -> platform -> strategist (reverse of the source text) is the bytecode's order (pc 0x1d6a calls 0x1d26, 0xd3c, 0x9e7). Loops: the 5 source loops (_depositNoFlash while, _liquidateReward for, _redeemNoFlash while, getAddressArray for, _isAddressInList for) are readable whiles in every copy (34 text whiles: 13 copies of source loops, 21 implicit ABI-encoding copies of memory arrays left as whiles (P7: claimAllRewards' assets, flashLoan's tokens/amounts, rewardTokens() return), receiveFlashLoan's decode loop with per-element address check). Other things: the initializer modifier is printed on 'stor0' as one uint16 ('stor0 / 256', 'uint8(stor0)', 'stor0 = 257', 'uint8(stor0.field_8) = 0') instead of the two bools _initialized/_initializing (P15), with flag temporaries '_4 = 0 / else: _2 = stor0 / 256; stor0 = 257; _4 = not _2' (P10); checks implied by a dominating one (array bound inside 'while s < stor4541', the repeated mul-overflow check of balance * borrowTarget, 'total - fee > total' after 'total > fee'); dead keccak scratch writes 'mem[0] = 4', 'mem[32] = 5'. Parameter names of initialize(6 x address) come from another contract in the signature database (normal). isAToken is 'stor5' and unknownd7102067 (signature unknown, normal).",
+  "summary": "Faithful on every path checked, with all source loops as readable whiles; readability suffers from the free-memory-pointer aliasing that leaves 411 call lines as raw memory (P2), 21 ABI array copies left as whiles, products distributed into long polynomials in the fee and borrow-target arithmetic, and address words printed as 12..32 byte slices."
+}

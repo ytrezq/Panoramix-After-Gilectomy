@@ -1,0 +1,25 @@
+{
+  "id": "c00116",
+  "abi_functions": 5,
+  "reviewed": 5,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P8": 4},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "deployAllowedTokensRegistry(address,address[],address[]) (unknown5d0de0e4), deployAllowedRecipientsRegistry(...) (unknown7c0fc818)",
+      "lines": "107, and the log of unknown7c0fc818",
+      "decompiled": "log 0x168dbdc9...: _param1, Array(len=cd[_param2 + 4], data=mem[256 len 32 * cd[_param2 + 4]], cd[_param3 + 4], mem[32 * cd[_param2 + 4] + 288 len 32 * cd[_param3 + 4]]), 32 * cd[_param2 + 4] + 128, indexed caller, indexed create.new_address",
+      "source": "AllowedRecipientsFactory.sol: emit AllowedTokensRegistryDeployed(msg.sender, registry, _defaultAdmin, _addTokensToAllowedListRoleHolders, _removeTokensFromAllowedListRoleHolders)",
+      "issue": "The event data (admin, offset 96, offset 32 * n1 + 128, n1, tokens1, n2, tokens2 in memory order) is printed with the second array's length and elements inside the first Array(...) and the second head offset after it, so a reader cannot match it to (admin, address[], address[]); text_check agrees with execution, so only the presentation is wrong.",
+      "rule": "When log or return data is a standard ABI encoding of several dynamic values, print it as the decoded tuple (admin, Array(n1, ...), Array(n2, ...)); otherwise print its words in memory order without nesting one array inside another.",
+      "verified": "text_check run --per-selector 16: 0 differences, 17 calls with events"
+    }
+  ],
+  "notes": "No loop in the source. The 12 whiles are the validated ABI encodings of the address[] calldata parameters, once into the constructor arguments of the deployed registry (after the creation code copied from code.data) and once into the event data ('require cd[s] == address(cd[s]); mem[t] = address(cd[s])'); they are implicit and readable. The three single-address deployers (deployAddAllowedRecipient, deployRemoveAllowedRecipient, deployTopUpAllowedRecipients) are simple creates with constructor arguments and events; all faithful.",
+  "summary": "Faithful factory text without source loops; its loops are validated ABI encodings, and the deployment event's data with two dynamic arrays is printed in a misleading nested form."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "c00306",
+  "abi_functions": 20,
+  "reviewed": 20,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P8": 3, "P11": 1, "P15": 2},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "initialize()",
+      "lines": "14-16, 118-133",
+      "decompiled": "storF0C5 is uint8 at storage 0xf0c57e16...6a00 / storF0C5_8 is uint56 at storage 0xf0c5... offset 8 / ... _1 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64 / ... storF0C5 = 1 / storF0C5_8 = 0",
+      "source": "OpenZeppelin Initializable (namespaced storage at 0xf0c57e16...6a00): uint64 _initialized; bool _initializing; initializer: $._initialized = 1",
+      "issue": "The read of the uint64 _initialized prints its slot as a multiple of 3600 (P1 applied to a storage slot), so it is not recognised as the slot def storage names storF0C5; and the uint64 field is split into storF0C5 (uint8) and storF0C5_8 (uint56), so '$._initialized = 1' prints as two stores (P15).",
+      "rule": "Never factor a time unit out of a storage slot constant (or any 32-byte constant used as an address); derive packed-field widths from all accesses of the slot (the read uint64(stor[s]) shows one 64-bit field at offset 0), and print a store of a constant to adjacent masks of one field as a single field store.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "proxiableUUID, upgradeToAndCall (UUPS __self), finalizeBridgeERC20 (messenger, otherBridge), bridgeERC20 / bridgeERC20To",
+      "lines": "3-6, 43-46, 155-166, 197-200",
+      "decompiled": "const messenger = 0 / const otherBridge = 0 / if this.address: revert with 0xe07c8dba / if caller: _2 = 0 else: ... _2 = not address(ext_call.return_data[0]) / call 0x0.sendMessage(...)",
+      "source": "L1TokenBridge immutables otherBridge, messenger; UUPSUpgradeable __self",
+      "issue": "solc immutables read as 0, so the onlyOtherBridge and UUPS context checks compare with 0.",
+      "rule": "none (pre-deployment bytecode)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loops in the source. All functions read: wards/rely/deny/file/close, registerToken, initialize (OZ initializer flow is right: InvalidInitialization condition, the _initializing flag set and cleared, Initialized(1); the 'if not storF0C5_64: revert NotInitializing' right after setting it is dead, P11), bridgeERC20 (EOA check, isOpen, token mapping, transferFrom to escrow, sendMessage with the encodeCall of finalizeBridgeERC20 spelled out as flat words), bridgeERC20To, finalizeBridgeERC20 (transferFrom from escrow), upgradeToAndCall (dead keccak-scratch stores kept, P8). Events with unknown topics print as raw hashes.",
+  "summary": "Small, loop-free and faithful; the notable defect is the Initializable slot printed as 'K * 3600' with its uint64 field split in two, plus immutables read as 0."
+}

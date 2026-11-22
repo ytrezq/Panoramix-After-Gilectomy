@@ -1,0 +1,25 @@
+{
+  "id": "c00155",
+  "abi_functions": 31,
+  "reviewed": 31,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 68, "P6": 17, "P8": 200, "P10": 6},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "setPsm(address) and the other admin / fund / withdraw functions (onlyProtocolAdmins' operationalAdmin call, ERC20Helper calls)",
+      "lines": "1143-1207 (setPsm); 457-465",
+      "decompiled": "_46 = mem[64] / mem[64] = ceil32(return_data.size) + mem[64] / ... if mem[_46 + 12 len 20] != fundsAsset: mem[_46 + ceil32(return_data.size)] = 0x8c379a0...; mem[... + 68] = 0x4d53533a5350534d3a494e56414c49445f47454d...; revert with memory from mem[64] len _46 + ceil32(return_data.size) - mem[64] + 100 / mem[_46 + ceil32(return_data.size)] = 0x4cf282fb...; static call _param1 with: args mem[mem[64] len _46 + ceil32(return_data.size) - mem[64] + 4]",
+      "source": "MapleSkyStrategy.sol:144-147 require(IPSMLike(newPsm_).gem() == fundsAsset_, \"MSS:SPSM:INVALID_GEM\"); require(IPSMLike(newPsm_).usds() == usds_, \"MSS:SPSM:INVALID_USDS\"); require(IGlobalsLike(globals()).isInstanceOf(\"PSM\", newPsm_), \"MSS:SPSM:INVALID_PSM\")",
+      "issue": "In this unoptimised build every call buffer and revert payload starts exactly at the value just stored into mem[64], yet '_46 + ceil32(return_data.size) - mem[64]' is not folded to 0 one line after 'mem[64] = ceil32(return_data.size) + mem[64]'; so usds(), mapleGlobals(), isInstanceOf('PSM', newPsm_) and operationalAdmin() lose their names and arguments, and the three require messages are visible only as hex words. The first call of each chain (gem(), at mem[mem[64]]) is decoded.",
+      "rule": "This is the simplest form of the P2 root cause: after 'mem[64] = e' and no other store to word 64, a read of mem[64] is e; folding it gives constant offsets from _46 and lets the existing call / Error(string) decoding apply.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Unoptimised build (optimizer off), no loops in the source or in the text. All 31 functions were reviewed: the getters and globals lookups in full, the admin functions (deactivateStrategy, setPsm, setStrategyFeeRate, impair / reactivate), fundStrategy (0x11a5ffad), withdrawFromStrategy and the upgrade / migrate path by structure: nonReentrant (locked 1 / 2), whenProtocolNotPaused (isFunctionPaused(msg.sig), printed with call.func_hash), onlyProtocolAdmins (poolDelegate, governor, operationalAdmin), the StrategyState enum check (Panic(33) for > 2), the PSM / savings-USDS calls, approvals and events; all correct. The storage block leaves savingsUsds, lastRecordedTotalAssets, strategyFeeRate and strategyState as stor5..stor9 (their getters are not in the signature database). Selectors stored as 4-byte slices print in decimal (157198259 = approve).",
+  "summary": "Faithful and loop-free; readability is dominated by the free-memory-pointer problem in its simplest form (68 P2 lines and require messages left as raw memory)."
+}

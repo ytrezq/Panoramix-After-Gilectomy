@@ -1,0 +1,47 @@
+{
+  "id": "c00156",
+  "abi_functions": 51,
+  "reviewed": 51,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {"while": 8, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 41, "P4": 9, "P6": 31, "P7": 40, "P8": 153, "P11": 30, "P13": 1},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "calcPrice, getBuyPrice (unknownc157253d), getSellPrice (unknown9477d85d), buyKeys/publishAndBuyKeys (unknownd00b328e, unknown7df83ee2), sellKeys (unknowna792b201)",
+      "lines": "327-341; 1028-1066; 1379-1421",
+      "decompiled": "return -1 * _1 * stor460 + (-_tokenId - _count + _tokenId * _tokenId + 2 * _tokenId * _count + _count * _count) / 2 * stor460  |  _9 = (-1 * _2 * protocolFeeRatio * stor460 + (-_param2 + _param2 * _param2 + 2 * _param2 * exists[_param1] + ...) / 2 * protocolFeeRatio * stor460) / 10000",
+      "source": "FansCreateCoreUpgradeable.calcPrice: sum2 = ((supply + amount - 1) * (supply + amount)) / 2; (sum2 - sum1) * priceCoefficient(); _getPriceInfo: protoFee = (price * protocolFeeRatio) / FEE_RATIO_DENOMINATOR ...",
+      "issue": "The bonding-curve products are distributed into polynomials and price is never bound, so every fee and every overflow check repeats the whole expanded price (lines of 400-1,000 characters); the formulas cannot be matched to the source by eye.",
+      "rule": "Do not distribute a product over a sum (both forms are exact modulo 2^256); bind a composite value used more than twice (price, sum2) to a temporary at its first evaluation.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "def storage; totalSupply(uint256), exists(uint256), all price functions",
+      "lines": "16; 68-70; 105-107",
+      "decompiled": "exists is mapping of uint256 at storage 301  |  def exists(uint256 id): return bool(exists[id])  |  def totalSupply(uint256 id): return exists[id]",
+      "source": "ERC1155SupplyUpgradeable: mapping(uint256 => uint256) private _totalSupply; exists(id) returns totalSupply(id) > 0",
+      "issue": "The supply mapping is named after exists(), whose result is a bool of it, instead of totalSupply(), which returns it unchanged; price formulas then read 'exists[_param1] * exists[_param1]'.",
+      "rule": "When several getters read a variable, name it after one that returns it unchanged, not one that returns a function of it (bool(x), x > 0).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "migrateBatchMint (unknownbc81829f), migrateBatchBurn (unknown6d3839bb)",
+      "lines": "1094-1131; 1449-1486",
+      "decompiled": "while True: / if s >= cd[_param1 + 4]: <end of function> / ... / while t < _76: if t >= mem[_41]: ...",
+      "source": "FansCreateCoreUpgradeable.sol:492, 507 for (i < to.length) _mint(...) / _burn(...)",
+      "issue": "The batch loops are 'while True' with the bound test and the function's end inside the body.",
+      "rule": "'while True: if c: <tail> ...' is 'while not c: ...' followed by <tail>.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "51 ABI functions plus the fallback reviewed. The pack has no source for any function ('no source definition found in the AST') and its storage layout stops at slot 457 while the text uses paymentToken/_priceCoefficient at 459/460; reviewed against FansCreateERC20Upgradeable.sol, FansCreateCoreUpgradeable.sol and OZ ERC1155(Supply)Upgradeable directly. buyKeys/publishAndBuyKeys/sellKeys reviewed by structure (signature check, price, payIn/payOut through SafeERC20, mint/burn, fee payouts). Loops: 8 explicit, all whiles: Strings.toHexString (onlyRole reverts, 2 copies per function), migrateBatchPublish, migrateBatchMint and migrateBatchBurn ('while True'), balanceOfBatch, _safeBatchTransferFrom, ERC1155Supply's mint and burn supply loops (inlined in mint/burn/transfer paths, over singleton arrays where _asSingletonArray is used). Implicit: decodes, ~40 copies (SafeERC20 call data and revert-message copies, P7). P11: toHexString's 'idx >= 42/66' bounds tests and the singleton 'if s >= 1' checks. No semantic error found (the distributed price arithmetic is exact modulo 2^256 and keeps all overflow checks).",
+  "summary": "Faithful with all 8 loops present, but the bonding-curve price is printed as repeated expanded polynomials, the supply mapping is misnamed 'exists', and the batch migration loops are rotated."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "c00265",
+  "abi_functions": 23,
+  "reviewed": 23,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P8": 4, "P10": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "DOMAIN_SEPARATOR(), permit(...)",
+      "lines": "176-178, 282-284, 292-296",
+      "decompiled": "if not uint1(name): mem[128] = 256 * name.field_8 / _5 = _1 * bool(_1) + 128  |  signer = ecrecover(_24, v, r, s) ... _28 = mem[718 len 20] == owner and bool(owner)",
+      "source": "ERC20.sol DOMAIN_SEPARATOR: keccak256(bytes(name)); permit: address recoveredAddress = ecrecover(digest, v, r, s); require(recoveredAddress == owner && owner != address(0), 'ERC20:P:INVALID_SIGNATURE')",
+      "issue": "Small leftovers: 'x * bool(x)' is not folded to x, the short-string case reads the slot as '256 * name.field_8' (the slot without its length byte), and the recovered address is compared through its memory copy although it was just named signer.",
+      "rule": "x * bool(x) = x; '256 * (s >> 8)' is 's & ~0xff'; after 'signer = ecrecover(...)' whose result is copied to memory, a read of that copy (mem[718 len 20]) is address(signer).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Unoptimised MapleToken (ERC20 with permit and module-based mint / burn), 23 functions, all reviewed in full; no loops in the source or the text. Transfers, allowances (with the infinite-allowance shortcut), mint / burn by modules, the governor-scheduled addModule / removeModule calls to globals (isValidScheduledCall / unscheduleCall with msg.data), DOMAIN_SEPARATOR and permit (deadline, malleability check, nonce, ecrecover) are all correct.",
+  "summary": "A clean, faithful, loop-free text with only cosmetic simplifications left."
+}

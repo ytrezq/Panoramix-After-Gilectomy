@@ -1,0 +1,36 @@
+{
+  "id": "c00482",
+  "abi_functions": 24,
+  "reviewed": 24,
+  "not_reviewed": [],
+  "source_loops": 13,
+  "loops_shown": {"while": 13, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 88, "P3": 8, "P6": 22, "P7": 10, "P8": 300, "P11": 20, "P14": 150, "P18": 100},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getSafetyRatioWithLtvZeroFallback, getLoanData, getLoanDataArr (inlined user-config walk)",
+      "lines": "2788-2816",
+      "decompiled": "while True: if not mem[_6 + 96]: _352 = u and s / u ... / mem[_6 + 160] = 2 == Mask(1, 1, mem[_6 + 96]); mem[_6 + 128] = mem[_6 + 96] % 2; mem[_6 + 96] = mem[_6 + 96] / 4",
+      "source": "AaveV3View.sol:121 while (vars.cachedUserCfg != 0) { ... vars.cachedUserCfg >>= 2; }",
+      "issue": "The loop's variables live in a memory struct (vars.cachedUserCfg as mem[_6 + 96]), so the test becomes 'while True: if not mem[_6 + 96]: ... return'; and 'u and s / u' is the value-'and' of c00410 (s / u if u != 0 else 0).",
+      "rule": "Promote memory words written and read only by this function (a non-escaping memory struct) to named locals; then the loop test reads 'while cachedUserCfg != 0'. Print 'a and b' with non-boolean b as 'b if a else 0'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getAllEmodes",
+      "lines": "1094-1108, 1276-1288",
+      "decompiled": "mem[160] = 8352 / s = 160 / idx = 256 / while idx - 1: ... / if uint8(uint8(t) + 1) <= 2:",
+      "source": "AaveV3View.sol:365 new DataTypes.EModeCategoryNew[](256); :374-376 ++missCounter; if (missCounter > 2) break;",
+      "issue": "The zero-initialisation of the 256 struct pointers is rotated (P3, 8 such loops in the contract) and the uint8 counter keeps a double cast.",
+      "rule": "Recognise the allocation loop without peeling; uint8(uint8(x) + 1) is uint8(x + 1).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (13): getAdditionalUmbrellaStakingData :597, getAllEmodes :368 (uint8 i < 256: 'while True' with the uint8 overflow Panic(17) at 255 and the missCounter break - faithful), getApyAfterValuesEstimation :546, getCollFactors :227, getEOAApprovalsAndBalancesForAllTokens :616, getFullTokensInfo :352, getLoanData :453, getLoanDataArr :498, getRatios :210, getTokenBalances :245, getTokensInfo :268, the user-config walk :121, the rewards loop :692 - all while (inlined several times). Implicit loops: 6 checked-exp loops, 10 word copies (P7), 8 rotated struct-array zero-inits (P3), address[] decodes. Long view functions reviewed by structure. The address-decode checks and returned structs are byte slices and memory slices (P18) as in c00410. No semantic error found.",
+  "summary": "Complete and faithful; all 13 source loops are while loops, including the uint8 eMode scan with its overflow check. Readability is limited by memory-held structs (loop variables, results), raw-memory call arguments and rotated allocation loops."
+}

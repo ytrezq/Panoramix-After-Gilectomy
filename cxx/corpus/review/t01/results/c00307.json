@@ -1,0 +1,13 @@
+{
+  "id": "c00307",
+  "abi_functions": 21,
+  "reviewed": 21,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P7": 1, "P9": 8},
+  "findings": [],
+  "notes": "Socket plug Controller (21 functions), all reviewed in full: ownership (two-step), connector checks, the mint / burn limit bookkeeping (_consumeFullLimit / _consumePartLimit / _getCurrentLimit with the LimitParams fields lastUpdateTimestamp, ratePerSecond, maxLimit, lastUpdateLimit in order), deposit / receiveInbound (0x45183873) with the hook / exchange-rate calls, and updateLimitParams; all correct. Source loop: Controller.sol:76 updateLimitParams ('while idx < cd[_param1 + 4]', mint params in stor4, burn params in stor5); the second while (295) is the encode of the event's struct array. P9: '(block.timestamp - lastUpdateTimestamp) * ratePerSecond' is printed distributed ('block.timestamp * r - r * t0') in the limit computations (same rule as the c00037 finding).",
+  "summary": "A clean, faithful text; its one loop is shown well, with only the distributed rate product as a readability issue."
+}

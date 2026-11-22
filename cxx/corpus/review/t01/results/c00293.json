@@ -1,0 +1,25 @@
+{
+  "id": "c00293",
+  "abi_functions": 14,
+  "reviewed": 14,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P4": 8, "P6": 1, "P8": 30, "P11": 3, "P14": 6},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "balanceOf(uint256,address), withdrawFromStream, cancelStream (inlined balanceOf); createStream",
+      "lines": "102-105; 140-148",
+      "decompiled": "if stream[vaultId].field_0 > stream[vaultId].field_512: if -stream[vaultId].field_512 + stream[vaultId].field_0 > stream[vaultId].field_0: revert with Panic(17) / mem[416] = SafeMath.sub(...)  |  stream[nextStreamId].field_0 = deposit / stream[concat(mem[0])].field_256 = ... (8 lines)",
+      "source": "Collector.sol:178-180 if (stream.deposit > stream.remainingBalance) { vars.withdrawalAmount = stream.deposit - stream.remainingBalance; ... }; :272-282 _streams[streamId] = Stream({...})",
+      "issue": "The underflow check of 'deposit - remainingBalance' is kept although the enclosing test 'deposit > remainingBalance' implies it (P11), the local recipientBalance stays mem[416] (P14), and createStream writes the same struct through stream[nextStreamId] and then stream[concat(mem[0])] (P4).",
+      "rule": "'-b + a > a' is 'b > a' (checked a - b); under a dominating 'a > b' it is false; 'storN[concat(mem[0])]' with mem[0] = k is storN[k].",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Aave Collector (Sablier-like streams), 14 functions, no loops in the source or the text; all functions reviewed: initialize, setFundsAdmin, the funds-admin approve / transfer (ETH or SafeERC20), createStream (all requires and the struct fields in order: deposit, ratePerSecond, remainingBalance, start, stop, recipient, sender, token, isEntity), deltaOf, balanceOf, withdrawFromStream and cancelStream (with the inlined balanceOf and transfers), getStream; all correct. Parameter names come from the signature database (balanceOf(uint256 vaultId, address addr)), harmless here.",
+  "summary": "A clean, faithful, loop-free text with only minor simplifications missed (an implied underflow check, concat keys, a memory local)."
+}

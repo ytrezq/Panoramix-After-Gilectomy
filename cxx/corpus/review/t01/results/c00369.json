@@ -1,0 +1,13 @@
+{
+  "id": "c00369",
+  "abi_functions": 1,
+  "reviewed": 1,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [],
+  "notes": "solc 0.4.23. make() creates WETH9_ from code.data[314 len 2050], reverts with the creation's return data on failure, logs LogMake (raw topic, creator indexed, created as data) and returns the address, exactly as the source. No loops.",
+  "summary": "A 14-line text that is faithful and as simple as it can be."
+}

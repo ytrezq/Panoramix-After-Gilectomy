@@ -1,0 +1,25 @@
+{
+  "id": "c00343",
+  "abi_functions": 16,
+  "reviewed": 16,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P3": 2, "P4": 1, "P7": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setIPFS(string), setSha256sum(string)",
+      "lines": "178-190, 224-236",
+      "decompiled": "mem[ceil32(_ipfs.length) + 224] = mem[160]; idx = 32; while idx < _ipfs.length: mem[idx + ceil32(_ipfs.length) + 224] = mem[idx + 160]; idx = idx + 32",
+      "source": "ChainLog.sol: ipfs = _ipfs; emit UpdateIPFS(_ipfs); (same shape as setVersion)",
+      "issue": "The event's string copy is a rotated word loop (first word before the loop, P3/P7) in setIPFS and setSha256sum, while the identical copy in setVersion is printed as a single copy line, so the same source construct reads differently in three sibling functions.",
+      "rule": "Un-rotate a loop whose pre-header performs the first iteration, then recognise an element-wise memory-to-memory word copy as a copy line.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small solc-0.6.12 contract (239 lines); all 16 functions reviewed. No source loops; the two whiles are the implicit string copies above. Storage string writes are shown with copy lines, the short-string encoding `2 * len | 256 * mem[160 len 31]`, and the old-tail clear `stor[_11 len -_11 + max(_10, _11)] = 0`, all correct (the old length decode `(256 * (not _3) - 1 & _4) / 2` is solc 0.6's formula). setAddress/removeAddress (keys array with swap-and-pop, positions mapping) and the wards checks follow the source. No semantic error found.",
+  "summary": "Clean, faithful text without source loops; the only oddity is that one memory string copy is printed as a rotated while in two functions and as a copy line in their sibling."
+}

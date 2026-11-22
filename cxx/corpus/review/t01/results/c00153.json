@@ -1,0 +1,25 @@
+{
+  "id": "c00153",
+  "abi_functions": 48,
+  "reviewed": 48,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P6": 1, "P7": 7, "P8": 10, "P11": 3, "P18": 8},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "sendCredits(uint32,(uint32,uint64,uint64)[]), unknown203bd15f",
+      "lines": "673-697",
+      "decompiled": "while idx < s: _69 = mem[t]; mem[u] = Bytes(28, 0), mem[mem[t] + 28 len 4]; mem[u + 32] = Bytes(24, 0), mem[_69 + 56 len 8] ... / return mem[mem[64]], s, mem[mem[64] + 64 len 64 * s]",
+      "source": "StargateBase.sendCredits: emit CreditsSent(_dstEid, credits); return credits (TargetCredit[] / Credit[] memory)",
+      "issue": "The struct fields of the returned/emitted Credit[] are byte slices of memory (uint32 and uint64 members as 'Bytes(28, 0), mem[p + 28 len 4]'), and the return value is three memory slices (P18); the same encoding loop is printed twice, once for the event and once for the return.",
+      "rule": "Bytes(32 - n, 0), m[a + 32 - n len n] is uintN(m[a]); a returned dynamic array whose head is (32, length) prints as Array(len=s, data=...).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "via-IR build; many entry points (send, sendToken, quoteSend, lzReceive paths) reduce to reverts or short code because of zero immutables (token, endpoint, OFT config): artifact. Small functions line by line; receiveCredits, sendCredits, redeemSend (unknown203bd15f), recoverToken by structure. Source loops (2): receiveCredits' for (527) and sendCredits' for (631), both readable whiles with the overflow / unlimited-credit checks right. Implicit: the zero-initialisation of new Credit[](n) (619), the event / return encodings (541, 673, 688) and redeemSend's array handling (772-816): P7. No semantic problem found.",
+  "summary": "Short, complete and faithful; both source loops are clean whiles, with only struct fields of returned arrays shown as memory slices."
+}

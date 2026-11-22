@@ -1,0 +1,36 @@
+{
+  "id": "c00383",
+  "abi_functions": 3,
+  "reviewed": 3,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P8": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "transferOwnership(address,address)",
+      "lines": "13-17",
+      "decompiled": "call newOwner.transferOwnership(address newOwner) with: / gas gas_remaining / args Bytes(28, uint128(newOwnerWallet >> 32)), Bytes(4, uint32(newOwnerWallet))",
+      "source": "DelegateCallProxy.sol:27-28 bytes memory data = abi.encodeWithSignature(\"transferOwnership(address)\", _newOwner); (bool success, ) = _proxyAdmin.call(data);",
+      "issue": "The single address argument of the call is printed as two slices of the same value (28 bytes of newOwnerWallet >> 32, then its low 4 bytes), because the encoded word sits at an offset of 4 from a 32-byte boundary.",
+      "rule": "Adjacent argument slices Bytes(a, x >> 8b) followed by Bytes(b, Mask(8b, 0, x)) with a + b = 32 are the word x; print one argument x.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "transferOwnership, owner()",
+      "lines": "2, 11",
+      "decompiled": "const owner = 0 / if caller: revert with NotOwner()",
+      "source": "address public immutable owner; if (msg.sender != owner) revert NotOwner();",
+      "issue": "The immutable owner reads as 0 before deployment.",
+      "rule": "None needed.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Tiny proxy, read in full. executeDelegateCall: the bytes argument is copied to memory twice (the decoded _data and the call buffer); the call is printed directly from calldata ('args data[all]'), so the two memory copies are dead in the text (P8); the revert bubbling of 'result' and the bytes return are correct. No loops.",
+  "summary": "Faithful; the only oddity is one call argument printed as two slices of the same address, plus the zero immutable owner."
+}

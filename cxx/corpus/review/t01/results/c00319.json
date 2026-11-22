@@ -1,0 +1,25 @@
+{
+  "id": "c00319",
+  "abi_functions": 12,
+  "reviewed": 12,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P3": 3, "P5": 10, "P7": 4, "P14": 30},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "remove_relay(string)",
+      "lines": "202-232",
+      "decompiled": "stor3[mem[1120]].field_256 = stor3[SafeMath.sub(mem[5440], 1)].field_256; idx = 0; while idx + 1 != (_52 + 31) / 32: stor[idx + 100 * mem[1120] + 5] = stor[idx + 100 * mem[5440] - 95]; idx = idx + 1",
+      "source": "MEVBoostRelayAllowedList.vy remove_relay: self.relays[index] = self.relays[last_index] (struct with three strings, copied word by word)",
+      "issue": "Each storage-to-storage string copy is printed as a rotated word loop (first word before the loop, `while idx + 1 != n`, P3) instead of a copy line, three times; the locals (`index`, `i`, the length) live in memory slots `mem[1120]`, `mem[1152]`, `mem[5440]` (P14).",
+      "rule": "Un-rotate the loop and print an element-wise storage copy over consecutive slots as `stor[a len n] = stor[b len n]`; promote memory words that are only used as scalar temporaries to named variables.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Vyper 0.3.6; all 12 functions reviewed. The pack's loop regex misses Vyper loops; the only explicit loop is `for r in self.relays` in _find_relay, inlined in add_relay, remove_relay and get_relay_by_uri as `while True: ... if s + 1 != get_relays_amount: s = s + 1; continue; break`, readable. get_relays' `while True` is the implicit copy of the DynArray of structs for the return (P7), as are the three string copies in remove_relay. P5: 10 unused `copied = identity(...)` precompile copies (Vyper's memory copies). Checks (owner/manager, empty URI via `sha3(...) == sha3()`, 40-relay bound, version bump, events) follow the source. No semantic error found.",
+  "summary": "Faithful, abort-free text of a small Vyper contract; its one source loop is a clear while, with Vyper-specific noise: identity-precompile copies, memory-held locals and rotated storage string copy loops."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "c00360",
+  "abi_functions": 10,
+  "reviewed": 10,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P10": 2, "P12": 6, "P17": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setBreaker(address,uint256,uint256)",
+      "lines": "74-112",
+      "decompiled": "if caller != this.address: if owner != caller: ... if not _3: revert ... ; if level > 3: revert ...; call address(clip).file(...) ... else: if level > 3: revert ...; call address(clip).file(...)",
+      "source": "ClipperMom.setBreaker(...) external auth { require(level <= 3, ...); ClipLike(clip).file(\"stopped\", level); locked[clip] = add(block.timestamp, delay); emit SetBreaker(clip, level); }",
+      "issue": "The body after the `auth` check is printed in both arms of the authorization branch (P12) because the two paths of isAuthorized are not joined; RAY prints as `1000000000 * 10**18` in setPriceTolerance and tripBreaker.",
+      "rule": "Join the arms of a branch that converge on the same block with the same state and print the common tail once; print 10**k constants as `10**k`.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Tiny solc-0.6.12 contract (164 lines); all functions reviewed fully. No loops. tripBreaker matches the source (stopped < 2, lock time, spotter.ilks -> pip.peek()/peep(), `nxt < rmul(cur, tolerance)` with the DSMath mul overflow check as a two-armed if, file(\"stopped\", 2), SetBreaker). `const spotter = 0` and `static call 0x0.ilks(bytes32)` come from the immutable spotter (pre-deployment artifact). No semantic error found.",
+  "summary": "Clean and faithful; only a duplicated tail after the auth check and RAY printed as a product."
+}

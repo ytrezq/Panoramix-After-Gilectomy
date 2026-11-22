@@ -1,0 +1,36 @@
+{
+  "id": "c00128",
+  "abi_functions": 52,
+  "reviewed": 52,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 14, "P6": 30, "P8": 60, "P11": 46},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "every onlyRole function (23 functions, 46 loops of Strings.toHexString in the AccessControl revert message)",
+      "lines": "e.g. 344-361 (transferAdmin)",
+      "decompiled": "idx = 41 / s = caller / while idx > 1: if idx >= 42: revert with Panic(50) / mem[idx + 160 len 1] = byte(s % 16, 0x3031...) / idx = idx - 1 / s = s / 16",
+      "source": "Strings.sol:64 for (uint256 i = 2 * length + 1; i > 1; --i) { buffer[i] = _SYMBOLS[value & 0xf]; value >>= 4; }",
+      "issue": "The loop reads well, but each copy keeps the bounds check of buffer[i] although i starts at 2 * length + 1 = 41 (or 65), only decreases, and stays above 1, so 'idx >= 42' can never hold (46 dead Panic(50) branches).",
+      "rule": "An induction variable initialised to c and only decremented while it is > 1 lies in [2, c] inside the body; a test against a bound above c is false and its branch dead.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "every onlyRole function and hasRole (18 lines)",
+      "lines": "e.g. 338",
+      "decompiled": "if uint8(stor[sha3(caller, sha3(Bytes(64, 0)))]):",
+      "source": "AccessControl: _roles[role].members[account] (RoleData struct: mapping members at member 0) with role = DEFAULT_ADMIN_ROLE = 0",
+      "issue": "The role membership mapping inside the RoleData struct is printed as a raw keccak expression, with the zero role key as Bytes(64, 0) (key and slot both 0).",
+      "rule": "sha3(k2, sha3(k1, S) + m) is the mapping at member m of the struct at mapping S, key k1 (here m = 0): print stor0[0].field_0[caller] (or _roles[0].members[caller] when named).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (3, all whiles): Strings.toHexString's loop (46 readable renderings, two per onlyRole function: the account in 20 bytes and the role in 32 bytes, the second folded to '0' digits when the role is the constant 0), verifyRoute's for over route.addresses (1159, 2581, with the calldata address validation inside), _transferCollateral's for (2657). The 8 'while u > 1' are checked exponentiation helpers (10**decimals). The revert message is assembled nicely: 'AccessControl: account 0x', mem[162 len 40], ' is missing role 0x', mem[258 len 64]. The three mint/redeem functions (310, 507, 639 lines) were reviewed by structure (signature verification, limits per block, route check, collateral transfers), the role setters and getters by reading; faithful.",
+  "summary": "Faithful, fairly readable text with all three source loops found; the only issues are dead bounds checks in 46 copies of the hex-string loop and the raw form of the role mapping."
+}

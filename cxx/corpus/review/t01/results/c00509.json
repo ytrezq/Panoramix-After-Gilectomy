@@ -1,0 +1,36 @@
+{
+  "id": "c00509",
+  "abi_functions": 24,
+  "reviewed": 24,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 0, "P8": 60, "P11": 4, "P14": 30},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "closeSwapsUsdc, emergencyCloseSwapsUsdc and the 21 immutable getters",
+      "lines": "3-24, 57-69, 113-117",
+      "decompiled": "const unknownb444f9d2 = 0 (liquidationLegLimit) ... _5 = cd[_param1 + 4] <= 0 and cd[_param2 + 4] <= 0; if not _5: revert with 'IPOR_315' / static call 0x0.getAccruedIndex(uint256 calculateTimestamp, address asset) with: args block.timestamp, 0",
+      "source": "AmmCloseSwapServiceBaseV1.sol:303 require(swapIdsLength <= liquidationLegLimit, IPOR_315); :311 for (uint256 i; i != swapIdsLength; ) {...}; all configuration values are immutables",
+      "issue": "Every immutable reads as 0, so liquidationLegLimit = 0 accepts only empty swap lists: the closing loop (:311) and everything per swap is dead and the text is 236 lines (only the empty-list path, two oracle reads at address 0 and the return of two empty arrays). The loop is not counted.",
+      "rule": "None (not a decompiler error).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "emergencyCloseSwapsUsdc, closeSwapsUsdc",
+      "lines": "57-67, 113-114",
+      "decompiled": "_5 = cd[_param1 + 4] <= 0 and cd[_param2 + 4] <= 0 / if not _5: revert with 'IPOR_315' / ... / if cd[_param1 + 4] > 0: revert with 'IPOR_315' / ... / if cd[_param2 + 4] > 0: revert with 'IPOR_315'",
+      "source": "the leg-limit checks of _closeSwaps and of each _closeSwapsPerLeg",
+      "issue": "P11: the per-leg checks are implied by the first combined check; '<= 0' on an unsigned value is '== 0'.",
+      "rule": "Drop a check implied by a dominating one; print 'x <= 0' for unsigned x as 'x == 0' (or 'not x').",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loop AmmCloseSwapServiceBaseV1.sol:311 (closing each swap) is dead in this bytecode because liquidationLegLimit is an immutable read as 0 (artifact), so source_loops counts 0. All other ABI functions are immutable getters (const ... = 0) plus version = 2003 and getPoolConfiguration = Bytes(608, 0). The text is consistent with that bytecode. No semantic error found.",
+  "summary": "Short but faithful: with every immutable read as 0 only empty swap lists pass the leg limit, so the closing loop and per-swap logic are (correctly) absent; only implied repeated checks remain to simplify."
+}

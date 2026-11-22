@@ -1,0 +1,73 @@
+{
+  "id": "c00206",
+  "abi_functions": 41,
+  "reviewed": 41,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {
+    "while": 1,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 3,
+    "P3": 1,
+    "P6": 2,
+    "P7": 2,
+    "P8": 12,
+    "P10": 8,
+    "P12": 1,
+    "P17": 8
+  },
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "wipe (0xc3b6cb4b), wipeAll (0x6ddb4566), open (0x690e7c09), addFarm (0xaff7b07d)",
+      "lines": "121-127, 196-213, 315-394",
+      "decompiled": "def wipe(address daiJoin, uint256 cdp, uint256 wad): ... if not stor3[daiJoin][cdp]: revert with 'LockstakeEngine/invalid-urn' ... log 0x7c82d5b4..: wad, indexed daiJoin, indexed cdp  |  def open(uint256 tokenId)  |  def addFarm(address _lptoken)",
+      "source": "function wipe(address owner, uint256 index, uint256 wad); function wipeAll(address owner, uint256 index); function open(uint256 index); function addFarm(address farm)",
+      "issue": "The parameter names come from other contracts' functions with the same selectors in the signature database (DssProxyActions' wipe(daiJoin, cdp, wad), an NFT's tokenId, a farm's _lptoken), so the urn owner reads as 'daiJoin' and the urn index as 'cdp' or 'tokenId' in every access to ownerUrns and in the Wipe / Open events.",
+      "rule": "A selector database gives the types of a signature but not trustworthy parameter names when other contracts share the selector; print neutral names (_param1 ...) unless the names come from the contract's own ABI.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "selectVoteDelegate (0x0adfd1bf), multicall (0xac9650d8)",
+      "lines": "808-859, 701-732",
+      "decompiled": "mem[_18 + ceil32(return_data.size)] = 0xd9638d36.. / static call 0x0 with: args mem[mem[64] len _18 + ceil32(return_data.size) - mem[64] + 36] / .. _31 = mem[_24 + 64] / .. call jug with: args mem[mem[64] len _24 + ceil32(return_data.size) - mem[64] + 36] / if SafeMath.mul(_20, _31) >= SafeMath.mul(_21, mem[_41]): .. else: .. revert with memory from mem[64] len _41 + ceil32(return_data.size) - mem[64] + 100  |  delegate this.address with: args mem[mem[64] len _28 + cd[..] - mem[64]]",
+      "source": "(uint256 ink, uint256 art) = vat.urns(ilk, urn); if (art > 0 && voteDelegate != address(0)) { (,, uint256 spot,,) = vat.ilks(ilk); require(ink * spot >= art * jug.drip(ilk), 'LockstakeEngine/urn-unsafe'); }  |  (bool success, bytes memory result) = address(this).delegatecall(data[i]); if (result.length == 0) revert('multicall failed');",
+      "issue": "In selectVoteDelegate's safety check, vat.ilks(ilk) and jug.drip(ilk) are nameless calls on raw memory, ink, art, spot and the rate are memory reads (mem[_18], mem[_18 + 32], mem[_24 + 64], mem[_41]) and the 'urn-unsafe' message is a hex word in a raw-memory revert; multicall's delegatecall arguments and its 'multicall failed' revert are raw memory too. All because a store at mem[mem[64]] is assumed to possibly change mem[64].",
+      "rule": "mem[64] only ever holds 0x80 plus non-negative bounded sizes, so a store at mem[64] + k (k >= 0) never changes mem[64]; with that the calls get their selectors' names and arguments, the returned words are ext_call.return_data[k] and the revert prints its string.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "draw (0x7abdf250), wipeAll (0x6ddb4566), wipe",
+      "lines": "339-346, 371-373, 412-420",
+      "decompiled": "_13 = -1 * _1 * ext_call.return_data[32] and (_1 * ext_call.return_data[32] - 1) / (1000000000 * 10**18) + 1  |  if -1000000000 * 10**18 * _param4: ..",
+      "source": "function _divup(uint256 x, uint256 y) internal pure returns (uint256 z) { unchecked { z = x != 0 ? ((x - 1) / y) + 1 : 0; } }  with y = RAY",
+      "issue": "The test x != 0 of _divup is printed as the negation -x (-1 * art * rate, -1000000000 * 10**18 * wad), and RAY = 10**27 as 1000000000 * 10**18.",
+      "rule": "-x is non-zero exactly when x is, so print a negation used as a condition as x != 0 (or plain x); print a constant 10**27 as 10**27.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "vat, usds, usdsJoin, sky, lssky, ilk, fee, urnImplementation, voteDelegateFactory and every call to them",
+      "lines": "3-11, 202-203, 247-271, 281-307, 320-346, 444-484, 520-550",
+      "decompiled": "const vat = 0 / const fee = 0 / call 0x0.frob(bytes32 i, ..) with: args 0, .. / create contract with 0 wei code: Bytes(20, 0x3d602d80..), Bytes(20, 0), Bytes(15, 0x5af43d82..)",
+      "source": "VatLike public immutable vat; ... bytes32 public immutable ilk; uint256 public immutable fee; address public immutable urnImplementation;",
+      "issue": "The immutables read as 0: every vat / token / join call targets address 0 with ilk 0, the clone code embeds a zero implementation, and fee = 0 removes the fee burn of free and onRemove (burn = 0, freed = wad). Not a decompiler error.",
+      "rule": "None (corpus artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 41 ABI functions (9 constants) and the fallback reviewed; no semantic error found. The only source loop is multicall's (a while); implicit: the zero-initialisation of bytes[] results as a rotated count-down 'while idx - 1' (P3) and the encoding of the results with its inner copy (P7). onKick, onRemove, draw, wipe, wipeAll, lock, free, freeNoFee, selectFarm and selectVoteDelegate follow the source order of calls and checks (int256 overflow checks, auth, urn-in-auction, farm status Panic(33) checks). selectFarm and selectVoteDelegate read the vat.urns results through memory (mem[128], mem[_18]) because min(64, return_data.size) is not folded after the size check. Events print as hex topics (not in the decompiler's list).",
+  "summary": "Faithful; the problems are parameter names taken from other contracts (wipe's owner is 'daiJoin', open's index 'tokenId') and selectVoteDelegate's safety check whose vat.ilks / jug.drip calls and revert are raw memory."
+}

@@ -1,0 +1,58 @@
+{
+  "id": "c00027",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 34, "P4": 2, "P6": 4, "P7": 79, "P8": 60, "P11": 40, "P14": 30, "P18": 20},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "unknown73656f89(), updateProtocolFeePercentageCache() and every whenNotInVaultContext path",
+      "lines": "532-544, 2203-2220",
+      "decompiled": "mem[164] = 0 / mem[128] = 36 / mem[64] = 196 / mem[160] = 0xe8e3e84.. / idx = 0 / while idx < 36: mem[idx + 196] = mem[idx + 160]; idx = idx + 32 / mem[232] = 0 / static call 0x0 with: gas 10000 args mem[196 len 36]",
+      "source": "VaultReentrancyLib.ensureNotInVaultContext: address(vault).staticcall{gas: 10_000}(abi.encodeWithSelector(vault.manageUserBalance.selector, 0)); _require(revertData.length == 0, Errors.REENTRANCY)",
+      "issue": "Every address and the bound of this copy are constants and its source was written three lines above, yet it stays a while (P7), so the static call shows only 'args mem[196 len 36]' instead of manageUserBalance(...) with its zero argument.",
+      "rule": "A word-copy loop whose source, destination and bound are constants is the copy line mem[196 len 36] = mem[160 len 36] (plus the clearing of the tail); with constant contents the call buffer then decodes like any constant-address buffer.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getScalingFactors, getGradualWeightUpdateParams, getNormalizedWeights, updateWeightsGradually, setCircuitBreakers, queryJoin, queryExit, onJoinPool, onExitPool, onSwap (90 lines)",
+      "lines": "e.g. 6139-6153 (onSwap), 486-493, 2796-2810",
+      "decompiled": "_431 = _366 >= 10**18 or uint64(stor11[concat(Bytes(12, 0), mem[_311 + 32 * idx + ceil32(return_data.size) + 76 len 20])].field_0) == uint64(stor11[concat(Bytes(12, 0), mem[_311 + 32 * idx + ceil32(return_data.size) + 76 len 20])].field_64)  (the same key 8 times in 13 lines)",
+      "source": "ManagedPoolSettings.sol:298-300 _getNormalizedWeights: normalizedWeights[i] = _getNormalizedWeight(tokens[i], weightChangeProgress) -> _tokenState[token].getTokenWeight(...)",
+      "issue": "The mapping key tokens[i] is printed as 'concat(Bytes(12, 0), mem[... len 20])', a 12-byte zero glued to a 20-byte slice of the array element, and the whole mapping access is repeated in every use, so one line of source becomes 13 lines of 200 to 400 characters.",
+      "rule": "concat(Bytes(12, 0), x[a + 12 len 20]) is address(x[a]); a mapping access used more than twice in a block is bound to one temporary (here the slot word stor11[token]).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "onSwap(...,uint256[],uint256,uint256), every call to the Vault and the authorizer",
+      "lines": "301-327; 541, 557 and the other 'call 0x0' lines",
+      "decompiled": "if caller: revert with 'BAL#205' / ... / revert with 'BAL#402'  |  static call 0x0.getPoolTokenInfo(bytes32 poolId, address token) with: args 0, this.address",
+      "source": "BasePool immutables _vault, _poolId, pause window end",
+      "issue": "solc immutables read as 0 before deployment: the Vault and pool id are 0, so the general onSwap is reduced to reverts and Vault calls go to 0x0.",
+      "rule": "none (build artifact)",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "onSwap (both), onJoinPool, onExitPool, queryJoin, queryExit (32 lines)",
+      "lines": "e.g. 6131-6135, 6160-6164, 6186-6190",
+      "decompiled": "_369 = mem[64] / mem[mem[64]] = mem[_311 + ceil32(return_data.size) + 32] / mem[64] = mem[64] + 32 * mem[..] + 32 / if mem[..]: mem[_369 + 32 len 32 * mem[..]] = call.data[calldata.size len 32 * mem[..]]",
+      "source": "new uint256[](tokens.length)",
+      "issue": "The zero initialisation of a new array is shown as a copy from calldata at offset calldata.size, and the length is re-read from memory (tokens.length) at every use instead of once.",
+      "rule": "call.data[calldata.size len n] is n zero bytes: print 'mem[p len n] = 0' (or allocate a zeroed array); fold repeated reads of the same memory word with no store between them.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The pack is incomplete for this contract: it lacks the sources of NewBasePool, ScalingHelpers (_upscaleArray, _downscaleUpArray), ComposablePoolLib.prependZeroElement, InputHelpers and ManagedPool's private functions (_getCircuitBreakerStates, the join/exit-via-swap path), so loops were found in the corpus sources (pool-weighted/contracts/managed, pool-utils, solidity-utils). Loops of external libraries (ManagedPoolAddRemoveTokenLib, ManagedPoolAmmLib public functions, external WeightedMath, RecoveryModeHelper) and of the constructor (PoolRegistrationLib, ManagedPoolSettings:142) are not in this bytecode and are not counted. The 11 source loops are all whiles: _getNormalizedWeights (1746, 2796, ...), _scalingFactors (405, 6166, ...), getGradualWeightUpdateParams (486), updateWeightsGradually's token check (2770), _startGradualWeightChange (2819), setCircuitBreakers (3058), _getCircuitBreakerStates (6210), the find-token loop with break of the swap join/exit (6193), _upscaleArray (5469, 6177), _downscaleUpArray (5556), prependZeroElement (5590). The other 79 whiles are implicit (abi.decode of IERC20[] returns with address checks, abi.encode of arrays for the delegatecalls to the external libraries and for events, memory copies of bytes): P7. The big functions (onJoinPool, onExitPool, onSwap, queryJoin/Exit, removeToken/addToken, updateWeightsGradually, setCircuitBreakers) were reviewed by structure; the small ones line by line. No semantic problem found.",
+  "summary": "Complete (no abort) and every source loop is a while, but the text is noisy: 79 implicit copy loops (one with all-constant bounds that blocks decoding the reentrancy-guard call), and token-keyed mappings printed as concat of byte slices repeated in every use."
+}

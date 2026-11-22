@@ -1,0 +1,25 @@
+{
+  "id": "c00258",
+  "abi_functions": 30,
+  "reviewed": 30,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 8, "P7": 3, "P11": 24},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "finalizeDeposit, withdraw, withdrawTo and the token-pair checks",
+      "lines": "finalizeDeposit: `if caller: revert with 0xf95a18f8`, `static call 0x0.xDomainMessageSender()`, `if address(ext_call.return_data[0]): revert`, `call 0x0.bridgeMint(...)`",
+      "decompiled": "if caller: revert with 0xf95a18f8 ; static call 0x0.xDomainMessageSender() ... if address(ext_call.return_data[0]): revert with 0xe36e2eb2 ; _3 = not _param1 and not _param2; _4 = not _param1 and not _param2; _5 = _3 or _4",
+      "source": "CrossDomainEnabled.onlyFromCrossDomainAccount(l1TokenBridge); onlySupportedL1L2TokensPair: (l1 == L1_TOKEN_NON_REBASABLE && l2 == L2_TOKEN_NON_REBASABLE) || (l1 == L1_TOKEN_REBASABLE && l2 == L2_TOKEN_REBASABLE)",
+      "issue": "The messenger, the L1 bridge, the four token addresses and the rate oracle are solc immutables, zero in the pre-deployment code, so the sender checks read as `caller != 0` and the token-pair check becomes two identical conjunctions OR-ed together.",
+      "rule": "None for the artifact; generally `a or a` (two syntactically equal operands) should fold to `a`.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All functions are short; all reviewed. Source loop: Strings.toHexString (`while idx > 1`), inlined twice per onlyRole function (6 functions) for the AccessControl message, as in c00506/c00240. Implicit: bytes copies for the cross-domain message encodings (P7). P11: `if idx >= 42/66` bounds checks inside the toHexString loops. Apart from the immutable artifact, the deposit/withdraw paths (updateRate from the 20-byte data, bridgeMint/bridgeBurn, wrap/unwrap calls, sendCrossDomainMessage) follow the source. No semantic error found.",
+  "summary": "Faithful, abort-free text with the toHexString loop shown clearly; most oddities (sender checks against 0, duplicated token-pair conjunctions) come from immutables zeroed in the pre-deployment bytecode."
+}

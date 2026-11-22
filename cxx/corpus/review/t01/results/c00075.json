@@ -1,0 +1,47 @@
+{
+  "id": "c00075",
+  "abi_functions": 94,
+  "reviewed": 94,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 14, "P6": 13, "P7": 14, "P8": 150, "P9": 182, "P11": 17, "P14": 60},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "fulfillRedeemRequests, deposit (both), mint (both), convertToAssets, convertToShares, previewDeposit, previewMint, totalAssets, postPricePerShare, requestRedeem, migrate",
+      "lines": "1774-1786 (fulfillRedeemRequests), and each inlined Math.mulDiv",
+      "decompiled": "_74 = -6 * (_73 / (_73 & -_73)) * (2 ^ 3 * (_73 / (_73 & -_73))) * ... / _75 = 8 * _74 - 28 * _74 * _74 * (_73 / (_73 & -_73)) + 56 * _74 * _74 * _74 * ... [746 more characters]",
+      "source": "AsyncRedemptionUpgradeable.sol:188-191 Math.min(assets, _convertToAssets(shares, Math.Rounding.Floor)) -> OZ Math.mulDiv",
+      "issue": "P9: OZ 512-bit mulDiv (Newton inverse) is expanded and distributed into polynomials of thousands of characters (182 lines), hiding a one-line shares * pricePerShare / 10**decimals.",
+      "rule": "Keep the iteration 'inv = inv * (2 - d * inv)' factored (never distribute a product of sums), and recognise the whole mulmod/prod0/prod1 shape as mulDiv(a, b, d) when it matches exactly.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getAssets(), the other EnumerableSet.values getter (0x6d53ae1e)",
+      "lines": "598-601, 576-579",
+      "decompiled": "if stor205E.length: mem[160] = stor205E[0]; mem[192 len floor32(max(192, 32 * stor205E.length + 160) - 161)] = stor[sha3(0x205e...) + 1 len (max(192, ...",
+      "source": "MultiAssetDepositUpgradeable.sol:393 $.depositAssets.values() (storage bytes32[] copied to memory)",
+      "issue": "The storage-to-memory array copy peels its first element and gives the rest a length that, under the guard length != 0, is just 32 * (length - 1).",
+      "rule": "Use the dominating condition n != 0 to simplify max(192, 32n + 160) to 32n + 160 and floor32(32n - 1) to 32n - 32; then merge the peeled element: 'mem[160 len 32n] = stor[sha3(slot) len n]'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "every inlined 10 ** decimals (checked exp)",
+      "lines": "e.g. 1750-1773",
+      "decompiled": "if decimals >= 78 and decimals >= 32: u = 10 ... while w > 1: ...",
+      "source": "10 ** decimals()",
+      "issue": "Same as c00410: the checked-exp special case keeps both bounds (17 lines).",
+      "rule": "As in c00410: x >= a and x >= b is x >= max(a, b).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loop: fulfillRedeemRequests (AsyncRedemptionUpgradeable.sol:168) as 'while True: if s >= len: (event, reentrancy reset, stop) ...; s = s + 1; continue' at 1725 - correct, with the loop exit code inside the loop. Implicit loops: 17 checked-exp loops 'while u > 1', 2 address[] return encodings, 14 word-copy loops (P7, the call-data copies before safeTransfer/low-level calls and the constant 'while idx < 68' in requestFunding). The 94 ABI functions are mostly getters of ERC-7201 storage (named storXXXX_<slot> after their slot prefixes) and checked against their sources; deposit/mint/postPricePerShare/requestRedeem/initialize read by structure. Events Redeem / RedeemRequestsFulfilled data are raw memory (P2-like). P1: the OZ Initializable slot printed as 'stor[0x111f...aa0 * 3600]' (2 lines, as in c00532 and c00062). No semantic error found.",
+  "summary": "Complete and faithful; the single source loop is shown as a while loop. Readability suffers mainly from OZ mulDiv expanded into huge polynomials (P9), word-copy loops before low-level calls (P7) and raw-memory call arguments and event data."
+}

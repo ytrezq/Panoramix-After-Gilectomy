@@ -1,0 +1,34 @@
+{
+ "id": "c00358",
+ "abi_functions": 11,
+ "reviewed": 11,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P9": 20,
+  "P12": 8
+ },
+ "findings": [
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "accumulateReward(uint32), crossLmTick(int24,bool), updatePosition-style functions",
+   "lines": "146-152",
+   "decompiled": "if caller: revert with 'Not pool or MC' / static call 0x0.unknowna15ea89f(?) with: args 0",
+   "source": "PancakeV3LmPool immutables pool and masterChef (onlyPoolOrMasterChef: msg.sender == address(pool) || msg.sender == address(masterChef))",
+   "issue": "solc immutables read as 0 in pre-deployment code, so the access check becomes 'if caller: revert' and masterChef.getLatestPeriodInfo(pool) is a call to address 0 with argument 0. Not a decompiler error.",
+   "rule": "none (corpus artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Small contract (11 ABI functions), all reviewed line by line; no loop in the source or in what it reaches (LmTick, FullMath). accumulateReward matches the source: the duration selection (endTimestamp vs currTimestamp vs lastRewardTimestamp) with uint32 truncation, the early 'duration == 0' exit, and the unchecked 0.7.6 '+=' on rewardGrowthGlobalX128. FullMath.mulDiv is inlined twice: with the constant denominator 10**12 the decompiler folds the Newton inverse into one multiplication by 0x77e1..3eb1 (good), with lmLiquidity the 512-bit iteration is expanded into polynomials (P9); the duration/amount block is printed in both arms of the endTime test (P12). No semantic error found.",
+ "summary": "Small and faithful; readability is limited only by the expanded FullMath.mulDiv for a variable denominator and the immutable artifact in the access checks."
+}

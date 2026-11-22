@@ -1,0 +1,107 @@
+{
+  "id": "c00290",
+  "abi_functions": 21,
+  "reviewed": 21,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {
+    "while": 4,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "exec(address), execSupply(address), execBorrow(address)",
+      "lines": "514-554, 585, 604-618 (exec supply part); 652-687, 713, 734 (exec borrow part); 378-413, 439, 456, 462 (execSupply); 249-284, 310 (execBorrow)",
+      "decompiled": "mem[128 len min(480, return_data.size)] = ext_call.return_data[0 len min(480, return_data.size)] / require return_data.size >=\u2032 480 / require mem[160] == mem[176 len 16] / mem[ceil32(return_data.size) + 160] = mem[160] ... static call mem[ceil32(return_data.size) + 396 len 20].scaledTotalSupply() ... SafeMath.add(mem[ceil32(_1) + 800], mem[ceil32(_1) + 528 len 16]) <= 0xff..fe6268e1b017bfe18bffffff / mem[ceil32(_1) + 176 len 16]",
+      "source": "CapAutomator.sol:184-193 reserveData = IPoolLike(pool).getReserveData(asset); IScaledBalanceTokenLike(reserveData.aTokenAddress).scaledTotalSupply() + uint256(reserveData.accruedToTreasury)).rayMul(reserveData.liquidityIndex); :226 IERC20Like(reserveData.variableDebtTokenAddress).totalSupply()",
+      "issue": "The returned ReserveData is only visible through two levels of memory copies: its range checks are slice comparisons on the first copy, and its fields are used as slices of the second copy, so the call targets (aTokenAddress, variableDebtTokenAddress), liquidityIndex and accruedToTreasury appear as mem[ceil32(_1) + 396 len 20], mem[ceil32(_1) + 176 len 16], mem[ceil32(_1) + 528 len 16]. In exec the same root cause leaves 6 dead keccak-scratch writes (499-504) and a dead call-buffer write (631) that execSupply does not have.",
+      "rule": "After 'require return_data.size >= n' (dominating the reads), min(n, return_data.size) is n, so a copy mem[a len min(n, return_data.size)] = ext_call.return_data[0 len ...] makes mem[a + k len w] = ext_call.return_data[k len w] for k + w <= n; word copies mem[b + k] = mem[a + k] fold the same way, and x[a + 32 - w len w] is Mask(8w, 0, x[a]) (uint128(...), address(...)). Name the return data of an earlier call (_1, _2 already exist) to keep using it after the next call. Offsets relative to one base (ceil32(_1) + k) do not alias by their constants alone (no wrap: sizes are below 2^64).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "exec(address), execSupply(address), execBorrow(address)",
+      "lines": "626-630, 751-755 (exec); 479-483 (execSupply); 349-353 (execBorrow)",
+      "decompiled": "uint48(stor2[recipient].field_0) = uint48(stor2[recipient].field_0) / uint48(stor2[recipient].field_48) = mem[ceil32(_1) + 698 len 6] / uint48(stor2[recipient].field_96) = mem[ceil32(_1) + 730 len 6] / uint48(stor2[recipient].field_144) = uint48(block.number) / uint48(stor2[recipient].field_192) = mem[ceil32(_1) + 794 len 6]",
+      "source": ":203-209 if (newSupplyCap > currentSupplyCap) capConfig.lastIncreaseTime = _uint48(block.timestamp); capConfig.lastUpdateBlock = _uint48(block.number); supplyCapConfigs[asset] = capConfig;",
+      "issue": "The write-back of the memory copy of CapConfig shows one store of a slot's own value and three stores whose values are memory slices: two are the unchanged gap and increaseCooldown (written to memory from the same storage at 559-560), one is lastIncreaseTime, which is block.timestamp when the cap grows and the old value otherwise. The reader cannot see that only lastUpdateBlock and possibly lastIncreaseTime change.",
+      "rule": "Fold memory reads through earlier same-base writes (first finding's rule): mem[ceil32(_1) + 698 len 6] = uint48(stor2[r].field_48); drop a store of a field's own current value; a memory word that is a phi of two stores prints as the conditional store ('if _67 > cap: stor2[r].field_192 = block.timestamp').",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "exec(address)",
+      "lines": "507",
+      "decompiled": "mem[128] = 0x3d58150000000000000000000000000000000000000000000000000000000 * 3600",
+      "source": "IPoolLike(pool).getReserveData(asset): the selector 0x35ea6a75 shifted left by 224",
+      "issue": "The selector word is factored as C * 3600 (0x35ea6a75 = 225 * 0x3d5815) by the time-unit printer. The same happens 614 times in the corpus texts (80 in c00574 and c00520, 65 in c00170...).",
+      "rule": "Print n * 3600 (or * 60, * 24 * 3600, * 7 * 24 * 3600) only when n and the product are small (say below 2^40); a word with its low 224 bits zero prints as hex (or as 0x35ea6a75 << 224).",
+      "verified": "reading only (grep over /home/claude/shared/review/t01/dec)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "exec, execSupply, execBorrow",
+      "lines": "584-603, 712-729 (exec); 438-455 (execSupply); 309-326 (execBorrow)",
+      "decompiled": "if uint8(ext_call.return_data[0] >> 48): ... _42 = ... / call ...scaledTotalSupply() (5 lines) / _49 = _42 / _52 = return_data.size + ceil32(_1) + 800 / else: the same call (5 lines) / _49 = 1 / _52 = return_data.size + ceil32(_1) + 800 / require _52 - ceil32(_1) - 800 >=\u2032 32",
+      "source": ":189-193 (scaledTotalSupply() + accruedToTreasury).rayMul(liquidityIndex) / 10 ** getDecimals()",
+      "issue": "The token call is printed in both arms of the 10 ** decimals branch, and the return-size check then goes through the phi _52 (two equal expressions) instead of reading 'require return_data.size >=\u2032 32'.",
+      "rule": "Hoist the common tail of an if/else; a phi of equal expressions is that expression, then (x + c) - c folds to x.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getRoleAdmin, grantRole, revokeRole, renounceRole, removeSupplyCapConfig, removeBorrowCapConfig, setSupplyCapConfig, setBorrowCapConfig",
+      "lines": "26, 101-102, 113-117, 201-202, 213-235, 174-196; 81, 91, 122, 142",
+      "decompiled": "return stor[sha3(role, 0) + 1]  |  stor[sha3(account, sha3(role, 1) + 1)]  |  if not uint8(stor[sha3(caller, sha3(Bytes(64, 0)))]): revert with 0xe2517d3f, caller, 0",
+      "source": "_roles[role].adminRole; _roleMembers[role]._inner._positions[account]; onlyRole(DEFAULT_ADMIN_ROLE) -> _roles[0].hasRole[msg.sender]",
+      "issue": "The second member of a struct stored as a mapping value is raw sha3 arithmetic (def storage types slots 0 and 1 as a mapping of a mapping / of an array only), and hasRole[0][caller] is not recognised because its inner key is the constant 0 (sha3(Bytes(64, 0))), while hasRole[0x3ee1...][caller] is.",
+      "rule": "sha3(k, s) + j is member j of the struct at s[k]; Bytes(64, 0) as a sha3 input is sha3(0, 0), the element 0 of the mapping at slot 0, so stor[sha3(caller, sha3(0, 0))] is hasRole[0][caller].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "grantRole, revokeRole, renounceRole, supportsInterface",
+      "lines": "103-117; 203-235; 164-196; 71-76",
+      "decompiled": "if hasRole[role][account]: _11 = 0 / else: ...; _11 = 1 / if _11: ...  |  if 0x5a05180f.. == interfaceId: _2 = 1 / else: _1 = .. or ..; _2 = _1 / return bool(_2)",
+      "source": "AccessControlEnumerable._grantRole: bool granted = super._grantRole(role, account); if (granted) _roleMembers[role].add(account); supportsInterface: a == x || super.supportsInterface(a)",
+      "issue": "A flag set to a constant in each arm and tested right after the if is kept; the disjunction of supportsInterface is an if/else with two temporaries.",
+      "rule": "'if c: f = 0 else: S; f = 1' followed by 'if f: T' is 'if not c: S; T' (f unused after); 'if a: r = 1 else: r = b' is 'r = a or b'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "renounceRole, revokeRole, setSupplyCapConfig, setBorrowCapConfig, exec, execSupply, execBorrow",
+      "lines": "183-184, 191-192, 222-223, 230-231; 124, 126, 144, 146; 564, 692, 289, 418; 614, 739, 337, 467; 568-577",
+      "decompiled": "if roleMember[role].length - 1 >= roleMember[role].length: revert with Panic(50)  |  if _param2 <= 0  |  if u >= 78 and u >= 32  |  block.timestamp < uint48(uint48(a) + uint48(b))  |  if not u % 2: _40 = t / else: _40 = s * t / ... t = _40",
+      "source": "EnumerableSet._remove (after 'valueIndex - 1 == length - 1', checked); require(max > 0); solc's checked 10 ** x helper; lastIncreaseTime + increaseCooldown (uint48)",
+      "issue": "Checks made dead by a dominating one are kept (after SafeMath.sub(length, 1) succeeded, length >= 1, so 'length - 1 >= length' and 'not length' are false); an unsigned 'x <= 0'; 'u >= 78 and u >= 32'; a mask of a value already range-checked; a conditional assignment through a temporary in the exponentiation loop.",
+      "rule": "Simplify conditions with the facts of dominating checks (a - 1 did not underflow => a >= 1); unsigned x <= 0 is x == 0; x >= a and x >= b is x >= max(a, b); uintN(v) is v once v <= 2^N - 1 is checked; 'if not c: v = t else: v = e; t = v' is 'if c: t = e'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "supportsInterface(bytes4) (and c00600's Error(string) words)",
+      "lines": "74",
+      "decompiled": "interfaceId == 0x1ffc9a700000000000000000000000000000000000000000000000000000000",
+      "source": "type(IERC165).interfaceId = 0x01ffc9a7",
+      "issue": "A word whose top byte is below 0x10 is printed with 63 hex digits, so its first 8 digits read as another selector (0x1ffc9a70 instead of 0x01ffc9a7; c00600 prints Error(string) as 0x8c379a0..).",
+      "rule": "Print a constant whose low bits are zero with all 64 hex digits, or as SELECTOR << 224.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 21 ABI functions and the fallback (revert) reviewed; no semantic error found. Same code: execSupply and execBorrow are exec's two halves; revokeRole = renounceRole with onlyRole(getRoleAdmin(role)) instead of the confirmation check; setBorrowCapConfig = setSupplyCapConfig on slot 3. The 4 whiles are solc's checked exponentiation helper for '10 ** getDecimals()' (one per _updateSupplyCap/_updateBorrowCap inlined), counted as the implicit loops of the ** operator, all shown as readable while loops (reachable only for decimals >= 78, where they always end in Panic(17)). The unchecked '+ gap' in the supply path (609, 462) is exact: currentSupply is a uint256 divided by 10**27, so adding a uint48 cannot overflow (the borrow path keeps SafeMath.add). Event and custom-error names are raw topics/selectors (not in the signature database), and pool/poolConfigurator read as 0 (immutables): normal.",
+  "summary": "Faithful and mostly readable: the role and config functions are clean, but the three exec functions use the getReserveData result only through two levels of memory copies (call targets and the CapConfig write-back appear as memory slices), print the token call twice, and print the getReserveData selector as 0x3d5815... * 3600."
+}

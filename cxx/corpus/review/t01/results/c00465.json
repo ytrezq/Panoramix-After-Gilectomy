@@ -1,0 +1,58 @@
+{
+  "id": "c00465",
+  "abi_functions": 36,
+  "reviewed": 36,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {"while": 8, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 6, "P3": 6, "P4": 3, "P6": 22, "P7": 14},
+  "findings": [
+    {
+      "kind": "semantics",
+      "severity": "high",
+      "function": "fulfillRandomWords(...)",
+      "lines": "910-925 (no startGas read), 1538, 1686, 1701-1729",
+      "decompiled": "require gas_remaining - SafeMath.sub2(gas_remaining, 5000) / 64 - 5000 > mem[220 len 4] ... _487 = gas_remaining / if tx.gasprice and SafeMath.sub(gas_remaining + stor11_88, _487) > -1 / tx.gasprice: ... tx.gasprice * gas_remaining - tx.gasprice * _487 + tx.gasprice * stor11_88 ...",
+      "source": "VRFCoordinatorV2.sol:529 uint256 startGas = gasleft(); ... :591 paymentNoFee = (1e18 * (weiPerUnitGas * (gasAfterPaymentCalculation + startGas - gasleft()) + l1CostWei)) / ...",
+      "issue": "The bytecode reads GAS three times outside calls: startGas at the entry (0x2830), the exact-gas check (0x3df6) and gasleft() in the payment (0x3ed2). The text binds only the last one (_487) and prints the entry read as a bare gas_remaining inside the payment formula, so 'SafeMath.sub(gas_remaining + stor11_88, _487)' reads as current gas minus current gas, and the same name gas_remaining also denotes the exact-gas check's read at 1538.",
+      "rule": "GAS is not a pure expression: bind each GAS read to a fresh variable at its own position (_startGas = gas_remaining at the entry) and never let a later expression refer to an earlier read by the bare name.",
+      "verified": "pancxx disasm (non-call GAS reads at 0x2830, 0x3df6, 0x3ed2); same root cause as c00384"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "fulfillRandomWords(...) (the inlined VRF.hashToCurve, verifyVRFProof, ecmulVerify ...)",
+      "lines": "1292, 1316-1318, 1336, 1362 (22 lines)",
+      "decompiled": "while addmod(mulmod(_260, mulmod(_260, _260, -4294968273), -4294968273), 7, -4294968273) != mulmod(_257, _257, -4294968273): ... mem[_263 + 96] = -mem[_263 + 96] - 4294968273 ... if mem[_126] % -4294968273 == mem[_125] % -4294968273:",
+      "source": "VRF.sol:250 while (!_isOnCurve(rv)) { ... } with FIELD_SIZE = 0xFFFF...FFFEFFFFFC2F; y = FIELD_SIZE - y when odd",
+      "issue": "The secp256k1 field prime is printed as the negative number -4294968273 when it is a mulmod/addmod modulus or a % operand (14 other lines print it in hex), and FIELD_SIZE - y as -y - 4294968273, so the curve test and the negation read as signed arithmetic.",
+      "rule": "Print a constant as negative only where it is used signed; as an unsigned operand (modulus of mulmod/addmod, %, unsigned comparison) print it in hex; c - x with c = 2^256 - k prints as (2^256 - k) - x, not -x - k.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "fulfillRandomWords(...) (fieldHash, the 18-byte Error(string) reverts 'bigModExp failure!', 'invalid x-ordinate', 'invalid y-ordinate' ...), 29 memory reverts",
+      "lines": "1235-1243, 1324-1331, 1338-1345",
+      "decompiled": "while s >= 0xffff...fc2f: _191 = mem[64] / mem[mem[64] + 32] = s / _192 = mem[64] / mem[mem[64]] = _191 - mem[64] + 32 / mem[64] = _191 + 64 / s = sha3(mem[_192 + 32 len mem[_192]])  |  _299 = mem[64] ... revert with memory from mem[64] len _299 - mem[64] + 100",
+      "source": "VRF.sol:205-207 while (x_ >= FIELD_SIZE) { x_ = uint256(keccak256(abi.encodePacked(x_))); }  and require(..., \"bigModExp failure!\")",
+      "issue": "The temporaries _191/_192/_299 are copies of mem[64] made with no store to mem[64] in between, but they are not identified with it, so the loop body does not read 's = sha3(s)' and the reverts are not recognised as Error(string) with their messages.",
+      "rule": "After '_t = mem[64]', mem[64] reads as _t until the next store to mem[64]; then mem[_t] = 32 and sha3(mem[_t + 32 len 32]) = sha3(s), and the revert payload is Error('bigModExp failure!').",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "getSubscription, pendingRequestExists, ownerCancelSubscription, removeConsumer, cancelSubscription (6 copies)",
+      "lines": "340-350, 422-430, 567-575",
+      "decompiled": "if stor3[subId].field_512: mem[160] = address(stor[sha3(sha3(subId, 3) + 2)]) / idx = 160 / s = 0 / while 32 * stor3[subId].field_512 + 160 > idx + 32: mem[idx + 32] = address(stor[s + sha3(sha3(subId, 3) + 2) + 1]) ...",
+      "source": "VRFCoordinatorV2: address[] memory consumers = s_subscriptionConfigs[subId].consumers; (storage array copied to memory)",
+      "issue": "The compiler's storage-to-memory copy of the consumers array is rotated (first element before the loop, P3) with a condition on byte offsets, and its elements are raw keccak slots instead of stor3[subId].field_512[i] (member +2 of the struct, whose length is field_512).",
+      "rule": "Un-rotate the copy and print it as mem[160 len 32 * n] = stor3[subId].consumers[0 .. n] (address-masked); stor[sha3(sha3(k, s) + m) + i] is element i of the dynamic array member m of s[k].",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 36 ABI functions reviewed (getters, owner/config/subscription functions read; fulfillRandomWords (834 lines, VRF proof verification) by structure). Source loops in this bytecode (8): deregisterProvingKey (203), pendingRequestExists' consumer loop and nested key loop (433/441, inlined again in removeConsumer and cancelSubscription), removeConsumer's search (730), cancelSubscriptionHelper (586, 862), fulfillRandomWords' random-words loop (1503), VRF.fieldHash (1235, nested again at 1301 inside hashToCurve) and VRF.hashToCurve (1292): all whiles. OVM_GasPriceOracle's loop is in another contract and the 'for (sx,sy)' match of VRF.sol:355 is a comment (not counted). Implicit loops: the consumers storage-to-memory copies (rotated) and their ABI encodings, 'while idx < 2' copies of uint256[2] proof members (P7).",
+  "summary": "Every loop is found, but the start-gas read of the payment formula is printed as a bare gas_remaining (GAS treated as a pure value), the VRF arithmetic prints the field prime as -4294968273 and the free-memory-pointer temporaries hide fieldHash's keccak and the Error(string) messages."
+}

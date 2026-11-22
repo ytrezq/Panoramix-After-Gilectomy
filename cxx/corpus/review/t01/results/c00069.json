@@ -1,0 +1,113 @@
+{
+  "id": "c00069",
+  "abi_functions": 3,
+  "reviewed": 3,
+  "not_reviewed": [],
+  "source_loops": 10,
+  "loops_shown": {"while": 9, "copy_line": 0, "unrolled": 0, "aborted": 1, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 170, "P3": 9, "P6": 32, "P8": 300, "P9": 200, "P11": 60, "P12": 8, "P17": 32},
+  "findings": [
+    {
+      "kind": "semantics",
+      "severity": "high",
+      "function": "execute((address,address,uint256),bytes[],bytes32) (and executeWithPermit, fallback: 7 copies of the SELECT loop)",
+      "lines": "16275-16285 (also 8603-8612, 12000-12005, 14165-14170, 19675-19680, 22073-22078, 3026-3031)",
+      "decompiled": "call this.address with: gas (1 == n) * (cd[..+72] ^ gas_remaining) ^ cd[..+72] ... ; while not ext_call.success: if cd[..+72] / 63 + cd[..+72] + 8192 > gas_remaining or t + 1 == n: revert ...",
+      "source": "Select.sol:153-163 _setOperatorAndTryCall(..., (!isLast).ternary(gasCap, beforeGas = gasleft())); if (isLast.or(beforeGas < beforeGasThreshold)) revert",
+      "issue": "The bytecode reads GAS once, before the CALL (pc 0x4787), and the test after the call compares the threshold with that stacked value (pc 0x47e8 dup14 gt). The text prints `gas_remaining` again in the post-call test, which reads as a fresh gas read after the call, i.e. a different, smaller value.",
+      "rule": "Environment reads whose value changes during execution (GAS, RETURNDATASIZE, MSIZE, BALANCE, SLOAD/TLOAD after a write) must not be duplicated or moved past a CALL or any other gas-consuming instruction; when such a value is used at more than one point, bind it to a named temporary at the read.",
+      "verified": "disassembly: 0x4786 eq, 0x4787 gas, ... 0x47d2-0x47d4 xor mul xor, call; 0x47e3 jumpdest, 0x47e7 jumpi (success->break), 0x47e8 dup14, 0x47e9 gt, 0x47ea or -> no second GAS"
+    },
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "execute((address,address,uint256),bytes[],bytes32)",
+      "lines": "22839 (top level), 19520, 20949-20964, 21184, 21330, 21484, 21497, 21624, 21769, 21779, 21890, 22178",
+      "decompiled": "...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)",
+      "source": "Settler.sol:165-190 _execute; UniswapV3Fork.sol:176-269 _uniV3ForkSwap; SettlerBase.sol:103-132 _checkSlippageAndTransfer",
+      "issue": "14 aborted paths. The top-level one (22839) is the common case where the first action is UNISWAPV3 (0x8d68a156): after the first pool swap() call, the rest of _uniV3ForkSwap (amount decoding, multi-hop, slippage check), the remaining-actions loop, the final slippage check/transfer, clearPayer and the return are lost. The others cut single actions (RFQ, UNISWAPV3, VELODROME, SELECT...) inside copies of the actions loop.",
+      "rule": "Decompiler limit; merging the per-first-action copies of the actions loop (see the P12 finding) would shrink the path count that exhausts the budget.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "executeWithPermit((address,address,uint256),bytes[],bytes32,bytes)",
+      "lines": "14896 (top level), 11845, 13415, 13467, 13507, 13516, 13572, 13749, 13760, 13769, 13822, 14069",
+      "decompiled": "...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)",
+      "source": "Settler.sol:133-163 executeWithPermit -> _execute",
+      "issue": "12 aborted paths, the same shape as execute: the top-level abort loses the first-action-UNISWAPV3 path after its first pool call (rest of the swap, the actions loop, the final slippage check and transfer, the return).",
+      "rule": "Decompiler limit (same as execute).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "fallback (callback dispatcher: Permit2PaymentBase fallback -> stored callback ids 1..6)",
+      "lines": "1830, 2090, 2603, 3217, 3307, 3351, 3614, 4176, 7115",
+      "decompiled": "if cd[36] - 113 < 83: ... return  /  first hop decoded and swapped ... _6595 = ... ; ...  # Decompilation aborted",
+      "source": "PancakeInfinity.sol:457 while (data.length >= _HOP_DATA_LENGTH) in lockAcquired; Select.sol:174-195 _runActions; UniswapV4.sol unlockCallback; EkuboV3.sol locked",
+      "issue": "9 aborted paths. The PancakeInfinity lockAcquired hop loop (callback id 3) is printed only for 0 hops and for the first hop, then aborts at 1830: the loop itself, the take/settle and the return are lost (counted as an aborted loop). Others cut nested actions inside _executeSelected (id 4), parts of the UniswapV4 unlockCallback (id 6) and one rotated EkuboV3 hop path (id 1, 7115).",
+      "rule": "Decompiler limit.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "execute, executeWithPermit, fallback",
+      "lines": "14964, 15067, 15128, 1957, 2091, 2604, 7158 and 193 lines in all",
+      "decompiled": "if cd[_param4 + cd[s] + 68] >> 224 == 1445856556: ... ; mem[mem[64]] = 1014296278 ; revert with Bytes(4, 4188921973 ^ 3085277956 * (...)), ...",
+      "source": "SettlerBase.sol:144-198 `action == uint32(ISettlerActions.RFQ.selector)` etc.; Permit.sol:75 selector UnsupportedPermitType",
+      "issue": "4-byte selectors compared with `x >> 224` (ATTEST 0x562e052c, RFQ 0xd92aadfb, UNISWAPV3 0x8d68a156, ...) and error selectors stored to memory (ActionInvalid 0x3c74eed6, 0xf9ade075) are printed in decimal, so they can't be matched with the ABI or looked up.",
+      "rule": "A constant compared with (or XORed into) a value known to fit in 32 bits that comes from `x >> 224`, or stored as the 4 bytes before a revert payload, should be printed as 8 hex digits and looked up in the signature database.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "fallback (_executeSelected/_runActions, callback id 4); executeWithPermit (permit type)",
+      "lines": "1945-1958 and the whole loop body to 3614; 7154-7158",
+      "decompiled": "if cd[A] - 4 >> 64: ... else ... require (not Mask(192, 64, cd[A] - 4)) * cd[A] - 4 * (not Mask(192, 64, cd[A] - 4)) >=′ 288 ; if _3 >> 248 >= 3: revert Panic(33) ... revert with Bytes(4, 4188921973 ^ 3085277956 * (_3 >> 248 > 2)), (_3 >> 248 > 2) * (_3 >> 248 ^ 33) ^ _3 >> 248",
+      "source": "Select.sol:186-189 tooShort := shr(0x40, data.length); data.length := mul(data.length, iszero(tooShort)); Permit.sol:72-78",
+      "issue": "On the path where `(L >> 64) == 0` already holds, the factor `not Mask(192, 64, L)` is 1, so the distributed `b * cd[A] - 4 * b` is just `L`; in the other arm it is 0. Likewise `_3 >> 248 > 2` is false after the dominating Panic(33) check. Every length use in the nested actions loop carries this unfolded product.",
+      "rule": "Substitute the truth value of a dominating branch condition (and of the range it implies) into sub-expressions before printing; then fold `1 * x`, `0 * x`, and re-factor `b*x - c*b` into `b*(x - c)`.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "execute, executeWithPermit, fallback",
+      "lines": "15071-15074 (base-36), 17030-17052 and 19424-19446 (Velodrome), 9359-9361",
+      "decompiled": "_831 = (250200601883200 * (1508246403 * (uint128(_param5) / 2176782336 / 2176782336 / 2176782336 % 2176782336 << 192 | ... ; mem[0] = -1 * _1833 * _1833 * _1833 * t - 3 * _1833 * _1833 * _1834 * t - ... ; _1930 = (...) / 0xa70c3c40a64e6c51999090b65f67d9240000000000000",
+      "source": "Cuid.decode (base-36 zid decoding); Velodrome.sol:70-92 _k = omul(x*y, x*x + y*y).unsafeDiv(BASIS), _get_y; Lib512Math",
+      "issue": "P9: the inlined 512-bit multiply/divide is distributed into polynomials (`x^3*y + x*y^3`, cubes of `x+dx` expanded) with mulmod/addmod and modular-inverse constants, and the base-36 decoder is unrolled into chains of `/ 2176782336` (36^6); 10**54 is printed in hex (P17).",
+      "rule": "Don't distribute multiplication over addition when it duplicates operands (keep `x*y*(x*x+y*y)`); recognize the 512-bit product pair (`mul` and `mulmod(a,b,-1)`) as one wide product; print constants equal to 10**k as `10**k`.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "execute, executeWithPermit",
+      "lines": "15066, 18211, 20746, 21435 (execute); 7393, 10542, 13071, 13677 (executeWithPermit)",
+      "decompiled": "s = _param4 + 68 / idx = 1 / while idx < cd[_param4 + 4]: ... (4 full copies per function)",
+      "source": "Settler.sol:171-185: first action via _dispatchVIP/_dispatch, then one `for (i = 1; i < actions.length; ...)` loop",
+      "issue": "The code after the first-action dispatch (the whole actions loop, the slippage check and the return) is printed once per first-action path instead of once after the join, so the same ~1,500-line loop appears 4 times in each function; this is most of the ~8,000 lines of each.",
+      "rule": "When the arms of a branch reach the same block with states that differ only in a few values, print the join once after the if/else and carry the differing values in variables assigned in each arm (tail merging).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "execute((address,address,uint256),bytes[],bytes32)",
+      "lines": "14920 (also 21331, 21673 and the executeWithPermit copies)",
+      "decompiled": "if not (not _param2) * (not _param3):",
+      "source": "SettlerBase.sol:113 else if ((minAmountOut == 0).and(address(buyToken) == address(0))) return;",
+      "issue": "A product of two negated booleans under a negation is De Morgan's `or`.",
+      "rule": "Rewrite `not ((not a) * (not b))` as `a or b` when both factors are booleans.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed by structure (all three large functions exceed 7,000 lines: fallback 30-7116, executeWithPermit 7117-14897, execute 14898-22841): control flow, loops, calls, transient writes, reverts, aborts. balanceOf reviewed fully (correct). Source loops: Settler._execute for (8 copies, while), Select.select while(true) (rotated: 7 `while not ext_call.success`, P3), Select._runActions for (1944, while), Velodrome._get_y for (i<255) as `while True: if u >= 255: revert NotConverged` (4 copies), _uniV3ForkSwap while(true) (6 copies; aborted after the first call on the first-action path), Take.take for (`while idx < _588` / `while idx < mem[640]`), CompactTake.take for (`while idx < mem[640]`), UniswapV4 hop loop (`while t >= 53`, one rotated at 3785), EkuboV3 hop loop (`while s >= 48`, one rotated at 6897), PancakeInfinity hop loop (aborted, 1830). The two inner `while` loops of Velodrome._get_y are inside a /* */ comment and not counted. Callback ids in the fallback: 1 EkuboV3 locked, 2 UniV3 pay, 3 PancakeInfinity lockAcquired, 4 _executeSelected, 5 a permit pay callback, 6 UniswapV4 unlockCallback, others Panic(81). The empty-actions path of execute, the payer set/clear with transient storage, the AllowanceHolder forwarding (`caller == 0x1ff3...734` -> last 20 bytes of calldata), and the permit prologue of executeWithPermit (DAI/ERC2612 permit with nonce/allowance/DOMAIN_SEPARATOR fallback check) match the source. The AllowanceHolder address prints both as 0x1ff3684f28c67538d4d072c22734 and with leading zeros (cosmetic). Calls with packed unaligned args (`args Bytes(12, 0), _252 << 96, mem[_255 + 76 len 84]`) counted under P2.",
+  "summary": "Huge hand-optimized 0x Settler; the text is faithful in what it shows except for a GAS read re-printed after a CALL in the SELECT loop, but 35 aborted paths lose main paths (first-action UNISWAPV3, PancakeInfinity hop loop), and readability suffers from tail duplication of the actions loop, decimal selectors, unfolded dominating conditions and expanded 512-bit arithmetic."
+}

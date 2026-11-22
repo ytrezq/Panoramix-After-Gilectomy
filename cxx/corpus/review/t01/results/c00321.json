@@ -1,0 +1,33 @@
+{
+  "id": "c00321",
+  "abi_functions": 17,
+  "reviewed": 17,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P6": 1
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "tokenURI(uint256), renounceOwnership(), transferOwnership(address)",
+      "lines": "51; 56-60",
+      "decompiled": "return 32, 0  |  _1 = stor[0] / owner = 0 / log OwnershipTransferred(address indexed previousOwner=address(_1), address indexed newOwner=0)",
+      "source": "tokenURI: return bytes(baseURI).length > 0 ? ... : \"\"; Ownable._transferOwnership: address oldOwner = _owner; _owner = newOwner; emit OwnershipTransferred(oldOwner, newOwner);",
+      "issue": "The empty string is returned as its raw ABI words (32, 0), and the previous owner is read as the whole slot stor[0] instead of owner, the variable declared at that slot.",
+      "rule": "Return of the ABI words (32, 0) is return ''; a whole-slot read of a slot holding only an address variable, used through address(.), is that variable.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The only source loop reached, Strings.toString's while (true) under tokenURI, is not in the bytecode: _baseURI() returns the constant empty string, so the compiler removed the toString branch; it is therefore not counted (Math.log10 is loop-free). No while in the text. All functions (ERC721 approve/transfer/safeTransfer with the onERC721Received check, mint, Ownable) read line by line against OpenZeppelin 4.8.",
+  "summary": "A small, faithful ERC721 text; the only source loop was removed by the compiler, and only cosmetic issues (raw empty-string return, a whole-slot owner read) remain."
+}

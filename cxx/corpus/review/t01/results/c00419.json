@@ -1,0 +1,39 @@
+{
+ "id": "c00419",
+ "abi_functions": 44,
+ "reviewed": 44,
+ "not_reviewed": [],
+ "source_loops": 10,
+ "loops_shown": {
+  "while": 10,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 6,
+  "P3": 5,
+  "P6": 22,
+  "P7": 12,
+  "P8": 40,
+  "P14": 20,
+  "P18": 20
+ },
+ "findings": [
+  {
+   "kind": "loop",
+   "severity": "medium",
+   "function": "migrate(uint256,address)",
+   "lines": "1200-1231, 989-998",
+   "decompiled": "if 0 >= mem[128]: ... stop / call mem[172 len 20].setCoordinator(_to) / idx = 0 / while idx + 1: if idx + 1 >= mem[128]: stor12_48 = 0; log ..; stop / call address(mem[32 * idx + 192]).setCoordinator(_to) ... idx = idx + 1 / revert with Panic(17)   |   while -_to + address(stor[_3 + s]): if SafeMath.inc(s) >= stor17.length: revert 0x5428d449, _to",
+   "source": "VRFCoordinatorV2PlusUpgradedVersion.sol:747 for (uint256 i = 0; i < consumers.length; ++i) IVRFMigratableConsumerV2Plus(consumers[i]).setCoordinator(newCoordinator); and :700 _isTargetRegistered's for loop",
+   "issue": "Both loops are rotated: the first iteration is printed before the loop, the header tests the overflow guard of ++i ('while idx + 1') or a difference ('-_to + address(..)') instead of the source condition, the real bound is an exit test inside that carries the function tail (unlock, event), and the loop's fall-through is a Panic(17) that cannot happen.",
+   "rule": "Re-rotate a loop whose header only guards the increment's overflow and whose body starts with 'if i + 1 >= n: exit' into 'while i < n' with the peeled first iteration merged back; in a boolean context 'a - b' is 'a != b'.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "10 source loops in this bytecode, all present as whiles: fulfillRandomWords:483 (random words), getActiveSubscriptionIds:336, migrate:747 (rotated, finding) and _isTargetRegistered:700 (rotated, finding), onMigration:785, pendingRequestExists:622 (also inlined in migrate), removeConsumer:643, _deleteSubscription:428 (cancelSubscription), VRF.fieldHash:205 ('while s >= 0xffff..fc2f'), VRF.hashToCurve:250 ('while addmod(mulmod(..)) != ..', the on-curve test). OVM_GasPriceOracle.getL1GasUsed:152 is in another contract (reached by an external call), not counted. Implicit loops: uint256[2] copies ('while idx < 2', 8, P7), storage-to-memory copies of consumer arrays in rotated form ('while 32 * len + 160 > idx + 32', P3), and calldata decodes in onMigration. fulfillRandomWords (930 lines, VRF proof verification) reviewed by structure; no semantic error found. The first consumer is read as the slice mem[172 len 20] (P18).",
+ "summary": "Faithful, with every in-contract loop present; migrate's two loops are printed in confusing rotated forms (overflow guard as the loop test, function tail inside the loop), and small static-array copies stay word loops."
+}

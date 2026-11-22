@@ -1,0 +1,47 @@
+{
+  "id": "c00462",
+  "abi_functions": 138,
+  "reviewed": 138,
+  "not_reviewed": [],
+  "source_loops": 23,
+  "loops_shown": {"while": 23, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 77, "P6": 1, "P7": 50, "P8": 25, "P11": 4, "P16": 100},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "the 4 Pendle swap functions with LimitOrderData (unknown3346d3a3, unknown80c4d566, unknown2a50917c, unknown7b8b4b95)",
+      "lines": "8 'while True' loops",
+      "decompiled": "while True: / require cd[_param3 + 68] <′ ... / if s >= cd[_param3 + cd[_param3 + 68] + 4]: / ... while True: ... <rest of the function>",
+      "source": "PendleRouterDecoderAndSanitizer.sol:216 and 230 (normalFills / flashFills loops)",
+      "issue": "Same as c00474: the loop-invariant calldata checks at the head push the test inside, and the second loop plus the function's tail are nested in the first loop's exit branch.",
+      "rule": "Hoist loop-invariant checks on immutable inputs out of the loop head; then the exit test is the while condition and the tail follows the loop.",
+      "verified": "reading only (same code as c00474)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "queueWithdrawals, completeQueuedWithdrawals (both), ccipSend, fill, the Pendle functions",
+      "lines": "queueWithdrawals: 'while t < cd[_param1 + cd[_param1 + cd[32 * idx + _param1 + 36] + 36] + cd[32 * idx + _param1 + 36] + 36]'",
+      "decompiled": "require cd[32 * t + _param1 + cd[_param1 + cd[32 * idx + _param1 + 36] + 36] + cd[32 * idx + _param1 + 36] + 68] == address(cd[32 * t + _param1 + ...])",
+      "source": "EigenLayerLSTStakingDecoderAndSanitizer.sol:33-34 queuedWithdrawalParams[i].strategies.length / queuedWithdrawalParams[i].strategies[j]",
+      "issue": "Fields and nested arrays of calldata struct arrays are printed as nested raw calldata offsets (100 lines), so loop bounds and the appended addresses cannot be matched to the parameters.",
+      "rule": "cd[base + cd[base + 32i + 32] + 32 + 32k] (offset table of a dynamic array of structs) is field k of element i: print _param[i].field_k; apply recursively for nested dynamic members (known P16, here for dynamic arrays of structs).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "all loops appending with abi.encodePacked (queueWithdrawals, completeQueuedWithdrawals, ccipSend, redeemDueInterestAndRewards, claim, exactInput, ...)",
+      "lines": "e.g. queueWithdrawals inner 'while v < _21' copy",
+      "decompiled": "_20 = mem[64] / _21 = mem[u] / v = 0 / while v < _21: mem[_20 + v + 32] = mem[u + v + 32] ... / mem[_20 + _21 + 32] = 0 / mem[_20 + _21 + 32] = ... << 96 / mem[mem[64]] = _20 + _21 - mem[64] + 20",
+      "source": "addressesFound = abi.encodePacked(addressesFound, x)",
+      "issue": "As in c00474: each append is an inner copy loop (50 P7 loops), a dead zero store and an unfolded length; also the custom-error reverts after a loop are raw memory ('revert with memory from mem[64] len _5 - mem[64] + 4').",
+      "rule": "Known P7 and the free-memory-pointer aliasing rule of c00409 ('_5 - mem[64]' with _5 = mem[64] is 0, giving 'revert with 0xcfd38839').",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "138 ABI functions plus the fallback reviewed. This is a sibling of c00474 (same Veda BaseDecoderAndSanitizer family): the Pendle, Uniswap V3 (exactInput, uniswapV3Swap), Balancer (joinPool, exitPool, flashLoan), claim, fill, send and redeemDueInterestAndRewards functions are the same code and the same decompiled form ('same as c00474'). New here and read in full: queueWithdrawals (nested loops), both completeQueuedWithdrawals (receiveAsTokens check with its custom error, three appends per withdrawal), ccipSend. The simple one-line decoders were sampled (about 30), all exact. Loops: 23 explicit (the 14 of c00474 plus ccipSend's, 3 per completeQueuedWithdrawals overload, 2 nested in queueWithdrawals), all present as whiles (the two limit-order loops as 'while True'). Implicit: validating decodes and 50 copy loops (P7). No semantic error found.",
+  "summary": "Faithful; all 23 loops present (nested EigenLayer loops shown as nested whiles), but abi.encodePacked appends are nested copy loops, calldata struct-array fields are raw nested offsets, and the limit-order loops are rotated as in c00474."
+}

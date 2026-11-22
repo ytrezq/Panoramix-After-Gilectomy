@@ -1,0 +1,36 @@
+{
+  "id": "c00147",
+  "abi_functions": 8,
+  "reviewed": 8,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P3": 1, "P6": 1, "P7": 2, "P11": 1},
+  "findings": [
+    {
+      "kind": "semantics",
+      "severity": "medium",
+      "function": "deployUSDY(string,string,(address,address,address))",
+      "lines": "61-63, 110",
+      "decompiled": "call create.new_address.initialize(string _name, string _symbol, address _token, address _poolAccountant, address _addressListFactory) with: args Array(len=cd[_param1 + 4], data=call.data[_param1 + 36 len cd[_param1 + 4]], Bytes(ceil32(cd[_param1 + 4]) - cd[_param1 + 4], 0), cd[_param2 + 4], call.data[_param2 + 36 len cd[_param2 + 4]], Bytes(...)), ceil32(cd[_param1 + 4]) + 192, _param3, _param4, _param5",
+      "source": "USDYFactory.deployUSDY: usdyProxied.initialize(name, ticker, listData.blocklist, listData.allowlist, listData.sanctionsList) (two strings then three addresses)",
+      "issue": "The first Array(...) absorbs the second string's length and data, and the second string argument is printed as its raw head offset ceil32(len1) + 192; the same wrong grouping is in the event at line 110. Read literally, the name argument contains the ticker and the ticker is a number.",
+      "rule": "Split the tail region at every head offset: each head word equal to the offset of a (len, data) block becomes its own Array(len, data) argument (same fault as c00059 and c00313).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "multiexcall, deployUSDY (onlyGuardian)",
+      "lines": "119, 69, 75, 99",
+      "decompiled": "if caller: revert with 'USDYFactory: You are not the Guardian' / call _1.grantRole(bytes32 role, address account) with: args Bytes(64, 0)",
+      "source": "immutable guardian; require(msg.sender == guardian, ...); grantRole(DEFAULT_ADMIN_ROLE, guardian)",
+      "issue": "The guardian immutable reads as 0, so the guard prints as 'if caller' and role grants go to address 0.",
+      "rule": "None (bytecode artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "One source loop in this bytecode: multiexcall's for (i < exCallData.length) as while idx < exCallData.length. StringsUpgradeable.toHexString and AccessControl functions are reached only through external calls to the deployed USDY token and are not in this bytecode. Implicit: new bytes[](n) initialization (while idx - 1, P3) and the ABI encoding of the returned bytes[] (while True with an inner copy, P7). The bounds check idx >= mem[128] inside the loop is dominated (P11).",
+  "summary": "Tiny text with its one loop present, but the token initialize call and its event print two string arguments with the wrong grouping; the guardian immutable reads as 0."
+}

@@ -1,0 +1,39 @@
+{
+ "id": "c00126",
+ "abi_functions": 66,
+ "reviewed": 66,
+ "not_reviewed": [],
+ "source_loops": 4,
+ "loops_shown": {
+  "while": 4,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 15,
+  "P4": 9,
+  "P6": 10,
+  "P7": 47,
+  "P8": 60,
+  "P11": 12,
+  "P14": 120
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "blockSubmission(bytes32[],bool)",
+   "lines": "431-444",
+   "decompiled": "isBlockedSubmission[concat(mem[32 * s + 160])] = isBlocked / mem[32 * _submissionIds.length + 160] = mem[32 * s + 160] / log Unblocked(bytes32 submissionId=mem[32 * _submissionIds.length + 160])",
+   "source": "DeBridgeGate.sol:538-545 for (...) { isBlockedSubmission[_submissionIds[i]] = isBlocked; emit Blocked/Unblocked(_submissionIds[i]); }",
+   "issue": "Inside the loop the array element read from the memory copy is not named: the key is `concat(mem[32 * s + 160])` (P4) and the event argument reads back a scratch word that was assigned on the line before.",
+   "rule": "Show a memory copy of a calldata array as the array (mem[160 + 32*s] is `_submissionIds[s]` when it was filled by a copy line and not written since), and forward a store to an immediately following load of the same address.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "deBridge DeBridgeGate (solc 0.8.17, no via-IR). Source loops: updateChainSupport (703), updateAssetFixedFees (566), blockSubmission (431), StringsUpgradeable.toHexString in the AccessControl revert of grantRole/revokeRole (`while idx > 1`, 2 per function); all shown as whiles. The other 47 whiles are implicit: bytes/array copies and ABI encodes in send/claim/sendMessage (P7) and three checked-exponentiation helper loops for 10 ** (decimals - 8) in send (`while u > 1`, whose guard prints as `e >= 78 and e >= 32`, i.e. `e >= 78`). send (791 lines) and claim (694) reviewed by structure: fee logic, external calls to the signature verifier/WETH/deToken, storage writes and events present; P2 calls (15) come from the free-pointer identification issue (see c00026). P11 includes the dead `s >= length` bounds checks inside `while s < length` loops.",
+ "summary": "Faithful bridge text with all four source loops as whiles; readability issues are implicit copy loops, exponentiation-helper loops and memory-copied arrays not shown as array accesses."
+}

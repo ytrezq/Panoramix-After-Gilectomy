@@ -1,0 +1,36 @@
+{
+  "id": "c00347",
+  "abi_functions": 15,
+  "reviewed": 15,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P3": 1, "P7": 2, "P8": 8, "P11": 1},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "oracles()",
+      "lines": "100-103",
+      "decompiled": "if oracleAt.length: mem[0] = 1; mem[160] = oracleAt[0]; mem[192 len floor32(max(192, 32 * oracleAt.length + 160) - 161)] = stor[sha3(1) + 1 len (max(192, 32 * oracleAt.length + 160) - 161) / 32]",
+      "source": "EnumerableSet.values(_oracles) (storage bytes32[] copied to memory)",
+      "issue": "The storage-to-memory copy of the set's values is printed with its first element peeled and a length expression that is just 32 * (n - 1).",
+      "rule": "For n >= 1, floor32(max(192, 32 n + 160) - 161) is 32 (n - 1) and (max(192, 32 n + 160) - 161) / 32 is n - 1; with the peeled first element merged back the copy is mem[160 len 32 n] = stor[sha3(1) len n].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "trigger(address)",
+      "lines": "226-241",
+      "decompiled": "static call 0x0 with: args mem[mem[64] len _42 - mem[64] + 36] ... call 0x0 with: args mem[mem[64] len _52 - mem[64] + 68]",
+      "source": "immutables pool and poolConfigurator: pool.getConfiguration(asset), poolConfigurator.setReserveBorrowing(asset, false)",
+      "issue": "solc immutables read as 0 before deployment (the calls also lose their names, P2).",
+      "rule": "none (build artifact)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 15 functions compared line by line (owner-only setters with OwnableUnauthorizedAccount, setOracle/disableOracle on the EnumerableSet, reset, trigger with its threshold and price checks and the Trigger event). Source loop: trigger's for over the reserves (219), with the active/frozen/paused skip and the BorrowDisabled event right. Implicit: the address[] decode of getReservesList (209, with a dead loop variable t) and the return encoding of oracles() (109).",
+  "summary": "Small, complete and faithful; the single source loop is a clear while, with minor noise in the EnumerableSet values copy and P2 calls to the zero immutables."
+}

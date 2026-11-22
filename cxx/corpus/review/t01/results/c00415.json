@@ -1,0 +1,38 @@
+{
+ "id": "c00415",
+ "abi_functions": 38,
+ "reviewed": 38,
+ "not_reviewed": [],
+ "source_loops": 1,
+ "loops_shown": {
+  "while": 1,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 12,
+  "P3": 1,
+  "P4": 6,
+  "P6": 3,
+  "P8": 30,
+  "P18": 6
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "getUserRedemptions(address) (unknownc4e71eaf)",
+   "lines": "650-664 vs 702",
+   "decompiled": "mem[mem[64] + 32] = _param1; mem[_16 + 64] = uint16(s); ... mem[0] = sha3(mem[_21 + 32 len mem[_21]]) ... mem[_16 + 96] = address(stor8[concat(mem[0])].field_0)   vs   stor8[sha3(_param1, _param2)].field_0 in unknownf337cbc1",
+   "source": "DepositRedemptionVault.sol:231 redemptions[i] = _userRedemptions[_getUserRedemptionKey(user_, i)] (keccak256(abi.encode(user_, i)))",
+   "issue": "Inside the loop the redemption key is hashed from a buffer at a phi pointer, so the mapping key prints as concat(mem[0]) (P4) instead of sha3(_param1, uint16(s)) as in the function that reads one redemption.",
+   "rule": "Resolve 'mem[64] + k' buffers through the free-pointer value (same rule as the P2 findings); a keccak of a known two-word buffer then prints as sha3(a, b) and the mapping as stor8[sha3(a, b)].",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "solc 0.8.36 without optimizer. One source loop (getUserRedemptions:230, 'for (uint16 i = 0; i < count; i++)') shown as 'while uint16(s) < stor7[_param1]'; the uint16 overflow check of i++ is correctly absent (i < count <= 65535). Implicit loops: the copy of a storage address[] (48595010), configureDependencies' Keycode[3] array ('while idx < 3'), the zero-initialisation of new UserRedemption[](count) in rotated form ('while idx - 1' after the first element, P3), and the ABI encoding of the returned struct array with its fields as memory slices (P18). All 38 functions reviewed; no semantic error found.",
+ "summary": "Clean and faithful; the single loop is readable, with minor leftovers (a mapping key as concat(mem[0]) inside the loop, a rotated zero-initialisation, struct fields as memory slices in the return encoding)."
+}

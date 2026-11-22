@@ -1,0 +1,58 @@
+{
+  "id": "c00025",
+  "abi_functions": 61,
+  "reviewed": 61,
+  "not_reviewed": [],
+  "source_loops": 10,
+  "loops_shown": {"while": 10, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 22, "P3": 4, "P4": 25, "P6": 5, "P7": 21, "P8": 300, "P9": 4, "P11": 10, "P14": 20, "P15": 50, "P18": 30},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "addValidatorKeys(bytes[],bytes[],bytes[]), addValidatorKeysWithUtilizeSD(...), updateOperatorName(string), onboardNodeOperator(...), validatorRegistry(uint256), withdrawnValidators(bytes[])",
+      "lines": "def storage 14-20; 644-648, 925-929, 996-1016, 2325-2329, 2331-2378, 2832",
+      "decompiled": "stor1 is fixed array of bytes at storage 1 ... stor7 is fixed array of uint256 at storage 7 / _365 = sha3(nextValidatorId, 258) / stor1[_365] = 2 * _370 + 1 / stor4[_365] = address(_355) / stor5[_365] = t",
+      "source": "PermissionlessNodeRegistry.sol:168 validatorRegistry[nextValidatorId] = Validator(INITIALIZED, _pubkey[i], _preDepositSignature[i], _depositSignature[i], withdrawVault, operatorId, 0, 0)",
+      "issue": "Members 1-7 of the struct mapping stor258 (pubkey, the two signatures, withdrawVaultAddress, operatorId, depositBlock, withdrawnBlock) are declared as seven fixed arrays at slots 1-7 (which are really Initializable's __gap) and written as stor1[_365]..stor7[_365] with _365 = sha3(k, 258); the same slots are elsewhere printed as stor258[k].field_256 etc. The slot arithmetic agrees (1 + _365), but the names say 'array at slot 1 indexed by a hash'.",
+      "rule": "A slot sha3(k, S) + m with m smaller than the struct size of the mapping at S is member m of S[k]; never type stor[m + h] with h a keccak result as a fixed array at slot m.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all functions reading staderConfig (41 lines), initialize, the two max/limit setters",
+      "lines": "65, 71, 75, 187, 211, 236, 260, 412, 391",
+      "decompiled": "stor251 is uint256 at storage 251 / static call address(stor251 >> 80).unknown6240fb9c(?) / uint64(stor251 >> 16) / uint16(stor251) / stor251 = address(_token1) << 80 | Mask(176, 80, stor251 & 0xffff0000000000000000000000000000000000000000ffffffffffffffff0000) | 3276830",
+      "source": "slot 251: uint16 inputKeyCountLimit (+0), uint64 maxNonTerminalKeyPerOperator (+2), IStaderConfig staderConfig (+10); initialize sets staderConfig, inputKeyCountLimit = 30, maxNonTerminalKeyPerOperator = 50",
+      "issue": "P15: the packed slot is not split in def storage, so staderConfig reads as address(stor251 >> 80) in 41 lines (once as address(stor251.field_80)), and initialize's three field stores are one whole-slot expression with the constant 3276830 = 50 << 16 | 30.",
+      "rule": "When every access to a slot uses disjoint bit ranges (here [0,16), [16,80), [80,240)), declare one field per range and print shifted/masked reads and masked writes as field reads and field stores; split a whole-slot store into one store per range that changes.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "addValidatorKeys, addValidatorKeysWithUtilizeSD, markValidatorReadyToDeposit, withdrawnValidators (validatorIdByPubkey lookups and custom-error reverts)",
+      "lines": "1264-1275, 1279-1284, 2378-2380 (line 53 of the loop body), 2459-2469 equivalents",
+      "decompiled": "_46 = mem[64] / mem[mem[64] len n] = call.data[...] / mem[_46 + n] = 259 / if not stor[sha3(mem[mem[64] len _46 + n - mem[64] + 32])]: _52 = mem[64]; mem[mem[64]] = 0x5c4dbffc...; revert with memory from mem[64] len _52 - mem[64] + 4",
+      "source": "PermissionlessNodeRegistry.sol:221 uint256 validatorId = validatorIdByPubkey[_readyToDepositPubkey[i]]; onlyInitializedValidator(validatorId) -> revert UNEXPECTED_STATUS()",
+      "issue": "The bytes-keyed mapping validatorIdByPubkey loses its name and key (a hash of raw memory), and the custom errors are raw-memory reverts, because _46 - mem[64] and _52 - mem[64] (no store to slot 64 in between) are not reduced to 0.",
+      "rule": "Prove mem[64] >= 128 so stores at mem[64] + k do not alias slot 64, copy-propagate _x = mem[64]; then sha3 over 'pubkey bytes ++ 259' is stor259[pubkey] and 'revert memory from P len 4' after 'mem[P] = sel' is 'revert with sel'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "getAllActiveValidators(uint256,uint256), getValidatorsByOperator(address,uint256,uint256)",
+      "lines": "1453-1495, 1667-1765; 1800-1828, 1925-2020",
+      "decompiled": "if _param2: <element 0 initialised> if _param2 != 1: <element 1 initialised> ... while idx - 1: <element initialised> ... ; if 0 >= s: return Array(...) / <element 0 encoded> / while True: ...",
+      "source": "PermissionlessNodeRegistry.sol:549 Validator[] memory validators = new Validator[](_pageSize); :562 return validators;",
+      "issue": "The implicit initialisation loop of new Validator[](n) is printed with its first two iterations peeled before a 'while idx - 1' test (P3), and the ABI encoding of the returned struct array peels element 0 and continues as 'while True' whose exit carries the return.",
+      "rule": "Re-roll peeled iterations that repeat the loop body with the induction variable at its initial values (P3), and turn 'while True: if c: <tail ending in return>' into 'while not c' followed by the tail.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 61 ABI functions compared; the eight long ones (addValidatorKeysWithUtilizeSD 507 lines, addValidatorKeys 471, getAllActiveValidators 322, getValidatorsByOperator 257, markValidatorReadyToDeposit 228, withdrawnValidators 165, onboardNodeOperator 159, getOperatorTotalNonTerminalKeys 112) by structure (calls, storage writes, events, reverts, loops); the getters, setters, role functions and initialize read in full. No semantic error found: e.g. isActiveValidator (status == DEPOSITED) as 'if mem[_201] != 4', onlyInitializedValidator's two reverts, the bytes storage stores with old-tail clearing (copy lines), initialize's merged slot-251 store and the AccessControl message built by toHexString (the role 0 loop folded to '0' digits) are exact. Loops: 10 source loops, all readable whiles: toHexString (6 inlined copies in grantRole/revokeRole/updateStaderConfig), getAllNodeELVaultAddress, withdrawnValidators, getOperatorTotalNonTerminalKeys (3 copies), the three loops of markValidatorReadyToDeposit, getAllActiveValidators, getValidatorsByOperator, and _addValidatorKeys' key loop (2 copies). The other 23 whiles are implicit: 2 rotated new Validator[] initialisations and 21 ABI-encoding copies (P7, including 2 'while True'). P11: initializer's onlyInitializing check after 'if not stor0_8: stor0_8 = 1', the toHexString index checks. P18: Validator struct copies visible only as mem[_201 + k].",
+  "summary": "Faithful on the paths checked, with every source loop a readable while; hard to read because the Validator struct's members appear as seven fake fixed arrays at slots 1-7, slot 251 is not split (staderConfig as address(stor251 >> 80)), and bytes-keyed mapping lookups and custom errors are left as raw memory."
+}

@@ -1,0 +1,38 @@
+{
+  "id": "c00002",
+  "abi_functions": 39,
+  "reviewed": 39,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {
+    "while": 1,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 89,
+    "P3": 3,
+    "P6": 7,
+    "P7": 22,
+    "P8": 30,
+    "P14": 60
+  },
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "regenerate(bool), setRegenParams(uint32,uint32,uint32), initialize(), operate() (6 copies of the bool[] store)",
+      "lines": "1812-1849 (regenerate), 675-705, 733-750, 2288-2309, 2548-2569, 2909-2930, 3182-3203",
+      "decompiled": "mem[X + 32 len 32 * stor7_224] = call.data[calldata.size len 32 * stor7_224] / stor4.length = stor7_224 / ... / while idx < mem[X] / 32: t = 0; u = 0; v = s; while t < 32: u = u & ~(255 << 8 * t) | bool(mem[v]) << 8 * t & 255 << 8 * t; ... stor[idx + sha3(4)] = u ... / while idx < mem[X] % 32: s = s & ~(255 << 8 * idx) | bool(mem[t]) << 8 * idx & 255 << 8 * idx ... stor[sha3(4) + mem[X] / 32] = s",
+      "source": "Operator.sol:637/660/801 _status.high.observations = new bool[](_config.regenObserve); (also initialize: observations: new bool[](configParams[7]))",
+      "issue": "Assigning a fresh bool[] memory array to a storage bool[] is printed as solc's packing copy: a loop over 32-element chunks with an inner bit-packing loop and a tail loop, although the source memory was zeroed just before (the calldatacopy from calldatasize), so every stored word is 0.",
+      "rule": "Recognise the memory-to-storage packed-array copy loops as one copy (stor[sha3(4) len ceil(n / 32)] = pack(mem[X + 32 len 32 * n])); when the source region is known to be zero (written from call.data[calldata.size ...]), the copy is stor[sha3(4) len ceil(n / 32)] = 0, i.e. 'observations = new bool[](n)'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed by structure (unoptimized build, 4,004 lines): all 39 ABI functions; the small getters, setters with RolesConsumer.onlyRole and the kernel adapter functions read in full; operate (1,380 lines), regenerate, initialize, bondPurchase, swap, setRegenParams, status and configureDependencies/requestPermissions by structure (calls, loops, storage writes, events, reverts). No semantic error found. Loops: the only explicit source loop reached is _getPriceDecimals' 'while (price_ >= 10)' (2 copies in operate, 'while t >= 10' with the int8 overflow check of decimals++), shown as a readable while; Kernel's keycode loops are not reached. The other 44 text whiles are implicit: the checked exponentiation helper of 10 ** decimals ('while u > 1: if s > -1 / s', 9 copies, readable), the bool[] storage stores (finding, 18 whiles), the storage-to-memory copies of the bool[] observations in status() (rotated, P3) and their ABI encodings (P7), the Keycode[] encodings in configureDependencies/requestPermissions ('while idx < 5', element cleanup). P2 (89 lines) comes from the unknown free-memory pointer of the unoptimized code.",
+  "summary": "Faithful on the paths checked; as an unoptimized build it is verbose, and its main obscurity is that every 'observations = new bool[](n)' prints as three bit-packing loops copying known-zero memory to storage; P2 hides 89 call argument lists."
+}

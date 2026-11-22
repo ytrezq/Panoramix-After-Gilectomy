@@ -1,0 +1,42 @@
+{
+  "id": "c00364",
+  "abi_functions": 8,
+  "reviewed": 8,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "exec(bytes32), vat()",
+      "lines": "3, 79-117",
+      "decompiled": "const vat = 0 ... require ext_code.size(0); static call 0x0.ilks(bytes32) ... call 0x0.file(...) ... static call 0x0.Line() ...",
+      "source": "DssAutoLine.sol:42 VatLike immutable public vat",
+      "issue": "The solc immutable vat reads as 0, so all four Vat calls target 0x0 and sampled executions stop at the first extcodesize check.",
+      "rule": "Not a decompiler error (pre-deployment bytecode).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "exec(bytes32)",
+      "lines": "91-99, 103",
+      "decompiled": "if not ext_call.return_data[32]:\n    _6 = 0\n    _7 = 1\nelse:\n    _6 = ext_call.return_data[0] * ext_call.return_data[32]\n    _7 = ext_call.return_data[0] * ext_call.return_data[32] / ext_call.return_data[32] == ext_call.return_data[0]\nrequire _7\n_9 = min(SafeMath.add(_6, stor0[_ilk].field_256), stor0[_ilk].field_0)\n_15 = min(SafeMath.add(_6, ...), ...) == ext_call.return_data[96] or min(SafeMath.add(_6, ...), ...) > ... \n... args _ilk, 0x6c696e65..., min(_6 + stor0[_ilk].field_256, stor0[_ilk].field_0)",
+      "source": "DssAutoLine.sol:65-67 mul: require(y == 0 || (z = x * y) / y == x); :132-140 debt = mul(Art, rate); lineNew = min(add(debt, ilkGap), ilkLine)",
+      "issue": "The short-circuit overflow check of mul is printed as two phis, although _6 equals x * y on both arms (0 = x * 0); and lineNew, bound to _9, is recomputed twice in _15 and once more (with plain +) in the call arguments, and line is printed as both _1 and ext_call.return_data[96].",
+      "rule": "Merge a phi whose incoming values are equal under the branch condition (0 and x * y when y == 0) and print the check as require not y or x * y / y == x; once an expression is bound to a name, print the name for every later equal expression.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loops. All Vat calls, the two storage-field writes and the Exec event are correct; the write order of last/lastInc is merged (different fields of one slot, no reads between - same final state). The extcodesize checks before both file calls are dropped after STATICCALLs to the same address (sound, as in c00267). add(ilkLastInc, ilkTtl)'s overflow require is gone (sum of two uint48 cannot overflow). remIlk clears the 144 low bits of the third slot (three uint48 fields), matching delete. The struct mapping is left as stor0 although ilks(bytes32) returns all its members (no misleading name). Same DSMath helpers as c00267.",
+  "summary": "Faithful, compact text; minor noise from the short-circuit mul check printed as phis and the lineNew expression recomputed instead of reusing its binding; vat immutable read as 0 (artifact)."
+}

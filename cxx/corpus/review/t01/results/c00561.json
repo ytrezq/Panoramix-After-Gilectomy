@@ -1,0 +1,47 @@
+{
+  "id": "c00561",
+  "abi_functions": 6,
+  "reviewed": 6,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 6, "P3": 2, "P6": 12, "P7": 4, "P8": 80, "P11": 10, "P18": 40},
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "emergencyCloseSwapsDai(uint256[],uint256[],(...)) and closeSwapsDai(address,uint256[],uint256[],(...))",
+      "lines": "972, 1181, 1296, 1324, 1440, 1446, 1448, 1531, 1536, 2207 (emergencyCloseSwapsDai); 3185, 3394, 3509, 3537, 3653, 3659, 3661, 3744, 3749, 4428 (closeSwapsDai)",
+      "decompiled": "if Mask(15, 240, _2193) >> 240 >= 16383: require _2193 >> 128 < 0x8000.. / require Mask(15, 240, _2193) >> 240 <= 16638 / ...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)  |  ... aborted / revert / if SafeMath.mul(_137, _131) > ...: revert with Panic(17) / if _1781 <= 0x7fff..: ... aborted",
+      "source": "the swap interest/PnL computation reached by _closeSwapPayFixed/_closeSwapReceiveFixed (SwapLogicBaseV1.calculatePnl*, InterestRates continuous compounding) through ABDKMathQuad.fromUInt/fromInt/mul/div/exp/toUInt",
+      "issue": "Ten paths per function are lost inside the inlined ABDKMathQuad quad-float arithmetic (exponent/mantissa branches), i.e. the interest and PnL values of the closed swaps, and with them the later transfers and the second leg on those paths. After the abort at 1531-1536 a bare 'revert' is followed by statements in the same block, which read as unreachable.",
+      "rule": "none (decompiler limit); when a region is aborted, print its continuation as a separate block instead of after a 'revert' in the same block.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "getPoolConfiguration(), iporOracle(), messageSigner(), spreadRouter() and the calls in both close functions",
+      "lines": "pack 4527-4580; 125-127",
+      "decompiled": "const unknownb80945e9 = Bytes(608, 0)  |  const unknown7761022f = 0  |  static call 0x0.getAccruedIndex(uint256 calculateTimestamp, address asset) with: args block.timestamp, 0",
+      "source": "immutable iporOracle, messageSigner, spreadRouter, asset, ammStorage, ... returned by _getPoolConfiguration()",
+      "issue": "solc immutables read as 0: the pool configuration is 608 zero bytes and the oracle/storage calls go to 0x0 with asset 0.",
+      "rule": "none (bytecode artifact)",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "emergencyCloseSwapsDai, closeSwapsDai (_closeSwapsPerLeg)",
+      "lines": "147-162, 194-197",
+      "decompiled": "_83 = mem[64] / mem[64] = mem[64] + 64 / mem[_83] = 8 / mem[_83 + 32] = 0x49504f525f333036.. / if _82 <= 0: ... mem[_89 + 68 len _92] = mem[_83 + 32 len _92] / revert with memory from mem[64] len _89 + ceil32(_92) - mem[64] + 68  |  require mem[_98 + 320] < 2 / ... / if mem[_98 + ceil32(return_data.size) + 320] > 1: revert with Panic(33)",
+      "source": "require(swapId > 0, AmmErrors.INCORRECT_SWAP_ID) ('IPOR_306') in _closeSwapsPerLeg; decoding of the returned Swap struct (enum fields)",
+      "issue": "IPOR's string-constant requires are printed as an allocation of the string before the test plus a raw-memory revert copying it, instead of revert with 'IPOR_306'; the enum range check after decoding repeats the decoder's own check (P11).",
+      "rule": "A string written to fresh memory and only read by the Error(string) copy of a revert is that literal: print 'require cond, \"IPOR_306\"' and drop the allocation; drop a check implied by a dominating require on the same value.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Two very long functions (~2200 lines each, same code with msg.sender vs beneficiary) reviewed by structure: getAccruedIndex, the two _closeSwapsPerLeg loops ('while s != _12' and 'while s != _84', the source's 'i != swapIdsLength'), getSwap decoding, PnL, transfers, events and the returned arrays. Source loop: _closeSwapsPerLeg (one source loop, inlined twice per function), shown as while. Implicit: 'while idx - 1' zero-init of the result arrays (P3), the two encoding loops of the returned IporSwapClosingResult[] (P7). The four getters are immutables (artifact).",
+  "summary": "The loop and the call sequence are visible, but each close function loses ten paths inside the inlined ABDK quad-precision interest arithmetic, and the immutables make the configuration getters constant zeros."
+}

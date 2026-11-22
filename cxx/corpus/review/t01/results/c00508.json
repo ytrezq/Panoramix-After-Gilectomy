@@ -1,0 +1,36 @@
+{
+  "id": "c00508",
+  "abi_functions": 24,
+  "reviewed": 24,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P8": 8, "P11": 2},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "closeSwapsStEth / emergencyCloseSwapsStEth (0x9606f781, 0xe4340da9) and the immutable getters",
+      "lines": "3-24, 48-55",
+      "decompiled": "const spread = 0 ... / _5 = cd[_param1 + 4] <= 0 and cd[_param2 + 4] <= 0 / ... if not _5: revert with 'IPOR_315' / ... static call 0x0.getAccruedIndex(uint256 calculateTimestamp, address asset) with: args block.timestamp, 0",
+      "source": "AmmCloseSwapServiceBaseV1: require(payFixedSwapIds.length <= liquidationLegLimit && receiveFixedSwapIds.length <= liquidationLegLimit, IporErrors... 'IPOR_315'); _closeSwapsPerLeg loop for (uint256 i; i != swapIdsLength; )",
+      "issue": "All configuration is immutable and reads as 0 before deployment: the leg limit 0 admits only empty swap arrays, so _closeSwapsPerLeg's loop never runs and is pruned, the oracle / spread / storage addresses are 0x0, and the getters fold to constants. The 24 KB bytecode decompiles to 236 lines.",
+      "rule": "None needed (solc immutables).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "0xe4340da9, 0x9606f781",
+      "lines": "47-55",
+      "decompiled": "mem[...] = 8 / mem[...] = 0x49504f525f333135... / if not _5: revert with 'IPOR_315' / mem[...] = 8 / mem[...] = 0x49504f525f333135... / if cd[_param1 + 4] > 0: revert with 'IPOR_315'",
+      "source": "the IPOR_315 requires of the two legs",
+      "issue": "The memory writes of the message string are kept although the revert already prints the message, and the second check 'cd[_param1 + 4] > 0' is implied by the first ('cd[_param1 + 4] <= 0 and ...' required just before).",
+      "rule": "Drop memory writes whose only reader is a revert already printed with its decoded message (P8); drop a check implied by a dominating require (P11).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The only source loop (_closeSwapsPerLeg) is dead because of the zero immutable leg limit (artifact, not counted). What remains of the two close functions (array decode, the leg-limit checks, the accrued-index oracle call to 0x0, the zeroed memory structs) is consistent with the source under zero immutables; the 22 other ABI functions are immutable getters printed as constants (version = 2003 is a real constant).",
+  "summary": "Tiny text for a large contract: the zero immutables prune the close-swap loop and nearly all logic; what remains is faithful, with a few dead message writes and an implied check."
+}

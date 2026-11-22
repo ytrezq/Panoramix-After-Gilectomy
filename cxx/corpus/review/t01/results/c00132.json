@@ -1,0 +1,25 @@
+{
+  "id": "c00132",
+  "abi_functions": 37,
+  "reviewed": 37,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 6, "P3": 1, "P6": 4, "P7": 12, "P8": 20, "P11": 10, "P15": 234, "P17": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all functions touching EscrowState.Context (slot 0), StETH/UnstETH accounting totals (slots 1, 2) and WithdrawalsBatchesQueue.QueueInfo (slot 5)",
+      "lines": "13-18 (def storage); 94-96, 140; 225; 1362-1363; 1447; 1737",
+      "decompiled": "stor5 is uint256 at storage 5  |  return uint64(uint64(stor5 >> 128) - (stor5 >> 192))  |  stor5 = uint8(stor5) | 256 * (stor5 / 256)  |  stor5 = (_1 << 192) + (_47 << 192) | uint64(mem[408 len 8]) << 128 | ... | uint8(stor5)  |  stor1 = uint128(stor1) | -340282366920938463463374607431768211456 * _90 + (eth.balance(this.address) << 128) + (stor1 >> 128 << 128)",
+      "source": "EscrowState.Context {State state; Duration minAssetsLockDuration; Duration rageQuitExtensionPeriodDuration; Timestamp rageQuitExtensionPeriodStartedAt; Duration rageQuitEthWithdrawalsDelay}; QueueInfo {State state; ... uint64 totalUnstETHIdsCount; uint64 totalUnstETHIdsClaimed}; StETHAccounting / UnstETHAccounting packed uint128 pairs",
+      "issue": "Four packed slots stay 'uint256' and every field access is shift/mask arithmetic (234 lines); one write stores the slot's own value back (uint8(x) | 256 * (x / 256) is x), and field updates print -2^128 as a decimal factor and distribute shifts over sums.",
+      "rule": "Split a slot whose reads are consistently masked/shifted into fields (offsets 0/8/40/72/112, 128/192...); recognise uint8(x) | (x >> 8) << 8 as x (a no-op store); print x * 2^k as x << k and (a << k) + (b << k) as (a + b) << k.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (11): AssetsAccounting.accountUnstETHLock/Unlock/Finalized/Claimed/Withdraw, WithdrawalsBatchesQueue._getNextClaimableUnstETHIds, addUnstETHIds ('while idx < _28 - 1', assert -> Panic(1)), calcRequestAmounts, and the ABI loops of getLockedUnstETHDetails, lockUnstETH and unlockUnstETH; all shown as while (lockUnstETH 1028/1087/1096, unlockUnstETH 827/936, markUnstETHFinalized 1242, claimUnstETH 745, withdrawETH 476, requestNextWithdrawalsBatch 1514/1580, getNextWithdrawalBatch 624, claimNextWithdrawalsBatch 1328/1703...). Implicit: decoders of returned arrays, encoders, one zero-init (P3), P7 ~12. P11: Panic(50) of ids[i + 1] inside 'while i < count - 1'. 37 ABI functions read; the batch functions by structure.",
+  "summary": "Every source loop is found and the semantics match, but the dual-governance packed state (escrow state, accounting totals, batch queue info) is never split into fields, so most of the text is shift/mask arithmetic with a no-op store and decimal powers of two."
+}

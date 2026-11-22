@@ -1,0 +1,80 @@
+{
+  "id": "c00118",
+  "abi_functions": 31,
+  "reviewed": 31,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 177, "P3": 15, "P6": 48, "P7": 70, "P8": 150, "P9": 12, "P11": 40, "P12": 18, "P15": 1, "P18": 60},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all functions using creditManager, underlying, treasury, acl, weth, priceFeedStore, expirable",
+      "lines": "186, 283, 363, 375, 2043, 2063; 122 (setExpirationDate); 358, 582",
+      "decompiled": "static call 0x0.hasRole(...) / call 0x0.addCollateral(..., 0, _param3) / if caller == creditConfigurator: revert with NotAllowedWhenNotExpirableException() / if not address(_232): revert 0xc978b5ab",
+      "source": "immutables creditManager, underlying, treasury, weth, expirable ...; _isExpired() returns false when !expirable",
+      "issue": "solc immutables read as 0: every call to the credit manager goes to 0x0, 'token == underlying' prints as 'not address(token)', _isExpired() folds to false so _revertIfNotLiquidatable loses its expiry term and setExpirationDate always reverts.",
+      "rule": "none (bytecode artifact)",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "partiallyLiquidateCreditAccount (_tryWithdrawPhantomToken / OptionalCall.staticCallOptionalSafe)",
+      "lines": "458-464",
+      "decompiled": "mem[_128 + ceil32(return_data.size) + 32 len 4] = 2813775246 / mem[_128 + ceil32(return_data.size) + 36] = Bytes(4, 0xa7b6cd8e), mem[_128 + ceil32(return_data.size) + 36 len 28] / mem[_128 + ceil32(return_data.size) + 40] = 0 / static call _param2.mem[_128 + ceil32(return_data.size) + 36 len 4] with: gas 30000",
+      "source": "CreditFacadeV3.sol:793-797 OptionalCall.staticCallOptionalSafe({target: token, data: abi.encodeWithSelector(IPhantomToken.getPhantomTokenInfo.selector), gasAllowance: 30_000})",
+      "issue": "The call's function is printed as a memory slice although the line above stores the constant selector 0xa7b6cd8e there (and the one before writes it again in decimal); the reader cannot see it is getPhantomTokenInfo(). The same 'call x.mem[.. len 4]' display occurs in other texts of the corpus (c00014: 28, c00054: 51).",
+      "rule": "Forward stores into reads: after 'mem[a] = Bytes(4, C), mem[a + 4 len 28]' (or 'mem[a - 32 + 32 len 4] = C'), mem[a len 4] is C; a call whose selector bytes are a known constant prints with that selector (and its name).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all multicall functions, liquidations, partiallyLiquidateCreditAccount (310 sites)",
+      "lines": "e.g. 2187-2192, 2217-2221, 2279-2286, 3290-3300 (multicall); 583-611 (partial liquidation)",
+      "decompiled": "_1751 = mem[64] / mem[mem[64]] = 0x6b895d04.. / mem[_1751 + 4] = 65536 / revert with memory from mem[64] len _1751 - mem[64] + 36   |   mem[mem[64]] = 0xfc1a5543.. / revert with memory from mem[64] len _1910 - mem[64] + 4",
+      "source": "revert NoPermissionException(EXTERNAL_CALLS_PERMISSION); revert TargetContractNotAllowedException(); revert BalanceLessThanExpectedException(failedToken); revert SeizedLessThanRequiredException(seizedAmount); ...",
+      "issue": "310 custom-error and Error(string) reverts raised after the first call stay raw memory (selector word + arguments), although the same errors before any call print as 'revert with TargetContractNotAllowedException()' (520) or 'revert with 0x1e83c511'; 177 call argument lists are raw too (P2).",
+      "rule": "Same as c00471/c00600: with mem[64] bounded, 'x - mem[64]' with x = mem[64] is 0, so 'revert(x, 4 + 32k)' after 'mem[x] = sel << 224; mem[x + 4 + 32i] = a_i' is 'revert with Error_sel(a_0, ...)'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "partiallyLiquidateCreditAccount (_fullCollateralCheck with new uint256[](0))",
+      "lines": "670-692",
+      "decompiled": "_270 = mem[64] / mem[mem[64]] = 0 / mem[64] = _270 + 32 / ... / mem[_270 + 196] = mem[_270] / s = 0 / while s < mem[_270]: mem[t] = mem[u]; ...",
+      "source": "CreditFacadeV3.sol:429-435 _fullCollateralCheck({..., collateralHints: new uint256[](0), minHealthFactor: PERCENTAGE_FACTOR, useSafePrices: false})",
+      "issue": "The encoding loop of the empty hints array is printed although its bound mem[_270] was set to 0 seven lines above: a loop that never runs.",
+      "rule": "Fold mem[x] after 'mem[x] = 0' when the stores in between are at x + c with c >= 32 (no wrap below 2^64); a loop whose bound folds to 0 is deleted.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "partiallyLiquidateCreditAccount",
+      "lines": "394-399, 434, 456, 606, 615, 638",
+      "decompiled": "_2 = ext_call.return_data[0] / mem[0 len min(32, return_data.size)] = ... / _113 = mem[0] / ... -_106 + _2 ... -_106 + _113 - (-1 * _106 * uint16(_130) + _113 * uint16(_130)) / 10000 / if _106 + (-1 * _106 * uint16(_130) + _113 * uint16(_130)) / 10000 == _113: revert",
+      "source": "CreditFacadeV3.sol:415 repaidAmount = safeBalanceOf(creditAccount) - balanceBefore; :1012-1015 feeAmount = amount * fee / PERCENTAGE_FACTOR; repaidAmount = amount - feeAmount; _manageDebt: if (amount == 0) revert AmountCantBeZeroException()",
+      "issue": "The new balance has two names (_2 and _113) used interchangeably, and amount * fee is distributed over amount = _113 - _106 (P9), so 'repaidAmount == 0' becomes '_106 + feeAmount == _113'.",
+      "rule": "After 'require return_data.size >= 32' dominating the uses, a word copied from ext_call.return_data[0] into mem[0] equals ext_call.return_data[0]: use one name. Keep a product of a named difference factored.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "multicall, botMulticall, openCreditAccount, closeCreditAccount, both liquidateCreditAccount (BalancesLogic.compareBalances)",
+      "lines": "2525-2550, 3230-3262, 3291-3320",
+      "decompiled": "_1811 = mem[s] / w = 0 / while True: if w >= _1811: _2073 = 0; break / if w >= mem[s]: revert with Panic(50) / ... / if _2023: w = w + 1; continue / if w >= mem[s]: revert with Panic(50) / _2073 = mem[mem[s + 32 * w + 32]] / break",
+      "source": "BalancesLogic.sol:86-90 for (uint256 i; i < len; ++i) if (!checkBalance(...)) return balances[i].token;",
+      "issue": "The 20 search loops are printed as 'while True' with the test inside, and each keeps two bounds checks that the loop test implies (P11).",
+      "rule": "'while True: if i >= n: r = 0; break; ...' is 'while i < n: ...' followed by r = 0; a Panic(50) check 'i >= len' dominated by 'i < len' (len unchanged in the loop) is dead.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Long functions reviewed by structure: liquidateCreditAccount (2 variants, ~1850 lines each), multicall, botMulticall, openCreditAccount, closeCreditAccount (~1300 lines each); partiallyLiquidateCreditAccount and the admin functions read in full. Checked: modifiers (whenNotPausedOrEmergency with EMERGENCY_LIQUIDATOR, creditAccountOwnerOnly, nonReentrant on slot 0 byte 1, wrapETH), _revertIfNotLiquidatable, _calcPartialLiquidationPayments (discount/fee choice by isExpired, checks order), _tryWithdrawPhantomToken and _externalCall (adapter/target zero check, active account, flags), _manageDebt and the debt-limit check, both _withdrawCollateral calls and events, the _multicall dispatch, permissions, adapterToContract, forbidden-token handling, FinishMultiCall, the SKIP_COLLATERAL_CHECK/USE_SAFE_PRICES flags and fullCollateralCheck(enabledTokensMask | 1). Source loops: _multicall for (2182 etc.), _setFullCheckParams for, storeBalances(deltas) for, storeBalances(mask) while ('while t:', t & -t), calcEnabledTokens ('while t: s = s + 1; t = t & t - 1'), both compareBalances fors ('while True'); all shown as while. Implicit: 15 'while idx - 1' zero-init loops of new structs arrays (P3), ~70 memory copy/encoding loops (P7) incl. the callData copies of Address.functionCall and the priceUpdates re-encoding. P12: the '_unsetActiveCreditAccount' tail printed in both arms of 'if not mem[s]' (3216-3270) in each multicall function. P8: 'mem[x + 32] = 0' then 'mem[x + 32] = 10000' (2100-2101), zero-initialised structs, dead SafeERC20 strings. P15/naming: expirationDate (slot 0 bits 16-55) is missing from def storage and read as uint40(stor[0].field_16). Decimal selectors (14, e.g. 2813775246, 2820925950).",
+  "summary": "Control flow, calls, events and checks match the source (with immutables reading as 0), and all seven source loops are shown as loops; the text is hard to read because of 310 raw custom-error reverts and 177 raw call buffers after the first call, a call whose known selector is printed as a memory slice, and search loops printed as 'while True' with redundant bounds checks."
+}

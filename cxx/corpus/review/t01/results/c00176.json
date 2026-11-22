@@ -1,0 +1,49 @@
+{
+  "id": "c00176",
+  "abi_functions": 60,
+  "reviewed": 60,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {
+    "while": 5,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 12,
+    "P3": 5,
+    "P6": 6,
+    "P7": 19,
+    "P8": 50,
+    "P11": 52
+  },
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "findPendingWithdrawals (unknown2bf83911), getPendingWithdrawals (unknown28a6ff1e)",
+      "lines": "1676-1700, 1726-1737, 1780-1794; 1413",
+      "decompiled": "if _param5: ... mem[160] = 32 * _param5 + 160 / if _param5 != 1: ... mem[192] = 32 * _param5 + 256 / s = 192 / idx = _param5 - 1 / while idx - 1: ...  |  if t == _param5: ... mem[mem[64] + 64] = mem[mem[160]] ... _97 = 1 else: ... _97 = 0 / idx = _97 / while idx < _95: ... / return memory from mem[64] len _94 - 96 * _97 + 96 * max(_95, _97) - mem[64]",
+      "source": "FlowRateWithdrawalQueue.sol:186-204 found = new FindPendingWithdrawal[](maxFind); ... if (foundIndex != maxFind) { temp = new FindPendingWithdrawal[](foundIndex); for (i < foundIndex) temp[i] = found[i]; found = temp; } (return found)",
+      "issue": "The compiler's zeroed struct-array allocation has its first two elements peeled before a count-down 'while idx - 1', and the ABI encoding of the result is rotated in one arm (first element encoded before the shared loop, which then starts at a phi'd index), so the return length becomes '_94 - 96 * _97 + 96 * max(_95, _97) - mem[64]'.",
+      "rule": "Re-roll peeled iterations that are equal to the loop body up to the induction variable (the loop then starts at 0 and the phi of its start disappears); with the start index constant the length folds to 96 * n + 64.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "every onlyRole function (52 toHexString loops: pause, unpause, grant*/revoke*Role, setters, queue activation...)",
+      "lines": "e.g. 154-184",
+      "decompiled": "mem[160 len 42] = 0 / idx = 41 / s = caller / while idx > 1: if idx >= 42: revert with Panic(50) / mem[idx + 160 len 1] = byte(s % 16, 0x30313233...) ...",
+      "source": "OZ AccessControlUpgradeable._checkRole -> StringsUpgradeable.toHexString: for (uint256 i = 2 * length + 1; i > 1; --i) { buffer[i] = _SYMBOLS[value & 0xf]; value >>= 4; }",
+      "issue": "The loop itself is readable (and the '0x' prefix is folded into the message), but each copy keeps the bounds check of buffer[i] although i <= 2 * length + 1 < buffer.length on every iteration (52 copies).",
+      "rule": "A bounds check 'i >= n' inside a loop whose induction variable starts at n - 1 and only decreases is false; drop it.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 60 ABI functions and the fallback reviewed; no semantic error found. Small getters, role management (OZ AccessControl with the toHexString revert message), pause/unpause, flow-rate setters read directly; deposit / depositTo / depositETH / depositToETH / mapToken / onMessageReceive / finaliseQueuedWithdrawal(s) / findPendingWithdrawals / getPendingWithdrawals by structure (token mapping checks, IMX cumulative limit, message encoding to the bridge adaptor with value, flow-rate bucket updates and queue activation, withdrawal queue entries, events). Source loops: toHexString (inlined 52 times), getPendingWithdrawals, findPendingWithdrawals' search loop (a flag-driven 'while _47' with the '&&' condition recomputed at the end of the body, readable) and its copy loop, finaliseQueuedWithdrawalsAggregated's loop: all whiles. Implicit: struct-array zero allocations (rotated, P3), name/symbol string decodings and the message ABI encodings (19 plain copies, P7). The second initialize overload always reverts with 0xf0e22197 (WrongInitializer), as in the source.",
+  "summary": "Faithful; every source loop is a readable while (the toHexString loops even fold the '0x' prefix into the message); the remaining obscurity is the compiler's peeled struct-array allocations and rotated result encodings in the withdrawal-queue views."
+}

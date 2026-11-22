@@ -1,0 +1,36 @@
+{
+  "id": "c00341",
+  "abi_functions": 23,
+  "reviewed": 23,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P3": 6, "P8": 6},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "etch(address[]), vote(address[])",
+      "lines": "99-112, 300-373",
+      "decompiled": "if yays.length > 0: revert with 'Chief/greater-max-yays' / _3 = slates[sha3()].length / slates[sha3()].length = yays.length / ... return sha3()",
+      "source": "Chief.sol:111-123 require(yays.length <= maxYays, \"Chief/greater-max-yays\"); if (yays.length > 1) { for (uint256 i = 0; i < yays.length - 1;) { require(yays[i] < yays[i + 1], \"Chief/yays-not-ordered\"); ++i; } } slate = keccak256(abi.encodePacked(yays)); slates[slate] = yays;",
+      "issue": "maxYays is an immutable, 0 before deployment, so only empty slates pass: the ordering loop is pruned (not counted), the slate is the hash of the empty encoding (sha3()), and vote(address[]) adds weight to that empty slate.",
+      "rule": "None needed.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "lock, free, vote(bytes32), vote(address[]) (_addWeight / _subWeight)",
+      "lines": "131-138, 184-191, 233-242, 265-271, 322-331, 354-360",
+      "decompiled": "mem[160] = slates[votes[caller]][0] ... / while 32 * slates[votes[caller]].length + 160 > idx + 32: / mem[idx + 32] = slates[votes[caller]][s + 1] / idx = idx + 32 / s = s + 1",
+      "source": "Chief.sol:63 / :71 address[] memory yays = slates[slate];",
+      "issue": "Each copy of a slate from storage to memory is a rotated loop (element 0 written before it, the test on idx + 32) instead of one copy line.",
+      "rule": "Known pattern P3/P7: a loop storing storP[i] to consecutive memory words for i < storP.length is the copy 'mem[p + 32 len 32 * n] = storP[0 len n]'; merge the peeled first element into it.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small contract, checked function by function. Live source loops: _addWeight and _subWeight (approvals[yays[i]] += / -= weight with the checked add/sub, Panic(50) bound on the memory copy), each printed after its rotated storage-to-memory copy in lock, free and both votes. etch's ordering loop is dead because of the zero immutable maxYays (artifact). launch, lift, the hat/live logic and getters checked; P8: hash scratch writes.",
+  "summary": "Faithful and short; the two live loops are clean whiles, each preceded by a rotated storage-to-memory copy, and etch is reduced to empty slates by the zero immutable."
+}

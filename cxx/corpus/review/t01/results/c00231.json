@@ -1,0 +1,25 @@
+{
+  "id": "c00231",
+  "abi_functions": 16,
+  "reviewed": 16,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P4": 8, "P6": 2, "P7": 2, "P9": 12},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getMakingAmount, getTakingAmount (_isWhitelistedGetterImpl, _getAuctionBump), postInteraction (_isWhitelistedPostInteractionImpl)",
+      "lines": "259, 304, 419, 464, 592-642",
+      "decompiled": "u = 0 / while True: / if u >= cd[_param14 + 5 * (cd[_param14 + 53] >> 248) + 60] >> 248: _17 = 0; break / ... if uint80(_param11) == cd[s] >> 176: _17 = 1; break / ...  |  while True: / if s >= cd[_param15 + 86] >> 248: <timestamp check, access-token balanceOf call, about 25 lines> break / ...",
+      "source": "AmountGetterWithFee.sol:111 for (uint256 i = 0; i < size; i++) { ... if (...) return true; } return false; SimpleSettlement.sol:134 and :210 (same shape)",
+      "issue": "Each of the three search loops is a 'while True' whose own test is its first statement, with the result passed out through a flag; in postInteraction the caller's 'not whitelisted' code (resolver-time check and the access-token balanceOf call) is printed inside the loop under that exit test.",
+      "rule": "'while True: if c: <exit code>; break ...' is 'while not c: ...' followed by the exit code after the loop; code that runs once after the loop's normal exit belongs after the loop, joined with the other exit if they continue alike.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Via-IR build. Loop map: _isWhitelistedGetterImpl (304, 464), _getAuctionBump points loop (259, 419), _isWhitelistedPostInteractionImpl (592), MerkleProof.processProofCalldata in takerInteraction ('while idx < proof.length' 159, with the sorted-pair keccak), all checked against the source (10-byte address compare uint80(taker) == cd[s] >> 176, whitelist size from the extension's packed byte, bounds requires). Implicit: two bytes copy loops in postInteraction for the escrow deployment payload (P7). P9: the Math.mulDiv fee computations expanded with mulmod. Calls to 0x0 are the zero immutables (access token, escrow implementations), not reported separately.",
+  "summary": "Faithful and fairly compact; the source loops are all present but three are printed as 'while True' searches with the test inside, one of them holding the caller's follow-up code."
+}

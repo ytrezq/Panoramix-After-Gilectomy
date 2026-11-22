@@ -1,0 +1,62 @@
+{
+  "id": "c00017",
+  "abi_functions": 48,
+  "reviewed": 48,
+  "not_reviewed": [],
+  "source_loops": 10,
+  "loops_shown": {
+    "while": 10,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 3,
+    "P2": 20,
+    "P3": 7,
+    "P6": 2,
+    "P7": 56,
+    "P8": 150,
+    "P11": 40,
+    "P15": 20
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "transfer/quote/redeem paths (unknown961b94d0, unknownb293f97f, unknown186ce612, unknown19017175, unknown7c918634, unknown9d782454, unknownda4856a1 ...)",
+      "lines": "e.g. the first 'while u > 1' block and its 55 copies",
+      "decompiled": "if x >= 78 and x >= 32: s = 10; t = 1; u = x; while u > 1: if s > -1 / s: revert with Panic(17) ... _20 = s * t else: _20 = 10**x",
+      "source": "TrimmedAmountLib.scale: 10 ** (fromDecimals - toDecimals) (checked exponentiation)",
+      "issue": "Every checked 10 ** x is expanded into the compiler's square-and-multiply loop (56 loops, 6 per transfer path); for a uint8 exponent >= 78 the loop can only end in Panic(17), and 'x >= 78 and x >= 32' repeats a dominated test.",
+      "rule": "Recognize the checked-exponentiation loop (square-and-multiply with the s > -1 / s and t > -1 / s overflow tests) and print it as one checked power b ** x; drop a conjunct implied by another (x >= 78 implies x >= 32).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "token(), mode(), getMode(), chainId(), weth() and every call to the token",
+      "lines": "3-9, 'static call 0x0.decimals()' (32 lines with 0x0)",
+      "decompiled": "const token = 0 / const chainId = 0 / static call 0x0.decimals() with: ...",
+      "source": "immutable token / mode / chainId / weth",
+      "issue": "solc immutables read as 0 in the pre-deployment runtime code, so token calls target 0x0.",
+      "rule": "None (bytecode artifact).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "transferOwnership(address) and other owner-changing paths",
+      "lines": "238-241",
+      "decompiled": "_1 = stor[0x9016d09d72d40fdae2fd8ceac6b6234c7706214fd39c1cd1e609a0528c199300] / owner = newOwner / log OwnershipTransferred(address indexed previousOwner=address(_1), ...)",
+      "source": "OwnableUpgradeable._transferOwnership: address oldOwner = $._owner",
+      "issue": "The old value of a named address slot is read as the raw slot and masked later, while the same slot is called owner one line below.",
+      "rule": "address(stor[k]) where slot k holds a declared address field at offset 0 prints as that field's name.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops in this bytecode: getTransceiverInfo (246), transferOwnership (355), countSetBits (while uint64(t)), _quoteDeliveryPrice (129), _sendMessageToTransceivers (206), _checkTransceiverInvariants (302), _checkTransceiversInvariants (265, 270 and nested 271), _removeTransceiver (215); all are while loops (migrate shows the 4 invariant loops with breaks). TransceiverStructs.parseTransceiverInstructions (383) is a public library function reached by delegatecall to 0x11b089ee... and is not in this bytecode. Implicit: 56 checked-exponentiation loops (readable while loops, covered by the first finding, not counted in patterns), 54 memory copies and 2 address-cleaning encode loops (P7 = 56), 5 storage-to-memory copies and 2 struct-array allocations (P3 = 7). Packed fields of unstructured slots (uint8(stor7C25 >> 72) for decimals) not split (P15). Large transfer functions reviewed by structure.",
+  "summary": "All source loops present and readable; the text is padded by 56 inlined checked-exponentiation loops and the usual raw-memory copies, with immutables printed as 0."
+}

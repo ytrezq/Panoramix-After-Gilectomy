@@ -1,0 +1,36 @@
+{
+  "id": "c00479",
+  "abi_functions": 60,
+  "reviewed": 60,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 26, "P4": 2, "P6": 32, "P7": 29, "P8": 150, "P12": 30, "P14": 60},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "executeIncreasePositions, executeDecreasePositions",
+      "lines": "336-363, 377-404",
+      "decompiled": "if ext_call.success: ... if ext_call.return_data[0]: assert idx < stor19.length; stor19[idx] = 0; idx = idx + 1; continue / break ... (the same 4-line tail 3 times); s = stor19.length (unused)",
+      "source": "PositionRouter.sol:241-261 try ... catch { try ... catch {} } delete increasePositionRequestKeys[index]; index++;",
+      "issue": "P12: the loop step (delete key, index++) is repeated in the three paths that continue, and an unused 's' is kept; otherwise the try/catch translation is exact.",
+      "rule": "When all 'continue' paths of a loop body end with the same statements, print them once at the end of the body and turn the other exits into breaks; drop variables never read.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "cancelIncreasePosition, executeIncreasePosition, executeDecreasePosition, cancelDecreasePosition",
+      "lines": "1047-1052, 1214-1219, 1661-1666",
+      "decompiled": "while idx < _122: mem[idx + mem[64] + 68] = mem[_119 + idx + 32]; idx = idx + 32 / while idx >= 32: mem[t] = mem[s]; t = t + 32; s = s + 32; idx = idx - 32",
+      "source": "solc 0.6 memory copies of bytes/arrays (event data, abi.encodePacked, call arguments)",
+      "issue": "P7: about 29 word-copy loops (two loop shapes of solc 0.6) are not converted to copy lines.",
+      "rule": "As in c00441: forward word copies over disjoint ranges are copy lines; the 'while n >= 32: copy word; n -= 32' shape plus its masked tail word is 'mem[d len n] = mem[s len n]'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (3): executeIncreasePositions :241 (336), executeDecreasePositions :276 (377), setMaxGlobalSizes :139 (487) - all while, with the solc 0.6 array bounds checks as 'assert'. Implicit loops: storage address[] path copied to memory with address masking (115, 142, ...), calldata path copied into storage plus clearing of the old tail in the create* functions (584/592, 719/726, 889/897), word copies (P7). Event names partly unknown; P4: stor11[concat(mem[0])] beside stor[_481] for the same slot (2274-2277). executeIncreasePosition / executeDecreasePosition (700 and 617 pack lines) reviewed by structure. No semantic error found.",
+  "summary": "Complete and faithful; the three source loops are clear while loops with an exact try/catch translation. Main issues: solc 0.6 memory copy loops (P7), raw-memory call arguments (P2) and repeated loop tails."
+}

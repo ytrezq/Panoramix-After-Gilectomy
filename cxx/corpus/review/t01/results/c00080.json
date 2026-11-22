@@ -1,0 +1,25 @@
+{
+  "id": "c00080",
+  "abi_functions": 56,
+  "reviewed": 56,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P6": 11, "P7": 7},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "mint(address,uint256), setStrategy(address,address,uint256), removeAsset(address)",
+      "lines": "1737-1745 then 1745 'call address(_to) with: args mem[..]'; 1487; 1173, 1236, 1285",
+      "decompiled": "while idx >= 32: mem[t] = mem[s]; s = s + 32; t = t + 32; idx = idx - 32 / mem[..] = mem[..] & ~(256**(..) - 1) | .. / call address(_to) with: gas gas_remaining args mem[..]",
+      "source": "OneTokenV1.sol:83 IERC20(collateralToken).safeTransferFrom(msg.sender, address(this), collateralTokensReq) (OZ SafeERC20 _callOptionalReturn: functionCall(data, 'SafeERC20: low-level call failed'))",
+      "issue": "The 7 whiles are the compiler's memory copies of call data and error strings (c00600's shapes A and B); after such a copy the second safeTransferFrom of mint loses its selector and arguments, while the first one (memberToken.transferFrom) is decoded.",
+      "rule": "As in c00600: convert word-copy loops (forward copy with masked last word) to 'mem[d len n] = mem[a len n]', then resolve the call input through the copy.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "solc 0.7.6, no source loops. ERC20 functions, getters, fees, ownership, factory and controller setters reviewed in detail; mint, redeem, setStrategy, removeAsset, addAsset, strategy allowance and execution functions by structure: mint follows the source step by step (collateral check, order > 0, both oracle updates, updateMintingRatio, maxOrderVolume check, amountRequired for member token, allowance fallback branch, NSF checks, transfers, _mint, Minted event). The 7 whiles are implicit memory copies (P7). Parameter names of known selectors come from the signature database (e.g. 'update(address newGovernance)' for the oracle update). No storage or semantic problem found.",
+  "summary": "A faithful text without source loops; its only issues are the compiler's copy loops left as whiles, one of which hides a token transfer's arguments."
+}

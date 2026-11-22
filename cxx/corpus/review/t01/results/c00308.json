@@ -1,0 +1,35 @@
+{
+ "id": "c00308",
+ "abi_functions": 24,
+ "reviewed": 24,
+ "not_reviewed": [],
+ "source_loops": 1,
+ "loops_shown": {
+  "while": 1,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P6": 1,
+  "P8": 170,
+  "P14": 10
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "mintMany(address[],uint256[],uint256[]), mint, safeTransferFrom, transferFrom (ERC721Enumerable bookkeeping)",
+   "lines": "704-760",
+   "decompiled": "mem[0] = _121 + 1 / mem[32] = 2 / if not ownerOf[_121 + 1]: ... mem[0] = _139 / mem[32] = 3 / mem[0] = _121 + 1 / mem[32] = 7 / mem[0] = _139 / mem[32] = 6 / if balanceOf[_139] == stor7[_121 + 1]:",
+   "source": "OZ ERC721Enumerable._update / _addTokenToOwnerEnumeration / _removeTokenFromOwnerEnumeration",
+   "issue": "The keccak scratch writes `mem[0] = key; mem[32] = slot` that feed mapping accesses are kept although the accesses are already printed as `ownerOf[...]`, `balanceOf[...]`, `tokenOfOwnerByIndex[...][...]`; 170 of the 828 lines are such dead writes (P8).",
+   "rule": "Drop stores to the scratch area mem[0..63] whose only readers are sha3 computations already rendered as mapping or array accesses (and that are overwritten before any other read).",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Beets LegendsOfMaBeets (ERC721Enumerable NFT, solc 0.8.38). The single source loop (mintMany) is a readable `while idx < receivers.length` with the inlined _mint/_update bookkeeping. mintMany's parameters are named receivers/ids/amounts by the signature database, while the source calls them to/level/amount, so `ids[idx]` is written into the level field (naming from the database, not reported). Transfers, approvals and enumeration updates read correctly.",
+ "summary": "Faithful NFT text with its one source loop as a while; readability is hurt mainly by 170 dead keccak scratch writes left around the mapping accesses."
+}

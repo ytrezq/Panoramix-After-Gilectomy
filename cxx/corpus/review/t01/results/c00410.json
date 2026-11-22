@@ -1,0 +1,187 @@
+{
+  "id": "c00410",
+  "abi_functions": 42,
+  "reviewed": 42,
+  "not_reviewed": [],
+  "source_loops": 6,
+  "loops_shown": {
+    "while": 6,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 291,
+    "P3": 2,
+    "P4": 76,
+    "P6": 137,
+    "P7": 3,
+    "P8": 1200,
+    "P11": 180,
+    "P12": 700,
+    "P13": 1667,
+    "P14": 300,
+    "P15": 50,
+    "P18": 150
+  },
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "_getPriceImplNoWrite(address,uint256,bool,bool)",
+      "lines": "7421-9364",
+      "decompiled": "9361 if _3760 <′ 0: mem[mem[64]] = 0xf2a91419...; mem[mem[64] + 4] = 310010 / 9364 ...  # Decompilation aborted (at the function's top level)",
+      "source": "main.sol:1588 _getPriceImpl -> _getResolvedPrice / _getPegResolvedPrice -> _getPriceWithAlt, _readComposedPrice legs 2-3, _applyOverallCap",
+      "issue": "The decompilation timed out: only 4 paths reach a return (7961, 8219, 9107 and the STABLE+PEG constant). Most leaves stop mid-leg (after a source read, before normalize/cap/multiply), so _getPriceWithAlt (fallback, deviation, cross-path) and most of _readComposedPrice and _applyOverallCap are lost. The single abort marker is tail-merged to the last line, up to 1,860 lines away from the leaves it ends, which end silently (e.g. 9362-9363 build an error with no revert).",
+      "rule": "Never hoist an abort marker out of branches as a common tail: print it at each truncated leaf, so every path visibly ends in a return, revert, stop or abort.",
+      "verified": "reading only (text_check --per-selector 8: all same, the samples stop at NoConfig)"
+    },
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "getPrice(address,uint256,bool,bool), getPriceDetailed(address,uint256,bool,bool)",
+      "lines": "11342-15744; 15746-20146",
+      "decompiled": "same price tree as _getPriceImplNoWrite plus the Write getters; ends 15744 / 20146 '...  # Decompilation aborted' after 'static call _3809.unknown8e7bfbc0'",
+      "source": "main.sol:1430 getPrice -> _getPriceImpl(..., true); _readFluidSourceWrite fallbacks",
+      "issue": "Same timeout as _getPriceImplNoWrite: 8 and 1 returns only; the PEG _getPriceWithAlt branch (14677-15744) and the multi-leg paths are cut, with one tail-merged abort marker at the end.",
+      "rule": "As above.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "getPricesRawForMode(address[],uint8[])",
+      "lines": "9366-11300",
+      "decompiled": "9543, 9549, 10878, 10966, 11039, 11107 deep aborts; 11300 '      ...  # Decompilation aborted' at the end of the loop body",
+      "source": "main.sol:1514 loop -> _priceRawForMode -> _readComposedPriceRaw(primary), then (fallbackAlt) when 0",
+      "issue": "Inside the loop, the alt-source fallback reads and most multi-leg raw paths are cut; branches such as 9500-9503 (rate1 != 0, multiplier <= 0) just end and fall to the marker at 11300. One abort (9549) sits in an unreachable Panic(50) bounds check.",
+      "rule": "As above: an abort marker per truncated leaf, not one per enclosing block.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "getPriceRawForMode(address,uint8)",
+      "lines": "7113-7419",
+      "decompiled": "7419 ...  # Decompilation aborted (after the latestRoundData read of stor4[_param1].field_768)",
+      "source": "main.sol:1548-1567 PEG token in MARKET mode: _readComposedPriceRaw(_additionalTokenSources primary), then altSrc when 0",
+      "issue": "The PEG+MARKET branch is cut in the additional alt fallback (chainlink leg); the other branches are complete.",
+      "rule": "As above.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "getConfiguredTokenOracles(address)",
+      "lines": "20457-26085",
+      "decompiled": "25108 abort in 'if s >= mem[_6]:' (a Panic(50) path); 26085 '      ...  # Decompilation aborted' at the end of the main loop body",
+      "source": "main.sol:1580 loop -> _buildConfiguredTokenOracle -> _readSourcesWithRates(primary/alt/additional)",
+      "issue": "Deep paths of _buildConfiguredTokenOracle (alt / additional source reads) are cut inside the loop; the loop header, the storage-to-memory copy and the result encoding are complete.",
+      "rule": "As above.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all governance-gated functions, multicall, upgradeTo, upgradeToAndCall, proxiableUUID, BOOTSTRAP_ADMIN, LIQUIDITY",
+      "lines": "e.g. 95-103, 645-646, 168-171, 61-64",
+      "decompiled": "static call 0x0.unknownb5c736e4(?) with: args 0xb531...; _2 = caller and ext_call.return_data[0]; multicall 'if caller: revert with 0xf2a91419, 310002'; 'if not this.address: revert with 'Function must be called through delegatecall''",
+      "source": "variables.sol:110 LIQUIDITY immutable; bootstrapBase.sol:18 BOOTSTRAP_ADMIN immutable; OZ UUPSUpgradeable __self",
+      "issue": "solc immutables read as 0: the governance read calls address 0, BOOTSTRAP_ADMIN == 0 turns msg.sender == BOOTSTRAP_ADMIN into caller == 0, and the onlyProxy / notDelegated checks compare this.address with 0.",
+      "rule": "None (not a decompiler error).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "every governance check; setPausedState; upgradeTo; the Chainlink readers",
+      "lines": "e.g. 101, 178, 252, 257, 7550 (_761)",
+      "decompiled": "_2 = caller and ext_call.return_data[0] / _2 = caller and caller != 0x4f6f...49e / _8 = _param3 and 2 / _761 = _552 >=′ 0 and _552",
+      "source": "bootstrap/main.sol:18 msg.sender == BOOTSTRAP_ADMIN ? BOOTSTRAP_ADMIN : realGov; bootstrapBase.sol:57; main.sol:253 pauseLiquidate_ ? PAUSED_LIQUIDATE : 0; chainlinkSourceReader.sol:41",
+      "issue": "Python's value-returning 'and' is used with non-boolean operands: 'caller and X' means 'X if caller != 0 else 0', '_param3 and 2' means '2 if _param3 else 0'. It reads as a bitwise AND and hides a conditional.",
+      "rule": "Print 'a and b' only when both operands are 0/1 booleans; otherwise print 'b if a else 0' (and 'a != 0 and ...' for a non-boolean a used as a condition).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "removeConfig()",
+      "lines": "839-849",
+      "decompiled": "_53 = stor1[t][s]; uint240(stor1[t][s].field_0) = ...; uint240(..field_0) = _54; uint8(..field_240) = bool(..[_52 - 1].field_240); stor1[t][s].field_248 = _53 >> 248; uint240(..field_0) = _54; uint8(..field_240) = bool(_55); stor1[t][s].field_248 = bool(..[_52 - 1].field_248)",
+      "source": "main.sol:826 arr_[i] = arr_[arr_.length - 1];",
+      "issue": "A 3-member struct copy is printed as 7 field writes, three of them overwritten later without an intervening read of those bits, one rewriting the element's own old top byte (_53 >> 248). The final state is right.",
+      "rule": "A store to some bits of a slot is dead when a later store to the same bits follows with no read of those bits and no call in between; drop it (reads of other bits of the slot don't keep it).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getPriceView, getPriceDetailedView, getPriceDetailedViewRaw",
+      "lines": "273-280, 309-316, 343-350",
+      "decompiled": "mem[160 len 4] = 1992823322 / static call this.address.unknown76c8121a(?) with: args Bytes(28, uint128(_param1 >> 32)), Bytes(4, uint32(_param1)), _param2, _param3, _param4",
+      "source": "main.sol:1647 address(this).staticcall(abi.encodeCall(this._getPriceImplNoWrite, (token_, emode_, isOperate_, isCollateral_)))",
+      "issue": "The address argument written at an unaligned offset after the selector is split into two slices, and the selector store is printed in decimal; the argument is just _param1.",
+      "rule": "Adjacent slices Bytes(a, x >> 8b), Bytes(b, x mod 2^(8b)) with x < 2^(8(a+b)) concatenate to Bytes(a+b, x); a 4-byte store prints in hex.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getConfiguredTokenOracles, getPricesRawForMode, setOverallCap, every try/catch-style source read",
+      "lines": "26096-26180, 11320-11336, 25541-25544, 5244-5246, 7537-7542",
+      "decompiled": "mem[u] = Bytes(12, 0), mem[mem[s] + 12 len 20] / mem[t] = Bytes(31, 0), mem[s + 31 len 1] / require mem[_326] == mem[_326 + 22 len 10]; _552 = mem[_326 + 32]",
+      "source": "ABI encoding of ConfiguredTokenOracle[] and uint8[]; latestRoundData() decode (uint80 checks, answer, updatedAt)",
+      "issue": "Zero-extensions are printed as byte-slice concatenations (55 lines), and return data copied to the free memory is read back as mem[...] slices instead of ext_call.return_data[...].",
+      "rule": "'Bytes(k, 0), mem[p + k len 32 - k]' is uint(256 - 8k)(mem[p]); after 'mem[p len min(n, rds)] = ext_call.return_data[0 len min(n, rds)]' and 'require rds >= n', a read mem[p + j] with j + 32 <= n and no write between is ext_call.return_data[j].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "_getPriceImplNoWrite, getPrice, getPriceDetailed, getConfiguredTokenOracles",
+      "lines": "e.g. 8476-8500, 8789-8800, 25096",
+      "decompiled": "_24 = sha3(_param1, 3) / _24 = sha3(_param1, 4) ... uint8(stor[_24].field_168), address(stor[_24 + 1].field_8), uint16(stor[_24 + 1].field_168)",
+      "source": "main.sol:1358-1370 primaryCfg_ = _additionalTokenSources[token_].primarySrc or tokenCfg_.primarySrc (storage references chosen by a branch)",
+      "issue": "When the struct base slot is chosen by a branch, its 1,055 accesses lose the mapping names and print as raw stor[_24 + k].",
+      "rule": "When a slot variable is a phi of element bases of mappings with the same struct layout (tokenConfig[k], stor4[k]), name it as a reference to one of them and print its members as fields of that reference.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "flag tests in most functions",
+      "lines": "e.g. 50, 74, 759, 1183, 1224",
+      "decompiled": "if not 4 * uint1(tokenConfig[_param1].field_234) / bool(2 * uint1(tokenConfig[token].field_209)) / bool(8 * uint1(...field_235))",
+      "source": "flagsBitmap & FLAG_HAS_ADDITIONAL_ALT_SOURCES == 0, pauseState & PAUSED_LIQUIDATE != 0",
+      "issue": "86 lines keep the mask's constant factor inside truth tests.",
+      "rule": "In a truth test or under bool(), c * x with constant c != 0 and c * x < 2^256 is x.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "every inlined _applyMultiplier (10 ** uint8(multiplier))",
+      "lines": "e.g. 7517, 8444",
+      "decompiled": "if uint8(m) >= 78 and uint8(m) >= 32: (exp loop) ... / if uint8(m) < 78 or uint8(m) < 32: 10**uint8(m)",
+      "source": "main.sol:1001 rate_ * uint256(10 ** uint8(multiplier_))",
+      "issue": "72 lines keep both bounds of the checked-exp special case for base 10 (lt(e, 78) or lt(e, 32)).",
+      "rule": "x >= a and x >= b is x >= max(a, b); x < a or x < b is x < max(a, b).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "price functions; getPriceRawForMode; getConfiguredTokenOracles",
+      "lines": "7931-7937; 6492, 6506; 20403-20450",
+      "decompiled": "if _2314 > cap: _2946 = _2314 else: _2946 = cap (beside 'min(_2314, cap)') / return Bytes(96, 0) / mem[_64 + 32] = 0x554e4b0000...",
+      "source": "_applyLegCap SOURCE_CAP_MAX; _priceRawForMode return (0, 0, 0); tokenSymbolResolver.sol:16-29 'POL', 'XPL', 'BNB', 'ETH', 'UNK'",
+      "issue": "max is not recognised while min is; three zero return values print as one 96-byte slice; 3-byte string literals print as hex words.",
+      "rule": "'r = a if a > b else b' is max(a, b); a zero return of n words prints as n zeros; a word of printable ASCII then zeros, stored after a length word n, prints as a string literal.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Very long functions reviewed by structure (control flow, calls, writes, events, reverts): getConfiguredTokenOracles, getPrice, getPriceDetailed, _getPriceImplNoWrite, getPricesRawForMode, getPriceRawForMode, set(Alt|Additional|AdditionalAlt)SourceConfig (setAltSourceConfig and setAdditionalSourceConfig: same shape as setAdditionalAltSourceConfig, checked by their flag writes, events and errors). getPriceDetailedViewRaw has the same text as getPriceDetailedView (_beforeGuardedPriceRead is empty). Source loops: multicall (bootstrapBase.sol:39), getConfiguredTokenOracles, getPricesRawForMode, removeConfig, _revertIfTokenKeysBlockAltRemoval (inlined 7 times) and _tokenHasEmodeInConfigsMap (isEmodeValid, as 'while True' with breaks) - all while loops. The 71 whiles also hold 58 implicit loops: 51 checked-exp loops 'while u > 1' (repeated squaring, readable), zero-init of new bytes[] / new ConfiguredTokenOracle[] (rotated, P3: the latter peels a 108-line first iteration 20175-20283), the configsMap storage-to-memory copy, and ABI encodings (P7: the three return arrays of getPricesRawForMode). P11 includes implied Panic(50) bounds checks (idx < length already tested) and the 78/32 bounds. P12: whole post-auth bodies duplicated in both arms of the governance/multisig test (registerTransientOracleKey, enableDeviationCheck, enableFallback, setOverallCap 1613-1723 vs 1725-1835, setPriceMode, set*SourceConfig), store+event tails duplicated in removeSourceConfig / removeAdditionalSourceConfig. P13: _tokenSources is named tokenConfig after getTokenConfig, which returns 4 members of primarySrc. P2 also covers 18 'log ...: mem[mem[64] len ...]' lines (event names unknown to the database). The 0x76c8121a / 0xb5c736e4 etc. selectors are unknown to the database. No semantic error found; the transient-key hashes are unmasked where the source uses the uint256 transient vars and uint8-masked where it uses _getRegisteredKey, as in the source.",
+  "summary": "Faithful where complete, but six price/view functions timed out, losing most multi-leg, alt-fallback and cap paths, with the abort marker tail-merged far from the truncated leaves. The rest is very verbose: duplicated arms (P12), raw memory structs and call arguments (P2, P8, P18), value-'and' with non-boolean operands, and phi'd storage references printed as raw stor[_24]."
+}

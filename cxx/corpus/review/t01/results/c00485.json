@@ -1,0 +1,51 @@
+{
+  "id": "c00485",
+  "abi_functions": 49,
+  "reviewed": 49,
+  "not_reviewed": [],
+  "source_loops": 9,
+  "loops_shown": {
+    "while": 9,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 2,
+    "P2": 2,
+    "P4": 1,
+    "P6": 7,
+    "P7": 10,
+    "P8": 116,
+    "P9": 4,
+    "P15": 2
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setChainRateLimiterConfig (0xcf7401f3), applyChainUpdates, lockOrBurn / releaseOrMint (rate-limit consumption)",
+      "lines": "790-822",
+      "decompiled": "if stor7[_param1].field_384 != (block.timestamp * stor7[_param1].field_384 - uint32(stor7[_param1].field_128) * stor7[_param1].field_384) / (block.timestamp - uint32(stor7[_param1].field_128)) and ...: revert with Panic(17) / ... / stor7[_param1].field_0 = min(_param3, uint128(stor7[_param1].field_0)) | stor7[_param1].field_0 & 0x123456789abcdf012345677789abcdf0000000000000000000000000000000 * 3600 | _param2 << 160",
+      "source": "RateLimiter._setTokenBucketConfig: timeDiff = block.timestamp - s_bucket.lastUpdated; tokens = _calculateRefill(capacity, tokens, timeDiff, rate) (min(capacity, tokens + timeDiff * rate)); s_bucket.tokens = min(config.capacity, tokens); s_bucket.isEnabled = config.isEnabled",
+      "issue": "The packed TokenBucket slot (uint128 tokens, uint32 lastUpdated, bool isEnabled) is written as one whole-slot expression whose keep-mask is printed as a hex constant times 3600 (P1, P15), and timeDiff * rate is distributed into block.timestamp * rate - lastUpdated * rate in the overflow check and the refill.",
+      "rule": "Split a masked whole-slot store into its field stores (uint128(field_0) = .., bool(field_160) = ..) and never factor a mask by a time unit; keep a product of a difference as (a - b) * c.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "applyAllowListUpdates (0x54c8a4f3), getToken, getRmnProxy, i_* getters, lockOrBurn / releaseOrMint",
+      "lines": "211-223",
+      "decompiled": "if caller == owner: revert with 0x35f4a7b3 / revert with 0x2b5c74de",
+      "source": "TokenPool._applyAllowListUpdates: if (!i_allowlistEnabled) revert AllowListNotEnabled(); for (removes) ...; for (adds) ...",
+      "issue": "The immutable i_allowlistEnabled reads as false, so applyAllowListUpdates always reverts and its two loops are dead (not counted); the other immutables (token, RMN proxy, CCTP contracts, local domain) are 0. Not a decompiler error.",
+      "rule": "None (corpus artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 49 ABI functions and the fallback reviewed; no semantic error found. lockOrBurn, releaseOrMint, applyChainUpdates, setDomains, getRemotePools, provideLiquidity / withdrawLiquidity, the CCTP migration functions by structure (RMN curse checks, rate-limit consumption, lock-release vs burn-mint branch, CCTP message validation, events). Source loops (9): updateChainSelectorMechanisms' remove and add loops, setDomains, getRemotePools, getSupportedChains, applyChainUpdates' four loops (remove + remove remote pools, add + set remote pools): all whiles. applyAllowListUpdates' two loops are dead because of the immutable (artifact). Implicit: struct-array / bytes[] decodings, EnumerableSet values copies, event encodings (10 plain copies, P7). P8: keccak scratch stores. 36 Error reverts, 5 events and 2 returns are raw memory because of the free-memory-pointer aliasing assumption (counted under P2's root cause in other contracts; here the P2 regex finds only 2).",
+  "summary": "Faithful, with all live source loops shown as whiles; the main oddities are the TokenBucket packed-slot writes (mask printed as hex * 3600) and the immutables that make the allow-list update always revert."
+}

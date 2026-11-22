@@ -1,0 +1,25 @@
+{
+  "id": "c00554",
+  "abi_functions": 84,
+  "reviewed": 84,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 5, "P3": 1, "P6": 3, "P7": 1, "P8": 43, "P9": 5, "P10": 4, "P11": 56},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "reinitialize(address,address), reinitialize(address,address,address), initialize(...), removeSupportedToken(address,uint256), deposit(string), deposit(address,uint256,string)",
+      "lines": "1176, 1391, 1455, 1515, 1585, 1955",
+      "decompiled": "def reinitialize(address _adapterManager, address _autoExecutor) / def reinitialize(address _NFTContract, address _stakingLogger, address _validatorShareFactory) / def removeSupportedToken(address tokenAddress, uint256 remoteNetworkID) / def deposit(string comment)",
+      "source": "RSETHPoolV3ExternalBridge: removeSupportedToken(address token, uint256 tokenIndex); deposit(string referralId); deposit(address token, uint256 amount, string referralId); the reinitializers' own parameter names",
+      "issue": "Parameter names taken from other contracts with the same selector mislead (the token index reads as 'remoteNetworkID', the referral id as 'comment' / 'reason', the reinitializer arguments as NFT/staking contracts).",
+      "rule": "Use parameter names from the signature database only when they are unambiguous for that selector; otherwise print _paramN (as c00588).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 84 ABI functions reviewed (ERC20, AccessControl v4, pause, setters line by line; deposit x2, bridgeTokens, the Stargate send (unknown513b5064), withdrawFees x2 by structure). The only source loop is OpenZeppelin StringsUpgradeable.toHexString in _checkRole, printed as 'while idx > 1' twice per onlyRole function (56 copies; same shape as c00469, including the constant-folded DEFAULT_ADMIN_ROLE loop that writes '0'). Implicit: getSupportedTokens' storage-to-memory copy of supportedTokenList (rotated: element 0 printed before the loop, P3) and its return encoding (P7). Checked exactly: nonReentrant (stor201), whenNotPaused, limitDailyMint (day reset, limit check against rsETH amount), fee and rsETH amount computation with its overflow checks (the 1e18 product distributed over the fee subtraction, P9), mint and the SwapOccurred event, removeSupportedToken's swap-and-pop. getRoleAdmin and onlyRole read RoleData.adminRole as raw stor[sha3(role, 151) + 1] (same as c00290). Immutables: none affecting paths. No semantic error found.",
+  "summary": "Clean and faithful; its only source loop (toHexString) is readable, and the main blemishes are misleading parameter names from the signature database and the usual raw admin-role member."
+}

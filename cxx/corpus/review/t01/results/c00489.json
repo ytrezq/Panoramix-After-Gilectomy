@@ -1,0 +1,36 @@
+{
+  "id": "c00489",
+  "abi_functions": 84,
+  "reviewed": 84,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 1, "P2": 9, "P6": 25, "P8": 60, "P15": 8, "P18": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "initialize(address,address,address,address,address,string,string) (OpenZeppelin Initializable v5 and slot 0)",
+      "lines": "4-6, 30-31 (def storage); 2470-2481, 2661-2673",
+      "decompiled": "stor0_168 is uint88 at storage 0 offset 168 / storF0C5 is uint72 ... / storF0C5_72 is uint184 ...  |  _6 = stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600] / uint8(storF0C5) = 1 / uint56(storF0C5.field_8) = 0 / if not storF0C5 >> 64: storF0C5 = 18446744073709551617 / storF0C5_72 = _6 >> 72  |  _249 = stor[0] / ... / stor0_160 = ext_call.return_data[31 len 1] / stor0_168 = _249 >> 168",
+      "source": "InitializableStorage { uint64 _initialized; bool _initializing; } at 0xf0c5..6a00; V3Provider: resilientOracle (address) and accountingAssetDecimals (uint8) share slot 0",
+      "issue": "Field boundaries are taken from how the compiler wrote whole words: _initialized/_initializing become a uint72 plus a uint184 (and _initialized is written byte-wise), slot 0 gets a phantom uint88 field at bit 168 that is only ever rewritten with its own old value, and the whole-slot read prints the slot as 0x111f..aa0 * 3600.",
+      "rule": "Split a slot by the widest typed accesses the code makes (uint64 at 0, bool at 64); a store of a slot's unchanged remainder (x = stor[s] ... field = x >> k) is not a field write and needs no field; never apply time-unit factoring to a slot number.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "deposit((...)), withdraw((...)), supplyShares, withdrawShares, redeemShares, rebalance, compound and the other nonReentrant functions",
+      "lines": "2690-2697",
+      "decompiled": "mem[0] = 0x9b779b17422d0df92223018b32b4d1fa46e071723d6817e2486d003becc55f00 / mem[0] = 0 / if stor9B77 == 2: revert with 0x3ee5aeb5 / mem[0] = 0x9b779b17.. / mem[0] = 0",
+      "source": "ReentrancyGuardUpgradeable._nonReentrantBefore (ERC-7201 storage at 0x9b77..5f00)",
+      "issue": "Scratch stores the via-IR code makes while computing the namespaced slot are printed although each is overwritten before any read (60 such lines).",
+      "rule": "A store overwritten before any read of the same bytes is dead.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "84 ABI functions, most short (ERC4626/ERC20 views, role-gated setters); the long ones (deposit/withdraw/supply/redeem paths, rebalance, compound, liquidate, initialize) read by structure. Source loop: bulkSyncUserBalance for (1418), shown as while; getRoleMembers' storage copy (692) is implicit. The daily-loss window uses block.timestamp / (24 * 3600) correctly. Parameter names of initialize come from an unrelated database entry (_bZxContract, _loanTokenAddress...). 3 calls print their selector as a memory slice (see c00480).",
+  "summary": "A close and readable text with the single source loop found; its main defects are storage-field boundaries inferred from whole-word writes (Initializable storage, a phantom field in slot 0, a slot printed as a multiple of 3600) and dead scratch stores."
+}

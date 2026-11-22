@@ -1,0 +1,36 @@
+{
+  "id": "c00167",
+  "abi_functions": 41,
+  "reviewed": 41,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 4, "P4": 24, "P6": 22, "P7": 30, "P8": 60, "P13": 1},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "def storage and every function on proposals (state, execute, queue, cancel, castVote*, getActions, getReceipt, proposals)",
+      "lines": "e.g. 575-586, 616-623 (execute)",
+      "decompiled": "if uint8(receipt[proposalId].field_3584): ... while True: if s >= receipt[proposalId].field_768: ... mem[_36 + 4] = address(stor[s + sha3(sha3(proposalId, 11) + 3)]) / mem[_36 + 36] = stor[s + sha3(sha3(proposalId, 11) + 4)]",
+      "source": "mapping (uint => Proposal) public proposals (slot 11); Proposal { ... address[] targets; uint[] values; string[] signatures; bytes[] calldatas; ... mapping (address => Receipt) receipts; ... }; getReceipt returns proposals[id].receipts[voter]",
+      "issue": "The proposals mapping is named receipt after the getReceipt getter of one member (P13, 253 lines), and the elements of the member arrays targets/values/signatures/calldatas are raw storage arithmetic stor[s + sha3(sha3(proposalId, 11) + k)] (33 lines) inside the loops of queue/execute/cancel/getActions.",
+      "rule": "Name a struct mapping after a getter only when it returns the whole element; print stor[i + sha3(sha3(k, s) + m)] as member m (an array) of mapping s: m[k].field_{256 m}[i].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "queue(uint256), execute(uint256), cancel(uint256)",
+      "lines": "606-640 (execute), 857 (queue), 1442 (cancel)",
+      "decompiled": "s = 0 / while True: if s >= receipt[proposalId].field_768: _30 = mem[64] / mem[mem[64]] = proposalId / log ProposalExecuted(uint256 id=mem[mem[64] len _30 - mem[64] + 32]) / stop / assert s < receipt[proposalId].field_1024 ...",
+      "source": "GovernorBravoDelegate.sol:153-156 for (uint i = 0; i < proposal.targets.length; i++) { timelock.executeTransaction.value(proposal.values[i])(...); } emit ProposalExecuted(proposalId);",
+      "issue": "Each loop is a 'while True' whose exit (i >= targets.length) carries the code after the loop (the event and stop); the event's argument is raw memory although proposalId was stored there one line before.",
+      "rule": "Close the loop at its exit and print the exit test as its condition; forward the store at the symbolic pointer (mem[_30] = proposalId) to the event data.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (3): the for over proposal.targets in queue, execute and cancel, each a 'while True' with the bound inside. The other 40 whiles are implicit: propose's copies of the calldata arrays to memory and of the memory struct arrays (targets, values, signatures, calldatas, including string/bytes elements) to storage, with clearing loops (P7), and getActions' storage-to-memory copies and ABI encodings. state() is inlined as a phi of constants (5/6) compared with 5. propose (1,125 pack lines) and cancel (552) reviewed by structure; the others line by line.",
+  "summary": "Faithful with the three source loops present (as while True); the proposals mapping is misnamed receipt and its member arrays are raw storage arithmetic, and propose is dominated by implicit storage-copy loops."
+}

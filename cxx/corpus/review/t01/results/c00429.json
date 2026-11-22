@@ -1,0 +1,13 @@
+{
+  "id": "c00429",
+  "abi_functions": 54,
+  "reviewed": 54,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 31, "P6": 23, "P8": 12},
+  "findings": [],
+  "notes": "Unoptimized build (solc 0.8.25, optimizer off). Small getters and setters, setIsStrategy, totalAssets, unrealizedLosses, maxDeposit/maxMint, canCall reviewed in detail; requestFunds, triggerDefault, finishCollateralLiquidation, addStrategy, upgrade/migrate by structure. Source loops: 3, all whiles with clear conditions and bodies: setIsStrategy's search loop ('while idx < strategyList.length: if strategyList[idx] == _param1: stop', then revert 'PM:SIS:INVALID_STRATEGY'), totalAssets' accumulation (404 and inlined in unrealizedLosses 594, maxDeposit 679, maxMint 795, canCall 2465), unrealizedLosses' accumulation (567) ending in 'return min(s, t)' (the source's _min recognized). Implicit: one address re-encoding loop in canCall. Calls through mapleGlobals often print as 'static call address(_28) with: args mem[..]' (P2: 31 lines); 82 address range checks / comparisons as 'ext_call.return_data[12 len 20]' slices (rule as in c00600). No new problem found.",
+  "summary": "A clean text: the three source loops are clear whiles, semantics match, and the only noise is the known unknown-free-memory-pointer calls and address slices."
+}

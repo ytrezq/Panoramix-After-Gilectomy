@@ -1,0 +1,36 @@
+{
+  "id": "c00503",
+  "abi_functions": 43,
+  "reviewed": 43,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {"while": 8, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P3": 14, "P4": 2, "P6": 1, "P7": 30, "P8": 40, "P11": 10, "P13": 0},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "pendingRequestExists, getSubscription, removeConsumer, ownerCancelSubscription, cancelSubscription, getSubscriptionsInRange, getConfig, getContractsUpdate (unknownbadc3eb6), sendRequest paths (14 copies)",
+      "lines": "312-321 (pendingRequestExists), 709-713, 1059-1064, 1222-1226, 1449-1453, 1492-1496, 367-371, 416-420",
+      "decompiled": "if stor3[subId].field_512: mem[0] = sha3(subId, 3) + 2; mem[160] = address(stor[sha3(sha3(subId, 3) + 2)]); idx = 160; s = 0 / while 32 * stor3[subId].field_512 + 160 > idx + 32: mem[idx + 32] = address(stor[s + sha3(sha3(subId, 3) + 2) + 1]); idx = idx + 32; s = s + 1",
+      "source": "FunctionsSubscriptions.sol:474 address[] memory consumers = s_subscriptions[subscriptionId].consumers; (and every other read of a storage address[] into memory)",
+      "issue": "Each copy of a storage address[] into memory is a rotated while (first element peeled before the loop, condition 'end > idx + 32'), with the array data as raw stor[sha3(sha3(subId, 3) + 2) + s] although its length is named stor3[subId].field_512; bytes32[] copies elsewhere print as one copy line.",
+      "rule": "A loop writing mem[d + 32 i] = address(stor[sha3(p) + i]) for i < n (peeled or not) is the copy mem[d len 32 n] = address-cleaned stor[sha3(p) len n]; p = sha3(k, s) + j is member j of the struct s[k], so the data is stor3[subId].field_512[i].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "pendingRequestExists, getSubscriptionsInRange, cancelSubscription, removeConsumer",
+      "lines": "330-337",
+      "decompiled": "_19 = sha3(subId, sha3(Bytes(12, 0), mem[32 * s + 172 len 20], 4)) / mem[_20] = bool(uint8(stor4[concat(Bytes(12, 0), mem[32 * s + 172 len 20])][subId].field_0)) / mem[_20 + 32] = uint64(stor[_19].field_8) / mem[_20 + 64] = uint64(stor[_19].field_72)",
+      "source": "FunctionsSubscriptions.sol:475 Consumer memory consumer = s_consumers[consumers[i]][subscriptionId] (allowed, initiatedRequests, completedRequests)",
+      "issue": "Three members of the same struct s_consumers[consumer][subId] are printed two ways in consecutive lines: as stor4[..][subId].field_0 and, once the slot is held in _19, as stor[_19].field_8 / field_72.",
+      "rule": "stor[v] where v = sha3(k2, sha3(k1, s)) (through any SSA copy) is the mapping access s[k1][k2], printed like the inline form.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small functions line by line; sendRequest (unknown41db4ca3), sendRequestToProposed (unknown461d2762), fulfill (unknown33060529), timeoutRequests, cancelSubscription, ownerCancelSubscription by structure. Source loops (8): getProposedContractById (68, uint8 counter), updateContracts (155), pendingRequestExists (324, while True with both exits), getSubscriptionsInRange (1128, '<=' bound), proposeContractsUpdate (853), removeConsumer (1066), timeoutRequests (1329), _cancelSubscriptionHelper (1233, 1503); all whiles. In sendRequestToProposed the search loop's test is merged into the while condition ('while _param5 - stor[_5 + uint8(s)]', 1757). Implicit: 14 storage address[] copies (rotated, see finding), bytes32[]/address[] parameter decodes and return encodings (P7). No semantic problem found.",
+  "summary": "Complete and faithful with all eight source loops as whiles; the main readability problem is that every storage address[] read into memory is a rotated loop over raw keccak slots, plus one struct printed under two different names."
+}

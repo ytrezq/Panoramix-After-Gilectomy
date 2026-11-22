@@ -1,0 +1,25 @@
+{
+  "id": "c00346",
+  "abi_functions": 17,
+  "reviewed": 17,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P10": 3},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "getVault(), DOMAIN_SEPARATOR(), getDomainSeparator(), permit, allowance, decreaseAllowance, transferFrom",
+      "lines": "3, 46-50, 60-66, 93-97, 137-141",
+      "decompiled": "const getVault = 0  |  return sha3(Bytes(96, 0), chainid, this.address)  |  if address(spender): _3 = stor1[address(owner)][address(spender)] else: _3 = -1",
+      "source": "BalancerPoolToken: IVault private immutable _vault; allowance returns uint256(-1) when spender == address(getVault()); EIP712 immutables _HASHED_NAME, _HASHED_VERSION, _TYPE_HASH",
+      "issue": "solc immutables are zero in this pre-deployment bytecode: the vault reads as 0 (so the infinite vault allowance applies to address 0) and the EIP-712 type / name / version hashes read as zero words.",
+      "rule": "None (solc immutable placeholder).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Solc 0.7.1 BalancerPoolToken (17 functions), no loops; all reviewed in full. The pack has no source for 13 sections (inherited ERC20 / ERC20Permit / EIP712 functions); they were compared with pkg/solidity-utils/contracts/openzeppelin/ERC20.sol, ERC20Permit.sol and EOASignaturesValidator directly. Transfers with the BAL#408 / #409 / #416 errors, the vault-aware allowance, increase / decreaseAllowance (clamping at 0), transferFrom (allowance not decreased for the sender itself or an infinite allowance) and permit (signature first, then deadline BAL#440, as _ensureValidSignature does, then the nonce) are all correct.",
+  "summary": "A clean, faithful, loop-free text; only the zero immutables (artifact) stand out."
+}

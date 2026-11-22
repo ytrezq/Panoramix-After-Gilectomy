@@ -1,0 +1,36 @@
+{
+  "id": "c00298",
+  "abi_functions": 13,
+  "reviewed": 13,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P15": 4},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "isValidSigner (unknownd5f50582), updateTrustedSigner (unknown9feb088c), verifyUpdate (unknown197e1a5a), trustedSigners getter",
+      "lines": "7 (def storage), 71-72, 112-114, 121-123, 128-131, 246-249",
+      "decompiled": "stor1 is fixed array of struct of 2 slots at storage 1 / if address(stor[2 * uint8(s)]) == _param1: return block.timestamp < stor1[uint8(s)].field_0 / address(stor[2 * uint8(s)]) = 0 / stor1[uint8(s)].field_0 = 0",
+      "source": "PythLazer.sol: TrustedSignerInfo[100] public trustedSigners; (slot 0, struct {address pubkey; uint256 expiresAt}); trustedSigners[i].pubkey == trustedSigner ... trustedSigners[i].expiresAt = 0;",
+      "issue": "The struct array at slot 0 is declared as an array based at slot 1 that only covers expiresAt (stor1[i].field_0 = slot 1 + 2i), while pubkey, member 0 of the same elements, stays raw stor[2 * i]; the two members of one array element read as unrelated storage.",
+      "rule": "When accesses stor[k*i + c] with the same index i use several offsets c < k, choose the base that makes them all members of one k-slot struct array (base 0: field_0 and field_256) instead of a base that turns one offset into the array start.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize(address)",
+      "lines": "80-89, 11-13 (def storage)",
+      "decompiled": "_1 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64 ... storF0C5 = 1 / storF0C5_8 = 0",
+      "source": "OpenZeppelin Initializable v5 (ERC-7201 slot 0xf0c57e16...6a00, uint64 _initialized, bool _initializing)",
+      "issue": "Same as c00209: the Initializable slot is factored as a constant times 3600 in the reads of _initialized (P1), and _initialized is split into uint8 + uint56.",
+      "rule": "Never factor a storage slot by a time unit; merge field splits that no access reads separately.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 13 ABI functions reviewed (small UUPS/Ownable contract read in full). The 4 source loops (updateTrustedSigner's remove, update and insert loops; isValidSigner, inlined again in verifyUpdate) are clear whiles over the 100-element array ('while uint8(s) < 100') with their early returns and reverts ('no such pubkey', 'no space for new signer') exact.",
+  "summary": "Faithful, with every loop a clear while; the signer array's two members are split between a mis-based stor1 and raw slots, and the Initializable slot is printed as a constant times 3600."
+}

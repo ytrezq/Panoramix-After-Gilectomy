@@ -1,0 +1,36 @@
+{
+  "id": "c00566",
+  "abi_functions": 30,
+  "reviewed": 30,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {
+    "while": 7,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 38,
+    "P6": 11,
+    "P7": 11,
+    "P18": 30
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "completeUnstaking (both overloads), initiateUnstaking, undelegate, getAssetUnstaking, getEffectivePodShares, getAssetBalance, verifyWithdrawalCredentials, transfer / approval functions",
+      "lines": "e.g. 1931-1975, 2172-2260",
+      "decompiled": "call address(ext_call.return_data[0]) with: args mem[mem[64] len ...]  (55 of 135 calls without a name, 38 argument lists as raw memory, 6 event payloads and 1 return as raw memory)",
+      "source": "NodeDelegator.sol:310-327 _getDelegationManager().queueWithdrawals(queuedWithdrawalParams); :355-397 completeQueuedWithdrawal(withdrawal, assets, receiveAsTokens), safeTransfer, receiveFromNodeDelegator{value}",
+      "issue": "After the first symbolic allocation (struct arrays, return-data-sized buffers) the calls to the DelegationManager, the unstaking vault and the tokens lose their names and arguments, and the WithdrawalQueued / EthTransferred events print their data as raw memory: the same free-memory-pointer self-alias as in the other contracts of this batch (P2).",
+      "rule": "mem[64] >= 0x80 on every path, so the selector store at mem[mem[64]] leaves mem[64] unchanged and the argument area folds to the stored words.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 30 ABI functions and the fallback/receive reviewed; no semantic error found. The large functions (completeUnstaking x2, initiateUnstaking, undelegate, getAssetUnstaking, verifyWithdrawalCredentials, stake32Eth*) by structure: role modifiers (LRTConfig role checks), pause and reentrancy guards, the withdrawal-staker / length / strategy-asset checks, balancesBefore via getBalances, the receiveAsTokens branch with ETH vs ERC20 transfers, uncompleted-withdrawal accounting, events. Source loops (7): undelegate's root loop, initiateUnstaking's strategy check, completeUnstaking's validation and transfer loops, getAssetUnstaking's two nested loops, getBalances: all whiles. Implicit: ABI decoding of the Withdrawal / proof parameters and encoding of QueuedWithdrawalParams[] (nested arrays) for the DelegationManager (11 plain copies, P7). HashStorage / UnlockedWithdrawalsInitializer loops belong to other contracts.",
+  "summary": "Faithful with all 7 source loops shown as whiles; as elsewhere, the EigenLayer and vault calls after the first symbolic allocation lose their names and arguments because of the free-memory-pointer aliasing assumption."
+}

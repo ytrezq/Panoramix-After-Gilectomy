@@ -1,0 +1,47 @@
+{
+  "id": "c00143",
+  "abi_functions": 56,
+  "reviewed": 56,
+  "not_reviewed": [],
+  "source_loops": 15,
+  "loops_shown": {"while": 15, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 24, "P3": 1, "P6": 6, "P7": 2, "P8": 200, "P9": 42, "P10": 43, "P11": 72, "P15": 6},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "activeValidators(uint256), getMostUnderfundedValidator, getMostOverfundedValidator, buySPOL x4, buySPOLWithDPOL x2, sellSPOL x4, removeValidator, restakeAllActiveValidators, reloadAllActiveValidatorInfo, updateValidatorTargetShare (96 lines)",
+      "lines": "62-65, 1007-1039, 2091-2145; def storage line 13",
+      "decompiled": "stor2 is array of fixed array of uint16 at storage 2 ... return Mask(16, 16 * (_param1 % 16), stor[_param1 / 16 + sha3(2)]) >> 16 * (_param1 % 16) ... t = stor2[0][0] ... static call address(stor0[Mask(16, 16 * (idx % 16), stor[idx / 16 + sha3(2)]) >> 16 * (idx % 16)].field_32).locked()",
+      "source": "sPOLController.sol: uint16[] public activeValidators; validators[activeValidators[i]]",
+      "issue": "Elements of the packed uint16[] activeValidators are printed as raw slot/shift/mask arithmetic, repeated up to 10 times per line inside the validator loops, and def storage types it as 'array of fixed array of uint16' with element 0 as stor2[0][0]; validatorList, the same type at slot 1, prints correctly as stor1[_param1].",
+      "rule": "Mask(k, k * (i % (256/k)), stor[i / (256/k) + sha3(p)]) >> k * (i % (256/k)) is element i of the dynamic array at slot p with k-bit elements (p[i]); a constant index i = 0 is the same access, so stor2[0][0] is stor2[0].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "initialize(uint16,address,uint8,address)",
+      "lines": "313-321, 346-348; def storage lines 21-23",
+      "decompiled": "_1 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64 ... storF0C5 = 1 / storF0C5_8 = 0 / if not storF0C5_64: storF0C5_64 = 1  |  storF0C5 is uint8 at storage 0xf0c5...6a00 / storF0C5_8 is uint56 at ... offset 8",
+      "source": "OpenZeppelin Initializable (ERC-7201 slot 0xf0c57e16...6a00): struct { uint64 _initialized; bool _initializing; }; initializer: $._initialized = 1",
+      "issue": "The ERC-7201 slot constant is factored as C * 3600 (P1) inside a storage index, so the reads of _initialized are not recognised as the variable named storF0C5; the uint64 _initialized is split into a uint8 and a uint56 field, so '_initialized = 1' prints as two stores.",
+      "rule": "Never factor a storage-slot constant (print slots as hex, and match them with def storage); fields written together with one masked store of width 64 and read as uint64 are one 64-bit field, not two.",
+      "verified": "reading only (0x111f..7aa0 * 3600 = 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "buySPOL(uint256), buySPOLPermit(uint256,...), sellSPOL(uint256), sellSPOLPermit(uint256,...) (the _selectValidators loop)",
+      "lines": "2060-2171 (transferFrom printed at 2076-2090, 2128-2142, 2157-2171)",
+      "decompiled": "while True: if s >= stor2.length: ... call 0x0.transferFrom(caller, this.address, _param1) ... break / ... if _param1 <= _70: ... call 0x0.transferFrom(caller, this.address, _param1) ... break / ... call 0x0.transferFrom(caller, this.address, _param1) ... break",
+      "source": "sPOLController.sol:835-871 _selectValidators (two early 'return's and the loop end), then _buySPOLMulti's polToken.safeTransferFrom(_user, address(this), _amount)",
+      "issue": "The caller's code after _selectValidators returns (the transferFrom and its checks, 15 lines) is printed inside the loop before each of the three exits, so the loop body carries the continuation three times.",
+      "rule": "When all exits of a loop ('break' paths) end with the same statements, print those statements once after the loop and keep only the exit-specific parts before each break.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 56 functions reviewed; the buy/sell functions (230-560 lines) by structure (loops, calls, stores, events), the rest line by line. The 15 source loops are all whiles: _removeFromActiveValidators, updateValidatorTargetShare x2, restakeAllActiveValidators, reloadAllActiveValidatorInfo, _validatorWithHighestTotalStakeDistance (2 getters), getUserOpenNonces, _withdrawPOL ('while queue not empty' as 'field_128 != uint128(field_0)'), _selectValidators' main loop ('while True' with early exits) and its buy and sell tails, _buySPOLMulti, _buySPOLWithDPOLMulti, _sellSPOLMulti x2. Implicit: 1 rotated zero-initialisation of a struct array (P3, 'while idx - 1'), 1 return encoding loop, 2 copy loops (P7). The DoubleEndedQueue _data member prints as raw stor[sha3(i, sha3(user, 7) + 1)] (struct member after a mapping, same as c00290), the front() emptiness Panic(50) is kept inside the loop that tests emptiness (P11). AccessManaged's canCall arguments print the caller as 'Bytes(28, uint128(caller >> 32)), Bytes(4, uint32(caller))' (one address split in two slices). Immutables (polToken, stakeManager, sPOLToken, maticToken, migration) read as 0 (artifact).",
+  "summary": "Faithful with all 15 loops found, but the packed uint16[] activeValidators is never recognised (96 lines of slot/shift/mask arithmetic), the Initializable slot is printed through a P1 factorisation with its uint64 field split in two, and loop exits duplicate the caller's continuation."
+}

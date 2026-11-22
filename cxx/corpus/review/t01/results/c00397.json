@@ -1,0 +1,25 @@
+{
+  "id": "c00397",
+  "abi_functions": 1,
+  "reviewed": 1,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P12": 8},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "simulate(address,bytes)",
+      "lines": "16-37",
+      "decompiled": "if not return_data.size: revert with 0xade19139, targetContract, 128, delegate.return_code, ceil32(calldataPayload.length) + 160, calldataPayload.length, calldataPayload[all], Bytes(ceil32(calldataPayload.length) - calldataPayload.length + 32, 0) / ... / revert with 0xade19139, ..., return_data.size, ext_call.return_data[0 len return_data.size], Bytes(-return_data.size + ceil32(return_data.size), 0)",
+      "source": "Simulator.sol:27-30 (bool success, bytes memory result) = delegatee.delegatecall(data); revert Simulated(delegatee, data, success, result);",
+      "issue": "The revert is printed twice, for empty and non-empty return data, although the second form with return_data.size = 0 yields the same bytes; the custom error appears as its selector although the ABI declares Simulated(address,bytes,bool,bytes).",
+      "rule": "Merge two arms whose effects are equal once the branch condition is substituted (return_data.size = 0 makes the general encoding the special one).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "One function: the delegatecall with the bytes argument and the Simulated custom-error revert (with the via-IR return-data allocation check) are exact; no loop.",
+  "summary": "Exact; only a revert duplicated over the empty-return-data case."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "c00203",
+  "abi_functions": 47,
+  "reviewed": 47,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P4": 4, "P6": 3, "P7": 1, "P11": 1},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setEnforcedOptions((uint32,uint16,bytes)[]) (unknownb98bd070)",
+      "lines": "605-650, 656-673",
+      "decompiled": "while s < _66: if s >= mem[128]: revert with Panic(50) ... mem[0] = Bytes(28, 0), mem[mem[32 * s + 160] + 28 len 4] / mem[32] = 3 / _87 = sha3(mem[0], 3) / ... if uint1(stor[sha3(mem[0], _87)]): ... / log 0xbe4864a8...: mem[mem[64] len u - mem[64]]",
+      "source": "OAppOptionsType3.sol:41-48 for (uint256 i = 0; i < _enforcedOptions.length; i++) { _assertOptionsType3(_enforcedOptions[i].options); enforcedOptions[_enforcedOptions[i].eid][_enforcedOptions[i].msgType] = _enforcedOptions[i].options; } emit EnforcedOptionSet(_enforcedOptions);",
+      "issue": "The loop is found, but the enforcedOptions[eid][msgType] storage bytes is addressed as stor[sha3(mem[0], _87)] with the keys as memory slices (instead of the enforcedOptions mapping the getter 0x5535d461 reads), the guard keeps an implied bounds check, and the event data is a raw memory range.",
+      "rule": "Fold the key word written to mem[0] into the sha3 (uint32/uint16 of the struct fields) and resolve sha3(k2, sha3(k1, 3)) as stor3[k1][k2]; drop 'if i >= n: revert' inside 'while i < n'; fold mem[64] after its last store so the log prints its ABI arguments.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 47 ABI functions reviewed (ERC20/permit, ownership, peers/options getters, quote*/send, lzReceive* by structure). The pack has no source for 30 LayerZero functions ('no source definition found in the AST'); the two source loops were read from node_modules/@layerzerolabs/lz-evm-oapp-v2: OAppOptionsType3._setEnforcedOptions (605) and OAppPreCrimeSimulator.lzReceiveAndRevert (682), both whiles. Implicit loops: the validated abi.decode of EnforcedOptionParam[] (575) and the event's ABI encoding (656, P7). No semantic difference found.",
+  "summary": "Faithful and mostly readable; both (pack-missing) LayerZero loops are found, with only mapping keys through mem[0] and a raw-memory event in setEnforcedOptions."
+}

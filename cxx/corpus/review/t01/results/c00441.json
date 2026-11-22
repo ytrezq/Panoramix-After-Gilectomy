@@ -1,0 +1,69 @@
+{
+  "id": "c00441",
+  "abi_functions": 16,
+  "reviewed": 16,
+  "not_reviewed": [],
+  "source_loops": 13,
+  "loops_shown": {"while": 13, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 127, "P3": 12, "P5": 6, "P6": 19, "P7": 285, "P8": 600, "P11": 100, "P14": 300, "P18": 60},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "deploy, upgrade, migrate, upgradeSuperchain, isPermittedMigrateSequence, isPermittedUpgradeSequence",
+      "lines": "e.g. 76-81, 469-475, 519-525, 4672-4678",
+      "decompiled": "idx = 0 / while idx < 68: mem[idx + 228] = mem[idx + 160]; idx = idx + 32 / mem[296] = 0  |  s = 0 / while s < _44: mem[_39 + s + ceil32(rds) + 32] = mem[_39 + _41 + s + 32]; s = s + 32 / if s > _44: mem[_39 + _44 + ceil32(rds) + 32] = 0",
+      "source": "solc 0.8.15 copy_memory_to_memory (abi.encode of string/bytes, abi.decode of returned strings, bytes.concat)",
+      "issue": "P7: about 285 of the 401 whiles are word-by-word memory copies with their padding store, not converted to copy lines, even with a constant length (68). They bury the source loops of deploy (3,700 lines) and upgrade (5,900 lines).",
+      "rule": "'i = 0; while i < n: mem[d + i] = mem[s + i]; i = i + 32' followed by 'if i > n: mem[d + n] = 0' is 'mem[d len n] = mem[s len n]' plus 'mem[d + n len 32] = 0' when n % 32 != 0, provided d <= s or [d, d + ceil32(n)) and [s, s + ceil32(n)) are disjoint.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "deploy, upgrade (inlined SemverComp.parse -> LibString.split)",
+      "lines": "3027-3033, 3093-3099",
+      "decompiled": "mem[_1451 + floor32(_1449 - s + 31)] = mem[_1374 + s + ceil32(_7) + floor32(_1449 - s + 31)] / idx = floor32(_1449 - s + 31) / while idx - 32: mem[_1451 + idx - 32] = mem[...]; idx = idx - 32",
+      "source": "LibString.sol:823 for { let o := and(add(elementLength, 0x1f), w) } 1 {} { mstore(add(element, o), mload(add(add(subject, prevIndex), o))); o := add(o, w); if iszero(o) { break } }",
+      "issue": "P3: the backward word copy of split is rotated: its first iteration is printed before the loop and the test reads 'idx - 32' (12 instances). It is a copy of floor32(len + 31) bytes and could be one copy line.",
+      "rule": "Recognise the do-while 'body; o = o - 32; if o != 0: repeat' without peeling; a backward word copy over disjoint or downward ranges is a copy line.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all functions using opcmUtils, opcmMigrator, opcmV2, contractsContainer, thisOPCM",
+      "lines": "27, 36, 82, 452-453, 640",
+      "decompiled": "static call 0x0.unknown5a4dab33(?) / delegate 0x0 with: / if not this.address: revert with 0xccafc377",
+      "source": "immutables opcmUtils, opcmMigrator, thisOPCM; _onlyDelegateCall: if (address(this) == thisOPCM) revert",
+      "issue": "solc immutables read as 0: the helper calls go to address 0 and the delegatecall guard compares this.address with 0.",
+      "rule": "None (not a decompiler error).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "migrate, deploy, upgrade",
+      "lines": "555-579, 4721-4740",
+      "decompiled": "mem[_55] = 0x9193f97a...; mem[_55 + 4] = 64; ... (two string copy loops) ...; revert with memory from mem[64] len _55 + ceil32(_56) + ceil32(_59) - mem[64] + 132",
+      "source": "OPContractsManagerV2.sol:309 revert OPContractsManagerV2_InvalidUpgradeSequence(lastUsedOPCMVersion(), _version()); :342 revert OPContractsManagerV2_DuplicateUpgradeInstruction(key)",
+      "issue": "Custom errors with string arguments, built at a free-memory pointer the decompiler doesn't resolve, print as raw memory plus copy loops instead of 'revert with <error>(args)'; the selectors are unknown to the database.",
+      "rule": "A revert of memory [p, q) whose content is selector || abi.encode(values) (offsets, lengths and copied bytes) prints as 'revert with 0xSELECTOR(values)', for any p.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "implementations(), isPermittedMigrateSequence, isPermittedUpgradeSequence, all abi.encodeCall sites",
+      "lines": "215-296, 73-75, 98-101",
+      "decompiled": "require mem[ceil32(_1) + 768] == mem[ceil32(_1) + 780 len 20] ... return Bytes(12, 0), ext_call.return_data[12 len 20], Bytes(12, 0), mem[ceil32(_1) + ceil32(return_data.size) + 780 len 20], ... / mem[160 len 4] = 900890290",
+      "source": "OPContractsManagerV2.sol:1107 return contractsContainer().implementations() (a struct of 19 addresses)",
+      "issue": "Same as c00410: the returned struct is 38 slice pieces read back from memory instead of ext_call.return_data[32 * k] as addresses (P18), and selectors are stored in decimal (93 lines).",
+      "rule": "As in c00410 (return-data copy read back as ext_call.return_data; 'Bytes(12, 0), x[12 len 20]' is address(x); 4-byte stores in hex).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "deploy (3,760 lines, 137 whiles) and upgrade (5,950 lines, 252 whiles) reviewed by structure. Source loops (13): migrate (OPContractsManagerV2.sol:307, while at 458), _apply (:1012), _assertValidFullConfig (:752 and the 'while True' search at :815), _assertValidUpgradeInstructions (:336 and nested :340, e.g. 'while t < _696' with the sha3 key comparison 4712), Blueprint.bytesToUint (:210), Blueprint.parseBlueprintPreamble (:76, :86, the 'while idx < Mask(2, 248, ..) >> 248' loops), JSONParserLib.parseUint Yul for (:287), LibString.indicesOf Yul for (:763, specialised to the one-byte search '.', '-', '+' as 'while True: if (mem[t] ^ 0x2e..) >> 248'), LibString.split outer and inner Yul for (:815, :823) - all shown as while; SemverComp.parse is inlined 4 times (one SemverComp.lt in each of deploy and upgrade), giving 36 'while True' instances of the library loops. Implicit loops: ~285 memory copies (P7), ~34 ABI encodings of arrays of dynamic elements ('mem[u] = -_N + t - ...' offset tables), calldata array decodes with per-element checks. P5: 6 unused identity copies (e.g. 1021, 1338). P11: implied Panic(50) bounds checks inside loops (107 Panic(50) lines). The 'if 1 > ~s: revert Panic(17)' before 'j = i + 1' is the i + 1 overflow check. No semantic error found on the paths read.",
+  "summary": "Complete (no aborts) and faithful on the paths read, but dominated by solc 0.8.15 memory copies left as while loops (285 of 401 whiles), with library string-parsing loops inlined four times; errors, call arguments and returned structs are mostly raw memory."
+}

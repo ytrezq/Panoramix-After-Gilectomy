@@ -1,0 +1,37 @@
+{
+  "id": "c00048",
+  "abi_functions": 33,
+  "reviewed": 33,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 2,
+    "P6": 86,
+    "P12": 20,
+    "P14": 71,
+    "P18": 30
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "offer(uint8,bytes,uint16), accept, update, getAgreementDetails, getMaxNextClaim (both), collect",
+      "lines": "2861-2887, 2895-2990, 3183-3304 (offer); 71 lines with mem[N len 4|8|16]",
+      "decompiled": "revert with Bytes(28, 0xc1b706ab000000000000000000000000000000000000000000000000), mem[376 len 8], Bytes(24, 0), mem[408 len 8]  |  revert with 0x26769f8d, block.timestamp, Bytes(24, 0), mem[376 len 8]  |  static call mem[384].supportsInterface(bytes4 interfaceId)  |  stor436D[mem[320 len 16] << 128].field_1616",
+      "source": "RecurringCollector.sol: the decoded RecurringCollectionAgreement struct (uint64 deadline/endsAt, address payer/dataService/serviceProvider, uint32 minSecondsPerCollection/maxSecondsPerCollection, ...) and custom errors such as RecurringCollectorAgreementInvalidDuration(uint64, uint64) / RecurringCollectorAgreementDeadlineElapsed(uint256, uint64)",
+      "issue": "The fields of the ABI-decoded agreement struct live at fixed memory addresses and are read as byte slices, so custom-error arguments print as chunks of their ABI encoding (selector glued to 24 zero bytes, then an 8-byte slice), call targets as mem[384], and the bytes16 agreement id as 'mem[320 len 16] << 128'.",
+      "rule": "A fixed memory word read only whole or through slices is a local (P14): name it and print a slice mem[a + 32 - n len n] as uintN(mem[a]); when encoding revert or event data, merge 'Bytes(k, c), slice' sequences back into one word per argument.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against RecurringCollector.sol, Authorizable, the Graph horizon base contracts and OZ EIP712/ECDSA/Pausable/Initializable. The functions are all under 1,000 lines and were read by structure and their checks: offer (972 lines: offer types, deadline/duration/collection-window checks with their custom errors, the ERC-165 supportsInterface probes of the payer, the EIP-712 hash stored and logged, then the returned agreement), accept, update, cancel (both), collect (decodeCollectData through a self static call whose failure re-reverts with the input), the getters, authorization functions, pause guardians. No source loop in the reached code and no while in the text. P6: the ERC-165 selector 0x01ffc9a7 (60 lines) and two storage/typehash constants print with 63 digits. P1: the Initializable slot factored by 3600 (2 lines). The text has no P2 and no hidden reverts. No execution run.",
+  "summary": "Faithful and fairly clean (no P2, no loops to lose); readability suffers from the decoded agreement struct kept in fixed memory, which turns custom-error arguments, call targets and mapping keys into byte slices, and from 86 63-digit constants."
+}

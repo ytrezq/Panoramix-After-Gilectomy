@@ -1,0 +1,40 @@
+{
+ "id": "c00475",
+ "abi_functions": 36,
+ "reviewed": 36,
+ "not_reviewed": [],
+ "source_loops": 8,
+ "loops_shown": {
+  "while": 8,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 5,
+  "P3": 7,
+  "P4": 3,
+  "P6": 22,
+  "P7": 6,
+  "P8": 40,
+  "P14": 30,
+  "P18": 10
+ },
+ "findings": [
+  {
+   "kind": "loop",
+   "severity": "medium",
+   "function": "pendingRequestExists(uint64), and the same nested loops inlined in removeConsumer and cancelSubscription",
+   "lines": "433-470, 663-700, 797-835",
+   "decompiled": "mem[192] = 224 / s = 0 / while True: if s >= mem[mem[192]]: _25 = mem[64]; mem[mem[64]] = 0; return memory from mem[64] len 32 / idx = 0 / while idx < stor7.length: ... if s >= mem[mem[192]]: revert Panic(50) ...",
+   "source": "VRFCoordinatorV2.sol:794 for (uint256 i = 0; i < subConfig.consumers.length; i++) { for (uint256 j = 0; j < s_provingKeyHashes.length; j++) { ... if (s_requestCommitments[reqId] != 0) return true; } } return false;",
+   "issue": "The outer loop's bound is an exit test at the top of 'while True' carrying the function's final 'return false', and the bound itself is read as mem[mem[192]] although mem[192] was just set to the constant 224.",
+   "rule": "'while True' whose only exit is a leading 'if c: <tail>' is 'while not c' followed by <tail>; a load through a constant pointer stored at a constant address (mem[192] = 224) folds to mem[224] when no later store can reach address 192 (free-pointer-based stores are above the initial pointer).",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "8 source loops, all present as whiles: deregisterProvingKey:187, fulfillRandomWords:528, pendingRequestExists:794 and its inner :795 (finding), removeConsumer:725, cancelSubscriptionHelper:775 (ownerCancelSubscription, cancelSubscription), VRF.fieldHash:203 and hashToCurve:246. Implicit: storage-to-memory copies of the consumers array in rotated form ('while 32 * len + 256 > idx + 32', P3, 7), uint256[2] copies ('while idx < 2', P7). The VRF proof arithmetic in fulfillRandomWords reviewed by structure (same library as c00419). No semantic error found.",
+ "summary": "Faithful, with all loops present; the nested pending-request search is printed as 'while True' with the final return inside and its bound read through a memory pointer, and consumer-array copies are rotated."
+}

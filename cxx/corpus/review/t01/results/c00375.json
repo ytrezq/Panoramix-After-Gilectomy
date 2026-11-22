@@ -1,0 +1,25 @@
+{
+  "id": "c00375",
+  "abi_functions": 6,
+  "reviewed": 6,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "blow() and the getters dai(), daiJoin(), usds(), usdsJoin(), vow()",
+      "lines": "1, 17, 26, 31, 41, 46",
+      "decompiled": "const dai = 0 ... static call 0x0.balanceOf(address account) ... call 0x0.join(address usr, uint256 wad) with: args 0, ext_call.return_data[0] ... log 0x9cc1de95...: _1, indexed 0",
+      "source": "DssBlow2.sol:39-51 vow, dai, usds, daiJoin, usdsJoin are immutables; blow() joins both balances to the vow and emits Blow(token, amount)",
+      "issue": "All five addresses are solc immutables, zero in the pre-deployment runtime code, so every call target, the join recipient and the indexed token of the event read as 0.",
+      "rule": "None (pre-deployment artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "48-line text, fully reviewed. No loops. Apart from the immutables, blow() matches the source: balanceOf, `if balance > 0: join(vow, balance); emit Blow(token, balance)` for DAI then USDS. The join amount is printed as `ext_call.return_data[0]` while the event uses the copy `_1`/`_2` of the same value (harmless). The Blow event prints as a raw topic (database).",
+  "summary": "Faithful minimal text; every address is an immutable shown as 0 (pre-deployment artifact)."
+}

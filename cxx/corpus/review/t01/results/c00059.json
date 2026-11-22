@@ -1,0 +1,135 @@
+{
+  "id": "c00059",
+  "abi_functions": 72,
+  "reviewed": 72,
+  "not_reviewed": [],
+  "source_loops": 13,
+  "loops_shown": {"while": 13, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 111, "P3": 23, "P4": 1, "P6": 291, "P7": 279, "P8": 1700, "P9": 106, "P10": 200, "P11": 80, "P12": 20, "P14": 400, "P15": 2, "P17": 25, "P18": 51},
+  "findings": [
+    {
+      "kind": "semantics",
+      "severity": "medium",
+      "function": "claimComp(address), claimComp(address,address[])",
+      "lines": "11299-11301, 12160, 12243, 12525, 12761; 12899, 13758, 13841, 14123, 14359",
+      "decompiled": "_1 = gas_remaining / static call mem[172 len 20].borrowIndex() with: gas _1 ... (inside loop1) static call address(_274) with: gas _1",
+      "source": "ComptrollerLegacy.sol:1290 Exp({mantissa: cToken.borrowIndex()}) inside for (i < cTokens.length)",
+      "issue": "The GAS reading of the first (peeled) iteration is reused as the gas operand of the borrowIndex call in every later iteration; the bytecode executes GAS right before each STATICCALL (checked in the disassembly), so the text states a stale gas amount. No effect on execution after EIP-150 (both values exceed the 63/64 cap), but the rule that produced it would be wrong for any loop that tests gasleft().",
+      "rule": "GAS is not a pure expression: every GAS instruction yields a new value, so it must never be merged or carried as a loop-invariant variable across iterations or duplicated blocks.",
+      "verified": "reading only + disassembly (each borrowIndex site is 'gas staticcall')"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "claimComp(address), claimComp(address,address[]), claimComp(address[],address[],bool,bool)",
+      "lines": "11285-11317, 12580, 12738-12778; 12883-12915, 14178, 14336-14376; 16041, 16199-16201",
+      "decompiled": "if 0 >= allMarkets.length: stop ... loop1: while stor[_283].field_224 <= block.number: ... while _1808 <= _1807: ... if w + 1 >= mem[_6]: if s + 1 >= mem[128]: stop ... continue loop1",
+      "source": "ComptrollerLegacy.sol:1286-1302 for (i < cTokens.length) { ... for (j < holders.length) distributeBorrowerComp ...; for (j < holders.length) distributeSupplierComp ... }",
+      "issue": "The outer markets loop and the inner suppliers loop are rotated: the first iteration is peeled, the while condition is the sub_ underflow check of updateCompBorrowIndex / distributeSupplierComp (false leads only to the 'subtraction underflow' revert after the loop), and the real loop tests i < cTokens.length and j < holders.length sit at the end of the body as stop / continue loop1. The loops are present but unreadable.",
+      "rule": "When the exit edge of a loop header leads only to a revert, restructure: emit the test as a require inside the body and take as the loop condition the test whose exit reaches the normal continuation; un-peel an iteration that duplicates the loop body.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "semantics",
+      "severity": "medium",
+      "function": "_become(address,address,uint256,address[],address[]) (unknownb8a83e94)",
+      "lines": "435-437",
+      "decompiled": "call address(_param1).unknownf1e9ee8b(?) with: args address(_param2), _param3, Array(len=cd[_param4 + 4], data=call.data[...], cd[_param5 + 4], call.data[_param5 + 36 len ...]), 32 * cd[_param4 + 4] + 160",
+      "source": "ComptrollerLegacy.sol:1088 Comptroller(address(unitroller))._becomeG3(compAddress_, compRate_, compMarketsToAdd, otherMarketsToAdd)",
+      "issue": "The memory written is [addr, rate, 128, 32*len4+160, len4, data4, len5, data5], but the text nests the second array inside the first Array(...) and prints the second head offset 32*len4+160 as the last argument, so the argument order and the number of arrays are wrong on the page.",
+      "rule": "Render ABI-encoded call data by head/tail: each head word equal to the offset of a (len, data) tail block becomes one Array(len, data) argument at its head position; never move a head word after the tails.",
+      "verified": "reading only + disassembly of the encoder at 0x2e06"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "refreshCompSpeeds() and its inlinings, claimComp x3, mintAllowed, redeemAllowed, transferAllowed, borrowAllowed, _becomeG3",
+      "lines": "7326-7330, 12737, 17575, 5054-5058 (49 logs, 4 returns)",
+      "decompiled": "_929 = mem[64] / mem[mem[64]] = X / log CompSpeedUpdated(address indexed cToken=_928, uint256 newSpeed=mem[mem[64] len _929 - mem[64] + 32]); log DistributedSupplierComp(...): mem[mem[64] len _2253 - mem[64] + 64], ...; return memory from mem[64] len _2127 - mem[64] + 32",
+      "source": "ComptrollerLegacy.sol:1145 emit CompSpeedUpdated(cToken, newSpeed); :1215 emit DistributedSupplierComp(...); :381 return uint(Error.NO_ERROR)",
+      "issue": "Event data (25 logs fully, 24 logs for one argument) and 4 return values are printed as raw memory slices although the words were stored on the line before; same root cause as P2, but here it hides event arguments and return values rather than call arguments.",
+      "rule": "After _x = mem[64] with no store to mem[64] in between, _x - mem[64] is 0; with the free pointer tracked as base + offset, mem[mem[64] len 32k] resolves to the words just stored and the log/return shows the values.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all functions that inline sub_/mul_/div_/safe32/safe224 (refreshCompSpeeds, claimComp, _addCompMarkets, policy hooks)",
+      "lines": "6339-6366, 6379-6419, 9986-10011 (279 copy loops)",
+      "decompiled": "_195 = mem[64] / mem[_195] = 21 / mem[_195 + 32] = 'subtraction underflow' (hex) / if ...: mem[_198 + 36] = mem[_195] ... idx = 32 / while idx < _200: mem[_198 + idx + 68] = mem[_195 + idx + 32] ... revert with memory from mem[64] len ...",
+      "source": "Exponential.sol sub_(a, b, errorMessage): require(b <= a, errorMessage) with a string literal argument",
+      "issue": "Each require with a memory string parameter prints about 20 lines of Error(string) encoding and a copy loop, although the length (21, 28, 23, 14...) and text were stored just before: the loop runs zero times and the block is revert with 'subtraction underflow'. This is the bulk of the 342 while loops.",
+      "rule": "Track memory relative to the free-pointer value (base + constant offset) so a string stored at p is known when read through p; a word-copy loop with a known length below 32 has zero iterations, and a fully known Error(string) buffer prints as revert with 'text'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getAccountLiquidity, getHypotheticalAccountLiquidity, liquidateCalculateSeizeTokens, redeemAllowed, borrowAllowed, transferAllowed, exitMarket, liquidateBorrowAllowed",
+      "lines": "565-688, 801-984",
+      "decompiled": "if mem[_141]: if mem[_141] * mem[_143] / mem[_141] == mem[_143]: _161 = 0; _162 = ... else: _161 = 2; _162 = 0; _163 = _161; _164 = _162 else: _163 = 0; _164 = 0 / if _163: _255 = 11 ... break",
+      "source": "CarefulMath.mulUInt / addUInt returning (MathError, uint); Exponential.mulExp3 / mulScalarTruncateAddUInt; if (mErr != NO_ERROR) return (Error.MATH_ERROR, 0, 0)",
+      "issue": "Every checked step is a two-level if assigning constant error codes to phi variables, copied again (_163 = _161) and tested at the join; the arithmetic is lost in temporaries.",
+      "rule": "Jump threading: when a join tests a variable that every incoming edge sets to a constant, route each edge directly to the branch it selects; then drop the dead phi copies.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "mintAllowed, refreshCompSpeeds and other updateCompSupplyIndex/updateCompBorrowIndex inlinings",
+      "lines": "1046-1049, 6436-6439, 7352, 7423",
+      "decompiled": "_12 = block.number == compSupplyState[..].field_224 or not compSpeeds[..] / assert compSupplyState[..].field_224 != block.number / if (block.number * compSpeeds[..] - field_224 * compSpeeds[..]) / (block.number - field_224) != compSpeeds[..]",
+      "source": "ComptrollerLegacy.sol:1158-1160 if (deltaBlocks > 0 && supplySpeed > 0) { ... mul_(deltaBlocks, supplySpeed) }",
+      "issue": "Inside the branch deltaBlocks > 0 and speed > 0, the zero tests of mul_ and the division-by-zero assert are kept (and the whole dead else arm), and (a - b) * c is distributed into a*c - b*c (P9, P11); 'divide by zero' checks of totalUtility are kept where totalUtility != 0 is known.",
+      "rule": "Propagate branch conditions as facts (x - y > 0 implies x != y) to fold dominated tests; do not distribute multiplication over subtraction, keep (a - b) * c.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "exitMarket(address)",
+      "lines": "2437-2440",
+      "decompiled": "if _454 > _454 - 1: stor[_454 + sha3(sha3(caller, 8)) - 1 len -_454 - sha3(sha3(caller, 8)) + max(_454 + sha3(sha3(caller, 8)), _454 + sha3(sha3(caller, 8)) - 1) + 1] = 0",
+      "source": "ComptrollerLegacy.sol:220 storedList.length--",
+      "issue": "Clearing the one removed element after length-- is printed as a storage range with an unreadable length that is 1 (or 0 on wrap-around); it is assetsIn[caller][old_length - 1] = 0.",
+      "rule": "For a range store from S + n - 1 to S + n compared with <, print the single-slot store guarded by the no-wrap test, and show S + i with S = sha3(array slot) as the array element arr[i].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "enterMarkets(address[]), checkMembership, borrowAllowed, exitMarket, redeemAllowed",
+      "lines": "106, 503, 508-528, 2036, 5074",
+      "decompiled": "stor[sha3(caller, sha3(Bytes(12, 0), mem[32 * idx + 172 len 20], 9) + 2)]; markets[concat(Bytes(12, 0), mem[32 * idx + 172 len 20])]; mem[32 * cTokens.length + 192 len 32 * cTokens.length] = code.data[24287 len 32 * cTokens.length]",
+      "source": "ComptrollerLegacy.sol:145 marketToJoin.accountMembership[borrower]; :121 new uint[](len)",
+      "issue": "The mapping inside the Market struct is not shown as markets[k].field_512[user]; the key is a 20-byte memory slice instead of address(cTokens[idx]) although mem[160..] was just copied from calldata; the zero fill of a new array is a CODECOPY at the code size printed as code.data[24287 ...].",
+      "rule": "stor[sha3(k2, sha3(k1, base) + m)] is member m's mapping of mapping base; concat(Bytes(12,0), mem[a+12 len 20]) is address(mem[a]), read through a known copy; CODECOPY from an offset >= code size writes zeros.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "_setCollateralFactor, _setCloseFactor, _setLiquidationIncentive, exitMarket, redeemAllowed",
+      "lines": "323-341, 457-484, 2394, 4299",
+      "decompiled": "_6 = 13; _7 = 9; _8 = 13 ... log Failure(error=_8, info=_7, detail=0); _9 = _6; return _9 / log Failure(5, 5) in both arms / _412 = _409 and 4",
+      "source": "ErrorReporter fail(Error.X, FailureInfo.Y) returns; if (shortfall > 0) return INSUFFICIENT_LIQUIDITY",
+      "issue": "Tails merged through phi variables with equal values (_6 and _8), the same log printed in both arms of an if, and 'x and 4' for 'if x: 4'.",
+      "rule": "Duplicate a short tail (log + return) into its predecessors instead of introducing phi variables; merge phis that are equal on every edge; print (c and k) as a conditional when used as a value.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "_mintGuardianPaused(), _borrowGuardianPaused()",
+      "lines": "66, 158, 19-20",
+      "decompiled": "return bool(uint8(stor[10].field_160)) / return bool(uint8(stor[10].field_168))",
+      "source": "ComptrollerStorage: slot 10 +20 bool _mintGuardianPaused, +21 bool _borrowGuardianPaused",
+      "issue": "Two packed bools of slot 10 are not declared in def storage (only transferGuardianPaused and seizeGuardianPaused are), so their getters read raw stor[10] fields (P15).",
+      "rule": "Declare every packed field read by a getter, naming it after that getter even when a mapping getter has a similar name.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed by structure (control flow, loops, calls, writes, events, reverts): _becomeG3 (unknownf1e9ee8b, 2629 lines), claimComp(address[],address[],bool,bool) (1803), claimComp(address) (1604), claimComp(address,address[]) (1598); _setCompRate, _dropCompMarket, _addCompMarkets inline refreshCompSpeeds, same as refreshCompSpeeds (reviewed in detail: its 3 loops plus the new Exp[](n) allocation loop 'while idx - 1', P3). redeemAllowed, transferAllowed, borrowAllowed, liquidateBorrowAllowed share the getHypotheticalAccountLiquidityInternal loop reviewed in getAccountLiquidity/getHypotheticalAccountLiquidity. _become/_becomeG3 are unknownb8a83e94/unknownf1e9ee8b (signature database). Checked and faithful: exitMarket's revert at 2017 shows ext_call.return_data[105 len 23] in the padding because the message is CODECOPYed with length 37 over the return data (disassembly 0x3bfb); 'assert not membership' in borrowAllowed's not-member branch is exact. P3 = 17 storage-to-memory array copies + 6 struct-array allocation loops; P7 = 279 revert-string copies; constants compInitialIndex printed as 1000000000000000000 * 10**18 (154 lines) and 0.9e18 as 25 * 10**13 * 3600 (P1); scratch save/restore around the codecopy of string literals (_217 = mem[0]; mem[0] = 'block number...'; mem[0] = _217) counted in P8. Event strings print as hex (Array(len=5, data=0x5365697a65...)).",
+  "summary": "Semantically faithful on everything checked except a GAS reading reused across loop iterations and a mis-ordered two-array call encoding in _become; readability is poor: 279 zero-trip revert-string copy loops, CarefulMath error codes threaded through phi variables, event data and returns as raw memory, and the claimComp loops rotated around revert checks."
+}

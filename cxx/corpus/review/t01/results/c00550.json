@@ -1,0 +1,36 @@
+{
+  "id": "c00550",
+  "abi_functions": 42,
+  "reviewed": 42,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {"while": 8, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P3": 2, "P4": 2, "P6": 1, "P7": 26, "P8": 150, "P11": 8},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "getConfig(), updateConfig 0x21b60e7f, and the storage-to-memory copies of Subscription.consumers / Config arrays (getSubscription, cancelSubscription, removeConsumer, ownerCancelSubscription, sendRequest paths)",
+      "lines": "318-329, 857-875; 367, 705, 1013, 1155, 1183, 1347, 1388, 1529, 1682",
+      "decompiled": "mem[480] = uint32(stor11[0]) / while 32 * stor11.length + 480 > idx + 32: mem[idx + 32] = uint32(stor11[t + (s + 7) / 32] / 256**(s - Mask(251, 5, s + 7) / 8 - s * ((s + 7) / 32) + 4)); ... s = s - Mask(251, 5, s + 7) / 8 - s * ((s + 7) / 32) + 4  |  while u: stor[v] = ~(4294967295 * 256**u) & stor[v]; ...",
+      "source": "FunctionsRouter.sol getConfig() returns s_config (Config with uint32[] maxCallbackGasLimits); updateConfig: s_config = config; Subscription memory copies of consumers",
+      "issue": "Copies of packed uint32[] arrays between storage (8 per slot) and memory, and the clearing of the old tail, print as rotated loops driven by byte offsets ('s - Mask(251, 5, s + 7) / 8 - s * ((s + 7) / 32) + 4'), with bounds expressed as memory addresses ('32 * stor11.length + 480 > idx + 32'); the address[] consumer copies print the same way. Nothing says that these are copies of stor11 / consumers.",
+      "rule": "A loop whose induction variables are a memory word pointer (step 32) and a (slot, byte offset) pair advancing by k bytes with carry into the slot is the element-wise copy of a packed array of k-byte elements; print it as one copy line (e.g. 'mem[480 len 32 * n] = stor11[0 len n]' with element width k), and the clearing loop as 'stor[p len m] = 0'. P7 with packed elements.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "sendRequest-style functions 0x41db4ca3 / 0x461d2762 (inlined route lookup), getProposedContractById",
+      "lines": "1616-1629; 66",
+      "decompiled": "if 0 >= stor12.length: revert with 0x80833e33, _param5 / mem[0] = 12 / _5 = sha3(12) / s = 0 / while _param5 - stor[_5 + uint8(s)]: if uint8(s) == 255: revert Panic(17) / if uint8(uint8(s) + 1) >= stor12.length: revert ... / mem[0] = 12 / _5 = sha3(12) / s = uint8(s) + 1",
+      "source": "FunctionsRouter.sol:466 for (uint8 i = 0; i < s_proposedContractSet.ids.length; ++i) if (id == ids[i]) return to[i]; revert RouteNotFound(id) (and the s_route lookup)",
+      "issue": "The search loop is rotated, its condition is the difference 'id - ids[i]' instead of 'id != ids[i]', the array element is raw slot arithmetic 'stor[sha3(12) + i]' although the length is stor12.length, and the slot hash is recomputed (with its scratch write) in every iteration.",
+      "rule": "As in c00496: a difference tested for nonzero is '!='; 'stor[sha3(n) + i]' is storn[i]; a keccak of constant scratch contents is a constant, computed once.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Chainlink FunctionsRouter (42 functions): sendRequest / sendRequestToProposed, fulfill (0x33060529, 210 lines), timeoutRequests and the subscription functions were reviewed by structure (paused checks, owner / subscription-owner checks, consumer allowance, the coordinator calls, commitments and balances, events), the getters and setters in full. Source loops (8): FunctionsRouter.sol:466 getProposedContractById (66, and the rotated lookup at 1621), :521 updateContracts (153), :495 and :509 proposeContractsUpdate (929, 972), :475 timeoutRequests (1224, decoding each calldata Commitment inside the loop), FunctionsSubscriptions.sol:446 pendingRequestExists (374), :374 _cancelSubscriptionHelper (1023, 1354, 1398), :431 removeConsumer (1191); all shown. The other whiles are copies (P7): packed-array and consumer copies (first finding), result encodes (341, 421, 722, 886), calldata decodes (838, 917). P11: Panic(50) checks implied by the loop tests (1024, 1192...). P4: stor4[concat(Bytes(12, 0), mem[... len 20])][subId] in _cancelSubscriptionHelper.",
+  "summary": "Faithful and complete with all 8 source loops shown, but packed-array copies between storage and memory print as unreadable byte-offset loops, and the route lookup keeps the 'x - y' condition and raw slot arithmetic."
+}

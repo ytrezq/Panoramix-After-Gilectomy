@@ -1,0 +1,47 @@
+{
+  "id": "c00563",
+  "abi_functions": 6,
+  "reviewed": 6,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 6, "P3": 2, "P6": 12, "P7": 4, "P9": 60},
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "closeSwapsUsdt(address,uint256[],uint256[],...) (unknownef04a40e)",
+      "lines": "3185, 3394, 3509, 3537, 3653, 3659, 3661, 3744, 3749 (inside 'while s != _12'), 4428",
+      "decompiled": "while s != _12: ... if _2320 < 18446744073709551616: ... else: _2402 = _2320 >> 64 ... ...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)",
+      "source": "AmmCloseSwapServiceStable.sol:366-388 if (swap.state == ACTIVE) { payoutForLiquidator += _closeSwapPayFixed(...) / _closeSwapReceiveFixed(...); closedSwaps[i] = IporSwapClosingResult(swapId, true); } and _transferLiquidationDepositAmount after the loops",
+      "issue": "Every path that closes an active swap stops inside the inlined ABDKMathQuad code (the mostSignificantBit binary search of the unwind PnL), so the PnL, the AmmStorage update, the treasury/beneficiary transfers and the CloseSwap events are absent from the text; only the path where no swap is active (results with false, empty payout) reaches the return.",
+      "rule": "Not a rewrite: the decompiler's path budget; sharing the continuation of the inlined pure math (a join after the binary search) instead of enumerating its 2^k paths would let the loop body finish.",
+      "verified": "reading only (calls and events listed: only getAccruedIndex and getSwap survive)"
+    },
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "emergencyCloseSwapsUsdt(uint256[],uint256[],...) (unknown4928bf86)",
+      "lines": "972, 1181, 1296, 1324, 1440, 1446, 1448, 1531, 1536, 2207",
+      "decompiled": "...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",) (10 paths, same places)",
+      "source": "AmmCloseSwapServiceStable.emergencyCloseSwaps -> _closeSwaps(...) (same closing logic)",
+      "issue": "Same loss as closeSwapsUsdt: the active-swap closing paths of both legs are aborted.",
+      "rule": "As above.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "getPoolConfiguration(), iporOracle(), messageSigner(), spreadRouter() and the calls of both close functions",
+      "lines": "const lines, 130-140",
+      "decompiled": "const unknownb80945e9 = Bytes(608, 0) / const unknown7761022f = 0 / static call 0x0.getAccruedIndex(...)",
+      "source": "address public immutable iporOracle, messageSigner, spreadRouter, asset, ammStorage, ammTreasury ...",
+      "issue": "Immutables read as 0 (solc, pre-deployment bytecode): the pool configuration is all zeros and the oracle/storage calls target 0x0.",
+      "rule": "None (input artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 6 ABI functions reviewed (4 immutable getters as const lines; the two close functions, 2212 and 2222 lines, by structure). The only source loop, _closeSwapsPerLeg's 'for (i != swapIdsLength)', is shown as 'while s != _12' and 'while s != _84' (pay-fixed and receive-fixed legs) in each function, but its active-swap branch is aborted (coverage findings). The other whiles are implicit: the rotated allocation of the closedSwaps array of structs ('while idx - 1', P3) and the ABI encoding of the two IporSwapClosingResult[] results (P7). The surviving paths show the ABDKMathQuad binary searches fully expanded (P9).",
+  "summary": "The swap loop is found, but its main branch (closing an active swap) is aborted in both functions, so the text shows only the no-op path; immutables are zero in this bytecode."
+}

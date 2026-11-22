@@ -1,0 +1,69 @@
+{
+  "id": "c00583",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 411, "P6": 140, "P7": 22, "P8": 400, "P9": 31, "P11": 1, "P15": 1},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "doHardWork, withdrawToVault(uint256), withdrawAllToVault, emergencyExit, receiveFlashLoan and most functions that make two or more calls",
+      "lines": "e.g. 1561-1569, 1582-1586, 1612-1614 (emergencyExit); 7440-7480 (doHardWork); 7531 (ProfitLogInReward data)",
+      "decompiled": "_69 = mem[64] / mem[64] = ceil32(return_data.size) + mem[64] / ... / mem[_69 + ceil32(return_data.size)] = 0x70a08231... / mem[_69 + ceil32(return_data.size) + 4] = this.address / static call address(stor29E4) with: args mem[mem[64] len _69 + ceil32(return_data.size) - mem[64] + 36]  |  log 0x1072be0f...: mem[mem[64] len _314 + ceil32(return_data.size) - mem[64] + 96], indexed address(storA170)",
+      "source": "IERC20(aToken()).balanceOf(address(this)), IVariableDebtToken(debtToken()).balanceOf(...), IPool(_pool).withdraw(...), emit ProfitLogInReward(...) ...",
+      "issue": "solc 0.8 advances the free-memory pointer by ceil32(return_data.size) after each call, so from the second call on every call's arguments and every event's data are raw memory (P2: 411 lines; 401 unnamed calls against 86 named, 18 events with raw data), although each argument was stored two lines earlier at the pointer's symbolic value.",
+      "rule": "Track memory relative to the symbolic free-memory pointer: after mem[64] = p + ceil32(rds), a store at p + ceil32(rds) + k is at mem[64] + k, so mem[mem[64] len n] is the stored words, and the call or log is printed with its selector's name and its arguments.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "semantics",
+      "severity": "low",
+      "function": "emergencyExit() (the _redeemNoFlash loop inlined with _borrowNum = 0)",
+      "lines": "1631-1633",
+      "decompiled": "if t != t * u / u and u: revert with Panic(17) / if min(SafeMath.add(_74, u), SafeMath.sub(v, SafeMath.div(t * u, collateralFactorNumerator))):",
+      "source": "AaveFoldStrategy.sol:498-502 uint256 requiredCollateral = borrowed.mul(_denom).div(collateralFactorNumerator()); uint256 toRepay = borrowed.sub(newBorrowTarget); uint256 toRedeem = Math.min(supplied.sub(requiredCollateral), amount.add(toRepay));",
+      "issue": "The division (Panic 18 on a zero collateralFactorNumerator) and the subtraction run before the addition (Panic 17) in the bytecode, but the text puts SafeMath.add first in one expression with the division nested in the second argument; read left to right, a zero collateralFactorNumerator with an overflowing amount + toRepay reverts with Panic(17) in the text and Panic(18) in the bytecode. The same loop in withdrawToVault (5230-5237) keeps the checks in the right order as separate tests.",
+      "rule": "When folding reverting checks into one expression, keep their order: an operand whose check comes first in the bytecode must be evaluated first in the text (or the checks stay as separate guarded tests in their order).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "withdrawToVault, doHardWork (borrow targets of _depositNoFlash/_redeemNoFlash)",
+      "lines": "5219 and 5225; 6003-6018",
+      "decompiled": "s = (_118 * _143 + _143 * _148 - _143 * _155 - _143 * amount) / (-_143 + stor4E92)  |  if -_988 + (_984 * borrowTargetFactorNumerator - _988 * borrowTargetFactorNumerator) / (stor4E92 - borrowTargetFactorNumerator) > mem[_1003]:",
+      "source": "AaveFoldStrategy.sol:473 borrowTarget = balance.mul(_borrowNum).div(_denom.sub(_borrowNum)); :493-495 newBalance = oldBalance.sub(amount); newBorrowTarget = newBalance.mul(_borrowNum).div(...)",
+      "issue": "The products are distributed over the subtractions that form balance (P9, about 31 lines), so the borrow target no longer reads as (supplied - borrowed) * num / (denom - num); the same expression is then repeated in the loop variables s, y, z and a.",
+      "rule": "Do not distribute a multiplication over a sum whose terms are named values; keep (a - b) * c, and bind a repeated subexpression once.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "withdrawToVault, doHardWork, emergencyExit, withdrawAllToVault (the fold loops)",
+      "lines": "1623-1630; 5219-5229; 6008-6022",
+      "decompiled": "s = (...) / (...) / t = storA170 / u = borrowTargetFactorNumerator / v = stor4E92 / w = _988 / x = _984 / y = storA170 / z = ... / a = (...) / b = borrowTargetFactorNumerator / c = stor4E92 / while w < s:",
+      "source": "AaveFoldStrategy.sol:475 while (borrowed < borrowTarget) { ... borrowed = ...balanceOf(this); supplied = ...balanceOf(this); }",
+      "issue": "The loops are found with readable conditions (while v > s, while w < s, while u > 0 where _borrowNum is the constant 0), but up to eleven loop variables are introduced, most of them loop-invariant copies of storage reads (t, y, z = storA170; u, b; v, c) or unused.",
+      "rule": "A loop variable assigned the same loop-invariant value before the loop and never reassigned in it is that value; drop it and print the value (or one name for it).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "_fallback (receive)",
+      "lines": "131-133",
+      "decompiled": "require calldata.size < 4 / require not calldata.size",
+      "source": "AaveFoldStrategy.sol:578 receive() external payable {}",
+      "issue": "The first require is implied by the second (P11).",
+      "rule": "Drop a require implied by a later one on the same path with nothing observable in between (calldata.size == 0 implies calldata.size < 4).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: _depositNoFlash while (2 inlined copies: withdrawToVault 6014, doHardWork 9111, 'while w < s'), _redeemNoFlash while (5 copies: 1630 and 4092 'while u > 0' with _borrowNum = 0, 5229, 6538, 9587 'while v > s'), _liquidateReward for (2902, 7924 'while s < rewardTokens.length'), getAddressArray for (506, 536) and _isAddressInList for (516, 'while True' with the bound as a break). Implicit: 20 abi-encoding copies (address[] tokens with cleaning, uint256[] amounts) for the Balancer flashLoan and similar calls, the ABI decoding loop of receiveFlashLoan's address[] (validates each element), and the address[] return copy of rewardTokens(): P7 22. rewardTokens is overloaded in the source (public array at slot 4 and the rewardTokens() function on an unstructured slot), so the text's names are right. doHardWork (3,002 lines), withdrawToVault (2,623), withdrawAllToVault (2,403) and emergencyExit (774) reviewed by structure (loops, calls, events, writes); the small functions line by line. The zero-valued fee events under 'if ... <= 100' match the source's else branch.",
+  "summary": "Faithful structure with all five source loops shown as readable whiles, but the large functions are mostly unnamed raw-memory calls and events because the free-memory pointer becomes symbolic after each call; plus distributed borrow-target arithmetic, invariant loop variables and one reordering of reverting checks inside a min()."
+}

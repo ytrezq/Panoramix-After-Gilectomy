@@ -1,0 +1,36 @@
+{
+  "id": "c00294",
+  "abi_functions": 12,
+  "reviewed": 12,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P3": 4, "P6": 12, "P7": 8, "P8": 20, "P11": 5},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "parseVM(bytes) (BytesLib.slice, twice)",
+      "lines": "827-837, 916-926",
+      "decompiled": "s = 66 * uint8(_14) + (-66 * uint8(_14) + mem[128] - 6) % 32 + 32 * (not (-66 * uint8(_14) + mem[128] - 6) % 32) + 134 / idx = (...) % 32 + 32 * (not (...) % 32) + mem[64] / while idx < -66 * uint8(_14) + _83 + _95 + (-66 * uint8(_14) + _83 - 6) % 32 + 32 * (not (-66 * uint8(_14) + _83 - 6) % 32) - 6: mem[idx] = mem[s]; s = s + 32; idx = idx + 32",
+      "source": "BytesLib.sol:269 for { let cc := add(add(add(_bytes, lengthmod), mul(0x20, iszero(lengthmod))), _start) } lt(mc, end) { ... } { mstore(mc, mload(cc)) }",
+      "issue": "Same as c00559's bytesSlice: the Yul copy loop is found but its bound repeats the lengthmod expression and mixes mem[128] and _83 for the same length; it is a plain copy of the slice into fresh memory.",
+      "rule": "Name the start and print 'idx < start + L'; recognise the loop as the copy mem[tmp + 32 len L] = mem[src + start + 32 len L] (see c00559).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "getGuardianSet(uint32), verifyVM(...), parseAndVerifyVM(bytes) (guardian set keys storage -> memory), verifySignatures inlined",
+      "lines": "65-74, 303-312, 467-476 (storage copies); 156, 324, 493 ('while True')",
+      "decompiled": "mem[288] = stor2[index][0] / idx = 288 / s = 0 / while 32 * stor2[index].length + 288 > idx + 32: mem[idx + 32] = stor2[index][s + 1] ...  |  while True: if s >= cd[encodedVM + 41] >> 248: ... (rest of the function) ...",
+      "source": "GuardianSet memory guardianSet = getGuardianSet(index) (address[] keys copied from storage); ReceiverMessages.sol:95 / :279 for (uint i = 0; i < signersLen / signatures.length; i++)",
+      "issue": "The storage-to-memory copies of the guardian keys are rotated loops (P3, as c00134) instead of copy lines, and the signature loops are 'while True' loops whose exit branch holds the rest of the verification.",
+      "rule": "As in c00134 (rotated storage copy = one copy line) and c00500 ('while True: if c: REST' is 'while not c: BODY' then REST).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: ReceiverMessages parseAndVerifyVM signature loop (493), verifySignatures (156, and inlined in verifyVM 324), parseVM (745), BytesLib.slice Yul for (831, 920); all shown as loops. Implicit: calldata decoders (107, 142, 274), encoders (82, 220, 424, 643-673, 945-959), zero-init (731, P3). Semantics checked: guardian set expiry, quorum ((len * 10 / 3) * 2 / 10 + 1), signature ordering and ecrecover checks, the VM field parsing offsets. P11: Panic(50) checks implied by loop bounds. All 12 ABI functions read.",
+  "summary": "Faithful, with every source loop present; the slice copy loop has an unreadable bound, storage copies are rotated loops, and the signature loops print as 'while True' with the continuation inside."
+}

@@ -1,0 +1,47 @@
+{
+  "id": "c00278",
+  "abi_functions": 44,
+  "reviewed": 44,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 6, "P7": 6, "P8": 40, "P11": 14},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "deposit, depositWithPermit, mint, mintWithPermit, withdraw, redeem (ERC20Helper.transferFrom / transfer)",
+      "lines": "e.g. 501-513 (deposit)",
+      "decompiled": "mem[164] = caller / mem[196] = this.address / mem[228] = amount / mem[128] = 100 / mem[64] = 260 / mem[176 len 16] = uint128(caller >> 32) / mem[164 len 12] = 0 / mem[160 len 4] = 599290589 / while idx < 100: mem[idx + 260] = mem[idx + 160]; idx = idx + 32 / call asset with: args mem[260 len 100]",
+      "source": "ERC20Helper._call(token, abi.encodeWithSelector(IERC20Like.transferFrom.selector, from_, to_, amount_)): token.call(data_)",
+      "issue": "Even with all addresses constant, the 100-byte copy of the encoded call into the call buffer stays a 4-iteration loop, so the call shows no function or arguments; the caller word is split at the selector boundary (uint128(caller >> 32) and 12 zero bytes).",
+      "rule": "A copy loop with constant bounds and constant, non-overlapping ranges is a copy line (or unroll it); then the call input mem[260 len 100] = selector 0x23b872dd + 3 words resolves to transferFrom(caller, this, amount). Rejoin Bytes(12, 0), Bytes(16, x >> 32), Bytes(4, uint32(x)) into the word x.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "def storage; freeAssets(), totalAssets(), deposit/mint/withdraw/redeem/updateVestingSchedule",
+      "lines": "17; 41-53",
+      "decompiled": "totalAssets is uint256 at storage 9  |  def freeAssets(): return totalAssets  |  totalAssets = SafeMath.add(totalAssets, amount)",
+      "source": "uint256 public freeAssets (slot 9); totalAssets() returns freeAssets plus the vested part",
+      "issue": "Slot 9 is named after totalAssets(), which returns it only when issuanceRate is 0, rather than after freeAssets(), which returns it unchanged; the writes then read as updates of totalAssets.",
+      "rule": "Name a variable after a getter that returns it unchanged on every path before one that returns it on some paths only.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "totalAssets(), convertTo*, preview*, deposit, mint, withdraw, redeem, updateVestingSchedule (every path with issuanceRate != 0)",
+      "lines": "3-4; 44-50; deposit 17-24",
+      "decompiled": "const precision = 0 / if issuanceRate: ... if not issuanceRate or _1 <= -1 / issuanceRate: revert with Panic(18) / revert with Panic(17)",
+      "source": "uint256 public immutable override precision; totalAssets: ((issuanceRate_ * vestingTimePassed) / precision) + freeAssets",
+      "issue": "With the immutable precision read as 0, every vesting computation divides by zero, so the decompiler (correctly) prints Panic(18), or Panic(17) when the product overflows, for all issuanceRate != 0 paths; the 'not issuanceRate' term is implied false inside 'if issuanceRate'.",
+      "rule": "none (input artifact); separately, drop 'not x' under 'if x' (P11).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "44 ABI functions (incl. constants decimals, precision, PERMIT_TYPEHASH) plus the fallback reviewed; the whole text read. No source loops in RevenueDistributionToken/ERC20/ERC20Helper (the only 'for' is in the test utility DSTest, not in this contract). The 6 whiles are the constant-length (100- or 68-byte) memory copies of ERC20Helper's encoded calls (P7). Checked deposit/mint/withdraw/redeem accounting (shares/asset conversions, ZERO_SHARES/ZERO_ASSETS checks, issuanceRate reset when the vesting period ended), permit flows, owner functions. No semantic error found.",
+  "summary": "Faithful; the token calls lose their names because a constant 100-byte copy stays a loop, slot 9 is misnamed totalAssets, and the zero 'precision' immutable turns all vesting paths into panics."
+}

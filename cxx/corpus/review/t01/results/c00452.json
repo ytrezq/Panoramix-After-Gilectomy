@@ -1,0 +1,36 @@
+{
+  "id": "c00452",
+  "abi_functions": 22,
+  "reviewed": 22,
+  "not_reviewed": [],
+  "source_loops": 18,
+  "loops_shown": {"while": 18, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 82, "P3": 2, "P6": 12, "P7": 52, "P8": 79, "P10": 6, "P11": 35, "P18": 39},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all hooks and router entry points (99 'revert with memory' lines, 82 raw-memory calls)",
+      "lines": "1724-1734, 1736-1747 (addLiquidityERC4626PoolUnbalancedHook); 2842-2846 (addLiquidityERC4626PoolProportionalHook); 686-690 (queryAddLiquidityProportionalToERC4626Pool)",
+      "decompiled": "_40 = mem[64] / mem[mem[64]] = 0x4afbaf5a... / mem[_40 + 4] = address(_37) / static call 0x0 with: args mem[mem[64] len _40 - mem[64] + 36]  |  _47 = mem[64] / mem[mem[64]] = 0x85f41299... / revert with memory from ...  |  _10 = mem[64] / mem[mem[64]] = n / ... if s >= mem[_10]: revert with Panic(50)",
+      "source": "CompositeLiquidityRouterHooks: _vault.getBufferAsset(token) / revert IVaultErrors.BufferNotInitialized(...) ; :101-104 maxAmounts = new uint256[](numTokens); for (...) maxAmounts[i] = _MAX_AMOUNT",
+      "issue": "As in c00085, the store goes through mem[mem[64]] while the reads use _40 = mem[64], so the call loses its function and arguments ('args mem[mem[64] len _40 - mem[64] + 36]' is 36 bytes at _40), custom-error reverts stay raw memory, and the bounds checks against a just-written array length (35 lines like 'if s >= mem[_10]') are kept.",
+      "rule": "Canonicalise _v = mem[64] and the expression mem[64] to one value until the next store to mem[64]; then 'mem[_v len 36]' is selector + argument, named by the signature database, and 'mem[_v]' is the length just stored, which decides the bounds check (s < n = mem[_v]).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "multicall, permitBatchAndCall and every saveSenderAndManageEth entry point; all hooks (onlyVault); getVault/getWeth/getPermit2",
+      "lines": "3-5, 27-31, 42-55, 1678-1681",
+      "decompiled": "if address(transient[0]): _2 = 0 else: transient[0] = caller; _2 = 1 / if transient[0]: revert with 0x3ee5aeb5  |  if caller: revert with 0x089676d5, caller  |  static call 0x0.getPoolTokens(...)",
+      "source": "SenderGuard.sol:26 _SENDER_SLOT and RouterCommon.sol:48 _IS_RETURN_ETH_LOCKED_SLOT are immutables; _vault, _weth, _permit2, _isPrepaid are immutables",
+      "issue": "solc immutables read as 0: the sender slot and the ETH-return lock slot both become transient[0], so after saving a non-zero caller the lock test always reverts and every saveSenderAndManageEth body is reachable only with caller 0; the vault is address 0, so onlyVault is 'caller != 0'.",
+      "rule": "None (input artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The 5 hooks (300-1,250 lines) and the router/query entry points were reviewed by structure: loops, external calls, transient-storage writes, reverts; the getters, version, getSender, multicall and permitBatchAndCall line by line. All 18 source loops are readable whiles: RouterCommon multicall (2 copies), _permitBatch, _maxTokenLimits; the hooks' L74, L102, L114, L146, L471 (down-counting 'while idx'), L477, L526 with its nested L559, L596, L633 with the nested _addLiquidityToChildPool L668, _needsWrapOperation L794 (as 'while True' with the bound test inside, 4 copies), BatchRouterCommon._settlePaths L111/L122 (signed 's >=' 0', 2 copies each) and TransientEnumerableSet.values L199 (3 copies). The 93 other whiles are implicit: 52 memory copies left as loops (P7), 2 rotated zero-initialisations of bytes[] (P3, 'while idx - 1'), ~35 readable calldata/returndata ABI decode and encode loops. The nonReentrant slot 0x9b77..f00 is a real constant and prints correctly. No semantic error found.",
+  "summary": "Faithful with all 18 source loops readable, but the hooks are long and obscure: raw-memory calls and custom-error reverts from the mem[mem[64]] aliasing problem, 52 copy loops, and immutables collapse the sender and lock transient slots onto transient[0]."
+}

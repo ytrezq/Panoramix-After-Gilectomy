@@ -1,0 +1,36 @@
+{
+  "id": "c00021",
+  "abi_functions": 32,
+  "reviewed": 32,
+  "not_reviewed": [],
+  "source_loops": 9,
+  "loops_shown": {"while": 9, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 6, "P4": 9, "P6": 50, "P7": 15, "P8": 60},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getPrevAssertionHash(bytes32) (unknown5a48e0f4) and the same walk in confirmEdgeByOneStepProof (unknown8c1b3a40, 697-700, 772-776)",
+      "lines": "62-73",
+      "decompiled": "s = 0\nwhile uint8(stor1[_param1][s + 9].field_72):\n    if not uint64(stor1[stor2[stor1[_param1][s]]][8].field_160): revert with 0x00a7b02b, stor2[stor1[_param1][s]]\n    s = -sha3(_param1, 1) + sha3(stor2[stor1[_param1][s]], 1)\ns = s + sha3(_param1, 1)\nreturn stor[s]",
+      "source": "EdgeChallengeManagerLib.sol:360-371 edge = get(store, edgeId); while (edge.level > 0) { lowerLevelId = store.firstRivals[edge.originId]; edge = get(store, lowerLevelId); } return edge.originId;",
+      "issue": "The loop-carried storage pointer 'edge' is printed as an offset s from the first edge's base, so after one iteration 'stor1[_param1][s + 9]' really reads another edge (s is a difference of two hashes) and the result is a raw stor[s]. Exact, but it reads as an index into the first edge's struct.",
+      "rule": "When a loop-carried value is always sha3(k, slot) for a loop-carried key k, carry the key (k = _param1, then k = stor2[stor1[k].field_0]) and print accesses as stor1[k].field; never rebase one hash on another.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "def storage; all edge accessors",
+      "lines": "6, 64, 67",
+      "decompiled": "stor1 is mapping of fixed array of struct of 1 slot at storage 1 / stor1[_param1][8].field_160 / stor1[_param1][9].field_72",
+      "source": "EdgeStore.edges: mapping(bytes32 => ChallengeEdge) with a 10-slot struct (createdAtBlock at slot 8, level at slot 9)",
+      "issue": "A mapping of multi-slot structs is typed as a mapping of fixed arrays of one-slot structs, so struct members print as array elements with field offsets ([8].field_160 for createdAtBlock, [9].field_72 for level).",
+      "rule": "Constant offsets added to sha3(k, slot) are struct members of the mapping value: name them field_<slot*256+bit> of a multi-slot struct rather than array elements.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 32 ABI functions reviewed; createLayerZeroEdge, bisectEdge, confirmEdgeByOneStepProof and the multi-update functions by structure (calls to the assertion chain and the OSP, edge storage writes, events, custom errors). Names are mostly unknownXXXX (not in the DB). Loops: 9 explicit, all whiles: multiUpdateTimeCacheByChildren, ArrayUtilsLib.slice, confirmEdgeByOneStepProof's level walk ('while uint8(stor[_73 + 9].field_72) > 1'), getPrevAssertionHash's walk (finding 1), MerkleLib.calculateRoot ('while idx < cd[_param8 + 4]: if u & 1 << idx'), MerkleTreeAccumulatorLib appendCompleteSubTree / root / treeSize, and verifyPrefixProof ('while u < _72 + 1' with an inlined msb). Implicit: static calldata arrays decoded element by element as whiles ('while idx < X + 132: mem[s] = cd[idx]', uint64[2] with range checks), about 15 copies (P7). No execution run.",
+  "summary": "Faithful with all loops present; the edge-walking loops carry a storage pointer as an offset between two hashes, and the edge struct is typed as a fixed array, which makes the challenge logic hard to read."
+}

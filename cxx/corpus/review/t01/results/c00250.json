@@ -1,0 +1,25 @@
+{
+  "id": "c00250",
+  "abi_functions": 43,
+  "reviewed": 43,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P6": 19, "P7": 2, "P8": 6},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "release(), withdrawSurplus (SafeERC20.safeTransfer via Address.functionCall)",
+      "lines": "820-836, 863",
+      "decompiled": "mem[_123 + 32 len 4] = 2835717307 / ... _128 = mem[_123] / idx = 0 / while idx < _128: mem[idx + mem[64]] = mem[_123 + idx + 32]; idx = idx + 32 / if idx > _128: mem[_128 + mem[64]] = 0 / call token with: ...",
+      "source": "SafeERC20.safeTransfer(token, beneficiary, amount) -> Address.functionCall(address(token), data) -> target.call{value: value}(data)",
+      "issue": "The call-data copy of SafeERC20's low-level call stays a word loop (P7, the same shape A as c00600), so the transfer keeps raw memory arguments (P2) and its selector prints in decimal.",
+      "rule": "Shape A of c00600: 's = 0; while s < n: mem[d + s] = mem[a + s]; s += 32; if s > n: mem[d + n] = 0' is 'mem[d len n] = mem[a len n]' followed by a zero word at d + n when n % 32 != 0.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (2), clear whiles: approveProtocol's and revokeProtocol's for over manager.getTokenDestinations() (477/533), with the approve calls decoded (approve(dst, max) / approve(dst, 0)). Implicit: the address[] decodings of the returned list with per-element checks (468, 524), the SafeERC20 call-data copies (829, 863, P7). The P6 lines are the 0x08c379a0 selector of raw-memory reverts and the approve selector stored before the decoded calls (P8). Vesting arithmetic (availableAmount, vestedAmount, releasableAmount with periods and cliffs) and the L2 wallet's withdrawToL1 path match by reading.",
+  "summary": "Good, faithful text: both source loops are readable whiles with decoded calls; only SafeERC20's copy loop and raw-memory transfer remain."
+}

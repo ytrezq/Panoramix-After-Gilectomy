@@ -1,0 +1,47 @@
+{
+  "id": "c00457",
+  "abi_functions": 40,
+  "reviewed": 40,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 16, "P3": 2, "P7": 44, "P8": 200, "P14": 124, "P18": 40},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "multicall, permitBatchAndCall, all liquidity/swap entry points and hooks",
+      "lines": "141-147, 4296-4300, 4338",
+      "decompiled": "if address(transient[0]): _2 = 0 else: transient[0] = caller; _2 = 1 / if transient[0]: revert with 0x3ee5aeb5 / transient[0] = 1 ... if caller: revert with 0x089676d5, caller ... call 0x0.unknown4af29ec4(?)",
+      "source": "RouterCommon.sol:42 bytes32 private immutable _IS_RETURN_ETH_LOCKED_SLOT; SenderGuard sender slot; immutables _vault, _weth, _permit2, _isPrepaid",
+      "issue": "solc immutables read as 0: the sender slot and the return-ETH lock slot both become transient[0], so in this bytecode saveSenderAndManageEth always reverts right after saving the sender; onlyVault is 'caller == 0' and vault calls go to address 0.",
+      "rule": "None (not a decompiler error).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "most liquidity and query functions",
+      "lines": "e.g. 4360-4365, 4535-4546",
+      "decompiled": "while idx < _15 + 32 * _16 + ceil32(...) + 416: mem[s] = mem[idx]; s = s + 32; idx = idx + 32 / while idx < _92: mem[t] = mem[s]; ...",
+      "source": "abi.decode of uint256[] returned by the Vault (amountsIn, amountsOut), abi.encode of uint256[] results",
+      "issue": "P7: 44 of the 65 whiles are word copies of uint256[] between memory regions (decode from return data, encode of results).",
+      "rule": "As in c00532: a word-copy loop over disjoint ranges is one copy line.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "addLiquidityHook, removeLiquidityHook, initializeHook, query*Hook, swapSingleTokenHook",
+      "lines": "e.g. 4348-4377, 4413-4420",
+      "decompiled": "if s >= mem[ceil32(_2) + ceil32(cd[_param1 + cd[_param1 + 196] + 4]) + 32 * cd[_param1 + cd[_param1 + 68] + 4] + 384]: ... mem[32 * s + ceil32(_2) + ceil32(cd[_param1 + cd[_param1 + 196] + 4]) + 32 * cd[_param1 + cd[_param1 + 68] + 4] + 416]",
+      "source": "RouterHooks.sol:113-125 amountsIn[i], params.maxAmountsIn[i] (memory arrays decoded from the hook params and the Vault's return data)",
+      "issue": "Memory arrays whose position depends on calldata sizes are addressed by the full allocation expression each time (124 lines), so amountsIn[i] and maxAmountsIn[i] are unrecognisable.",
+      "rule": "Bind each allocation base (the value of mem[64] when an array is allocated) to a named temporary and print accesses as base[i] (mem[base + 32 + 32 * i]).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (7): multicall :207, _maxTokenLimits :302, _permitBatch :148, _addLiquidityHook :113 ('while s < _74' 4413), _initializeHook :65, _removeLiquidityHook :209, _removeLiquidityRecoveryHook :244 - all while (the hooks' loops identified by structure: settle / sendTo / takeTokenIn bodies). Implicit loops: 44 word copies (P7), address[] decodes from return data with per-element checks, zero-init of new bytes[] rotated as 'while idx - 1' (P3, multicall and permitBatchAndCall), offset tables of bytes[] results. Query functions (quote via vault.quote with the hook calldata) reviewed by structure; getters trivial. No semantic error found.",
+  "summary": "Complete and faithful; all source loops are while loops. The text is hard to read because memory arrays are addressed by calldata-dependent expressions and uint256[] copies stay loops; the immutables-as-zero artifact makes the sender and ETH-lock transient slots collide."
+}

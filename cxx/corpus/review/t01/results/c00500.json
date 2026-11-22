@@ -1,0 +1,36 @@
+{
+  "id": "c00500",
+  "abi_functions": 58,
+  "reviewed": 58,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 4, "P7": 10, "P8": 20},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "setNewVersionUpgrade, setUpgradeDiamondCut, executeUpgrade, upgradeChainFromVersion, createNewPatchUpgrade, createNewChain, setChainCreationParams, initialize (re-encoding of DiamondCutData from calldata)",
+      "lines": "470-525 (executeUpgrade), 555, 804, 1093, 1349, 1540, 1696, 2144",
+      "decompiled": "while True: if s >= cd[_param2 + cd[_param2 + 4] + 4]: require cd[_param2 + 36] == address(..) / ... / call address(_2) with: args mem[mem[64] len ...] / ... / stop / mem[u] = v - ceil32(_1) - 292 / ... (per-facet encoding with an inner selectors loop) / s = s + 1 ...",
+      "source": "IZKChain(...).executeUpgrade(_diamondCut) and the other calls passing Diamond.DiamondCutData (FacetCut[] with bytes4[] selectors) from calldata to an external call (implicit ABI re-encoding)",
+      "issue": "The 8 outer encoding loops are printed as 'while True' whose exit branch contains the whole rest of the function (the remaining encoding, the external call and the final stop), so the call appears nested inside the loop.",
+      "rule": "'while True: if c: REST (ends the function); BODY' is 'while not c: BODY' followed by REST.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "BRIDGE_HUB(), INTEROP_CENTER(), L1_BYTECODES_SUPPLIER(), PERMISSIONLESS_VALIDATOR() and the functions calling them",
+      "lines": "3-7",
+      "decompiled": "const unknown18f0c09b = 0 / const unknown5d4edca7 = 0 / const unknown5ecd0e3a = 0 / const unknownf3116921 = 0",
+      "source": "immutable BRIDGE_HUB, INTEROP_CENTER, L1_BYTECODES_SUPPLIER, PERMISSIONLESS_VALIDATOR",
+      "issue": "solc immutables read as 0 (isZKsyncOS() is the real constant true).",
+      "rule": "none (bytecode artifact)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No explicit loop in the source of this contract (ChainTypeManagerBase / ZKsyncOSChainTypeManager). All 37 whiles are implicit ABI decoding/encoding loops of DiamondCutData / FacetCut[] / bytes4[] (calldata and returned data), with element validation (address, enum < 3, bool, bytes4 masks); the plain memory copies among them (~10) are P7. 58 ABI functions read; the upgrade/creation functions by structure (calls, admin/owner checks, storage writes, events).",
+  "summary": "A faithful text without source loops; the implicit DiamondCutData encodings are shown as 'while True' loops that contain the rest of their function in the exit branch, and immutables read as 0."
+}

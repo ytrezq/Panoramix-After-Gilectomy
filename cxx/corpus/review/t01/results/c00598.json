@@ -1,0 +1,60 @@
+{
+  "id": "c00598",
+  "abi_functions": 5,
+  "reviewed": 5,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {
+    "while": 2,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 65,
+    "P6": 213,
+    "P7": 10,
+    "P9": 51,
+    "P11": 6,
+    "P18": 60
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "maxLeverageCheck (unknown7c289ff1), afterTxGuardCheck (unknownfa217e32, not in the ABI)",
+      "lines": "e.g. 2870-2877, 2880-2888, 2799-2805 (203 'revert with memory' blocks)",
+      "decompiled": "_2425 = mem[64] / mem[mem[64]] = 0x8c379a000000000000000000000000000000000000000000000000000000000 / mem[_2425 + 4] = 32 / mem[_2425 + 36] = 21 / mem[_2425 + 68] = 0x6d6178206c657665726167652065786365656465640000000000000000000000 / revert with memory from mem[64] len _2425 - mem[64] + 100",
+      "source": "GmxAfterTxValidatorLib.sol:134 require(newLeverage <= MAX_LEVERAGE, \"max leverage exceeded\"); :119 revert(\"invalid collateralDeltaAmount\"); SafeMath's 'SafeMath: ... overflow' messages",
+      "issue": "Every Error(string) revert after the first allocation (203 of them, including the two the source itself raises) is printed as five raw memory stores and 'revert with memory', with the message as hex words, instead of revert with 'max leverage exceeded': the store of the selector at mem[mem[64]] is assumed to possibly change mem[64], so the length '_2425 - mem[64] + 100' never folds.",
+      "rule": "Same invariant as for the calls: mem[64] is always >= 0x80, so a store at address mem[64] leaves mem[64] unchanged; the revert data is then the known words and prints as revert with 'text' (the existing Error(string) recognition).",
+      "verified": "reading only (strings decoded by hand: 0x6d6178...6564 = 'max leverage exceeded', 0x696e76...6e74 = 'invalid collateralDeltaAmount')"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "maxLeverageCheck, afterTxGuardCheck",
+      "lines": "e.g. 143-500, 2832-2843, 3388-3426",
+      "decompiled": "mem[ceil32(_1) + ceil32(_2) + ceil32(return_data.size) + 32 * cd[_param1 + cd[_param1 + 580] + 4] + 32 * cd[_param1 + cd[_param1 + 4] + cd[_param1 + cd[_param1 + 4] + 228] + 4] + 1952 len min(..)]  |  mem[mem[ceil32(_1) + ceil32(_2) + ceil32(_3) + 32 * cd[..] + .. ]]",
+      "source": ":93-96 maxLeverageCheck(Order.Props memory latestOrder, ...) (latestOrder decoded from calldata into memory, then position / market / positionInfo returned by the reader)",
+      "issue": "Because the decoded Order.Props has dynamic arrays, every later memory address is a sum of calldata array lengths and return-data sizes (80-400 characters per address), and the fields of the decoded order and of the returned Position / PositionInfo structs are only visible as mem[mem[160] + 96], mem[... len 20] slices: sizeInUsd, initialCollateralDeltaAmount, collateral amount cannot be told apart.",
+      "rule": "Bind each allocation's base (the value of mem[64] when it is allocated) to a named temporary and print addresses as base + constant; a struct decoded or returned into memory prints its words as named fields of that temporary (order.field_96 ...).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "maxLeverageCheck",
+      "lines": "2797, 2809; 2880, 2889; 2878, 2912; 2819, 2899",
+      "decompiled": "if _1953 + mem[mem[160] + 96] < _1953: revert ... (twice)  |  if mem[mem[160] + 96] >= _1953: revert 'invalid collateralDeltaAmount' / if mem[mem[160] + 96] > _1953: revert 'SafeMath: subtraction overflow'  |  if (_1953 * mem[_2296] + mem[_2296] * mem[mem[160] + 96]) / (_1953 + mem[mem[160] + 96]) == mem[_2296]",
+      "source": ":121-130 positionCollateralAmount.add(delta) > 0 ... .add(delta).mul(collateralPrice); sub(...) after the 'invalid collateralDeltaAmount' / sizeDelta >= sizeInUsd tests",
+      "issue": "The same SafeMath add check is printed twice, two SafeMath sub checks are implied by the preceding source tests (a >= b reverted / returned), and the multiplication check distributes the product over the sum.",
+      "rule": "Drop a check implied by a dominating one (x + y < x already tested; b >= a excluded, so a - b cannot underflow); keep (a + b) * c as a product of the bound sum.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Library: 5 ABI functions (three constants, getAssetHandler, maxLeverageCheck) plus afterTxGuardCheck (unknownfa217e32, 4,273 lines, external but absent from the ABI) and the fallback; all reviewed, maxLeverageCheck (2,909 lines) and afterTxGuardCheck by structure. Checked: the calls (referralStorage, feeReceiver, reader.getPosition / getMarket / getPositionInfo with the right reader and dataStore words, price feeds, the GmxHelperLib public functions as delegatecalls: validateTxGuardParams, getMethod, decodeCreateOrder, getMax*SlippageData), the orderType enum check (assert <= 8), both leverage branches with their returns and the MAX_LEVERAGE = 7e18 comparison, the multicall method dispatch with its 'only one ... allowed' and 'low callback gas limit' checks, _checkSlippage, accessControl ('not pool logic') and the claimCollateral loop. The SafeMath sub/mul checks of the MarketDecrease branch are printed collateral-first, size-second; either order gives the same revert data, so the difference cannot be observed. Source loops: afterTxGuardCheck's claimCollateral loop (while s < _440) and isExistingClaimableCollateralTimeKey's loop (while True with the timeKey test; this public library function is called internally from cleanUpClaimableCollateralTimeKey, so its body is inlined), both readable; the other 22 whiles are ABI decoding / encoding (10 plain copies, P7). solc 0.7.6: out-of-bounds and allocation failures are INVALID, printed as assert, correctly.",
+  "summary": "Faithful on every path checked, but hard to read: all memory addresses are symbolic sums over calldata lengths, struct fields are memory slices, and 203 Error(string) reverts (including the contract's own 'max leverage exceeded') are printed as raw memory with hex messages because of the free-memory-pointer aliasing assumption."
+}

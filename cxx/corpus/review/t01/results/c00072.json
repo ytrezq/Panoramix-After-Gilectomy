@@ -1,0 +1,25 @@
+{
+  "id": "c00072",
+  "abi_functions": 74,
+  "reviewed": 74,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P3": 1, "P6": 4, "P7": 14, "P8": 80, "P14": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "name(), symbol(), convertTo(uint256,string,uint256), upgradeToV2(), initialize(...) (both overloads)",
+      "lines": "849-874, 891-916, 819-833, 1300-1330, 1505-1575, 1710-1790",
+      "decompiled": "mem[ceil32(return_data.size) + 128] = mem[mem[128] + 128] / while idx < _3: mem[idx + ceil32(return_data.size) + 160] = mem[_1 + idx + 160] ... / while idx < _9: mem[_7 + idx + 64] = mem[...] / return 32, mem[_7 + 32 len floor32(_9) + 64]",
+      "source": "BridgeERC20.sol:200 return _processor.name(); BridgeToken._upgradeToV2: keccak256(bytes(name()))",
+      "issue": "The string returned by the processor is decoded and re-encoded through two 32-byte copy loops plus the partial-word masking of the 0.6 code generator (P7), so name() is ~40 lines for 'return processor.name()' and the DOMAIN_SEPARATOR hashes a memory copy instead of the return data.",
+      "rule": "Recognise the word-copy loop 'while idx < n: mem[d + idx] = mem[s + idx]; idx += 32' followed by the tail masking as one copy line, then forward reads of the copy to its source (here ext_call.return_data[...]).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "solc 0.6.2 build. All 74 ABI functions compared; the two initialize overloads (196 and 210 lines) by structure (initializer flag, the processor register call - P2 -, trustedIntermediaries storage copy and tail clearing, TrustedIntermediariesChanged event, DOMAIN_SEPARATOR), the rest in full. No semantic error found; bulkTransfer/bulkTransferFrom match the source including the Transfer events from the processor's returned (updatedTo, updatedAmount) and the AL01 allowance check. Loops: the three source for-loops (bulkTransfer, bulkTransferFrom's two loops) are readable whiles. The other 20 whiles are implicit: trustedIntermediaries' rotated storage-to-memory copy (P3), the address[] decoding and the masked tail clearing 'address(stor[idx]) = 0' of the storage array assignment, and 14 string/bytes copies (P7).",
+  "summary": "Faithful and mostly readable; the only recurring cost is the 0.6 string decoding/encoding copy loops (P7) around the processor's string returns and three raw-memory calls."
+}

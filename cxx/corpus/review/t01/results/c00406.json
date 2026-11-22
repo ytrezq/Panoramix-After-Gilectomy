@@ -1,0 +1,13 @@
+{
+  "id": "c00406",
+  "abi_functions": 1,
+  "reviewed": 1,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [],
+  "notes": "99-byte library runtime: the only ABI function is the constant getter WAD() (int256 public constant WAD = 10**18), printed as 'def WAD() payable: return 10**18' (no callvalue check in a library getter, so it is not folded into a const line as other texts do for non-payable constant getters). Same bytecode as Math and DSMath libraries.",
+  "summary": "Trivial and exact: one constant getter and a reverting fallback."
+}

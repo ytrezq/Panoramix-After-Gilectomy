@@ -1,0 +1,36 @@
+{
+  "id": "c00289",
+  "abi_functions": 33,
+  "reviewed": 33,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 9, "P6": 1, "P7": 4},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "latestRoundData(), and the other functions that return or revert after a call (oracleVerification, proposeOracle, initialize)",
+      "lines": "294-311 (latestRoundData)",
+      "decompiled": "_26 = mem[64] / mem[64] = ceil32(return_data.size) + mem[64] ... if mem[_26] > 0x7fff...: mem[_26 + ceil32(return_data.size)] = 0x24775e06... / revert with memory from mem[64] len _26 + ceil32(return_data.size) - mem[64] + 36 / mem[_26 + ceil32(return_data.size)] = 0 / ... + 32] = _27 / ... + 64] = block.timestamp / ... / return memory from mem[64] len _26 + ceil32(return_data.size) - mem[64] + 160",
+      "source": "Aggregator.latestRoundData: roundId = 0; answer = SafeCast.toInt256(quote(10 ** tokenDecimals, token)); startedAt = block.timestamp; updatedAt = block.timestamp; answeredInRound = 0;",
+      "issue": "After the quote call the free-memory pointer is symbolic, so the five return values and the SafeCastOverflowedUintToInt revert are printed as 'return memory' / 'revert with memory' with their words stored just before, instead of 'return 0, _27, block.timestamp, block.timestamp, 0' (8 such lines).",
+      "rule": "Resolve stores relative to the symbolic free-memory pointer (mem[64] = _26 + ceil32(rds)); a return or revert of mem[mem[64] len 32 n] is then the n stored words (a selector first for a custom error).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "latestRoundData, oracleVerification, proposeOracle, initialize (10 ** decimals)",
+      "lines": "261-284",
+      "decompiled": "if _7 >= 78 and _7 >= 32: s = 10 / t = 1 / u = _7 / while u > 1: ... else: _22 = 10**_7",
+      "source": "10 ** tokenDecimals (checked exponentiation)",
+      "issue": "As in c00467: the conjunction x >= 78 and x >= 32 is x >= 78, and the exponentiation helper's loop (P7) is printed for a uint8 exponent where 10**x simply overflows for x >= 78.",
+      "rule": "Merge comparisons of one value with constants; a checked 10**x with x < 256 can be printed as checked 10**x.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loop in the reached source; the four whiles are the compiler's checked-exponentiation helper for 10 ** decimals (P7). P1 here are the two time constants (14 days, 1 day) printed as 14 * 24 * 3600 and 24 * 3600, which read well. TokenHelper.assertAndGetDecimals (code check, low-level decimals call, uint8 validation) is rendered exactly. All functions reviewed line by line.",
+  "summary": "A small, faithful text with no source loop; the readability issues are return values and custom-error reverts left as raw memory after a call, and the exponentiation helper's loop."
+}

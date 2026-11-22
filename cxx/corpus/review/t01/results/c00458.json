@@ -1,0 +1,25 @@
+{
+  "id": "c00458",
+  "abi_functions": 28,
+  "reviewed": 28,
+  "not_reviewed": [],
+  "source_loops": 12,
+  "loops_shown": {"while": 12, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 1, "P2": 6, "P3": 3, "P4": 13, "P6": 7, "P7": 22, "P8": 40, "P11": 12, "P12": 4},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "setNops (unknown76f6ae76)",
+      "lines": "862-880 and 1068-1080 (the removal loop twice), 1175-1190 (the add loop)",
+      "decompiled": "x = _413 / y = _412 / idx = 0 / z = 0 / while idx + 1 < cd[_param1 + 4]: if idx + 1 >= mem[128]: revert with Panic(50); _451 = mem[mem[32 * idx + 192]]; _455 = mem[mem[32 * idx + 192] + 32]; ...",
+      "source": "EVM2EVMOnRamp.sol:729-753 if (s_nopWeightsTotal > 0 && s_nopFeesJuels >= s_nopWeightsTotal) payNops(); for (i = s_nops.length(); i > 0; --i) {...} for (i = 0; i < numberOfNops; ++i) {...}",
+      "issue": "The add loop is rotated (P3): element 0 is handled before the loop and the loop tests 'idx + 1 < n' and reads element idx + 1 at 32 * idx + 192; everything after the optional payNops() (both loops) is printed twice, once per arm of that if (P12).",
+      "rule": "Peeled first iterations should be folded back ('while i < n' over element i); a tail common to both arms of an if (here everything after payNops) is printed once after the join.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small functions line by line; forwardFromRouter, getFee, setNops, applyPoolUpdates, payNops, the fee-config setters by structure. Source loops (12): getSupportedTokens (226), getNops (272), _setFeeTokenConfig (408), _setTokenTransferFeeConfig (484), payNops (560, while True with exit), _applyPoolUpdates' two loops (711, 781), _setNops' reverse removal loop ('while idx:' 864/1070) and add loop (1179, rotated), _getTokenTransferCost (1334, and in forwardFromRouter), _rateLimitValue and forwardFromRouter's token loop (1495-1841). Implicit: tuple[] parameter decodes, event and return encodings, the allocation of new arrays (P7). mapping keys stored in memory print as one-element concat (P4, 13 lines). No semantic problem found.",
+  "summary": "Complete and faithful, every source loop a while; setNops prints its add loop rotated and its whole tail twice (once per arm of the optional payNops), otherwise readable."
+}

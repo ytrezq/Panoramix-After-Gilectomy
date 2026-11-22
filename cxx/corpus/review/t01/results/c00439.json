@@ -1,0 +1,25 @@
+{
+  "id": "c00439",
+  "abi_functions": 58,
+  "reviewed": 58,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 16, "P6": 4, "P7": 3, "P8": 120, "P9": 8, "P14": 15},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getReserves() and its inlined copy in 0x4b9de77c, execute(), the other external-call sequences of this unoptimized build",
+      "lines": "746-758, 984-996",
+      "decompiled": "_24 = mem[64] / mem[64] = ceil32(return_data.size) + mem[64] / ... / mem[_24 + ceil32(return_data.size)] = 0x9cfa2ee0... / static call address(_27) with: args mem[mem[64] len _24 + ceil32(return_data.size) - mem[64] + 4]",
+      "source": "EmissionManager.sol:708 reserves += IGenericClearinghouse(CHREG.registry(i)).principalReceivables();",
+      "issue": "Inside the getReserves loop, principalReceivables() (and later sReserve.balanceOf/previewRedeem) lose their names: the call's start is read back as mem[64] right after 'mem[64] = ceil32(return_data.size) + _24', yet the only store in between is to that same address, which the decompiler cannot prove differs from slot 64 (P2, 16 lines).",
+      "rule": "Prove mem[64] >= 128 on every path (it starts at 128 and only grows under the Panic(65) bounds); then 'mem[64] = X; mem[X] = sel' cannot change slot 64, so mem[64] reads as X and the call decodes as address(_27).principalReceivables().",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Unoptimized build (solc 0.8.36 noopt). All 58 ABI functions compared; execute (215 lines), the bond-market callback 0x877d8412 and configureDependencies by structure, the rest in full. No semantic error found. Loops: getReserves' for over the clearinghouse registry (2 inlined copies), execute's sum over auctionResults (int256 checked additions) and _getPriceDecimals' 'while (price_ >= 10)' (as 'while t >= 10' with the int8 overflow check) are readable whiles. The other 6 whiles are implicit: the constant-count Permissions/Keycode encodings (2 and 5 iterations, not unrolled), three checked-exponentiation helper loops ('while u > 1'), and the int256[] return-data copy (P7). Immutables read as 0 (artifact): 'static call 0x0.balanceOf(...)' for the OHM/reserve token immutable in 0x4b9de77c. P9: FullMath mulDiv of the scaled capacity and premium expanded.",
+  "summary": "Faithful on the paths checked with all three source loops readable; the unoptimized build loses call names inside loops to the unresolved free-memory pointer and expands mulDiv."
+}

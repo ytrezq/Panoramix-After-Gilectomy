@@ -1,0 +1,47 @@
+{
+  "id": "c00456",
+  "abi_functions": 21,
+  "reviewed": 21,
+  "not_reviewed": [],
+  "source_loops": 13,
+  "loops_shown": {"while": 13, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P4": 145, "P7": 24, "P8": 261, "P11": 17, "P16": 60, "P18": 115},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "updateUserBorrowConfigs, updateUserSupplyConfigs, updateTokenConfigs, updateRateDataV1s/V2s, updateUserClasses, updateAuths, updateGuardians",
+      "lines": "e.g. updateUserBorrowConfigs (text 48-215 of the function): 'if not ext_code.size(mem[mem[32 * s + 160] + 12 len 20])', 'mem[0] = Bytes(12, 0), mem[mem[32 * s + 160] + 12 len 20] / _1817 = sha3(mem[0], 9) / mem[0] = ... / stor[sha3(mem[0], _1817)] = stor[_1449] & 0xfffff... | mem[mem[32 * s + 160] + 95 len 1] | ...'",
+      "decompiled": "stor[sha3(mem[0], _1817)] = stor[_1449] & 0xfffff0000000000000000003ffff... | mem[mem[32 * s + 160] + 95 len 1] | mem[mem[32 * s + 160] + 96] << 162 | mem[mem[32 * s + 160] + 128] << 176 | ...",
+      "source": "main.sol:848 for (i < userBorrowConfigs_.length) { userBorrowConfig_ = userBorrowConfigs_[i]; ... _userBorrowData[userBorrowConfig_.user][userBorrowConfig_.token] = (userBorrowData_ & mask) | userBorrowConfig_.mode | ... }",
+      "issue": "Fields of the decoded struct-array elements are read as byte slices of mem[mem[32 * s + 160] + k] (115 lines), and nested-mapping keys go through the hashing scratch (mem[0] = ...; stor[sha3(mem[0], _1817)]), so the key storage writes of the config functions never name userBorrowData[user][token].",
+      "rule": "Substitute the value just stored at mem[0]/mem[32] into the following sha3(mem[0], x) and print it as a mapping access (N[a][b]); print mem[p + 32k + 12 len 20] as address(mem[p + 32k]) and mem[p + 32k + 31 len 1] as uint8(...), i.e. as the word fields of the struct at p (known P18).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "pauseTokens, unpauseTokens, pauseUserSupply/Borrow, unpauseUserSupply/Borrow",
+      "lines": "pauseTokens: the final return (dec 'return Array(len=cd[_param1 + 4], data=..., cd[_param1 + 4], mem[...], ...), 32 * cd[_param1 + 4] + 160, 64 * cd[_param1 + 4] + 192, 96 * cd[_param1 + 4] + 224')",
+      "decompiled": "return Array(len=cd[_param1 + 4], data=mem[128 * n + 416 len 32 * n], n, mem[160 * n + 448 len 32 * n], n, mem[...], n, mem[...]), 32 * n + 160, 64 * n + 192, 96 * n + 224",
+      "source": "returns (bool[] memory actedSupply_, bool[] memory actedWithdraw_, bool[] memory actedBorrow_, bool[] memory actedPayback_)",
+      "issue": "Four returned dynamic arrays are printed as one Array whose data runs over the other three arrays, followed by three of the head offsets as if they were further return values; the bytes are right but the reading is one array plus three integers.",
+      "rule": "When a return buffer starts with k words that are offsets to consecutive length-prefixed blocks, print it as k dynamic values: return Array(len=n, data=A), Array(len=n, data=B), ...",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "pauseTokens, unpauseTokens (and the user pause functions)",
+      "lines": "pauseTokens loop body end: 'uint252(stor5[...].field_0) = uint252(stor5[...].field_0) / stor5[...].field_252 = _9 | _8 | _7 | _6 | stor5[...].field_252'",
+      "decompiled": "uint252(stor5[address(cd[32 * idx + _param1 + 36])].field_0) = uint252(stor5[address(cd[32 * idx + _param1 + 36])].field_0)",
+      "source": "main.sol:1362 _exchangePricesAndConfig[token_] = (exchangePricesAndConfig_ & ~(X4 << 252)) | (pauseMode_ << 252)",
+      "issue": "Splitting the single masked store into field stores leaves a store of a field's own value; also the bounds checks of actedWithdraw_/Borrow_/Payback_[i] are kept though i < length (the one for actedSupply_ is removed).",
+      "rule": "Drop a field store whose value is the same field of the same slot read with no intervening write; fold 'idx >= mem[p]' when mem[p] holds the loop bound n (store forwarding through n-dependent addresses).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "21 ABI functions (incl. the constant NATIVE_TOKEN_MAX_BORROW_LIMIT_CAP) plus the fallback reviewed. updateUserBorrowConfigs (1,350 lines) and updateUserSupplyConfigs (1,240) reviewed by structure (BigMath limits, _updateExchangePricesAndRates inlined twice per path); pauseTokens and the user pause functions read in full. Loops: 13 explicit 'for (i < length_)' loops (collectRevenue, updateAuths, updateGuardians, updateExchangePrices, updateRateDataV1s/V2s, updateTokenConfigs, updateUserClasses, updateUserSupplyConfigs, updateUserBorrowConfigs, _updateTokenPause, _updateUserSupplyPause, _updateUserBorrowPause), all readable whiles. Implicit: about 12 validating decodes of calldata arrays and 24 encode copies of returned/logged arrays (P7). Whole-slot arithmetic writes are faithful here (the source itself packs with masks), so not counted as P15. P16: calldata elements as cd[32 * idx + _param1 + 36] (dynamic arrays). Checked: onlyGuardians/onlyAuths, the pause-mode bit logic (isUnpause_ = false/true), the 'acted' flags, revert codes. No semantic error found.",
+  "summary": "Faithful, all 13 loops readable; but struct-array configs are processed through raw memory slices and hashing scratch, so the key storage writes never show as userBorrowData[user][token], and multi-array returns are printed as one oversized Array."
+}

@@ -1,0 +1,87 @@
+{
+  "id": "c00448",
+  "abi_functions": 50,
+  "reviewed": 50,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {
+    "while": 3,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 4,
+    "P3": 4,
+    "P4": 4,
+    "P6": 3,
+    "P7": 11,
+    "P8": 70,
+    "P9": 10,
+    "P10": 43,
+    "P11": 3,
+    "P15": 1,
+    "P18": 15
+  },
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "lzReceive (0x13137d65)",
+      "lines": "1078, 1171",
+      "decompiled": "def unknown13137d65(uint32 _param1, uint256 _param2, uint256 _param3, array _param4, address _param5, array _param6) payable: ... log 0xa337a006..: mem[192], _param3, indexed mem[172 len 20], indexed _param1",
+      "source": "lzReceive(Origin calldata origin_ /* srcEid, sender, nonce */, bytes32 guid_, bytes calldata message_, address, bytes calldata) ... emit Received(to, amount, srcEid_, guid_)",
+      "issue": "The head has seven words but the signature lists six params: the unused Origin.nonce word (calldata 68) is skipped with no mark, so _param3 is guid at calldata 100 and _param4.._param6 are shifted by one word. Read as consecutive head words, the Received event would log the nonce and the message offset would be the guid word.",
+      "rule": "Keep a param's name tied to its head position (the word at 4 + 32*i), printing skipped words as unused params, or annotate each param with its calldata offset, so that the i-th name of a signature is the i-th ABI head word.",
+      "verified": "decompiler JSON dec/c00448.json: params at offsets 4, 36, 100, 132, 164, 196"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "setEnforcedOptions (0xb98bd070), rescue, burnAndSend, estimateSendFee, combineOptions",
+      "lines": "994-1002, 1076; 598-614; 1558-1593; 888-917; 683-687",
+      "decompiled": "mem[ceil32(return_data.size) + 128] = 0xcf28d027.. / revert with memory from mem[64] len ceil32(return_data.size) + ceil32(cd[..]) - mem[64] + 196  |  log 0xa00cd82f..: mem[mem[64] len t - mem[64]]  |  mem[mem[64] + 32 len 4] = 2835717307 / call token with: args mem[mem[64] + 32 len _24 + ceil32(return_data.size) - mem[64] + 68]",
+      "source": "_assertOptionsType3: revert LZBridgeGateway_InvalidOptions(options_); emit EnforcedOptionsSet(enforcedOptions_); Rescueable: IERC20(token_).safeTransfer(to_, balance) (abi.encodeCall(token.transfer, (to, value))); ILayerZeroEndpointV2(LZ_ENDPOINT).send / quote(MessagingParams(..), ..)",
+      "issue": "After a return-data-sized allocation every store at an address built on mem[64] is assumed to possibly overwrite mem[64], so mem[64] stays symbolic: setEnforcedOptions' InvalidOptions revert and its EnforcedOptionsSet event data, rescue's token.transfer(target, balance) (a nameless call whose selector is printed in decimal), the LZ send / quote arguments and the returned receipt / fee are raw memory. The same InvalidOptions revert prints with its arguments in combineOptions, where the base is constant.",
+      "rule": "mem[64] only ever holds 0x80 plus non-negative bounded sizes, so a store at mem[64] + k (k >= 0) never changes mem[64]; with that the revert folds to revert with 0xcf28d027, options, and the call and the event show their arguments.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "setOutRateLimits (0x0aaf0213), setInRateLimits (0x2e1a3f36)",
+      "lines": "1215-1259, 1321-1365",
+      "decompiled": "mem[0] = Bytes(28, 0), mem[mem[32 * idx + ceil32(return_data.size) + 160] + 28 len 4] / mem[32] = 2 / _86 = sha3(mem[0], 2) / mem[0] = uint32(_85) / mem[32] = 3 / ... stor[_86] = _106 / uint48(stor[_86 + 2].field_32) = uint48(block.timestamp) / ... stor[_86 + 1] = mem[mem[..] + 32] / uint32(stor[_86 + 2]) = mem[mem[..] + 92 len 4]",
+      "source": "_applyConfigs: eid = configs_[i].eid; RateLimit storage rl = rlByEid_[eid]; _settle(rl, counterpartRlByEid_[eid], 0); rl.limit = configs_[i].limit; rl.window = configs_[i].window;",
+      "issue": "The rate limit being configured (outRateLimits[eid], inRateLimits[eid]) is a raw slot _86 = sha3(mem[0], 2) whose key is the mem[0] stored on the line before and overwritten on the next one, and its members are stor[_86], stor[_86 + 1], stor[_86 + 2] and stor[_86 + 2].field_32. The counterpart in the same loop body prints as stor3[uint32(_85)].field_0/256/512/544, as the getters do, so nothing says _86 is the same mapping.",
+      "rule": "A slot sha3(key, n) + k is member k of the mapping at slot n under key; substitute the stored scratch words into sha3(mem[0], n) and print the access as stor_n[key].field_(256k + bit offset).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "burnAndSend (0xf32539dd)",
+      "lines": "1525",
+      "decompiled": "mem[ceil32(_1) + 704 len floor32(-ceil32(_1) + max(ceil32(_1) + 32, _51 + ceil32(_1)) + 672 - 673)] = stor[sha3(sha3(1, sha3(_param1, 9))) + 1 len (-ceil32(_1) + max(ceil32(_1) + 32, _51 + ceil32(_1)) + 672 - 673) / 32]",
+      "source": "_combineOptions: bytes memory enforced = enforcedOptions[eid_][msgType_];",
+      "issue": "The copy of the enforced options after the first word keeps max(ceil32(_1) + 32, _51 + ceil32(_1)) and the - ceil32(_1) .. + 672 - 673 terms; in this branch _51 > 31, so the length is floor32(_51 - 1), which is how estimateSendFee (855) and combineOptions (657) print the same copy with a constant base.",
+      "rule": "max(a + c, b + c) = max(a, b) + c, and a bound known from the enclosing branch (len > 31) gives max(32, len) = len.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "IS_CANONICAL, LZ_ENDPOINT, increase/decrease/initializeBridgedSupply, validateIncrease/DecreaseBridgedSupply, burnAndSend, lzReceive, estimateSendFee, setDelegate",
+      "lines": "4-5, 88-95, 130-155, 190-212, 228-229, 906, 1091, 1576",
+      "decompiled": "const unknowncd4d1c64 = 0 / const unknownff3ffe68 = 0 / if ext_call.return_data[0]: revert with 0x9417f5fd / if caller: revert with 0x8b78064b / call 0x0.unknown2637a450(?)",
+      "source": "bool public immutable IS_CANONICAL; address public immutable LZ_ENDPOINT; _requireCanonical(); if (msg.sender != LZ_ENDPOINT) revert LZBridgeGateway_OnlyEndpoint(); ILayerZeroEndpointV2(LZ_ENDPOINT).send(..)",
+      "issue": "The immutables IS_CANONICAL and LZ_ENDPOINT read as 0: the five canonical-only functions always revert NotCanonical after their role check, burnAndSend drops the bridged-supply increase and lzReceive the canonical decrease, lzReceive requires caller == 0, and send / quote / setDelegate call address 0. Not a decompiler error.",
+      "rule": "None (corpus artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 50 ABI functions and the fallback reviewed; no semantic error found. The rate-limiter math (_currentState with OZ Math.mulDiv, expanded with the Newton steps distributed, P9, and the branch-free Panic ternary 17 ^ 3 * (not window)) was reviewed by structure in its 10 copies (burnAndSend 2, lzReceive 2, setOut/InRateLimits 2 each, sendable, receivable): elapsed >= window -> (0, limit), RateLimitExceeded check, inFlight + delta, counterpart subOrZero, lastUpdated writes; _subOrZero(x, 0) stays as x > 0 and x. Source loops (3): setEnforcedOptions, OffsettingRateLimiter._applyConfigs (setOut/InRateLimits) and _reset (clearOut/InboundInFlight): all whiles; _applyConfigs' unused eid local survives as s = _85. Implicit loops: 11 ABI encodings / calldata-to-memory struct decodings as whiles (P7), the zero-initialization of new Permissions[](4) as a rotated count-down 'while idx - 1' (P3), and three storage-bytes-to-memory copies with the first word peeled (P3). reEnable's Transition event prints the empty bytes as 64, timestamp, 0; bridgedSupplyInitialized reads uint8(stor[7]) because def storage only names slot 7 offset 8 (P15).",
+  "summary": "Faithful apart from readability: the LZ calls, rescue's transfer and setEnforcedOptions' revert and event are raw memory, the configured rate limit is a raw sha3 slot, and lzReceive's signature silently skips the unused nonce word so _param3 is the guid."
+}

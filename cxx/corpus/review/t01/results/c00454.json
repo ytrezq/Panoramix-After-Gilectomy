@@ -1,0 +1,36 @@
+{
+  "id": "c00454",
+  "abi_functions": 28,
+  "reviewed": 28,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 41, "P6": 40, "P7": 15, "P8": 60},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "fund(address), triggerDefault (both), claim, impairLoan, removeLoanImpairment (ERC20Helper approve/transfer through _call)",
+      "lines": "925-946 (fund), 1346-1355, 1862-1871",
+      "decompiled": "mem[... + 160 len 4] = 157198259 / if ext_code.size(fundsAsset): idx = 0 / while idx < 68: mem[idx + ... + 228] = mem[idx + ...] ... / call fundsAsset with: gas gas_remaining args mem[... + 228 len 68]",
+      "source": "ERC20Helper.approve(fundsAsset, loan, amount) -> _call(token_, abi.encodeWithSelector(IERC20Like.approve.selector, spender_, amount_)): token_.code.length == 0 ? false : token_.call(data_), then abi.decode(returnData, (bool)) when returnData.length > 0",
+      "issue": "The 68-byte call data built by abi.encodeWithSelector is copied by a while with a constant bound (P7) and the call keeps raw-memory arguments without a name (P2), with the approve/transfer selector printed in decimal (157198259 = 0x095ea7b3, 13 lines).",
+      "rule": "A word loop copying a constant n bytes is the copy line mem[d len n] = mem[s len n] (here unrolled to three words); once copied, a call on mem[d len 68] whose first 4 bytes are a constant selector is named and its two words printed as arguments.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "fund(address) and the functions that make many calls before a transfer",
+      "lines": "907-946 (41 lines with the sum)",
+      "decompiled": "mem[ceil32(_1) + ceil32(_2) + ceil32(_3) + ceil32(_4) + ceil32(_6) + ceil32(_7) + ceil32(_8) + ceil32(_10) + ceil32(_11) + ceil32(_12) + 228] = ...",
+      "source": "successive external calls (unoptimised build: each call's returndata advances the free-memory pointer)",
+      "issue": "The free-memory pointer, known as a sum of ten ceil32(return_data.size) terms, is spelled out in every memory address (41 lines, most cut at 240 characters), which hides the few words actually stored.",
+      "rule": "Bind a symbolic free-memory pointer value to one name when it is first read (p = mem[64]) and print addresses as p + k.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No explicit loop in the reached source (the ERC20Helper and loan accounting are loop-free). The 15 whiles are implicit: the constant 68-byte call-data copies of _call (P7), bytes copies for the low-level call and revert data, and the ABI decoding of the bytes[] calls parameter of rejectNewTerms/proposeNewTerms. Unoptimised build: repeated scratch writes (P8). claim (910 pack lines) and the two triggerDefault variants reviewed by structure (calls, events, storage writes, reverts with their LM: messages); the rest line by line.",
+  "summary": "Faithful and loop-free in the source; readability suffers from low-level ERC20 calls left as raw memory after constant-length copy loops and from free-memory addresses spelled as long sums."
+}

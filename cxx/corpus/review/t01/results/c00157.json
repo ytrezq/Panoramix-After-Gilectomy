@@ -1,0 +1,69 @@
+{
+  "id": "c00157",
+  "abi_functions": 46,
+  "reviewed": 46,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 15, "P3": 22, "P4": 23, "P6": 32, "P7": 170, "P8": 300, "P12": 60, "P13": 2, "P15": 20},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "def storage; getReceipt, castVote*, propose, queue, execute, cancel, getActions, proposals",
+      "lines": "12, 18 (def storage); 65-67 (getReceipt)",
+      "decompiled": "proposalSnapshot is mapping of struct of 3 slots at storage 1 / receipt is mapping of struct of 10 slots at storage 7 ... return bool(uint8(stor[sha3(voter, sha3(proposalId, 7) + 8)])), uint8(stor[sha3(voter, sha3(proposalId, 7) + 8)].field_8), stor[sha3(voter, sha3(proposalId, 7) + 8) + 1]",
+      "source": "mapping(uint256 => ProposalCore) _proposals; mapping(uint256 => ProposalDetails) _proposalDetails; (ProposalDetails.receipts is a mapping member at +8; getReceipt returns _proposalDetails[id].receipts[voter])",
+      "issue": "The two struct mappings are named after getters of one member (P13: _proposals as proposalSnapshot, _proposalDetails as receipt), and the receipts mapping inside the struct is raw storage arithmetic (24 lines), including in getReceipt itself.",
+      "rule": "Name a struct mapping after a getter only when the getter returns the whole element; print stor[sha3(k2, sha3(k, s) + i)] as member i (a mapping) of mapping s: m[k].field_{256 i}[k2].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "relay, setVotingDelay, setVotingPeriod, setProposalThreshold, setLateQuorumVoteExtension, updateQuorumNumerator, updateTimelock (onlyGovernance); execute (both)",
+      "lines": "e.g. setVotingDelay: 'if int128(stor2 >> 128) <=′ int128(uint128(stor2))', 'uint128(stor2) = uint128(int128(uint128(stor2)) + 1)'; execute(uint256): 3336-3337",
+      "decompiled": "stor3[int128(stor2 >> 128)] = _265 / stor2 = (int128(stor2 >> 128) << 128) + 0x100000000000000000000000000000000 | uint128(stor2)",
+      "source": "DoubleEndedQueue.Bytes32Deque { int128 _begin; int128 _end; mapping(int128 => bytes32) _data; } popFront / pushBack / empty",
+      "issue": "The deque's two packed int128 fields are never declared (stor2 is uint256, _data appears as an independent stor3 at slot 3) and pushBack's 'unchecked { _end = backIndex + 1 }' is whole-slot arithmetic (P15); the result is exact (uint128(e) + 1 wraps the same way) but unreadable.",
+      "rule": "Split a slot whose reads and writes are all through Mask(128, 0, .) and >> 128 into two fields; a whole-slot write (x << 128) + (1 << 128) | uint128(slot) where x is the high field is 'high field = high field + 1' (mod 2^128).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "the seven onlyGovernance functions",
+      "lines": "e.g. setVotingDelay body",
+      "decompiled": "if int128(stor2 >> 128) <=′ int128(uint128(stor2)): revert with Empty() / _12 = stor3[int128(uint128(stor2))] / stor3[...] = 0 / uint128(stor2) = ... + 1 / while _12 != sha3(call.data[0 len calldata.size]): (the same four lines) / continue",
+      "source": "Governor.sol:68 while (_governanceCall.popFront() != msgDataHash) {}",
+      "issue": "Rotated loop (P3): the first popFront is printed before the while and again as its body.",
+      "rule": "A do-while (body; test; loop) printed as body; while test: body is 'while True: body; if not test: break' (or 'while popFront() != h').",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "propose(address[],uint256[],string[],bytes[],string), cancel(uint256), queue(uint256), execute(uint256), getActions",
+      "lines": "e.g. propose 'while _120 + sha3(_91 + 3) > s + sha3(_91 + 3):'; 37 lines with stor[_N + k]",
+      "decompiled": "stor[_91 + 3] = mem[_8] / ... while _120 + sha3(_91 + 3) > s + sha3(_91 + 3): ... stor[s + sha3(_91 + 3)] = 0 ...",
+      "source": "GovernorCompatibilityBravo._storeProposal: details.signatures = signatures; details.calldatas = calldatas; ...",
+      "issue": "With the struct slot _proposalDetails[id] bound to _91, its members print as stor[_91 + k], and the compiler's clearing loops of the old string[]/bytes[] elements compare slot numbers (exact, since slots may wrap) instead of indexes.",
+      "rule": "Bind the key, not sha3(k, s), and print members as receipt[k].field_N; a loop over slots base + s for s < n is a loop over the array indexes (printing the condition as s < n needs base + n not to wrap, which the text may state).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "quorum (castVote*, state, execute, queue)",
+      "lines": "e.g. execute(uint256) function line 225",
+      "decompiled": "static call 0x0.getPastTotalSupply(uint256 blockNumber) with:",
+      "source": "GovernorVotes: IVotes public immutable token",
+      "issue": "The immutable token reads as 0 in the undeployed code.",
+      "rule": "-",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops in this bytecode: onlyGovernance's popFront while (7 copies, P3), Governor._beforeExecute's for (execute; the pushBack loop under 'timelock != this'), GovernorCompatibilityBravo._encodeCalldata's for (propose with signatures, queue/execute/cancel(uint256)). The TimelockController for loops (executeBatch, scheduleBatch) and Strings.toHexString (AccessControl in the timelock) are in the timelock contract, reached only through external calls, so not counted. The other ~170 whiles are implicit: abi.encode of address[]/uint256[]/bytes[] for hashProposal and the timelock calls (P7), storage-array copies and clearing loops in _storeProposal, storage-to-memory copies in getActions/cancel, and new bytes[](n) initialisation ('while idx - 1', P3 x15). The timelock calls (scheduleBatch, executeBatch, cancel) are unnamed raw-memory calls (P2), and execute duplicates the targets encoding in both arms of the executor test (P12). propose (89 whiles), execute and queue reviewed by structure (loops, calls, events, writes); the rest line by line.",
+  "summary": "Faithful where read, with the three source loops shown as whiles (one rotated); the text suffers from misleading struct-mapping names, raw storage arithmetic for struct members and the deque's packed fields, and many unconverted implicit array copies."
+}

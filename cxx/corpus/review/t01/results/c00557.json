@@ -1,0 +1,80 @@
+{
+  "id": "c00557",
+  "abi_functions": 81,
+  "reviewed": 81,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 56, "P3": 15, "P4": 38, "P6": 215, "P7": 211, "P10": 10, "P15": 2, "P17": 153},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "most non-getter functions (claimComp x3, borrowAllowed, redeemAllowed, transferAllowed, mintAllowed, seizeAllowed, liquidateBorrowAllowed, repayBorrowAllowed, _setCompSpeeds, exitMarket ...)",
+      "lines": "11377-11385, 965-990 and 585 'revert with memory' lines",
+      "decompiled": "_147 = mem[64] / mem[mem[64]] = 0x8c379a0000...(63 digits) / mem[_147 + 4] = 32 / mem[_147 + 36] = 21 / mem[_147 + 68] = 0x6d61726b6574206d757374206265206c6973746564... / revert with memory from mem[64] len _147 - mem[64] + 100",
+      "source": "Comptroller.sol:1658 require(markets[address(cToken)].isListed, \"market must be listed\")",
+      "issue": "Error(string) reverts whose buffer starts at the free-memory pointer are not recognized: 585 'revert with memory' lines against 60 'revert with ...' strings, the selector prints as a 63-digit word (all 215 P6 lines) and the message as a hex word. Where the base is a constant (borrowAllowed 6091, 6138) the same code prints revert with 'borrow is paused'.",
+      "rule": "With mem[64] >= 128 established (every store to slot 64 is a constant >= 128 or itself plus a non-wrapping amount), stores at mem[64] + c do not alias slot 64, so _147 - mem[64] folds to 0; then a revert of mem[p len 100 (+32k)] holding 0x08c379a0, 32, n, the n bytes is 'revert with <string>', exactly as for constant p.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "every function using ExponentialNoError add_/sub_/mul_/div_ with an error string (211 whiles)",
+      "lines": "965-990 (mintAllowed), 11400-11425, 12822-12846 (claimComp) and 208 more",
+      "decompiled": "_94 = mem[64] / mem[64] = _94 + 96 / mem[_94 + 32] = 21 / mem[_94 + 64] = 0x737562747261...('subtraction underflow') / if _92 > _91: ... _97 = mem[_94 + 32] / idx = 32 / while idx < _97: mem[_95 + idx + 68] = mem[_94 + idx + 64]; idx = idx + 32 / ... revert with memory",
+      "source": "ExponentialNoError sub_(uint a, uint b, string memory errorMessage): require(b <= a, errorMessage)",
+      "issue": "211 of the text's 244 whiles copy a constant error message from memory into the revert buffer. The message length was stored three lines earlier (mem[_94 + 32] = 21) but is re-read as unknown because the stores at _95 = mem[64] are not known to miss it, so the copy stays a loop and the revert stays raw memory.",
+      "rule": "Two addresses b + c1 and b' + c2 with b' = b + k (k a known constant, here mem[64] = _94 + 96 just stored) are disjoint when their constant offsets differ by at least the access width; fold the read of mem[_94 + 32] to 21, which makes the copy a fixed 1-word copy and the revert 'revert with 'subtraction underflow''.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "claimComp(address[],address[],bool,bool), claimComp(address,address[]), claimComp(address)",
+      "lines": "12679-12846 (also 8427, 9649); first iteration 11429-11450",
+      "decompiled": "while _2206 <= v: ... if y + 1 < mem[128]: _2267 = mem[32 * y + 192] else: ... s = s + 1; continue loop1 ... continue / (after the loop) mem[_2209 + 36] = mem[_2208 + 32] ... revert with memory",
+      "source": "Comptroller.sol:1668 for (uint j = 0; j < holders.length; j++) distributeSupplierComp(address(cToken), holders[j]); (distributeSupplierComp: sub_(supplyIndex.mantissa, supplierIndex.mantissa) )",
+      "issue": "The supplier loop over holders is rotated: its first iteration is printed before the loop, and the loop header is the 'subtraction underflow' test of the next iteration's sub_, whose exit leads only to the revert after the loop. The real bound j < holders.length appears inside the body as 'if y + 1 < mem[128]' with 'continue loop1' as the exit.",
+      "rule": "When choosing the loop condition of a structured loop, do not use a test whose exit edge reaches only a revert; print such a test as a require inside the body and take the remaining exit test (here y + 1 < mem[128]) as the while condition.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "exitMarket(address)",
+      "lines": "4053-4057",
+      "decompiled": "assetsIn[caller].length-- / if _353 > _353 - 1: stor[_353 + sha3(sha3(caller, 8)) - 1 len -_353 - sha3(sha3(caller, 8)) + max(_353 + sha3(sha3(caller, 8)), _353 + sha3(sha3(caller, 8)) - 1) + 1] = 0",
+      "source": "Comptroller.sol:271 storedList.length--",
+      "issue": "Shrinking the array by one deletes exactly the old last element, but prints as a storage range with a max() length.",
+      "rule": "x > x - 1 iff x != 0; for x = n + sha3(..) with n >= 1, max(x, x - 1) = x (keccak taken collision-free, so x != 0), the length is 1 and the store is assetsIn[caller][_353 - 1] = 0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "claimComp (3 variants), _setCompSpeeds, getAccountLiquidity and others",
+      "lines": "11375-11376, 12862-12866, 12890",
+      "decompiled": "markets[concat(Bytes(12, 0), mem[32 * s + 32 * holders.length + 204 len 20])] / _210 = sha3(Bytes(12, 0), mem[32 * s + 172 len 20], 20) ... _256 = stor[_210] and stor[_210] <= mem[mem[64]]",
+      "source": "Comptroller.sol:1673-1677 compAccrued[holders[j]] = grantCompInternal(holders[j], compAccrued[holders[j]])",
+      "issue": "An address read from memory is shown as a 12-zero-byte concat of a 20-byte slice (38 lines), and the read of compAccrued[holders[j]] stays stor[_210] while the write two lines below is named.",
+      "rule": "concat(Bytes(12, 0), mem[a + 12 len 20]) == address(mem[a]); name stor[h] as a mapping access whenever h = sha3(key, slot) of a known mapping, also when h was bound to a temporary.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "_mintGuardianPaused(), _borrowGuardianPaused(); compInitialIndex uses",
+      "lines": "17-20, 76, 185; 153 lines with '1000000000000000000 * 10**18'",
+      "decompiled": "return bool(uint8(stor[10].field_160)) / _92 = 1000000000000000000 * 10**18",
+      "source": "slot 10 +20 bool _mintGuardianPaused, +21 bool _borrowGuardianPaused; compInitialIndex = 1e36",
+      "issue": "def storage names the bools of slot 10 at offsets 176 and 184 but not those at 160 and 168, though their getters exist (P15); 1e36 prints as a product of a decimal and a power.",
+      "rule": "Name every packed field a getter returns; fold c * 10**k into one power-of-ten form (10**36).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Very long functions (claimComp variants ~1,200-1,500 lines, transferAllowed ~1,500, redeemAllowed ~1,200) reviewed by structure. Source loops (11): enterMarkets (637), exitMarket search (4038, while True with breaks), getHypotheticalAccountLiquidityInternal (1130, 2025, 2953, 3548, 5208, 6265, 10317 area), _addMarketInternal (604), _setMarketBorrowCaps (450), fixBadAccruals (731), _setCompSpeeds (4100), claimComp's 4 loops (outer 'loop1', borrower inner 'while t < mem[128]', rotated supplier inner, grant loop at the end). Implicit: 12 storage-to-memory copies of accountAssets/allMarkets printed as rotated whiles (first element before the loop), counted in P3 with the 3 rotated supplier loops; 211 error-string copies (P7). Owner paths (_setCollateralFactor, _supportMarket, _setCompSpeeds) and error codes match the source. grantCompInternal's COMP address is the hard-coded 0xfaba6f...9be3, as in the source.",
+  "summary": "Faithful, but readability is dominated by the untracked free-memory pointer: 585 raw-memory reverts and 211 error-message copy loops make up most of the text, and claimComp's supplier loop is rotated around an underflow check."
+}

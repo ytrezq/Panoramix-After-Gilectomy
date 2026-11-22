@@ -1,0 +1,85 @@
+{
+  "id": "c00148",
+  "abi_functions": 54,
+  "reviewed": 54,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {
+    "while": 7,
+    "copy_line": 0,
+    "unrolled": 1,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 118,
+    "P3": 2,
+    "P4": 86,
+    "P6": 117,
+    "P7": 360,
+    "P8": 422,
+    "P11": 90,
+    "P12": 8,
+    "P18": 88
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "updatePriceOracle(address) (unknown39d1fc82), updateLossPolicy(address,(bytes32,bytes32,bytes)) (unknown9e40fdbb)",
+      "lines": "9653-9662; 10880-10887",
+      "decompiled": "_993 = mem[64] / mem[mem[64]] = address(_128) / log UpdatePriceOracle(address indexed token=_param1, address oracle=mem[mem[64] len _993 - mem[64] + 32]) / _996 = mem[64] / mem[mem[64]] = address(_128) / return memory from mem[64] len _996 - mem[64] + 32",
+      "source": "MarketConfigurator.sol:538 emit UpdatePriceOracle(pool, priceOracle); returns (address priceOracle); :735 emit UpdateLossPolicy(pool, lossPolicy)",
+      "issue": "The event data and the function's return value are printed as raw memory with the length '_996 - mem[64] + 32': the store at mem[mem[64]] is taken as possibly overwriting mem[64] itself, so mem[64] is re-read and the length does not fold to 32. The reader cannot see that the function returns the new price oracle / loss policy (address(_128)).",
+      "rule": "A store at address p does not change mem[64] when p != 64 is provable; here p is the free-memory pointer, every value stored to mem[64] is >= 128 on all paths (an invariant the analysis can carry), so mem[64] keeps its value, '_x - mem[64]' folds to 0, and the log data / return become address(_128).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "previewCreateMarket (unknown4467ee1c), previewCreateCreditSuite(uint256,uint256,address,string,string,bytes) (unknown1bdcbfea), createMarket (unknown0575e399)",
+      "lines": "342-344; 608-610; 11303-11315",
+      "decompiled": "static call _1.unknown9bbf5a23(?) with: args this.address, _param2, Array(len=cd[_param3 + 4], data=call.data[_param3 + 36 len cd[_param3 + 4]], Bytes(ceil32(cd[_param3 + 4]) - cd[_param3 + 4], 0), cd[_param4 + 4], call.data[_param4 + 36 len cd[_param4 + 4]], Bytes(..)), ceil32(cd[_param3 + 4]) + 160",
+      "source": ":274 IPoolFactory(factories.poolFactory).computePoolAddress(address(this), underlying, name, symbol); :374 IPoolFactory(factory).deployPool(underlying, name, symbol)",
+      "issue": "With two dynamic arguments, the second string's offset word is printed as the last argument and its length and bytes are folded into the first Array's data, so the call reads as (this, underlying, one long Array, a number) instead of (this, underlying, name, symbol). The bytes are the same, but the arguments are unrecognisable; in deployPool the first string's padding is also a memory slice although it was just stored as 0 (11308, 11315).",
+      "rule": "When the head of the argument area holds several offset words pointing into the tail, decode each offset as its own dynamic argument (length word at the offset, data after it, ending at the next argument) and print the arguments in head order; a slice of k <= 32 bytes inside a word just stored as 0 (with no aliasing store between) is Bytes(k, 0).",
+      "verified": "reading only (offsets checked by hand: 0x80 and ceil32(len)+160 / 0x60 and ceil32(len)+128)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "addPeripheryContract, removePeripheryContract, isPeripheryContract, authorizeFactory, unauthorizeFactory, upgrade*Factory (6), updatePriceOracle, updateLossPolicy",
+      "lines": "e.g. 74, 174-178, 238-260, 424-430, 2584-2630, 9667, 9688-9689",
+      "decompiled": "return bool(stor[sha3(_param2, sha3(_param1, 1) + 1)])  |  if not stor[sha3(_param3, sha3(_param2, sha3(_param1, 5)) + 1)]:  |  _998 = sha3(Bytes(12, 0), mem[_918 + 32 * s + ceil32(_6) + 44 len 20], 3) ... call address(stor[_998])",
+      "source": "EnumerableSet: set._inner._indexes[value] for _peripheryContracts[domain] / _factoryTargets[factory][suite]; :535 _creditFactories[creditManager]",
+      "issue": "The second member (_indexes) of the EnumerableSet struct stored as a mapping value is raw sha3 arithmetic in 89 lines while its first member (_values) is named (stor1[..], stor5[..][..]); and _creditFactories[cm] is printed as stor[_998] because its slot was first bound to a temporary.",
+      "rule": "sha3(k, s) + j is member j of the struct at s[k], so stor[sha3(v, sha3(k, 1) + 1)] is stor1[k].field_256[v] (a mapping member); when a temporary holds sha3(k, slot) of a known mapping, stor[temp] prints as the mapping access stor3[k].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "previewCreate* (3), createMarket, shutdownMarket, addToken, shutdownCreditSuite, update* (4), createCreditSuite, getFactoryTargets, getPeripheryContracts, upgrade*Factory (6)",
+      "lines": "225, 349, 646; 3322, 9675 (11 lines); 11252, 11256; 11394 (5 lines); 57, 90, 2572",
+      "decompiled": "return Bytes(12, 0), ext_call.return_data[12 len 20]  |  mem[ceil32(return_data.size) + 160 len 4] = 713218533  |  args Bytes(12, 0), Bytes(20, _10), -1  |  revert with Bytes(16, 0x5e2262c3000000000000000000000000), mem[300 len 20], address(_183)  |  mem[192 len floor32(max(192, 32 * stor1[_param1].length + 160) - 161)] = stor[sha3(sha3(_param1, 1)) + 1 len (max(192, 32 * stor1[_param1].length + 160) - 161) / 32]",
+      "source": "return address; abi.encodeCall(IMarketFactory.onShutdownMarket, (pool)) (selector 0x2a82d9e5); forceApprove(poolFactory, max); UnauthorizedFactoryException(factory, target); EnumerableSet.values",
+      "issue": "Twelve zero bytes followed by a 20-byte value are printed as a concatenation instead of the address word (after the address check, or when the word is known to be an address); 4-byte stores of selectors are printed in decimal; the storage-array copy keeps max(192, 32n + 160) under 'if n' and peels the first element.",
+      "rule": "concat(Bytes(12, 0), x[a + 12 len 20]) where x[a] fits in 160 bits is address(x[a]); print a 4-byte store as hex; under 'if n != 0', max(192, 32n + 160) = 32n + 160, so the two lines are one copy mem[160 len 32n] = stor[sha3(..) len n].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "acl, admin, addressProvider, bytecodeRepository, contractsRegister, treasury, curatorName, and every onlyAdmin / registry / ACL call",
+      "lines": "3-11; e.g. 114, 125-126, 358, 659",
+      "decompiled": "const admin = 0 / if caller: revert with 0x4a30c348, caller / require ext_code.size(0) / call 0x0.grantRole(..) / static call 0x0.isCreditManager(address) / const unknownc9470abd = 32, 0",
+      "source": "address public immutable admin, acl, contractsRegister, addressProvider, bytecodeRepository, treasury; bytes32 immutable _curatorName",
+      "issue": "solc immutables read as 0 in this pre-deployment code: onlyAdmin becomes 'if caller: revert', every registry/ACL/address-provider call targets 0x0 (grantRole and revokeRole always revert on the extcodesize check), and curatorName folds to the empty string (its fromSmallString loop disappears). Not a decompiler error.",
+      "rule": "None for the decompiler (corpus artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 54 ABI functions (45 defs + 9 consts) and the fallback reviewed; no semantic error found. Same code: the 12 configure / emergencyConfigure functions are one body (diffed: only the admin check, the selector configure 0xf605bf6c / emergencyConfigure 0xb3e035b2, the factory field 0/256/512/768/1024 or _creditFactories, and the event differ, all matching the source); the 6 upgrade*Factory functions are one body (diffed; fields and events match); add/removePeripheryContract share the extractDomain code (fromSmallString scan, indexOf('::'), slice, toSmallString, checked by hand including the empty-slice result 0x60 and TooBigForSmallString). The 9 big functions (shutdownMarket, addToken, shutdownCreditSuite, update* x4, createCreditSuite, createMarket: 800-1800 lines) reviewed by structure: call order, targets, selectors, factory validation (UnauthorizedFactoryException with the right factory in each of the 5 hooks), storage writes, events, returns, forceApprove's three _makeCall branches (return copied to mem[0], extcodesize / returndata == 1 tests) all match. Source loops: _executeHook (inlined ~80 times), _migrateFactoryTargets, the two credit-manager loops, fromSmallString, indexOf's short-search loop and the slice copy are whiles; indexOf's outer 'for {} 1 {}' always breaks and is printed as straight code (counted 'unrolled'); indexOf's long-search loop (searchLength >= 32) is dead for the constant '::' and not counted. P7 = 360 bytes copies left as loops (call data, error strings, event data, ABI decoding of Call.callData); P3 = slice's backward copy with its first word peeled (2); P8 = mem[0]/mem[32] keccak scratch writes; P11 = Panic(50) bounds checks dominated by the loop bound or by SafeMath.sub(len, 1), and pop's Panic(49); P12 = _remove's pop printed in both arms (8 instances).",
+  "summary": "Faithful on every path checked; the readability problems are the known memory ones: after the first allocation the hook calls lose their targets and arguments (P2, P18), 360 bytes copies stay while loops, and a store at the free-memory pointer hides the return value of updatePriceOracle/updateLossPolicy, while calls with two string arguments print the second one merged into the first."
+}

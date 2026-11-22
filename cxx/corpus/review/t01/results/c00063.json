@@ -1,0 +1,58 @@
+{
+  "id": "c00063",
+  "abi_functions": 11,
+  "reviewed": 11,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 14, "P2": 5, "P3": 1, "P6": 22, "P7": 1, "P8": 1300, "P9": 369, "P11": 8, "P12": 7, "P18": 357},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "validateMarketTokenBalance(DataStore,Market.Props[]) 0x7b672c9a (loop body); also getSwapPathMarkets, validateSwapPath, updateFundingState, distributePositionImpactPool",
+      "lines": "1130-1661 vs 414-590; 237-267; 354-386; 1080-1091; 4883-4899",
+      "decompiled": "mem[mem[64]] = 0x70a08231...; mem[_137 + 4] = address(_136); static call address(_133) with: args mem[mem[64] len _137 - mem[64] + 36]  |  mem[_145 + 160] = sha3(mem[_146 + 32 len mem[_146]]) ... args sha3(mem[_145 + 160], address(_144), address(_133))  |  revert with Bytes(16, 0x808c464f000000000000000000000000), mem[_132 + 12 len 20], address(_254), _21, ...  |  mem[_178 + ceil32(_2) + ceil32(_4) + ... + ceil32(_22) + ...]",
+      "source": "MarketUtils.sol:3262-3264 for (...) validateMarketTokenBalance(dataStore, markets[i]) -> :3288-3325 (balanceOf, Keys.poolAmountKey(...), revert InvalidMarketTokenBalance...)",
+      "issue": "The same internal function prints cleanly when its buffers sit at constant offsets (0x39b1348f: 'static call _param4.balanceOf(_param2)', 'sha3(sha3(Array(len=11, data='POOL_AMOUNT')), _param2, _param4)', 'revert with 0x33a1ea6b, ...') but, inside the loop where buffers are at the free-memory pointer, balanceOf loses its name and argument (P2), every key keeps an unresolved inner hash sha3(mem[_x + 32 len mem[_x]]) (71 lines in the contract), reverts stay raw memory (20) or byte-slice concatenations, and addresses carry up to 15 ceil32(return_data.size) terms (1,224 lines over 4 ceil32 terms).",
+      "rule": "Same root cause as P2: fold '_x - mem[64]' to 0 while no store to mem[64] intervenes, and read words written at _x + c through later reads of [_x + c1, _x + c2) (offsets from one SSA base below 2^64 do not wrap). Then mem[_x] = 96 and the 3 words after it give sha3(Array(...)), the call buffer gives the selector and arguments, and the revert payload decodes like a constant-base one.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "updateCumulativeBorrowingFactor (selector 0x1450a879, not in the pack's ABI list)",
+      "lines": "2296-2328, 2563-2600, 2608-2640, 2757-2791, 2816-2850, 2871-2905, 3287-3318",
+      "decompiled": "call _param1.unknown340dbab3(sha3(sha3(Array(len=27, data='CUMULATIVE_BORROWING_FACTOR')), _param3, _param13), SafeMath.mul(_4, _915)) / delegate ...unknownd206b705(...) / call _param1.setUint(sha3(... 'CUMULATIVE_BORROWING_FACTOR_UPDATED_AT' ...), block.timestamp) / delegate ...unknown5375a207(_param2, _param3, _915) / stop   (x7)",
+      "source": "MarketUtils.sol:1715-1745 updateCumulativeBorrowingFactor: incrementCumulativeBorrowingFactor(...); dataStore.setUint(...UpdatedAtKey..., Chain.currentTimestamp()); MarketEventUtils.emitBorrowing(...)",
+      "issue": "The four-call tail that follows the inlined getBorrowingFactorPerSecond is printed once per return path of that function (7 copies of about 30 lines, six ending in 'stop'); the copies differ only by the SSA name of borrowingFactorPerSecond and by printing the market as _param3 or as 'Bytes(12, 0), mem[140 len 20]'.",
+      "rule": "When all predecessors of a block end with the same statement sequence modulo the values that a phi would merge, print the sequence once after the join with that phi (tail merging); the 'stop' copies are the same exit.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "updateTotalBorrowing 0xb656ff7a, distributePositionImpactPool 0xc468d135, updateCumulativeBorrowingFactor 0x1450a879, updateFundingState 0xd2ab7dc0",
+      "lines": "135, 830, 1664, 3321",
+      "decompiled": "require this.address",
+      "source": "library MarketUtils, non-view external functions (solc library call protection)",
+      "issue": "The library's own address, written at deployment, is 0 in this pre-deployment bytecode, so the delegatecall-only guard address(this) != LIBRARY_ADDRESS reads as 'require this.address'.",
+      "rule": "None (solc immutable placeholder).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "updateTotalBorrowing, getPoolValueInfo, getMarketTokenPrice",
+      "lines": "152-153, 160; 8660; 12319",
+      "decompiled": "if -_5 + ext_call.return_data[0] > ext_call.return_data[0]: revert with Panic(17)  |  mem[832] = -1 * _6119 * _6122 + mem[832]",
+      "source": "MarketUtils.sol:2726 totalBorrowing -= Precision.applyFactor(...); :391 result.poolValue -= impactPoolUsd.toInt256()",
+      "issue": "A checked subtraction written as '-b + a > a' is not recognised as SafeMath.sub (it is elsewhere), and 'a - x * y' prints as '-1 * x * y + a'.",
+      "rule": "'-b + a > a' is the overflow test of a - b, i.e. b > a: print SafeMath.sub(a, b); print '-1 * x + y' as 'y - x'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Library MarketUtils. getMarketTokenPrice (3,700 lines) and getPoolValueInfo (3,470 lines, inlined in getMarketTokenPrice) were reviewed by structure: DataStore reads in source order (pool amounts, open interest, borrowing factors, PnL, impact pool, lent impact pool), pickPrice(maximize / !maximize) correct, toInt256 checks, the return of MarketPoolValueInfo as values plus a 192- or 384-byte memory slice (P18). The four state-changing library functions are decompiled but missing from the pack's ABI list; they were reviewed too: updateTotalBorrowing and distributePositionImpactPool in full (correct; the delta < 0 branch of applyDeltaToPositionImpactPool is correctly folded), updateFundingState and updateCumulativeBorrowingFactor by structure (8 applyDeltaToUint 0x3dbacd1a + event delegatecalls, setInt, setUint, emitFunding; incrementUint + events, all in source order). distributePositionImpactPool has three event delegatecalls with P2 args, one of them a call site shared by the two arms of applyDeltaToPositionImpactPool with different selectors (0x555a9979 / 0x4ddb3d81). The small ABI functions (getEnabledMarket, getMarketTokenSupply, getSwapPathMarkets, both validateEnabledMarket, the three validateMarketTokenBalance, validateSwapPath) were reviewed in full and are correct; 0x5930015e correctly drops the marketToken == 0 test implied by the earlier EmptyMarket check. Loops: MarketUtils.sol:3128, :3142, :3262 and PRBMathUD60x18.log2:388 (11 inlined 'while s:' sites); implicit: calldata decoding (183, 288, 1110), new Market.Props[] zeroing (306, P3), result encoding (400, P7). P11: Panic(50) checks implied by the loop tests (209, 320, 387, 1131) and signed-overflow clauses after a toInt256 check. P8 is an estimate (1,335 key and call-buffer setup writes).",
+  "summary": "Faithful and complete (no aborts); the non-loop functions read well, while loop bodies and the big pool-value functions are obscured by the free-memory-pointer problem (P2 calls, raw reverts, half-resolved keys, very long addresses), mulDiv expansions, and a 7-fold duplicated tail in updateCumulativeBorrowingFactor."
+}

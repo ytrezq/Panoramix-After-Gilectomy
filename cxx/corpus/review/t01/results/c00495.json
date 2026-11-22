@@ -1,0 +1,36 @@
+{
+  "id": "c00495",
+  "abi_functions": 58,
+  "reviewed": 58,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 4,
+    "P3": 8,
+    "P7": 25,
+    "P8": 20
+  },
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "upgradeChainFromVersion-like unknowne34a329a, unknown0dbad27e, setNewVersionUpgrade / setChainCreationParams (unknown98461504, unknown8265f458), unknown81a8e48e, unknowne8a71ca9, unknown9b016b8b, unknown88c7c5d2",
+      "lines": "476-520 (and 555, 804, 1093, 1349, 1540, 1698: 8 'while True' loops); 510, 589, 1729 (inner selector loops)",
+      "decompiled": "while True: if s >= cd[_param2 + cd[_param2 + 4] + 4]: <the rest of the function: encode init address and calldata, call address(_2) with args mem[...], stop> / mem[u] = v - ceil32(_1) - 292 / ... while idx < cd[_param2 + cd[t] + cd[_param2 + 4] + cd[_param2 + cd[t] + cd[_param2 + 4] + 132] + 36]: ... / s = s + 1 ...",
+      "source": "abi.encode / abi.encodeCall of Diamond.DiamondCutData {FacetCut[] facetCuts (address facet, Action action, bool isFreezable, bytes4[] selectors); address initAddress; bytes initCalldata} for the hash checks and the executeUpgrade call (ChainTypeManagerBase.sol:254, 402, 484)",
+      "issue": "The compiler's nested ABI-encode loops for FacetCut[] are printed as 'while True' loops whose exit test holds the whole rest of the function (the call and stop), with element offsets re-derived from nested calldata offsets in every condition; there is no source loop, but each encode is 40-50 opaque lines.",
+      "rule": "When the only exit of a loop is a test at its top followed by code that never returns to the loop, print 'while not test:' and put that code after the loop; bind nested calldata offsets (cd[p + cd[t] + ...]) of the current element to a variable per iteration.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against EraChainTypeManager / ChainTypeManagerBase and Diamond (zkSync era l1-contracts). The pack lists no source loop in the reached code: every while of the text (37) is a compiler loop - ABI decode of the calldata DiamondCutData and ChainCreationParams with validation, ABI encode of the same structures for keccak256 and for the calls to the chain (executeUpgrade / genesis upgrade), copies of bytes4[] selector arrays, zero-initialisations. All 58 ABI functions were read by structure (owner/admin checks, protocol version bookkeeping, upgrade cut hash checks, chain creation forwarding to the bridgehub/chain, the events). Only 4 P2 lines; the main external calls are resolved. No execution run.",
+  "summary": "Faithful; there is no source loop, but the many nested ABI encode/decode loops for DiamondCutData are printed as opaque 'while True' loops that contain the rest of their function in their exit branch."
+}

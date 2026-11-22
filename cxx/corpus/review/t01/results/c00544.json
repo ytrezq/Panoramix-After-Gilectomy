@@ -1,0 +1,58 @@
+{
+  "id": "c00544",
+  "abi_functions": 66,
+  "reviewed": 66,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 4, "P2": 49, "P4": 78, "P6": 34, "P7": 111, "P8": 900, "P10": 20, "P12": 15},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "claimTokens, fixMediatorBalance, relayTokens (both), relayTokensAndCall, onTokenTransfer, handle*/deployAndHandle* (111 loops)",
+      "lines": "e.g. 562-573, 609-622, 5884-5894, 5902-5913",
+      "decompiled": "s = _15 + 32 / t = mem[64] / idx = mem[_15] / while idx >= 32: mem[t] = mem[s]; s = s + 32; t = t + 32; idx = idx - 32 / mem[_20 + floor32(max(31, _21))] = mem[_15 + floor32(max(31, _21)) + 32] & ~(256**(-_21 + floor32(max(31, _21)) + 32) - 1) | mem[_20 + floor32(max(31, _21))] & 256**(-_21 + floor32(max(31, _21)) + 32) - 1",
+      "source": "SafeERC20._callOptionalReturn / Address.functionCall (copy of the call data), abi.decode(returnData, (string)) in TokenReader, revert(errorMessage) in Address._verifyCallResult (solc 0.7.5 memory copies)",
+      "issue": "Every bytes/string copy of this solc 0.7 build is a word loop followed by a masked store of the last partial word (38 'while idx >= 32' loops and 73 'while idx < n' loops); the tail expression with floor32(max(31, n)) and 256** masks is unreadable, and the copied data (call data, revert message 'SafeERC20: low-level call failed') is visible only through it.",
+      "rule": "A loop that copies 32-byte words from s to t while idx >= 32 (or idx < n), followed by 'mem[t' + floor32(n)] = mem[s' + floor32(n)] & ~(256**(32 - n % 32) - 1) | mem[t' + floor32(n)] & (256**(32 - n % 32) - 1)', is the copy mem[t len n] = mem[s len n] (the tail keeps the bytes after t + n); print it as one copy line. P7, with the masked-tail variant.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "handleBridgedTokens and the other handle* functions, relayTokens (both), relayTokensAndCall, onTokenTransfer, fixMediatorBalance, deployAndHandleBridgedTokens*",
+      "lines": "754, 794, 806 (one key three ways); 5390-5407; 2020-2049; 1982",
+      "decompiled": "stor0[sha3('totalExecutedPerDay', Bytes(20, ...), block.timestamp / (24 * 3600))]  |  stor0[sha3(mem[_22 + 32 len mem[_22]])]  |  _25 = sha3(sha3(mem[_22 + 32 len mem[_22]]), 0) ... stor0[sha3(mem[mem[64] + 32 len _21 - mem[64] + 174])] = _value + stor[_25]  |  mem[0] = sha3(mem[_198 + 32 len mem[_198]]) / stor0[concat(mem[0])] = mem[_109]  |  mem[mem[64]] = _197 - mem[64] + 90 (two lines after mem[64] = mem[64] + 62)",
+      "source": "TokensBridgeLimits.sol addTotalExecutedPerDay: uintStorage[keccak256(abi.encodePacked(\"totalExecutedPerDay\", _token, _day))] = totalExecutedPerDay(_token, _day).add(_value); _initializeTokenBridgeLimits: uintStorage[keccak256(abi.encodePacked(\"dailyLimit\", _token))] = _limits[0] ...",
+      "issue": "Eternal-storage keys built at the free-memory pointer are not resolved: the same uintStorage entry prints as a resolved key, as sha3 of a memory range, and as the raw slot stor[_25] with _25 = sha3(sha3(...), 0) in one function, and the dailyLimit / maxPerTx writes of _initializeTokenBridgeLimits (and interestImpl, mediatorBalance reads) go through 'stor0[concat(mem[0])]' (P4), so the variable written is visible only from scratch-memory writes above. Even '_197 - mem[64]' is not folded right after 'mem[64] = mem[64] + 62'.",
+      "rule": "Same root cause as P2: fold mem[64] to its last stored value while no store intervenes ('_197 - mem[64] + 90' is 28), read words written at base + constant through later range reads, so sha3(mem[_x + 32 len mem[_x]]) becomes sha3('dailyLimit', Bytes(20, token)); 'stor[sha3(k, n)]' is the mapping access storN[k], and 'storN[concat(mem[0])]' with mem[0] = k, mem[32] = N is storN[k].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "requestFailedMessageFix(bytes32)",
+      "lines": "338-340",
+      "decompiled": "call bridgeContract.requireToPassMessage(...) with: args mediatorContractOnOtherSide, Array(len=36, data=Bytes(4, 0x0950d515), Bytes(28, _messageId >> 32), _messageId << 224), requestGasLimit",
+      "source": "BasicOmnibridge.sol requestFailedMessageFix: bytes memory data = abi.encodeWithSelector(this.fixFailedMessage.selector, _messageId); _passMessage(data, true)",
+      "issue": "The 36-byte message is printed by memory words, so the 32-byte _messageId after the 4-byte selector is split into its first 28 bytes and its last 4 bytes.",
+      "rule": "Adjacent slices 'Bytes(28, x >> 32), (x << 224)' covering 32 consecutive bytes are x: concatenate the data of an Array by byte ranges, not by words, so it prints 'Bytes(4, 0x0950d515), _messageId'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "isTokenRegistered, isRegisteredAsNativeToken, set*Limit / set*PerTx, handle*, withinLimit (about 15 sites)",
+      "lines": "163-170, 218-223, 742-747; 349",
+      "decompiled": "if address(_token): _3 = stor0[sha3('minPerTx', ...)] > 0; _4 = _3 else: _4 = stor0[sha3('minPerTx', ...)] / require _4 > 0   |   stor0[sha3(Bytes(30, 0x6461696c794c696d6974000000000000000000000000000000000000000000))] > 0",
+      "source": "TokensBridgeLimits.sol isTokenRegistered: return minPerTx(_token) > 0 (minPerTx returns limit for token 0, limit > 0 ? 1 : 0 otherwise); withinLimit: dailyLimit(address(0)) > 0",
+      "issue": "Both arms give the same result once compared with 0, yet the branch and an SSA copy are printed at each inlined site; 'dailyLimit' + address(0) prints as a 30-byte constant while the same key with a variable prints as sha3('dailyLimit', Bytes(20, token)).",
+      "rule": "(x > 0) > 0 is x > 0, so 'if c: v = x > 0 else: v = x; ... v > 0' is 'x > 0'; split a packed constant key at the same boundaries as the variable form ('dailyLimit', Bytes(20, 0)).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Solc 0.7.5. The large functions (relayTokens x2, relayTokensAndCall, onTokenTransfer, deployAndHandleBridgedTokens(AndCall), fixMediatorBalance, handleNativeTokens(AndCall), fixFailedMessage, migrateTo_3_3_0) were reviewed by structure: owner / mediator / upgradeabilityOwner checks, the lock (stor6168) set and cleared around transferFrom, the balance-difference value, the token registration (_initializeTokenBridgeLimits writes and events), TokenReader name/symbol/decimals reads, the AMB requireToPassMessage call (P2 raw args), the _recordBridgeOperation writes and TokensBridgingInitiated; handleBridgedTokens, claimTokens and all small getters/setters were reviewed in full and are correct (claimNativeCoins' send with 'gas 2300 * (not value)' and the Sacrifice contract creation are right). The only explicit source loop is TokenReader.sol:88 (Yul for), shown readably at 20 inlined sites as 's = 0; t = data; while t: s = s + 1; t = 256 * t'. The other 111 whiles are compiler copies (P7). Selectors written as 4-byte slices print in decimal (2835717307, 2750734206). P8 is an estimate: nearly every eternal-storage key leaves its scratch writes (mem[0], mem[32], mem[128..]) in the text.",
+  "summary": "Faithful and complete, but dominated by solc 0.7 copy loops with masked tails (111 P7) and by eternal-storage keys that print three different ways, including P4 writes whose target is only visible through scratch memory."
+}

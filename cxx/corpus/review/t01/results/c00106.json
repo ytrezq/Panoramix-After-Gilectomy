@@ -1,0 +1,47 @@
+{
+  "id": "c00106",
+  "abi_functions": 61,
+  "reviewed": 61,
+  "not_reviewed": [],
+  "source_loops": 6,
+  "loops_shown": {"while": 6, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 9, "P6": 5, "P7": 8, "P8": 30, "P9": 4, "P11": 10, "P14": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "updateRewardTokens, pause, unpause, updateFeeReceiver and every 'restricted' function (6 lines; also in 12 other contracts)",
+      "lines": "449-451 and the other authority.canCall calls",
+      "decompiled": "static call authority.canCall(address _src, address _dst, bytes4 _sig) with: args Bytes(28, uint128(caller >> 32)), Bytes(4, uint32(caller)), this.address, call.func_hash",
+      "source": "AuthorityUtils.canCallWithDelay: abi.encodeCall(IAuthority.canCall, (caller, target, selector))",
+      "issue": "The first argument, msg.sender, is printed as two slices of caller (28 + 4 bytes) because the word was stored across the selector's 4-byte offset.",
+      "rule": "Adjacent pieces Bytes(28, x >> 32), Bytes(4, uint32(x)) of one value x that together cover a 32-byte argument are x (here caller); merge slices of the same source before decoding arguments.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "getPastVotes(address,uint256), getPastTotalSupply(uint256)",
+      "lines": "729, 653",
+      "decompiled": "if checkpoints[account].length < 0x100000000000000000000000000000000: _3 = checkpoints[account].length; _4 = 1 / else: _3 = checkpoints[account].field_128; _4 = 18446744073709551616",
+      "source": "Math.sqrt inside Checkpoints.upperLookupRecent: if (xAux >= 1 << 128) { xAux >>= 128; result <<= 64; } with xAux = ckpts.length",
+      "issue": "length >> 128 is printed as a member 'field_128' of the slot holding the array length, which reads like a struct field.",
+      "rule": "Print a shift of a whole-slot value that the storage analysis typed as a scalar (here an array length) as a shift ('checkpoints[account].length >> 128'), and use field_N only for slots typed as packed structs.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "updateRewardTokens(address[]), getPastVotes, getPastTotalSupply",
+      "lines": "475-476; 760-761 (and 684-685)",
+      "decompiled": "rewardTokens.length = 0 / stor[sha3(18) len -sha3(18) + max(_14 + sha3(18), sha3(18))] = 0  |  _26 = (((3 * _20 / 2 + checkpoints[account].length / (3 * _20 / 2)) / 2 + SafeMath.div(checkpoints[account].length, (3 * _20 / 2 + ...",
+      "source": "sPRL2.sol:306 delete rewardTokens; Math.sqrt's six Newton steps",
+      "issue": "The clearing of the old elements is a storage range whose length is an unsimplified max of offsets from sha3(18) (it is just the old length _14); the Newton iterations of Math.sqrt are substituted into each other into two lines of several hundred characters (P9).",
+      "rule": "max(a + c, c) - c is a when a + c does not wrap (here a is an array length, below 2**64): print rewardTokens[0 len _14] = 0; bind each Newton step 'result = (result + x / result) >> 1' to its own variable instead of substituting it.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small functions line by line; withdraw/emergencyWithdraw/withdrawMultiple/permit-deposit functions (unknownd6cca508, unknown83cc5d48, unknownbd89584b, unknown5339fd1b, unknown4b6a5298) by structure. Source loops (6): forwardRewards' for (343, inlined again in claimRewards 397 and updateFeeReceiver 842), updateRewardTokens' for (479), findUnlockingIDs' for (599, bound min(start + count, userVsNextID[account])), Checkpoints._upperBinaryLookup (701, 777, with Math.average as (s & t) + (s ^ t) / 2), _withdrawMultiple (947, 1900), cancelWithdrawalRequests (1758). Implicit: the address[] copy for the RewardTokensUpdated event (489), returned-array encodings and permit-array decodes (P7). AccessManaged's canCall decoding (delay * iszero(delay >> 32)) is right. No semantic problem found.",
+  "summary": "Clean, complete and faithful, with every source loop a readable while; small blemishes: caller split into two slices in every canCall, length >> 128 shown as field_128, an unsimplified storage clearing range and Math.sqrt's Newton steps merged."
+}

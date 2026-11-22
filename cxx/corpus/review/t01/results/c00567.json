@@ -1,0 +1,72 @@
+{
+ "id": "c00567",
+ "abi_functions": 60,
+ "reviewed": [
+  "all 60 ABI functions (immutables/constants, getters, Ownable2Step, admin handover, setters, chain forwarding calls, executeUpgrade, upgradeChainFromVersion, forwardedBridgeBurn/Mint/ConfirmTransferResult, createNewVerifierOnlyUpgrade, setUpgradeDiamondCut, setNewVersionUpgrade, setChainCreationParams, createNewChain, initialize)"
+ ],
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P1": 2,
+  "P2": 4,
+  "P7": 36,
+  "P8": 32,
+  "P10": 1
+ },
+ "findings": [
+  {
+   "kind": "loop",
+   "severity": "medium",
+   "function": "createNewVerifierOnlyUpgrade (unknownca4ea357), emit NewUpgradeCutData(_newProtocolVersion, _cutData)",
+   "lines": "788-822",
+   "decompiled": "while True:\n    log 0xf99295...: 32, 96, ..., indexed _param3\n    stop\n    mem[t] = v - ... - 772\n    _99 = mem[u]\n    ... (23 unreachable lines, nested while)",
+   "source": "Diamond.FacetCut[] memory emptyFacetCuts = new Diamond.FacetCut[](0); ... emit NewUpgradeCutData(_newProtocolVersion, _cutData);",
+   "issue": "The ABI-encoding loop over the empty facetCuts array has its exit test folded to true, but the loop is kept: 'while True' starts with the log and 'stop', followed by a dead body with its own nested while. The same encoding for the first NewUpgradeCutData event (line 781) is folded completely, so the function shows a loop that never runs.",
+   "rule": "When a loop's exit test is constant true on entry (index 0 against a known length 0), replace the loop by its exit path and drop the body.",
+   "verified": "by reading: mem[128] = 0 (line 706) is the facetCuts length and s starts at 0"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "setNewVersionUpgrade (unknown8265f458), createNewChain, executeUpgrade, upgradeChainFromVersion",
+   "lines": "1065-1092, 1197-1201 (setNewVersionUpgrade); 1851-1853; 503-505; 582-584",
+   "decompiled": "mem[mem[64]] = 0xd92e233d00000000000000000000000000000000000000000000000000000000\nrevert with memory\n  from mem[64]\n   len 4",
+   "source": "revert MigrationsNotPaused(); revert OutdatedProtocolVersion(previousProtocolVersion, _oldProtocolVersion); revert ZeroAddress(); IAdmin(zkChainAddress).genesisUpgrade(...)",
+   "issue": "Errors written at the free pointer are left as raw reverts, even 'revert with memory from mem[64] len 4' right after storing the ZeroAddress selector at mem[mem[64]], while createNewVerifierOnlyUpgrade shows the same three errors decoded (lines 741, 743, 783). The migrationPaused() static call, executeUpgrade, upgradeChainFromVersion and genesisUpgrade calls keep raw argument memory, and the lengths contain '_15 + ceil32(return_data.size) - mem[64]' terms that are constants.",
+   "rule": "Decode a revert or call whose data start is symbolic when the word at that start holds a known selector; treat a variable assigned mem[64] as equal to mem[64] until the next store to slot 64 so these lengths fold.",
+   "verified": "by reading: _15 = mem[64] and mem[64] = ceil32(return_data.size) + mem[64] on lines 1077-1078, so the error store at mem[_15 + ceil32(return_data.size)] is at the new mem[64]"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "getZKChain and every chain-forwarding function, createNewChain (onlyBridgehub), forwardedBridgeBurn/Mint/ConfirmTransferResult (onlyChainAssetHandler), _deployNewChain init data",
+   "lines": "3-7; 174, 226, 244 ...; 1619; 387, 624, 1259; 1381-1382, 1739-1740",
+   "decompiled": "const unknown5d4edca7 = 0; static call 0x0.unknowne680c4c1(?); if caller: revert with Unauthorized(address from), caller; mem[mem[64] + 68] = 0",
+   "source": "BRIDGE_HUB, INTEROP_CENTER, L1_BYTECODES_SUPPLIER, PERMISSIONLESS_VALIDATOR (immutables)",
+   "issue": "solc immutables read as 0, so every Bridgehub call goes to 0x0, onlyBridgehub becomes 'if caller', and the bridgehub/interop-center words of the chain's init data are 0.",
+   "rule": "Known artifact of immutables in runtime code; show them as named unknown constants rather than 0.",
+   "verified": "source declares the four as immutable"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "createNewVerifierOnlyUpgrade, forwardedBridgeMint, createNewChain",
+   "lines": "714-715; 1396, 1754; 1832-1836",
+   "decompiled": "mem[288 len 4] = 3614656166; mem[_49 + _51 + 324 len 5201] = code.data[5 * 3600 len 5201]; 2 * Mask(250, 5, mem[...] + 31)",
+   "source": "abi.encodeCall(IDefaultUpgrade.upgradeVerifierOnly, (_newProtocolVersion)); new DiamondProxy{salt: bytes32(0)}(block.chainid, diamondCut); genesisUpgrade(..., _forceDeploymentData, _factoryDeps)",
+   "issue": "The upgradeVerifierOnly selector is printed in decimal, the DiamondProxy creation-code offset 18000 as '5 * 3600', and two ceil32 terms of the genesisUpgrade calldata layout as '2 * Mask(250, 5, x + 31)'.",
+   "rule": "Print 4-byte stores of selectors and code offsets in hex, never factor offsets into time units, and print 'Mask(250, 5, x + 31)' as ceil32(x).",
+   "verified": "by reading: 3614656166 = 0xd77346a6, the selector used in the hashed data on line 769"
+  }
+ ],
+ "notes": "No explicit loops in EraChainTypeManager/ChainTypeManagerBase or the libraries they reach (source_loops 0). All 37 text whiles are implicit: decoding/encoding of DiamondCutData (FacetCut[] with nested bytes4[] selectors), calldata copies and event encodings (P7); the zero-trip one in createNewVerifierOnlyUpgrade is reported. isZKsyncOS's 'const = 0' is the real 'return false'. Version checks, SemVer unpacking, deadlines, cut-hash bookkeeping, StoredBatchInfo hashing, the CREATE2 deployment and the order of checks in createNewChain all match the source; reentrancyGuardInitializer's store before its check is harmless (revert undoes it).",
+ "summary": "All 60 functions reviewed; the text is semantically faithful (immutables aside) and has no source loops. Problems: a zero-trip encoding loop kept as 'while True' with stop first and a dead body, and errors and calls written at the free pointer left as raw memory in setNewVersionUpgrade, createNewChain and the upgrade forwarders while the same errors are decoded elsewhere."
+}

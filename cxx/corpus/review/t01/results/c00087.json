@@ -1,0 +1,36 @@
+{
+  "id": "c00087",
+  "abi_functions": 46,
+  "reviewed": 46,
+  "not_reviewed": [],
+  "source_loops": 12,
+  "loops_shown": {"while": 12, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 106, "P6": 60, "P7": 105, "P8": 500, "P10": 15, "P11": 10, "P12": 4, "P15": 32},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all functions using an immutable (FUND_DEPLOYER, VALUE_INTERPRETER, FEE_MANAGER, DISPATCHER, ...)",
+      "lines": "59-60, 70-71, 116-117, 643, 3338-3559 (getters)",
+      "decompiled": "if caller: revert with 'Only FundDeployer callable'  |  require ext_code.size(0) / call 0x0.deactivateForFund()  |  call 0x0.calcCanonicalAssetsTotalValue(...)  |  const getValueInterpreter = 0",
+      "source": "ComptrollerLib.sol immutables (FUND_DEPLOYER, VALUE_INTERPRETER, ...), onlyFundDeployer: require(msg.sender == FUND_DEPLOYER)",
+      "issue": "solc leaves the immutables as zeros in this pre-deployment bytecode: 11 getters print 'const ... = 0', 83 calls target 0x0, and the onlyFundDeployer check reads 'if caller: revert'.",
+      "rule": "None (solc immutable placeholder).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "deployGasRelayPaymaster(); storage slot 1 (destructActivated, destructUnactivated, the permissioned-action modifiers)",
+      "lines": "245-247; 18-19, 61-63, 76, 83",
+      "decompiled": "call 0x0.deployProxy(bytes _constructData) with: args Array(len=36, data=Bytes(16, 0x19ab453c000000000000000000000000), Bytes(16, vaultProxy >> 32), uint32(vaultProxy) << 224)  |  stor1_176 is uint16 at storage 1 offset 176 / if uint8(stor1_176): revert 'Vault action re-entrance' / if uint8(stor[1].field_160): revert '__selfDestruct: Only delegate callable'",
+      "source": "ComptrollerLib.sol deployGasRelayPaymaster: abi.encodeWithSignature('init(address)', getVaultProxy()); slot 1: vaultProxy, isLib (+20), autoProtocolFeeSharesBuyback (+21), permissionedVaultActionAllowed (+22), reentranceLocked (+23)",
+      "issue": "The 36-byte init(address) call data is printed by memory words, splitting the selector's padding and the address into 16 + 16 + 4 bytes; in def storage, permissionedVaultActionAllowed and reentranceLocked are merged into one uint16 'stor1_176' (P15) and isLib is not declared, so it prints as 'stor[1].field_160'.",
+      "rule": "Concatenate Array data by byte ranges: 'Bytes(16, s << 96), Bytes(16, a >> 32), uint32(a) << 224' over 36 bytes is 'Bytes(4, s), address(a)' (zero padding included). Declare one field per distinct access width/offset (here uint8 at offsets 160, 176, 184).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Solc 0.6.12. buyShares, buySharesOnBehalf (900 lines each), buyBackProtocolFeeShares, calcGav, calcGrossShareValue, redeemSharesInKind (1,275) and redeemSharesForSpecificAssets (1,480) were reviewed by structure: the GSN _msgSender (cd[calldata.size - 20] >> 96), the timelock and re-entrance flags, the vault calls (getTrackedAssets, getActiveExternalPositions, burnShares/mintShares, withdrawAssetTo), the fee/policy manager hooks (all to 0x0, artifact), the loops; the small functions were reviewed in full and are correct (e.g. destructActivated's payProtocolFee/deactivateForFund with the failure events and selfdestruct). Source loops: calcGav :495 and :503 (inlined in calcGav, calcGrossShareValue, buyShares, buySharesOnBehalf, buyBackProtocolFeeShares, the redeem functions), redeemSharesInKind :819, AddressArrayLib.contains :80, isUniqueSet :130/:131 (printed as a labelled nested loop 'loop1: while True' with 'continue loop1'), removeItems :154 and :166, __parseRedemptionPayoutAssets :849/:860/:864, __payoutSpecifiedAssetPercentages :885; all shown as while (14 'while True' and 24 'while s < n' instances). The other ~105 whiles are solc 0.6 copies of return data, call arguments and strings (P7, same shapes as c00544). P2: 98 call lines with raw-memory arguments (getManagedAssets / getDebtAssets of external positions, the ValueInterpreter calls, SafeERC20 transfers). P11: 'assert s < len' bounds checks implied by the loop tests. P12: the _assetsToSkip copy duplicated in both arms of the isUniqueSet test (3415-3423).",
+  "summary": "Faithful and complete with every source loop shown (nested loops nicely labelled); readability suffers from solc 0.6 copy loops, raw-memory call arguments and the zero immutables (artifact)."
+}

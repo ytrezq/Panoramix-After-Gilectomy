@@ -1,0 +1,22 @@
+{
+ "id": "c00395",
+ "abi_functions": 1,
+ "reviewed": [
+  "setImplementation(address)",
+  "fallback (delegate to the EIP-1967 implementation)"
+ ],
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {},
+ "findings": [],
+ "notes": "No loops. setImplementation's admin check (ADMIN_SLOT read raw by assembly, compared after cleaning) and the store to IMPLEMENTATION_SLOT, and the fallback's code-length check on the cleaned address followed by the delegatecall with the raw slot value (only the low 160 bits are used) and the returndata bubbling, match the source. The implementation slot is declared uint256 because it is read without masking; acceptable.",
+ "summary": "Both entry points reviewed; the 24-line text matches the proxy source exactly, with no loops and no findings."
+}

@@ -1,0 +1,48 @@
+{
+  "id": "c00536",
+  "abi_functions": 20,
+  "reviewed": 20,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {
+    "while": 5,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 46,
+    "P4": 5,
+    "P6": 21,
+    "P11": 20,
+    "P12": 20
+  },
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "swap((address,uint256,bytes),address,address,uint256,bytes)",
+      "lines": "819, 1759, 2866 (calls); 4214-4217 (internal_0x12ec)",
+      "decompiled": "_224, _225 = internal_0x12ec(_36, mem[mem[_36] + 80 len 16], mem[mem[_36] + 64 len 16], 4990, ...)  /  def internal_0x12ec(...): if not _param7: revert with 0xa7406b60, _param6, _param5 / ...  # Decompilation aborted, sorry: ('jump to a parameter computed at runtime', 4852)",
+      "source": "VM.sol:122 runLoop: for (uint256 pc = ctx.vm.nextPC; pc < programBytes.length; ) { ... instructions[opcode](ctx, args) ... } called from SwapVM.swap",
+      "issue": "In swap the VM run loop is entered through a different internal entry whose dispatch to the instruction handler (an internal function pointer passed as a parameter, 4990) is a computed jump, so the whole program execution of a swap - every instruction, balance update and the maker/taker amounts - is missing from swap's text. quote runs the same loop through internal_0x1356, where the dispatch is resolved into an if-chain on the pointer values.",
+      "rule": "A jump whose target is a value that the callers only ever pass as constants (here the return/handler tag 4990, and the function-pointer table entries) can be resolved by enumerating the constants that reach it, as is already done for internal_0x1356; when the set is finite, decompile each target instead of aborting.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "quote, swap (internal_0x1356 dispatch), hash, eip712Domain",
+      "lines": "4219-4240 (VM loop and dispatch); 4378-4385 (Balances); 4611-4620, 4641, 5871 (Power.pow x3)",
+      "decompiled": "if mem[(Mask(8, 248, cd[(_2 >> 128) + s]) >> 243) + mem[mem[_param1] + 128] + 32] != 37: if 4 == mem[...]: ...  |  if -20 * idx + 20 * (cd[...] >> 240) < 20: _612 = Mask(160, 96, 0xffff...ffff000000000000000000000000 << 160 * idx - 160 * (cd[...] >> 240) + 160 & cd[...])",
+      "source": "VM.sol runLoop: instructions[opcode](ctx, args) with the opcode table from LimitOpcodesDebug._opcodes(); Balances._staticBalancesXD reads tokens[i * 20 : i * 20 + 20]; Power.pow (while exponent > 0)",
+      "issue": "The instruction dispatch is an if-chain on internal function-pointer IDs read from the opcode table in memory (37, 4, 5, ...), with no link to the instruction names; a 20-byte calldata slice is a masked shift whose short-slice branch can never be taken inside the loop; Power.pow is inlined three times with its loop.",
+      "rule": "A memory array filled with constant function-pointer IDs and indexed by an opcode is a jump table: print the dispatch as 'opcode == k: handler_k(...)' using the constant stored at index k; a slice read guarded by 'remaining < 20' that the loop bound excludes is the plain 20-byte read.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against SwapVM.sol, VM.sol, LimitOpcodes(Debug), the instructions reached by the Limit opcode table (Balances._staticBalancesXD, DutchAuction, TWAPSwap, Debug, ...), Power, EIP712/Ownable/Simulator. The small functions (invalidators, balances, owner functions, rescueFunds, simulate, hash, eip712Domain) were read; quote (307 lines) by structure; swap (3,639 lines) and internal_0x1356 (1,695 lines, the VM loop and all inlined instruction handlers) by structure only, given their size and the aborted path. Loops: 5 source loops reached - VM.runLoop (4224), Balances._staticBalancesXD's token loop (4378), Power.pow (inlined 3 times: 4611, 4641, 5871), Debug._toHexString (5424) and OZ Strings.toHexString's digit loop (5544) - all shown as while; Balances' other loops belong to _dynamicBalancesXD / build, which the Limit opcode table does not reference. The swap path through internal_0x12ec is lost (coverage finding), so loops reached only from there could not be checked in swap. EIP712 name/version and AQUA/WETH are immutables (artifact, read as 0).",
+  "summary": "The quote path and the small functions are faithful and the reached loops are present, but swap's VM execution is lost to an aborted computed jump, and the instruction dispatch elsewhere is an unnamed if-chain on function-pointer IDs."
+}

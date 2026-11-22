@@ -1,0 +1,13 @@
+{
+  "id": "c00404",
+  "abi_functions": 2,
+  "reviewed": 2,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [],
+  "notes": "SimpleContract: setValue(uint256) writes slot 0 after the ABI length check, value() returns it, the fallback reverts; all exact and minimal. No loops.",
+  "summary": "Trivial contract, decompiled exactly and as simply as possible."
+}

@@ -1,0 +1,48 @@
+{
+ "id": "c00338",
+ "abi_functions": 14,
+ "reviewed": [
+  "all 14 ABI functions (owner, permittedCaller, Ownable, add/remove/checkPermittedCaller, supportsInterface, TuringRandom, Turing42, TuringTx, GetResponse, GetRandom, Get42)"
+ ],
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P6": 26,
+  "P7": 6,
+  "P10": 1
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "GetRandom (unknown493d57d6), Get42 (unknowne86f1899)",
+   "lines": "267-492, 494-721",
+   "decompiled": "if _param1 != 1:\n    if _param1 != 10:\n        ... (12 levels)\n            else:\n                mem[128] = 27\n                mem[160] = 0x545552494e473a20496e73756666696369656e74206372656469740000000000\n                ...\n                _19 = 228; _21 = 27; _22 = 27; _23 = 260; _24 = 160\n            _29 = _19; _31 = _21; _32 = _22; _33 = _23; _34 = _24\n...\nrevert with memory from mem[64] len _113 + ceil32(_115) - mem[64] + 32",
+   "source": "require (rType == 2, string(GetErrorCode(rType)));",
+   "issue": "GetErrorCode's twelve messages are built at constant offsets but merged through five phi variables per nesting level into a single raw revert, so the reasons appear only as hex words ('0x545552494e473a20496e73756666696369656e7420...' for 'TURING: Insufficient credit'); GetResponse prints the same logic as twelve decoded 'revert with ...' lines.",
+   "rule": "Do not merge reverts whose data differ only in a constant string; keep one revert per path (or sink the revert into each arm) so the Error(string) can be decoded, and print printable 32-byte words as strings.",
+   "verified": "by reading: 0x545552494e473a20496e73756666696369656e74206372656469740000000000 is ASCII 'TURING: Insufficient credit' (length 27)"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "TuringTx (unknown2f7adf43)",
+   "lines": "213-216",
+   "decompiled": "mem[2 * Mask(250, 5, cd[_param1 + 4] + 31) + ceil32(cd[_param2 + 4]) + 324] = cd[_param2 + 4]",
+   "source": "Self.GetResponse(1, _url, _payload)",
+   "issue": "Two ceil32 terms of the call's argument layout are merged into '2 * Mask(250, 5, x + 31)'.",
+   "rule": "Print Mask(250, 5, x + 31) as ceil32(x).",
+   "verified": "by reading"
+  }
+ ],
+ "notes": "No loops in TuringHelper.sol (source_loops 0); the six text whiles are memory copies (P7). Permitted-caller checks, Self calls with (1, url, payload), (1, 0) and (2, 42), event arguments, GetResponse's checks and the early revert per error code match the source. No immutables.",
+ "summary": "All 14 functions reviewed; no source loops and the semantics match. GetRandom and Get42 hide GetErrorCode's messages behind a 12-level phi chain and one raw revert, unlike GetResponse where the same messages are decoded."
+}

@@ -1,0 +1,59 @@
+{
+  "id": "c00376",
+  "abi_functions": 3,
+  "reviewed": 3,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {
+    "while": 2,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 1,
+    "P4": 1,
+    "P8": 9,
+    "P11": 3,
+    "P14": 12
+  },
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "SetCheckpoint(uint256,bytes32,bytes32,uint64,uint8[],bytes32[],bytes32[])",
+      "lines": "80-125",
+      "decompiled": "while True:\n    require t < mem[128]\n    _22 = mem[32 * t + 160]\n    assert t < mem[32 * v.length + 160]\n    _24 = mem[32 * t + 32 * v.length + 192]\n    assert t < mem[32 * v.length + 32 * r.length + 192]\n    _26 = mem[32 * t + 32 * v.length + 32 * r.length + 224]\n    ...",
+      "source": "oracle.sol:106-122 for (uint idx = 0; idx < v.length; idx++){ ... ecrecover(signedHash, v[idx], r[idx], s[idx]) ... } revert();",
+      "issue": "The for loop is found, but its condition is a 'require' inside 'while True' (the exit edge reverts), v.length is mem[128], r.length and s.length are memory reads at the addresses where the text itself stored them (lines 43, 50), and v[t], r[t], s[t] are memory arithmetic; the bounds checks for the event's re-reads are kept (105-109).",
+      "rule": "Name a memory array decoded from a calldata parameter (length word at a, element k at a + 32 + 32k) and forward its length into the loop when the loop only stores at or above the free-memory pointer; print a loop whose exit edge reverts as 'while cond: ...' followed by the revert.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "semantics",
+      "severity": "medium",
+      "function": "SetCheckpoint(uint256,bytes32,bytes32,uint64,uint8[],bytes32[],bytes32[])",
+      "lines": "89-104, 111-116, 128-132",
+      "decompiled": "_27 = mem[64]; mem[mem[64]] = 0; mem[64] = _27 + 32\nmem[_27 + 32] = sha3(...); mem[_27 + 64] = uint8(_22) ...\nsigner2 = ecrecover(mem[mem[64] len _27 - mem[64] + 160]) # precompiled\nmem[0] = Bytes(12, 0), mem[mem[64] - 20 len 20] ... require stor0[concat(mem[0])]\nlog NewCheckpointVote(...): mem[mem[64] len _38 - mem[64] + 128], indexed uint64(_sectionIndex)\nreturn memory\n  from mem[64]\n len _42 - mem[64] + 32",
+      "source": "oracle.sol:107-111, 118, 123: ecrecover(signedHash, v[idx], r[idx], s[idx]); require(admins[signer]); emit NewCheckpointVote(...); return true / false",
+      "issue": "Inside the loop the free-memory pointer is loop-carried, and a store at mem[64] + k right after 'mem[64] = _27 + 32' is not proven distinct from slot 64. So the ecrecover arguments, the event data, the admins key (P4) and the function's boolean return value all print as raw memory ranges, though the stores that fill them are on the lines above.",
+      "rule": "Same root cause as c00463: a store at an address >= the initial free pointer (128) never writes slot 64, so mem[64] = _27 + 32 forwards past such stores; then the ranges resolve to ecrecover(sha3(...), uint8(_22), _24, _26), stor0[address(_30)], log NewCheckpointVote(_hash, uint8(_33), _35, _37) and return bool(_41).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "GetAllAdmin(), SetCheckpoint(...)",
+      "lines": "21-22, 53-54, 63-71, 73-79",
+      "decompiled": "if stor1.length:\n    mem[160 len 32 * stor1.length] = code.data[1719 len 32 * stor1.length]\n... mem[0] = caller; mem[32] = 0; require stor0[caller]\n... if stor2 != uint64(_sectionIndex): _4 = 0 else: if uint64(_sectionIndex): _4 = 1 else: _4 = bool(stor3)",
+      "source": "oracle.sol:134 new address[](adminList.length); :62 require(admins[msg.sender]); :81 if (_sectionIndex == sectionIndex && (_sectionIndex != 0 || height != 0))",
+      "issue": "The zero-fill of the new array is a copy from past the end of the code (1719 = code size) that the reader must recognize as zeros; the memory stores that build mapping keys and the encodePacked buffer stay beside the sha3/mapping forms that already show them (P8); a short-circuit condition is printed as a three-armed phi.",
+      "rule": "Print code.data[codesize len n] as zeros; drop memory stores whose only reads were folded into sha3(...) or mapping accesses; print a phi of constants and a bool over a short-circuit as the boolean expression a and (b or c).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Both source loops are while loops (GetAllAdmin's copy loop is readable). The three array decodings are copy lines. The signed hash is recomputed inside the loop text as sha3(Bytes(2, 0x1900), Bytes(20, this.address), Bytes(8, uint64(_sectionIndex)), _hash) - same value as the source's precomputed signedHash. admins (mapping to bool) prints as 'mapping of uint8'; the storage variables have no getters and stay storN. All checks, early returns (return 0), the threshold update of stor4/stor3/stor2 and the final revert (require t < mem[128] when the loop ends) are present and correct.",
+  "summary": "Both loops are found and the checks are right, but SetCheckpoint's loop is obscured by memory-array arithmetic and the free-memory-pointer alias problem, which turns the ecrecover arguments, event data, admins key and the boolean return into raw memory ranges."
+}

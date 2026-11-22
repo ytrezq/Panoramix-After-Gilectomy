@@ -1,0 +1,25 @@
+{
+  "id": "c00286",
+  "abi_functions": 28,
+  "reviewed": 28,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P6": 2, "P7": 6, "P8": 20},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "executeBatch(address[],uint256[],bytes[],bytes32,bytes32) (also execute, cancel, schedule*)",
+      "lines": "520-556",
+      "decompiled": "_39 = mem[64]; mem[mem[64]] = 0x8c379a0...; mem[_39 + 4] = 32; mem[_39 + 36] = 51; mem[_39 + 68] = 0x54696d656c6f636b...; revert with memory from mem[64] len _39 - mem[64] + 132 ; ... log CallExecuted(...): mem[mem[64] len _38 + ceil32(...) - mem[64] + 1... ; call address(...) with: value ... args mem[mem[64] len _34 + cd[...] - mem[64]]",
+      "source": "TimelockController._call: (bool success, ) = target.call{value: value}(data); require(success, \"TimelockController: underlying transaction reverted\"); emit CallExecuted(id, index, target, value, data); _afterCall: require(isOperationReady(id), \"TimelockController: operation is not ready\")",
+      "issue": "With `_39`, `_38`, `_34` each a copy of mem[64] and no store to slot 64 before the use, the revert reasons, the CallExecuted data and the call's data stay raw memory; the same message 'TimelockController: operation is not ready' is decoded at the top of the function and left as hex words at the bottom.",
+      "rule": "Fold `x - mem[64]` to 0 when x is a copy of mem[64] and the only intervening stores are at `mem[mem[64] + k]` (k >= 0, the pointer being >= 0x80), then decode Error(string) reverts, log data and call arguments.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All functions are short (executeBatch ~140 lines); all reviewed. Source loops: scheduleBatch's CallScheduled loop and executeBatch's _call loop, both `while idx < targets.length` with the `assert idx < values.length / datas.length` bounds checks of solc 0.7 (INVALID shown as assert). Implicit: address[]/bytes[] encodings for hashOperationBatch (P7). The readiness and predecessor checks, the timestamp writes (`timestamp[id] = 1` for done) and the batch semantics follow the source. No semantic error found.",
+  "summary": "Faithful, abort-free text with both batch loops as whiles; the main issue is the unresolved free-memory pointer that leaves revert strings, event data and call data as raw memory in parts of the same function."
+}

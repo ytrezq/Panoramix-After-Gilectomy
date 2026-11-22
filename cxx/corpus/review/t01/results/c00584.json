@@ -1,0 +1,47 @@
+{
+  "id": "c00584",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 411, "P6": 140, "P7": 21, "P8": 20, "P9": 6, "P11": 12, "P18": 40},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "doHardWork(), withdrawToVault(uint256), withdrawAllToVault(), emergencyExit() (the flash-loan paths)",
+      "lines": "6341-6372, 6386-6392 (withdrawToVault); same shape at 6858, 6990, 7074, 9442, 9907, 10015, 10099",
+      "decompiled": "mem[_1003 + ceil32(return_data.size)] = 1 / mem[64] = _1003 + ceil32(return_data.size) + 64 / mem[_1003 + ceil32(return_data.size) + 32] = cd[calldata.size] / ... if 0 >= mem[_1003 + ceil32(return_data.size)]: revert with Panic(50) / _1014 = mem[_1003 + ceil32(return_data.size)] / while idx < _1014: mem[t] = Bytes(12, 0), mem[s + 12 len 20] ... / call 0xba12222222228d8ba445958a75a0704d566bf2c8 with: args mem[mem[64] len _1012 + 32 * _1014 + 32 * _1019 + ceil32(_1023) - mem[64] + 228]",
+      "source": "AaveFoldStrategy.sol _depositWithFlashloan/_redeemWithFlashloan: address[] memory tokens = new address[](1); uint256[] memory amounts = new uint256[](1); ... IBVault(bVault).flashLoan(address(this), tokens, amounts, \"\")",
+      "issue": "The flash-loan arrays have the constant length 1, stored three lines before, but it is re-read as unknown: the bounds checks 'if 0 >= mem[..]: Panic(50)' stay, the ABI encoding of each 1-element array stays a while (16 of the 21 P7 loops), and the flashLoan call keeps raw memory arguments. This is the P2 root cause (411 call lines here, nearly every external call) showing also on constant lengths.",
+      "rule": "Same as the known P2 fix: from 'mem[64] = b + 64' with b = _1003 + ceil32(rds) and no store that can reach slot 64 (b + 32 >= 128 because every mem[64] value is >= 128), fold _1006 = mem[64] = b + 64; then the length read at b folds to 1, the bounds check folds away and the 1-trip copy loop becomes a single store.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "isRewardToken(address), rewardTokens(), doHardWork(), withdrawToVault(uint256)",
+      "lines": "502-503, 532-533, 6343, 6347",
+      "decompiled": "mem[160 len 32 * stor4541] = call.data[calldata.size len 32 * stor4541] / mem[_1006 + 32] = cd[calldata.size]",
+      "source": "BaseUpgradeableStrategyStorage.sol:281 values = new address[](getUint256(slot)); new uint256[](1)",
+      "issue": "Zero-initialisation of new arrays prints as calldata reads at calldata.size (22 'cd[calldata.size]' and 2 copy lines).",
+      "rule": "Calldata at an offset >= calldata.size reads as zero: cd[calldata.size] is 0 and a CALLDATACOPY from calldata.size is a zero fill.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "isRewardToken(address), rewardTokens(), _fallback / receive",
+      "lines": "506-513, 536-543, 132-133",
+      "decompiled": "while s < _9: ... if s >= stor4541: revert with Panic(50) ... _9 = stor4541   and   require calldata.size < 4 / require not calldata.size",
+      "source": "BaseUpgradeableStrategyStorage.sol:282 for (uint i = 0; i < values.length; i++) values[i] = getAddress(bytes32(uint(slot) + 1 + i)); receive() external payable {}",
+      "issue": "The bounds check of values[i] repeats the loop condition (the length was read into _9 from the same unchanged slot), and the fallback's first require is implied by the second (P11).",
+      "rule": "A check whose condition is the negation of a dominating loop condition on the same value (no store to that slot in between) is dead; 'require x < 4' followed by 'require x == 0' is 'require x == 0'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Very long functions (doHardWork ~3,000 lines, withdrawToVault ~2,620, withdrawAllToVault ~2,400, emergencyExit ~770) reviewed by structure. Source loops: _isAddressInList (516, while True with breaks), getAddressArray (506, 536), _liquidateReward's for over rewardTokens (2902, 7924), _redeemNoFlash's while (1630, 4092 with the target folded to 0 because _borrowNum = 0 in _redeemMaximumNoFlash, 5229, 6538, 9587), _depositNoFlash's while (6014, 9111): all readable whiles. Implicit: the receiveFlashLoan address[] calldata decode with per-element checks (942) and 21 ABI encodings of address[] arrays (P7: 550 and 20 in the flash-loan/swap calls). Checked by reading: receiveFlashLoan's caller check against the Balancer vault constant, the two flag requires, the amounts[0] + feeAmounts[0] overflow check; _redeemNoFlash's min(amount + toRepay, supplied - requiredCollateral) (the add is printed before the div but cannot overflow after oldBalance.sub(amount), so the order of checks is not observable). P6 lines are mostly the 0x08c379a0 selector of raw-memory reverts and 0x03140ff4.",
+  "summary": "Faithful, with every source loop a readable while, but nearly every external call (411 lines) and many reverts keep raw memory arguments because the free-memory pointer is not tracked; that also leaves constant flash-loan array lengths unknown, keeping dead bounds checks and 1-trip encoding loops."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "c00202",
+  "abi_functions": 40,
+  "reviewed": 40,
+  "not_reviewed": [],
+  "source_loops": 6,
+  "loops_shown": {"while": 6, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 4, "P6": 13, "P7": 20, "P9": 29},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "computeInvariant(uint256[],uint8) (StableMath.computeInvariant), computeBalance(uint256[],uint256,uint256), onSwap (StableMath.computeBalance)",
+      "lines": "725-768, 1436-1450 and 29 lines over 400 characters",
+      "decompiled": "u = (u * (SafeMath.mul(_3 * cd[_param1 + 4], s) / 1000) + u * w * cd[_param1 + 4]) / (w + SafeMath.mul(w, cd[_param1 + 4]) + (-1000 * u + _3 * u * cd[_param1 + 4]) / 1000)  (the same quotient printed 7 times)   /   _78 = (_75 * mem[32 * _param2 + 160] + bool(_51 * _param3) * bool(_51 * _param3) + 2 * ((_51 * _param3 - 1) / 10**18) * bool(_51 * _param3) * bool(...) ...",
+      "source": "StableMath.sol:108-130 invariant = ((((ampTimesTotal * sum) / AMP_PRECISION) + (D_P * numTokens)) * invariant) / ((((ampTimesTotal - AMP_PRECISION) * invariant) / AMP_PRECISION) + ((numTokens + 1) * D_P)); computeBalance: tokenBalance = (tokenBalance * tokenBalance + c) / (2 * tokenBalance + b - invariant) with mulUp/divUp",
+      "issue": "Products are distributed over sums (P9) - even the square of a mulUp result is expanded into cross terms - and the new invariant of each Newton step is not named, so the same 250-character quotient is recomputed in the convergence tests, the update and the return.",
+      "rule": "Do not distribute a product over a sum when the factored form is what the code computes (the factored form is shorter and exact); bind a pure expression used more than once in a block to a temporary at its first use.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The pack's 'reached' list has only 3 StablePool functions; the StableMath library functions inlined in this bytecode were reviewed from pkg/solidity-utils/contracts/math/StableMath.sol. Source loops (6), all whiles: getMinAndMaxBalances (min/max loop at 702, with min()), computeInvariant's sum loop (715), Newton loop ('while True' with the 255-iteration revert StableInvariantDidNotConverge at the top and break on convergence, 725) and inner D_P loop (730), computeBalance's product/sum loop and Newton loop (1442, 1558, 1659, 1763 in the inlined copies, revert StableGetBalanceDidNotConverge). Other whiles are implicit ABI loops over uint256[] arguments and returned arrays (P7). Amplification-parameter update (start/stop, time interpolation) and the Vault immutable (0x0 calls) match; immutables read as 0.",
+  "summary": "Faithful, with all six StableMath loops present as whiles, but the invariant and balance iterations are hard to read because products are distributed over sums and the per-step results are recomputed instead of named."
+}

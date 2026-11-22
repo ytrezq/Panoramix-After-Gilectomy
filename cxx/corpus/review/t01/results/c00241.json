@@ -1,0 +1,58 @@
+{
+  "id": "c00241",
+  "abi_functions": 32,
+  "reviewed": 32,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {
+    "while": 2,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 1,
+    "P3": 1,
+    "P6": 43,
+    "P12": 60
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "setTargetFunctionRole, canCall, execute, schedule, consumeScheduledOp, getTargetFunctionRole and the onlyAuthorized prologue of every restricted function (64 lines)",
+      "lines": "1583, 1594, 1708, 1755 ...",
+      "decompiled": "uint64(stor[sha3(Mask(32, 224, cd[32 * idx + _param2 + 36]), sha3(_param1, 0))]) = _param3   |   _61 = uint64(stor[sha3(call.func_hash, sha3(this.address, 0))])",
+      "source": "AccessManager.sol:_setTargetFunctionRole: _targets[target].allowedRoles[selector] = roleId; getTargetFunctionRole: return _targets[target].allowedRoles[selector];",
+      "issue": "The mapping member allowedRoles of the struct TargetConfig stored in the mapping _targets is printed as raw nested keccak arithmetic, while the struct's other members (adminDelay, closed) are named fields; the main permission table of the contract is never shown as a mapping (as c00600 reports for EnumerableSet._indexes).",
+      "rule": "sha3(k2, sha3(k1, s) + j) with a constant j is element k2 of the mapping at member j of the struct s[k1] (here j = 0: sha3(k2, sha3(k1, s))); print stor0[_param1].field_0[selector].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setTargetFunctionRole, setGrantDelay, setTargetAdminDelay, grantRole, getAccess, getRoleGrantDelay, getTargetAdminDelay, canCall ... (36 lines)",
+      "lines": "1691-1692",
+      "decompiled": "_93 = uint32(_89) == (uint32(_55) > uint32(_89)) * (uint32(_89) ^ uint32(_55)) / _94 = uint32(_89) ^ (uint32(_55) > uint32(_89)) * (uint32(_89) ^ uint32(_55))",
+      "source": "Time.Delay getFullAt / unpack using Math.ternary(..) (b ^ ((a ^ b) * toUint(c)))",
+      "issue": "OpenZeppelin's branchless ternary/min/max is printed raw (as in c00573).",
+      "rule": "As in c00573: b ^ (c * (a ^ b)) with a boolean c is 'a if c else b'; with c = (a > b) it is max(a, b).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setTargetFunctionRole, setRoleAdmin, setRoleGuardian, setGrantDelay, setTargetAdminDelay, setTargetClosed, labelRole, grantRole, revokeRole, updateAuthority (90 lines)",
+      "lines": "1730-1745",
+      "decompiled": "if not uint48(stor2[sha3(caller, this.address, 96, calldata.size, call.data[0 len calldata.size], Bytes(-calldata.size + ceil32(calldata.size), 0))].field_0): ... (the same key on 7 consecutive lines)",
+      "source": "AccessManager._consumeScheduledOp(hashOperation(caller, address(this), msg.data))",
+      "issue": "The operation id keccak256(abi.encode(caller, this, msg.data)) is recomputed in each of the 7 lines that use it, in each restricted function.",
+      "rule": "Bind a non-trivial expression (here a keccak over calldata) used more than twice to a temporary (operationId).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "OpenZeppelin AccessManager. All small views reviewed in detail; the restricted setters, execute, schedule, cancel, consumeScheduledOp by structure (prologue of onlyAuthorized with its three paths: self-call with the transient execution id, immediate, delayed via a scheduled op). Source loops: 2, whiles: setTargetFunctionRole's for (printed 3 times, once per path of the onlyAuthorized prologue, P12: 1578, 1698, 1749) and Multicall's for (241; the pack has no AST source for multicall, but OZ Multicall has the loop). Implicit loops: multicall's rotated zero-init of new bytes[](n) ('while idx - 1', P3) and its return encoding. P12: the whole body of setTargetFunctionRole and of the other restricted functions repeated in each authorization path (~60 lines). The transient execution id prints as transient[-4] (TransientSlot at keccak-derived slot).",
+  "summary": "Faithful, with both loops found; readability suffers from the restricted-function bodies repeated per authorization path, the allowedRoles mapping-in-struct left as raw keccak arithmetic, and the operation id recomputed on every line."
+}

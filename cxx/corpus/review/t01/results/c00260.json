@@ -1,0 +1,36 @@
+{
+ "id": "c00260",
+ "abi_functions": 22,
+ "reviewed": 22,
+ "not_reviewed": [],
+ "source_loops": 1,
+ "loops_shown": {
+  "while": 1,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 2,
+  "P6": 2,
+  "P8": 15,
+  "P18": 12
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "setEnforcedOptions((uint32,uint16,bytes)[])",
+   "lines": "222-264",
+   "decompiled": "mem[0] = Bytes(28, 0), mem[mem[32 * s + 160] + 28 len 4]; mem[32] = 3; _86 = sha3(mem[0], 3) / mem[0] = Bytes(30, 0), mem[mem[32 * s + 160] + 62 len 2]; mem[32] = _86; _94 = sha3(mem[0], _86) ... stor[_94] = 2 * _97 + 1",
+   "source": "OAppOptionsType3.sol:45 enforcedOptions[_enforcedOptions[i].eid][_enforcedOptions[i].msgType] = _enforcedOptions[i].options",
+   "issue": "The decoded struct fields are read as byte slices of memory and the nested mapping slot stays sha3(sha3(eid, 3)) arithmetic, so the bytes write to enforcedOptions[eid][msgType] reads as writes to stor[_94].",
+   "rule": "Bytes(32 - n, 0), mem[a + 32 - n len n] is uint(8n)(mem[a]); sha3(k2, sha3(k1, p)) with p a declared mapping slot is m[k1][k2] (print the storage-bytes write against that name).",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "One source loop (OAppOptionsType3._setEnforcedOptions:42), a readable while in setEnforcedOptions; the implicit calldata decode of the struct array and the event encoding are whiles too (readable, the bytes copies inside them are copy lines), and the storage-bytes write is open-coded (long/short string encoding, copy lines). All 22 functions reviewed (LayerZero OApp plumbing, forwarder sends); immutable endpoint/oracle addresses read as 0 (artifact, normal). No semantic error found.",
+ "summary": "Clean and faithful; the loop is readable, with struct fields as memory slices and the nested-mapping bytes write left as raw slots."
+}

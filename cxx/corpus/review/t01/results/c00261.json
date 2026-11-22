@@ -1,0 +1,36 @@
+{
+  "id": "c00261",
+  "abi_functions": 20,
+  "reviewed": 20,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {
+    "while": 1,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 2,
+    "P7": 1,
+    "P8": 30,
+    "P11": 15
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "sendMessage (unknowncdfe7f5c), receiveWormholeMessages (unknowna4766700), the InteroperableAddress parsing functions (unknownef382213, unknown0a225474) and registerChain-like setters",
+      "lines": "21 'revert with memory from mem[64]' (e.g. in 1298-1896)",
+      "decompiled": "_x = mem[64] / mem[mem[64]] = <selector> / mem[_x + 4] = ... / revert with memory from mem[64] len _x - mem[64] + 36",
+      "source": "custom errors with arguments of the Wormhole gateway adapter and ERC-7786 base (UnsupportedAttribute(bytes4), UnsupportedNativeChain / InvalidRemote..., the InteroperableAddress parse errors)",
+      "issue": "Same cause as P2 in c00463: every custom-error revert with an argument is a memory range at the free pointer (21 of them), while the six reverts written at a fixed address print as 'revert with 0xe7c8d4cf, ...'.",
+      "rule": "Same as c00463.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against WormholeGatewayAdapter.sol, the ERC-7786 gateway/receiver bases, InteroperableAddress and Bytes helpers, Ownable. All 20 ABI functions were read (the largest, sendMessage, is 598 lines: attribute loop, chain lookup, fee quote, the Wormhole relayer call with the encoded payload, event). Loops: 1 source loop (sendMessage's attributes loop) shown as while; implicit: the bytes[] attributes decode and an encode loop. Many copy lines for the bytes slicing of interoperable addresses (exact). Only 2 P2 lines. No execution run.",
+  "summary": "Faithful and fairly clean, with its one source loop present; the main defect is that custom-error reverts with arguments are hidden in free-pointer memory."
+}

@@ -1,0 +1,38 @@
+{
+ "id": "c00197",
+ "abi_functions": 51,
+ "reviewed": 51,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 5,
+  "P6": 11,
+  "P7": 6,
+  "P8": 30,
+  "P11": 2,
+  "P14": 40
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "decimalsOffset-style getter unknowndd116220() and initializeMasterTokenAndStrategy(uint256,address)",
+   "lines": "244-262, 1326",
+   "decompiled": "if decimals >= 78 and decimals >= 32: s = 10 / t = 1 / u = decimals / while u > 1: if s > -1 / s: revert Panic(17); if not u % 2: _2 = t else: _2 = s * t; s = s * s; t = _2; u = u / 2",
+   "source": "10 ** decimals (solc checked_exp_unsigned helper: exp() when base < 11 and exponent < 78, else square-and-multiply)",
+   "issue": "The compiler's checked exponentiation is printed as its loop (an implicit loop, P7) with a redundant guard `decimals >= 78 and decimals >= 32` (the second conjunct is implied), instead of `10 ** decimals` with an overflow check.",
+   "rule": "Recognise the square-and-multiply loop with overflow checks (`while e > 1: if b > MAX / b: Panic(17); if e % 2: r *= b; b *= b; e /= 2`) as a checked `base ** exponent`; drop a conjunct implied by another (`x >= 78` implies `x >= 32`).",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Katana AvKATVault (solc 0.8.24). No explicit loop in the vault's own code; the VotingEscrowIncreasing loops listed in the pack run in the escrow contract. The 6 whiles are implicit: two checked-exponentiation helper loops and four SafeERC20/abi bytes copy loops (`while idx < n: mem[d + idx] = mem[s + idx]`, P7) in mint/deposit. ERC4626 flows (deposit, mint, withdraw, redeem) read correctly; P2 lines are the SafeERC20 low-level calls with memory-built arguments (free-pointer identification, see c00026).",
+ "summary": "Loop-free vault with faithful text; noise is limited to the exponentiation helper loop, bytes-copy loops and raw-memory SafeERC20 calls."
+}

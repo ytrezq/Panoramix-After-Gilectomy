@@ -1,0 +1,80 @@
+{
+  "id": "c00541",
+  "abi_functions": 6,
+  "reviewed": 6,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P6": 9, "P9": 55, "P10": 30, "P11": 12, "P14": 30, "P17": 111},
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "isPositionLiquidatable(DataStore,IReferralStorage,Position.Props,Market.Props,MarketUtils.MarketPrices,bool,bool)",
+      "lines": "363-1988",
+      "decompiled": "...second _getPriceImpactUsd (virtual inventory) ... / ...  # Decompilation aborted (top level, 1988)",
+      "source": "PositionUtils.sol:359-449 capPositiveImpactUsdByMaxPositionImpact, pendingImpactAmount, max negative impact cap, getPositionFees (referral), remainingCollateralUsd, min collateral checks and the four returns",
+      "issue": "The text stops after the price-impact computation; the function has no return at all in the text, so its whole decision (fees, remaining collateral, 'min collateral', '< 0', 'min collateral for leverage', the info struct) is lost.",
+      "rule": "Not a rewrite: the decompiler's budget runs out in the inlined arithmetic; collapsing each inlined mulDiv/exponent block to one expression before exploring would shrink the path tree.",
+      "verified": "reading only (no 'return' between 363 and 1988)"
+    },
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "validatePosition(DataStore,IReferralStorage,Position.Props,Market.Props,MarketUtils.MarketPrices,bool,bool,bool)",
+      "lines": "1990-3734",
+      "decompiled": "...  # Decompilation aborted (top level, 3734)",
+      "source": "PositionUtils.sol:277-314 the inlined isPositionLiquidatable and 'if (isLiquidatable) revert Errors.LiquidatablePosition(...)'",
+      "issue": "Same cut point as isPositionLiquidatable: the liquidation check and its revert, the function's main purpose, are lost (basic info, enabled-market and min-size checks are present).",
+      "rule": "As above.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "getExecutionPriceForDecrease(PositionUtils.UpdatePositionParams,Price.Props,uint256) and getExecutionPriceForIncrease(PositionUtils.UpdatePositionParams,MarketUtils.MarketPrices)",
+      "lines": "3736-6743; 6745-10452",
+      "decompiled": "if _5677: mem[...] = 0xf0641c92... (PriceImpactLargerThanOrderSize) / ...  # Decompilation aborted (top level)",
+      "source": "BaseOrderUtils.sol:321-371 (decrease: adjustment, NegativeExecutionPrice, acceptable price check); PositionUtils.sol:697-752 (increase: cap, priceImpactAmount, sizeDeltaInTokens, PriceImpactLargerThanOrderSize, getExecutionPriceForIncrease)",
+      "issue": "Each text returns on several branches (9 and 13 returns), but the continuation after its outermost if-tree is cut, so the paths that reach it (the decrease adjustment after the impact check, the increase tail after the second impact-factor read) are lost.",
+      "rule": "As above.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "all six (Precision.applyFactor / mulDiv with FLOAT_PRECISION)",
+      "lines": "131, 147, 273, 1966 ... (25 lines); 297-299, 330-332, 349-351 ... (30 lines)",
+      "decompiled": "_32 = 0x7d33c2...dc99 * (p0 - mulmod(a, b, 1000000000000 * 10**18) >> 30 | -107839786668602559178668060348078522694548577690162289924414440996864 * p0 + (mulmod(a, b, -1) << 226) - ((mulmod(a, b, -1) < p0) << 226) - ((mulmod(a, b, 10**30) > p0) << 226))",
+      "source": "Math.mulDiv(value, factor, 10**30) (OZ, 'Math: mulDiv overflow')",
+      "issue": "With a constant denominator the Newton inverse is folded into one constant (good), but the high word is distributed: -2^226 * p0 appears as a 69-digit decimal factor next to three '<< 226' terms, and 10^30 prints as '1000000000000 * 10**18' (111 lines). With a variable denominator the inverse stays as 3 polynomial lines of 1000-3000 characters (P9).",
+      "rule": "Factor a common shift ((a << k) - (b << k) - c * 2^k = (a - b - c) << k) and print the high word as one term; print a power of ten as 10**n.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getPositionPnlUsd, willPositionCollateralBeSufficient (and the inlined copies)",
+      "lines": "197, 211, 228, 96 (26 lines); 284-308; 184, 188; 112-117",
+      "decompiled": "_4 = _param4 != _param5 or 2  |  if _158: if _99 <′ 0: revert 'SafeCast: value must be positive' / if _151 >=′ 0: _185 = _151 else: _185 = -_151 ... if _151 >′ 0: _212 = _198 else: _212 = -_198  |  if _param14 <=′ 0: if _param14 >=′ 0: _19 = _param14 else: _19 = -_param14",
+      "source": "MarketUtils.getPoolDivisor: longToken == shortToken ? 2 : 1; PositionUtils.sol:218-219 (cappedPoolPnl > 0 && poolPnl > 0 then toUint256/abs); Calc.sumReturnUint256",
+      "issue": "The divisor prints as a bool-or-int expression; inside 'if _158' (which implies _99 > 0 and _151 > 0) the toUint256 revert, the abs and the sign test are kept; the generic signed-sub overflow test is kept for two operands just checked non-negative; abs(b) under b <= 0 keeps both arms.",
+      "rule": "Print 'c or k' with a boolean c as '1 if c else k'; evaluate conditions under the facts of dominating conditions (x > 0 decides x < 0, x >= 0 and abs(x)); a - b of two values in [0, 2^255) cannot overflow signed.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getExecutionPriceForIncrease; validatePosition",
+      "lines": "6930; 2383, 2433",
+      "decompiled": "return Bytes(96, 0), _33, 0  |  mem[_582 + 68] = 0x580ac1e2ad161ab0d634ce7679198eac50198357000000000000000000000 * 3600 / revert with memory from mem[64] len _582 - mem[64] + 100",
+      "source": "PositionUtils.sol:662 return (0, 0, 0, prices.indexTokenPrice.pickPrice(...), false); Math.mulDiv require(denominator > prod1, \"Math: mulDiv overflow\")",
+      "issue": "Three zero return words print as one Bytes(96, 0); the two P1 lines are the text 'Math: mulDiv overflow' factored by 3600 inside a raw-memory revert that is otherwise a plain Error(string) (all 9 raw reverts have _N = mem[64] just before).",
+      "rule": "Split a zero Bytes(32k, 0) in a return into k zero words; never factor a word that is a revert string by a time unit; substitute _N = mem[64] before matching Error(string) (see c00217).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The pack's ABI has 6 functions; the text also has unknown7396d38c = updateFundingAndBorrowingState (external, non-view, missing from the build's ABI): its three delegatecalls to the linked MarketUtils (updateFundingState, then updateCumulativeBorrowingFactor with isLong 1 and 0) match the source; 'require this.address' is the library call guard with the unlinked address 0 (artifact). getPositionPnlUsd and willPositionCollateralBeSufficient were checked line by line against the source (pickPriceForPnl, getPoolAmount/divisor, getPnl, getCappedPnl, sumReturnUint256, roundUpDivision, the signed Precision.mulDiv) and are exact; the four long functions were reviewed by structure (key reads, reverts, returns) and their early parts (struct decoding, getPositionPnlUsd, price-impact reads, PRBMath log2/exp2 for the exponent factor) are faithful. Unknown function names and compressed parameter numbering (_param6.._param9 = the min prices only) are normal. Loops: 1 explicit (PRBMathUD60x18.log2's for, inlined 12 times as a readable 'while s:' with delta halving; its arms assign temporaries then copy, P10). Implicit: the address[] swapPath ABI decode loop with per-element checks (3799, 6808), readable. PRBMath.mostSignificantBit is an if cascade, as in the source. Struct caches stay as mem[1120]/mem[1376] and mem[_12 + k] (P14). No execution run: nothing doubtful on a reachable path.",
+  "summary": "Where the text is complete it is exact and fairly readable (mulDiv by a constant is folded to one line), but four of the six functions end in a top-level 'Decompilation aborted': isPositionLiquidatable and validatePosition lose their whole decision and never return, and the two execution-price functions lose their tails; mulDiv by a variable is still printed as multi-kilobyte polynomials."
+}

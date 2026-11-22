@@ -1,0 +1,62 @@
+{
+  "id": "c00537",
+  "abi_functions": 29,
+  "reviewed": 29,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {
+    "while": 11,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 46,
+    "P2": 19,
+    "P3": 4,
+    "P4": 108,
+    "P6": 5,
+    "P7": 20,
+    "P8": 40,
+    "P11": 20
+  },
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "every function reading or writing the per-safe data (CashModuleStorage SafeData mapping) and the solady sets; def storage",
+      "lines": "10-24 (def storage (vyper), stor0 ... at storage 0); 176 lines with stor0[...][0xe000...ea00]; 108 with concat(Bytes(4, 0x978aab92))",
+      "decompiled": "stor0 is fixed array of mapping of struct of 18 slots at storage 0  |  while idx < stor0[_param1][0xe000c7adec5855bcf51f74b73aa86172d0a325bc54c3f73cb406d259df90ea00].fiel...",
+      "source": "CashModuleStorageContract: ERC-7201 struct at 0xe000c7ad...ea00 whose first member is mapping(address safe => SafeData) (keccak(safe . 0xe000...ea00)); solady EnumerableSetLib roots keccak(slot . 0x978aab92)",
+      "issue": "keccak(safe ‖ base) with the namespaced base constant is printed as a phantom 'fixed array of mapping at storage 0' indexed first by the key and then by the base hash, and the solady set roots as Vyper-style mappings keyed by a 4-byte concat, so the whole layout is labelled vyper and the per-safe struct has no name of its own (same defect as c00574).",
+      "rule": "Same as c00574: keccak(k ‖ C) with C a constant slot is the mapping rooted at C (print storE000[k]); a keccak over (constant slot ‖ short constant) is a derived constant slot; never declare variables at slot 0 for these.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "configureModulesCanRequestWithdraw, unknownd74286f5 (configure functions using EnumerableAddressWhitelistLib.configure), the withdrawal-request functions",
+      "lines": "867, 1092 ('while address(s)'); 1313, 1887, 2511 ('while True'); 1406, 2040 (storage-array copies with byte-offset conditions)",
+      "decompiled": "s = cd[_param1 + 36] / t = 0 / while address(s): if t >= cd[_param1 + 4]: ...  |  while ceil32(_1) + ceil32(_2) + 32 * mem[...] + 160 > idx: address(stor[...])",
+      "source": "EnumerableAddressWhitelistLib.configure: for (i; i < len; ++i) { if (addrs[i] == address(0)) revert InvalidAddress(i); ... }; address[] storage arrays copied to memory",
+      "issue": "As in c00574, the zero-address guard of the next element becomes the loop condition and the real bound i < len moves inside; storage-to-memory array copies are whiles whose condition compares memory addresses.",
+      "rule": "See c00574 (condition on the induction variable, guards inside the body) and c00486 (a loop copying p[0..n) to consecutive memory words is one copy line).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "requestWithdrawal-like unknownb88c7dda, unknown66725af5, unknown5ce8700a and the configure functions",
+      "lines": "18 'revert with memory from mem[64]'; 19 P2 lines",
+      "decompiled": "revert with memory from mem[64] len _x - mem[64] + 36  |  call ... with: args mem[mem[64] len ...]",
+      "source": "custom errors with arguments (InvalidInput, ArrayLengthMismatch, ...) and the calls to the data provider, the debt manager and the safe (execTransactionFromModule)",
+      "issue": "Same cause as P2 in c00463: custom-error reverts and some external calls are memory ranges at the free pointer.",
+      "rule": "Same as c00463.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against CashModuleSetters.sol, CashModuleStorageContract, EnumerableAddressWhitelistLib, ArrayDeDupLib and solady EnumerableSetLib (same project as c00574). CashLendLib's loops (_unwindLendCollateral, hasOpenBorrows, sourceWithdrawal) are in an external library reached by DELEGATECALL and not part of this bytecode. All 29 ABI functions were read by structure (the largest is 472 lines). Loops counted: configureModulesCanRequestWithdraw's and setSafeTier's loops, _checkBalance, _hasNonZeroAmount, _areAssetsWithdrawable, _processWithdrawal, checkDuplicates outer and inner, EnumerableAddressWhitelistLib.configure, solady values(), and the spending-limit renewal while (2498, from a library not listed in the pack) - all shown as while; the mapping of some inlined copies to their source loop was done by shape only. P1: ERC-7201 slot constants and day factorisations (46 lines). No execution run.",
+  "summary": "Faithful on the paths read with the loops present, but it shares c00574's defects: the namespaced per-safe mapping and solady sets print as phantom slot-0 and Vyper-style variables, whitelist loops are rotated around their zero-address guard, and free-pointer memory hides custom-error reverts."
+}

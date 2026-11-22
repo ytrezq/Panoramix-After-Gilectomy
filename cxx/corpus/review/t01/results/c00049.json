@@ -1,0 +1,25 @@
+{
+  "id": "c00049",
+  "abi_functions": 32,
+  "reviewed": 32,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 3, "P6": 34, "P7": 1, "P8": 60, "P10": 30},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "delegatedAction(address,bytes)",
+      "lines": "delegatedAction +4, +16-25, +30-32",
+      "decompiled": "require not Mask(96, 160, _param1) / _2 = sel == 0xca5eb5e1... or sel == 0x55af78100000... / if not _2: _3 = sel == 0x36fb8b15... else: _3 = _2 / if not _3: _4 = 0x9a10cc32... == sel else: _4 = _3 / if _4: revert with 0xb09e78ce / delegate this.address.mem[128 len 4] with: args mem[132 len _param2.length - 4]",
+      "source": "OstiumTrading.delegatedAction: if (selector == A || selector == B || selector == C || selector == D) revert NotAllowed(); (bool success, bytes memory result) = address(this).delegatecall(call_data)",
+      "issue": "A four-way || is printed as nested phi variables (P10), the selector 0x055af781 prints with 63 digits as 0x55af7810... (P6), the address check is a mask test, and the delegatecall's data is split into a selector slice and the rest instead of the bytes argument.",
+      "rule": "Merge a short-circuit chain whose phis only forward a true value into one disjunction; print a 4-byte selector constant with its leading zero; require not Mask(96, 160, x) is x == address(x); a call whose whole calldata is a copied bytes argument prints that argument.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loop in the reached sources; the only while is a calldata bytes copy (P7). via-IR build. Initializable ERC-7201 slot printed as 0x111f...aa0 * 3600 (P1, 2 lines, same as c00102/c00195). Trading entry points (openTrade, closeTradeMarket, updateTp/Sl...) checked by structure: pause/delegation checks, storage calls and events present.",
+  "summary": "Loop-free and faithful; minor readability issues in delegatedAction (phi-chained ||, a 63-digit selector) and the P1-factored Initializable slot."
+}

@@ -1,0 +1,38 @@
+{
+  "id": "c00423",
+  "abi_functions": 31,
+  "reviewed": 31,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {
+    "while": 1,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 2,
+    "P2": 11,
+    "P3": 2,
+    "P6": 3,
+    "P7": 12,
+    "P14": 10
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "requestPermissions()",
+      "lines": "510-585",
+      "decompiled": "idx = 9 / while idx - 1: _1 = mem[64]; mem[64] = mem[64] + 64; mem[_1] = 0; mem[_1 + 32] = 0; ... / (10 constant Permissions stores) / mem[mem[64] + 64] = mem[_2 len 5] << 216 / idx = 1 / while idx < 10: mem[t] = mem[mem[s] len 5] << 216; ... / return Array(len=10, data=mem[mem[64] + 64 len 640])",
+      "source": "PriceConfig.v2.sol requestPermissions: requests = new Permissions[](10); requests[0] = Permissions(PRICE_KEYCODE, PRICE.addAsset.selector); ... return requests;",
+      "issue": "Both implicit loops of this 10-element array (default allocation and ABI encoding) are rotated with the first element before the loop (P3), and the encoded values, all constants just stored, are re-read through memory, so the returned keycode/selector pairs are not visible in the return.",
+      "rule": "A loop with a constant trip count over values that are all known constants can be unrolled and folded; at least print a rotated loop with its first iteration merged back (do-while with a count n >= 1 is 'while idx < n' from 0).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Unoptimized build (prague). Source loops in this bytecode (1): _validatePriceFeedExpectations' for, a while in addAssetPrice (unknownc1850cdc, line 1105) with the PRICE.getSubmoduleForKeycode and feed staticcalls. ensureValidSubKeycode's 'for (i < 20)', listed by the pack, runs inside the PRICE module (installSubmodule/upgradeSubmodule are external calls), so it is not counted. Other whiles are implicit ABI loops: calldata arrays (Component[], PriceFeedExpectation[], bytes params) decoded to memory and re-encoded for PRICE calls (P7). Role checks via ROLES.hasRole, the kernel isPolicyActive check and custom errors match the source; the signature database lacks most selectors, so ABI functions print as unknownXXXXXXXX. Long functions (addAssetPrice ~360 lines, updateAssetPriceFeeds ~520) reviewed by structure.",
+  "summary": "Faithful unoptimized text; the one source loop is a clear while, with rotated constant-size implicit loops in requestPermissions as the main readability issue."
+}

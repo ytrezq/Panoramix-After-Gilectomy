@@ -1,0 +1,25 @@
+{
+  "id": "c00276",
+  "abi_functions": 38,
+  "reviewed": 38,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P4": 1, "P7": 4, "P8": 30},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "transferAndCall(address,uint256,bytes), unknown90b51d43 (the other bytes-taking transfer)",
+      "lines": "transferAndCall: 'mem[64] = ceil32(data.length) + 160 / mem[160 len data.length] = data[all]' ... 'log Transfer(..., uint256 value=mem[mem[64] len ceil32(data.length) - mem[64] + 192])'; the ERC677 Transfer log and the tokenFallback call below it",
+      "decompiled": "mem[ceil32(data.length) + 160] = value / log Transfer(address indexed from=caller, address indexed to=address(to), uint256 value=mem[mem[64] len ceil32(data.length) - mem[64] + 192])  |  log Transfer(address from, address to, uint256 value, bytes data): mem[mem[64] len _36 - mem[64]], ...  |  call address(to) with: args mem[mem[64] len _45 - mem[64]]",
+      "source": "RIFToken.sol:279-285 transfer(_to, _value) (emit Transfer(msg.sender, _to, _value)); emit Transfer(msg.sender, _to, _value, _data); receiver.tokenFallback(msg.sender, _value, _data)",
+      "issue": "In every other function the Transfer value prints as the variable, but here, after the bytes argument is copied to memory and the free pointer set to ceil32(data.length) + 160, mem[64] is not forwarded: the value is a memory range, the ERC677 event's data and the tokenFallback(address,uint256,bytes) call (0xc0ee0b8a) stay raw memory. Only constant addresses 0 and 32 are written between the store to mem[64] and these reads.",
+      "rule": "A copy to mem[a len n] with a constant a >= 96 cannot touch [64, 96) for any n (memory sizes are below 2^64, so a + n does not wrap); with that, forward mem[64] = ceil32(data.length) + 160 to the later reads, and the log's range reduces to the word 'value' (and the call to tokenFallback(caller, value, data)).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "solc 0.4.26. No source loops; the four whiles are the compiler's word-by-word copies of the bytes argument into the event data and the call buffer (two per bytes-taking function, P7), each followed by the 0.4-style tail masking ('~(256**(32 - n % 32) - 1) & mem[...]'). Reviewed: transfer / transferFrom / approve / increase/decrease allowance, the distribution-time and redeem checks, the minimum-balance tracking (stor6) after transfers, transferAndCall; the remaining getters and admin functions checked. P8: the mem[0]/mem[32] hash scratch writes kept before mapping reads.",
+  "summary": "Faithful; the only notable defect is that in the bytes-taking transfers the free pointer is not forwarded past the bytes copy, leaving the Transfer value, the ERC677 event and the tokenFallback call as raw memory."
+}

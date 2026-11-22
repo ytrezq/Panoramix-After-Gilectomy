@@ -1,0 +1,25 @@
+{
+  "id": "c00175",
+  "abi_functions": 7,
+  "reviewed": 7,
+  "not_reviewed": [],
+  "source_loops": 10,
+  "loops_shown": {"while": 10, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P4": 60, "P6": 44, "P7": 18, "P11": 10, "P18": 60},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all cluster functions (unknownea7844ff, unknown8c1d3d03, unknownbf0f2fb2, unknown4f4d1209...)",
+      "lines": "416-430",
+      "decompiled": "while idx < cd[_param1 + 4]: mem[0] = Bytes(24, 0), mem[32 * idx + floor32(32 * cd[_param1 + 4] + 83) + 32 * cd[_param1 + 4] + 472 len 8]; ... if uint32(storD56C_d56c4f4a[concat(Bytes(24, 0), mem[32 * idx + floor32(32 * cd[_param1 + 4] + 83) + 32 * cd[_param1 + 4] + 472 len 8])].field_1024): ... if Mask(192, 64, uint32(uint32(block.number) - ...)):",
+      "source": "OperatorLib.updateClusterOperators: for (uint256 i; i < operatorsLength; ++i) { uint64 operatorId = operatorIds[i]; ISSVNetworkCore.Operator storage operator = s.operators[operatorId]; ... }",
+      "issue": "Inside each operator loop the current id is re-read as a memory slice `Bytes(24, 0), mem[... len 8]` (P18) and the whole slice expression is repeated as a one-element `concat` key (P4) in every access to the operator struct, making 300-character lines; `Mask(192, 64, uint32(x))` is always 0 and the check it guards can never fire.",
+      "rule": "Read an 8-byte slice ending a 32-byte word as `uint64(word)`, bind the loop's current element to a variable, print `stor[sha3(k, base)]` with a single-word key as `map[k]`; fold masks of values whose width is known to be smaller than the mask offset.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Seven large via-IR functions (200-600 lines each) reviewed by structure. All 10 source loops are shown as whiles: MerkleProof.processProof (`while t < _63`), OperatorLib.updateClusterOperators / ...Migration / ...OnReactivation / ...SSV, _updateOperatorVUnits, _liquidateAfterEBUpdateIfNeeded, _executeLiquidation, and the loops in withdraw and migrateClusterToETH; they all look alike (`while idx < cd[_param + 4]: require not Mask(192, 64, cd[s])`), the per-iteration range check being real because operatorIds is `uint64[] calldata`. Implicit: the abi.encodePacked copies of operatorIds for the cluster hash (validate-and-copy, then `Bytes(24, 0), mem[s + 24 len 8]` re-encoding, P7). P6: 44 lines with 63-digit words. No semantic error found.",
+  "summary": "Faithful, abort-free text with all 10 operator/Merkle loops as whiles; readability is poor because the current operator id is repeated as a long memory-slice concat key in every struct access."
+}

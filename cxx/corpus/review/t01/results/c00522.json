@@ -1,0 +1,47 @@
+{
+  "id": "c00522",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P10": 2, "P16": 120},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "verifyBatches, verifyBatchesTrustedAggregator, sequenceBatches, forceBatch, overridePendingState and the other functions using matic, globalExitRootManager, rollupVerifier, bridgeAddress",
+      "lines": "1497-1516 (verifyBatches), 1531 (dead loop); 25 calls to 0x0",
+      "decompiled": "call 0x0.transfer(address recipient, uint256 amount) with: ... if not mem[_36]: if not ext_code.size(0): revert with 'Address: call to non-contract'  |  call 0x0.mem[_218 len 4] with:",
+      "source": "PolygonZkEVM: IERC20Upgradeable public immutable matic; IPolygonZkEVMGlobalExitRoot public immutable globalExitRootManager; IVerifierRollup public immutable rollupVerifier; ... matic.safeTransfer(msg.sender, calculateRewardPerBatch() * newVerifiedBatches)",
+      "issue": "The immutables read as 0: every matic transfer is a call to an empty account, which SafeERC20 then rejects ('Address: call to non-contract'), so verifyBatches' _updateBatchFee loop after the reward transfer is dead and not counted (it is printed as 'while True' with the 'currentBatch == lastVerified' exit inside).",
+      "rule": "-",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "sequenceBatches((bytes,bytes32,uint64,uint64)[],address), sequenceForceBatches((bytes,bytes32,uint64)[]), initialize, verifyBatches*",
+      "lines": "1141-1180 (sequenceBatches loop body)",
+      "decompiled": "while idx < cd[_param1 + 4]: require cd[32 * idx + _param1 + 36] <′ calldata.size - _param1 - 163 ... mem[_201 + 32] = cd[_param1 + cd[32 * idx + _param1 + 36] + 68] ... if not uint64(cd[_param1 + cd[32 * idx + _param1 + 36] + 132]): ... call 0x0.mem[_218 len 4] with:",
+      "source": "BatchData memory currentBatch = batches[i]; bytes32 currentTransactionsHash = keccak256(currentBatch.transactions); if (currentBatch.minForcedTimestamp > 0) {...} else { if (currentBatch.globalExitRoot != bytes32(0) && globalExitRootManager.globalExitRootMap(currentBatch.globalExitRoot) == 0) revert GlobalExitRootNotExist(); ...",
+      "issue": "The batch structs are decoded as raw nested calldata arithmetic and then read back as mem[_201 + 32], mem[_201 + 88 len 8] (P16), and the globalExitRootMap selector stored at mem[mem[64]] is printed as mem[_218 len 4] two lines later, so the call has no name.",
+      "rule": "Type tuple-array parameters and print members by name; forward a 32-byte store to a narrower read at the same address (_218 = mem[64]; mem[_218 len 4] after mem[mem[64]] = C is C >> 224).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "verifyBatches (_updateBatchFee; dead here, see artifact)",
+      "lines": "1531-1546",
+      "decompiled": "while True: if uint64(s) == _50: _53 = 0 / _54 = 0 / break ... _53 = uint64(-_50 + uint64(s)) / _54 = uint64(-_50 + uint64(s)) / break / if SafeMath.sub(uint64(-_50 + _param3), _54) >= _53: batchFee = ... min(12, -_53 - _54 + uint64(-_50 + _param3)) ...",
+      "source": "PolygonZkEVM.sol:927-951 while (currentBatch != currentLastVerifiedBatch) {...} uint256 totalBatchesBelowTarget = newBatchesVerified - totalBatchesAboveTarget; if (totalBatchesBelowTarget < totalBatchesAboveTarget) {...}",
+      "issue": "The loop condition sits inside a 'while True', totalBatchesAboveTarget gets two always-equal names (_53, _54), and totalBatchesBelowTarget is inlined so that below - above reads -_53 - _54 + newBatches (correct, but opaque).",
+      "rule": "Two variables assigned the same value on every path are one; print 'while True: if c: break' at the top as 'while not c'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: sequenceBatches' for and sequenceForceBatches' for (both 'while idx < cd[_param1 + 4]'); _updateBatchFee's while is dead because of the immutables (not counted). No other while in the text. via-IR build. Reviewed sequenceBatches, sequenceForceBatches, verifyBatches and initialize by structure (loops, calls, writes, events, custom errors); the rest line by line.",
+  "summary": "Faithful; both live source loops are whiles, but batch structs are raw calldata arithmetic, a selector is read back from memory, and the immutables (0) make the reward transfer always revert, killing the batch-fee loop."
+}

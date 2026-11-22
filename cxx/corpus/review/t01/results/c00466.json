@@ -1,0 +1,69 @@
+{
+  "id": "c00466",
+  "abi_functions": 20,
+  "reviewed": 20,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 40, "P4": 5, "P6": 21, "P8": 104, "P10": 79, "P18": 39},
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "swap((address,uint256,bytes),address,address,uint256,bytes)",
+      "lines": "819, 1759, 2866 (calls); 4214-4217 (internal_0x12ec)",
+      "decompiled": "_219, _220 = internal_0x12ec(_29, mem[mem[_29] + 80 len 16], mem[mem[_29] + 64 len 16], 4999, ...) / def internal_0x12ec(...): if not _param7: revert with 0xa7406b60, _param6, _param5 / ...  # Decompilation aborted, sorry: ('jump to a parameter computed at runtime', 4852)",
+      "source": "SwapVM.sol:201 (amountIn, amountOut) = ctx.runLoop(); VM.sol:118-135 runLoop: the instruction loop dispatching ctx.vm.opcodes[opcode](ctx, args)",
+      "issue": "In swap the VM's run loop is a separate internal function (entered with the continuation 4999 as a parameter) that the decompiler gives up on, so every instruction's effect (balances, invalidators, fees, TWAP state, Aqua pulls) is missing from swap; quote's copy of the same loop (internal_0x1356) is decompiled, with the opcode table resolved into an if-chain and the instructions inlined.",
+      "rule": "A jump to a value that is a parameter of an internal function, where every call site passes a constant (here 4999), is a return to that constant: specialise the function per call site (or treat the parameter as the return continuation) instead of aborting.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "quote (internal_0x1356, TWAPSwap._twap instruction)",
+      "lines": "5088-5099, 5176-5179; def storage lines 4, 6",
+      "decompiled": "mem[0] = mem[mem[_param1 + 32]] / mem[32] = 9 / _410 = sha3(mem[0], 9) / ... mem[_444] = stor9[concat(mem[0])].field_0 / mem[_444 + 32] = stor1[_410] / mem[_444 + 64] = stor[_410 + 2] / mem[_444 + 96] = stor3[_410]  |  def storage: stor1 is fixed array of uint256 at storage 1 / stor3 is fixed array of uint256 at storage 3",
+      "source": "TWAPSwap.sol: twapLastSwaps[orderHash] (a 4-slot struct in a mapping at slot 9, read whole)",
+      "issue": "Members 1 and 3 of twapLastSwaps[orderHash], read through the variable _410 = sha3(orderHash, 9), print as elements _410 of two fixed arrays at slots 1 and 3 (and def storage gains those bogus arrays), member 2 as raw stor[_410 + 2] and member 0 as stor9[concat(mem[0])] (P4), although the getter prints the same four members as stor9[_param1].field_0..field_768. Same root as c00469's stor2[_14].",
+      "rule": "Substitute variables bound to sha3(key, slot) before naming storage: stor[v + k] with v = sha3(key, slot) is member k of slotvar[key]; a keccak value is never an index into a fixed array at a small slot; concat(x) of one 32-byte word is x.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "quote (internal_0x1356: Controls, Balances and fee instructions)",
+      "lines": "4264-4270, 4290-4296, 4320-4325, 4411-4419, 4440-4448",
+      "decompiled": "_40 = mem[64] / mem[mem[64]] = 0x70a08231... / mem[_40 + 4] = address(_39) / static call cd[(_2 >> 128) + s + 2] >> 96.mem[_40 len 4] with: args address(_39)  |  _724 = mem[64] / mem[mem[64]] = 0x5534d910... / revert with mem[_724 len 4], address(_700), ...",
+      "source": "Controls._onlyTakerTokenBalanceNonZero / ...Gte: IERC20(token).balanceOf(ctx.query.taker); Balances: revert StaticBalancesRequiresSettingBothBalances(...)",
+      "issue": "69 calls lose their function name (balanceOf, totalSupply...) and 5 custom-error reverts lose their selector because the selector stored through mem[mem[64]] is read back as mem[_40 len 4] (same as c00085).",
+      "rule": "Canonicalise _v = mem[64] and mem[64] to the same value until the next store to mem[64], so mem[_v len 4] after mem[_v] = W folds to the selector.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "quote (internal_0x1356: DutchAuction x2 and TWAPSwap Power.pow)",
+      "lines": "4999-5011, 5030-5042, 5137-5149",
+      "decompiled": "t = block.timestamp - start / u = base / v = block.timestamp - start / w = 10**18 / while t: if v % 2: _1044 = SafeMath.mul2(w, u) / 10**18 else: _1044 = w / t = v / 2 / u = SafeMath.mul3(u, u) / 10**18 / v = v / 2 / w = _1044",
+      "source": "Power.sol:16-22 while (exponent > 0) { if (exponent & 1 == 1) result = result * base / precision; base = base * base / precision; exponent >>= 1; }",
+      "issue": "The exponent is carried by two loop variables (t for the test, v for the body) that always hold the same value, and the conditional update goes through a temporary.",
+      "rule": "Two loop variables with equal initial values and identical updates are one variable; 'if c: x2 = f(x) else: x2 = x; x = x2' is 'if c: x = f(x)'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "AQUA(), eip712Domain(), hash(Order), receive, Aqua-based instructions",
+      "lines": "77-79, 85-88, 104-113, 259-266",
+      "decompiled": "return 0 / if caller: revert with EthDepositRejected() / _7 = not this.address and not chainid / sha3(0x8b73..., Bytes(64, 0), chainid, this.address)",
+      "source": "immutables AQUA, WETH, EIP712 _cachedThis/_cachedChainId/_cachedDomainSeparator/_hashedName/_hashedVersion",
+      "issue": "solc immutables read as 0: Aqua and WETH are address 0, the cached domain separator test compares with 0, and the name/version hashes are zero words.",
+      "rule": "None (input artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Getters, invalidators, Ownable, rescueFunds, simulate, hash and eip712Domain were read line by line; quote, swap (3,630 lines) and the run-loop function internal_0x1356 (2,090 lines, recursive because instructions call ctx.runLoop() again, as in the source) were reviewed by structure. The 5 source loops are readable whiles in internal_0x1356: VM.runLoop (the opcode table lookup is resolved into an if-chain on the table's constants), Balances._staticBalancesXD, _loadBalances (as 'while True' with the bound test and an early exit), _initBalances, and Power.pow (3 inlined copies). swap's own copy of runLoop is lost (coverage finding). Copies are shown as copy lines (279), no copy loop. P10: many phis with SSA copies in one arm (instruction results); P8: keccak scratch stores beside symbolic mapping accesses.",
+  "summary": "quote's VM run loop and its inlined instructions are decompiled faithfully with readable loops, but swap's run loop is aborted (all instruction effects lost there), twapLastSwaps members are misnamed as fixed arrays stor1/stor3, and 69 calls lose their function names to the mem[mem[64]] aliasing problem."
+}

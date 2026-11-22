@@ -1,0 +1,13 @@
+{
+  "id": "c00264",
+  "abi_functions": 3,
+  "reviewed": 3,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [],
+  "notes": "AntePoolFactory, no loops. All 3 functions reviewed. createPool matches the source exactly: the two requires, 'create2 contract with 0 wei salt: sha3(Bytes(20, address(token))) code: code.data[856 len 8202]', poolMap write, allPools push, extcodesize check and initialize(testAddr) call, AntePoolCreated event, return. Parameter names come from the signature database (createPool(address token), initialize(address sender)). No problem found.",
+  "summary": "A tiny, exact and readable text."
+}

@@ -1,0 +1,47 @@
+{
+  "id": "c00209",
+  "abi_functions": 66,
+  "reviewed": 66,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 1, "P6": 11, "P7": 1, "P8": 4, "P15": 6, "P17": 0},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "initialize(address,...)",
+      "lines": "30-32 (def storage), 1797-1806",
+      "decompiled": "storF0C5 is uint8 at storage 0xf0c57e16... / storF0C5_8 is uint56 at storage 0xf0c57e16... offset 8 / _2 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64 / ... storF0C5 = 1 / storF0C5_8 = 0",
+      "source": "OpenZeppelin Initializable (v5, ERC-7201 slot 0xf0c57e16...6a00): struct InitializableStorage { uint64 _initialized; bool _initializing; }; initializer: if (!initialSetup && !construction) revert InvalidInitialization(); $._initialized = 1; ...",
+      "issue": "The slot of InitializableStorage is printed in the two reads of _initialized as 0x111f1c4e... * 3600 (the time-unit factoring of P1 applied to a storage index), so they do not visibly read the variable that def storage calls storF0C5; and the uint64 _initialized is split into a uint8 and a uint56 field because the write 'uint64 = 1' was emitted as two stores.",
+      "rule": "Never factor a storage slot constant (or any constant over 2^64) by a time unit; keep a field split only when some access reads the parts separately: here every read is uint64(stor[s]), so storF0C5 + storF0C5_8 is one uint64 field.",
+      "verified": "reading only (0x111f1c4e...aa0 * 3600 = 0xf0c57e16...6a00 checked)"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "permit(address,address,uint256,uint256,uint8,bytes32,bytes32) (one of the two permit overloads)",
+      "lines": "60-62 (def SafeMath), 1031",
+      "decompiled": "def mul4(a, b): require b == uint8(b); return a * b / mem[224] = SafeMath.mul4(0x100000000000000000000000000000000000000000000000000000000000000, v)",
+      "source": "SparkVault.permit: abi.encodePacked(r, s, v) (the uint8 v placed in the top byte of a word)",
+      "issue": "A uint8 range check followed by the shift v << 248 is printed as a 'SafeMath' multiplication helper, which suggests an overflow-checked product.",
+      "rule": "Only fold into a SafeMath helper a check that is the overflow condition of the operation it guards; 'require b == uint8(b)' then '2^248 * b' is 'require b == uint8(b)' and 'b << 248'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "nowChi/totalAssets/convertTo*/preview*/max*/deposit/mint/withdraw/redeem (the inlined _rpow, 27 copies)",
+      "lines": "269-286, 296-318",
+      "decompiled": "if not (block.timestamp - rho) % 2: _2 = 1000000000 * 10**18 else: _2 = stor4 / ... while t: require SafeMath.mul(u, u) + 500000000 * 10**18 >= SafeMath.mul(u, u) ...",
+      "source": "SparkVault.sol:537-558 _rpow(x, n) with RAY = 1e27, half = RAY / 2",
+      "issue": "The loop is a clear 'while t', but RAY and RAY / 2 print as 1000000000 * 10**18 and 500000000 * 10**18.",
+      "rule": "Print k * 10**n constants in normal form (10**27, 5 * 10**26).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 66 ABI functions reviewed (ERC20/ERC4626 views and actions, roles, permit x2, upgradeToAndCall, initialize). The only source loop, _rpow's Yul for, is shown as 'while t' in each of its 27 inlined copies; the revert(0,0) checks are mapped to the empty-revert helpers SafeMath.mul/mul2/add (correctly distinct from the Panic helpers mul3/add2/sub2). getRoleMembers' storage-to-memory copy is a copy line, its ABI encoding with address cleanup a while (P7). getRoleMembers keeps overwritten scratch writes mem[0] = role / mem[0] = 0xc1f6... (P8).",
+  "summary": "Faithful and readable (the rpow loop is a clean while); the notable defect is the Initializable slot printed as a constant times 3600 in initialize, plus a misleading SafeMath.mul4 helper."
+}

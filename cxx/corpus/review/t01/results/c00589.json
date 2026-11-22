@@ -1,0 +1,58 @@
+{
+  "id": "c00589",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 411, "P6": 140, "P7": 21, "P8": 250, "P9": 31, "P10": 30, "P11": 15, "P15": 6},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "withdrawToVault(uint256), doHardWork(), withdrawAllToVault(), emergencyExit()",
+      "lines": "6355-6395 (and the other flashLoan sites)",
+      "decompiled": "mem[_1012 + 36] = 128 ... while idx < _1014: mem[t] = Bytes(12, 0), mem[s + 12 len 20] ... while idx < _1019: mem[s] = mem[t] ... call 0xba12222222228d8ba445958a75a0704d566bf2c8 with: args mem[mem[64] len _1012 + 32 * _1014 + 32 * _1019 + ceil32(_1023) - mem[64] + 228]",
+      "source": "AaveFoldStrategy._depositWithFlashloan / _redeemWithFlashloan: IBVault(bVault).flashLoan(address(this), tokens, amounts, userData)",
+      "issue": "The Balancer flashLoan call is printed with no function name and no arguments, after two ABI-encoding loops (address[] cleaning and uint256[] copy) and a bytes copy; the arrays are one-element arrays built just above, so every length is known (P2, P7, P11: the 'if 0 >= mem[_1006]: Panic(50)' bounds checks of these fresh arrays are kept).",
+      "rule": "Track the free-pointer base so fresh allocations have known lengths; an ABI-encoding loop over a memory array of known length unrolls or becomes a copy line, and the call args then decode as flashLoan(this, [token], [amount], data).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "rewardTokens(), isRewardToken(address), initializeStrategy(address,address)",
+      "lines": "503, 533, 545-556, 921",
+      "decompiled": "mem[160 len 32 * stor4541] = call.data[calldata.size len 32 * stor4541] / while idx < stor4541: mem[t] = Bytes(12, 0), mem[s + 12 len 20] / stor[sha3(4) + 1 len -sha3(4) + max(sha3(4) + 1, _41 + sha3(4)) - 1] = 0",
+      "source": "BaseUpgradeableStrategyStorage.getAddressArray: new address[](n); return values; AaveFoldStrategy: rewardTokens = [token]",
+      "issue": "Zero fill shown as a CALLDATACOPY from calldata.size; the ABI encoding of the returned address[] is a while that rewrites each element with its own low 20 bytes (the elements were stored as addresses); the storage-array shrink is a range with a max(...) length.",
+      "rule": "CALLDATACOPY from offset >= calldata.size writes zeros; a cleaning loop mem[t+32i] = address(mem[s+32i]) over values known to be addresses is a copy line; print the shrink clear as 'clear rewardTokens[1 .. old_length)'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "most functions decoding an external call's address return",
+      "lines": "e.g. 2899, 1640",
+      "decompiled": "_1333 = mem[_1332] / require mem[_1332] == mem[_1332 + 12 len 20]",
+      "source": "address _pool = IAToken(token).POOL(); (return value decoding)",
+      "issue": "104 return-value checks read the copied return data through memory slices instead of ext_call.return_data[0] == address(ext_call.return_data[0]), as other call sites of the same text do.",
+      "rule": "Memory filled by a return-data copy at a known pointer reads back as ext_call.return_data[...]; mem[p] == mem[p + 12 len 20] is x == address(x).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "underlying(), aToken(), debtToken(), vault(), rewardToken(), rewardPool(), strategist()",
+      "lines": "60-101",
+      "decompiled": "def underlying(): return address(storA170) / storA170 is uint256 at storage 0xa170...",
+      "source": "BaseUpgradeableStrategyStorage getters reading address slots by hash",
+      "issue": "Unstructured-storage slots returned by getters through address() are declared uint256 and keep storXXXX names (storA170, stor8CDE, stor29E4, storEFD7, storDAE0...), while getters returning a plain slot do name it.",
+      "rule": "A getter returning address(stor[k]) types slot k as an address and names it after the getter.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: _isAddressInList (isRewardToken, while True with break), getAddressArray (rewardTokens(), isRewardToken), _liquidateReward (withdrawAllToVault, doHardWork: while s < rewardTokens.length), _depositNoFlash (while w < s), _redeemNoFlash (while v > s; folded to while u > 0 when the borrow target is 0 in emergencyExit/withdrawAllToVault). Implicit loops: ABI decoding of address[] with validation in receiveFlashLoan (readable while), ABI encoding of address[]/uint256[] and bytes copies for the Balancer flashLoan and SafeERC20 (P7, 21). doHardWork (2300 lines), withdrawToVault (2650) and withdrawAllToVault reviewed by structure (loops, calls, writes). Nested initializer ends print several 'if _N: uint8(stor0.field_8) = 0' (faithful). receive() shows as _fallback with 'require calldata.size < 4; require not calldata.size' (first check dominated). Products distributed over subtraction in borrow targets (P9).",
+  "summary": "Loops all present as readable while loops and semantics look faithful; the text is mostly hard to read where the Balancer flash loans and SafeERC20 calls lose their names and arguments to raw memory (411 P2 lines)."
+}

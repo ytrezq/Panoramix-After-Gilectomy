@@ -1,0 +1,48 @@
+{
+  "id": "c00534",
+  "abi_functions": 29,
+  "reviewed": 29,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 3,
+    "P7": 11,
+    "P9": 9,
+    "P11": 4,
+    "P18": 71
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getMarket (0x714af34b), getMarketBySalt, getPositionPnlUsd, getExecutionPrice, getSwapPriceImpact, isPositionLiquidatable, getPnlToPoolFactor and the other struct-returning wrappers",
+      "lines": "125-145; 1283; 3488-3509",
+      "decompiled": "mem[256 len min(128, return_data.size)] = ext_call.return_data[0 len min(128, return_data.size)] / ... require mem[288] == mem[300 len 20] / mem[ceil32(return_data.size) + 288] = mem[288] ... / return address(ext_call.return_data[0]), Bytes(12, 0), mem[ceil32(return_data.size) + 300 len 20], ...  |  args _param1, _param2, address(ext_call.return_data[0]), Bytes(12, 0), mem[ceil32(return_data.size) + 780 len 20], Bytes(12, 0), mem[ceil32(return_data.size) + 812 len 340], ...",
+      "source": "Reader.sol:29-31 return MarketStoreUtils.get(dataStore, key) (Market.Props: 4 addresses); :149-161 position = PositionStoreUtils.get(..); PositionUtils.isPositionLiquidatable(dataStore, referralStorage, position, market, prices, ...)",
+      "issue": "The struct returned by a library call is decoded into memory and then used only through slices of the decoded copy: the first field is ext_call.return_data[0] but the others are 'Bytes(12, 0), mem[ceil32(return_data.size) + 300 len 20]', and the Position.Props passed on to isPositionLiquidatable is a single 340-byte slice spanning several fields (P18).",
+      "rule": "After 'require return_data.size >= n', a copy mem[a len min(n, rds)] = return_data[..] makes mem[a + k] = ext_call.return_data[k] for k + 32 <= n; a decoded copy mem[b + k] = mem[a + k] (after the range check) is the same word, and concat(Bytes(12, 0), x[a + 12 len 20]) of a checked address word is address(x[a]); a slice spanning several words prints as those words.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getPnl (0x24c029e0), getNetPnl, getOpenInterestWithPnl, getPnlToPoolFactor, getPendingPositionImpactPoolDistributionAmount",
+      "lines": "570, 587; 3509, 3532, 3549; 3531; 359-364, 3597-3605; 365-379",
+      "decompiled": "_1 = _param4 != _param5 or 2  |  if -1 * _32 * (ext_call.return_data[0] / _10):  |  1000000000000 * 10**18  |  _38 = 0 ... _40 = _38 ... _42 = _40 ... return _42, _43",
+      "source": "MarketUtils.getPoolDivisor: longToken == shortToken ? 2 : 1; :1786 if (poolUsd == 0) return 0; FLOAT_PRECISION = 10**30; :2925-2931 early returns (0, positionImpactPoolAmount)",
+      "issue": "The divisor ternary is printed as a boolean 'or' (x != y or 2, value 1 or 2) and recomputed for each use; a zero test is printed on the negated product; 10**30 is printed as 1000000000000 * 10**18; early returns are turned into nested phi copies (_38 -> _40 -> _42) returned at the end.",
+      "rule": "Print 'c or k' with c boolean as '1 if c else k' (here: 2 if a == b else 1) and reuse an equal earlier expression; in a boolean context -x is x; fold constant products to one power (10**30); a phi whose incoming value is used only by the final return prints as a return in each arm.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 29 ABI functions and the fallback reviewed; no semantic error found. Reader is a set of thin wrappers: 25 functions delegatecall an external library (MarketStoreUtils, PositionStoreUtils, Deposit/Withdrawal/ShiftStoreUtils, ReaderUtils, ReaderPositionUtils, ReaderPricingUtils, Reader*Utils, MarketUtils public functions) and re-encode the result; the library, argument order and selector of each delegatecall were checked against the source (e.g. getPositionPnlUsd passes positionKey = the 12th word, _param12; the five store getters all use get(address,bytes32) 0xfdfc26f3 on their own library). The inlined MarketUtils code (getPnl, getOpenInterestWithPnl, getNetPnl, getPnlToPoolFactor, getPendingPositionImpactPoolDistributionAmount) was compared line by line: keys (sha3 of the abi-encoded key name and arguments), pool divisor, SafeCast checks, pickPriceForPnl's four cases, signed overflow checks, OZ mulDiv with its 'Math: mulDiv overflow' and Panic(18) paths, toFactor's zero shortcut: all match. Source loops: none in this bytecode; every loop of the reached code (EnumerableValues.valuesAt, PRBMath log2, the ReaderUtils / ReaderPositionUtils list loops) runs inside a delegatecalled library or in DataStore. The 43 whiles are the ABI decoding/encoding of the returned struct arrays and of the array parameters (11 of them plain copies, P7). P2: the three delegatecalls with array parameters (getMarketInfoList, getPositionInfoList, getAccountPositionInfoList) show their arguments as raw memory. P9: OZ mulDiv's inverse expansion (e.g. 3600-3603, a 7,297-character line). P11: e.g. the underflow check of positionImpactPoolAmount - minAmount under '_1 > min' (347). Library addresses are the build's link placeholders (0x11...), not a decompiler issue.",
+  "summary": "Faithful: the library delegatecalls and the inlined MarketUtils arithmetic match the source; the text is long only because of the ABI re-encoding of nested struct arrays, and the returned structs are used through slices of their decoded memory copies."
+}

@@ -1,0 +1,49 @@
+{
+  "id": "c00100",
+  "abi_functions": 58,
+  "reviewed": 58,
+  "not_reviewed": [],
+  "source_loops": 12,
+  "loops_shown": {
+    "while": 12,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 2,
+    "P3": 20,
+    "P4": 7,
+    "P6": 31,
+    "P7": 12,
+    "P11": 20
+  },
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "slash(bytes,bytes[]) (Pb.decVarint, Pb.decBytes, PbStaking.decSlash / decAcctAmtPair inlined)",
+      "lines": "2046-2070, 2117-2305, 2322-2429 (about 16 varint loops)",
+      "decompiled": "x = 0 / y = 0 / z = 0 / while -Mask(1, 7, byte(x, mem[mem[_186] + mem[_186 + 32] + 32])): require x + 1 < 10 / ... z = z | byte(x, ...) % 128 << 7 * x / x = x + 1 / mem[_186] = SafeMath.add(mem[_186], x + 1) / if z % 8 | (byte(x, _341) % 128 << 7 * x) % 8 > 5: ...  |  while idx < b | byte(y, _559) % 128 << 7 * y: mem[_667 + idx + 32] = mem[_679 + _680 + idx + 32] ...",
+      "source": "Pb.sol:65 decVarint: for (uint256 i = 0; i < 10; i++) { b = buf[idx+i]; v |= uint256(b & 0x7F) << (i * 7); if (b & 0x80 == 0) { buf.idx += i + 1; return v; } }; decKey/decBytes; PbStaking.decSlash: while (buf.hasMore()) { (tag, wire) = buf.decKey(); ... }",
+      "issue": "Each inlined varint loop is rotated: its condition is the continuation bit, its bound i < 10 is a require inside, and the last byte's contribution is added after the loop but never bound to a name, so every use of the decoded tag, wire type or length repeats 'z | byte(x, w) % 128 << 7 * x' (split by / 8 and % 8), including the bound of the following bytes copy, itself a while (P7).",
+      "rule": "Print a loop whose exit test is the last statement's condition as 'while True: ... if !cond: break' or with its counter bound, and bind the value accumulated by the final (peeled) iteration to one variable at the loop exit; a loop 'mem[d + i] = mem[s + i]' step 32 to n is a copy line.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "undelegateShares, undelegateTokens, slash (_unbondValidator inlined)",
+      "lines": "953-962, 1093-1102, 2549-2560",
+      "decompiled": "if 0 >= bondedValAddrs.length: revert with 'Not bonded validator' / _78 = sha3(7) / s = 0 / while -_valAddr + address(stor[_78 + s]): if SafeMath.inc(s) >= bondedValAddrs.length: revert with 'Not bonded validator' / _78 = sha3(7) / s = SafeMath.inc(s)",
+      "source": "Staking.sol:718-728 for (uint256 i = 0; i < bondedValAddrs.length; i++) { if (bondedValAddrs[i] == _valAddr) { ... return; } } revert(\"Not bonded validator\");",
+      "issue": "The search loop is rotated (bound peeled before the loop and repeated as 'i + 1 >= length' inside), its condition is 'bondedValAddrs[s] != _valAddr' written as the truth value of a difference, the element is a raw stor[sha3(7) + s] although bondedValAddrs is named, and the loop-invariant sha3(7) is reassigned in every iteration.",
+      "rule": "Print the rotated form as 'while s < length: if arr[s] == v: break' (see c00051), print 'x - y' tested for truth as 'x != y', print stor[sha3(p) + i] of a named array as arr[i], and keep loop-invariant definitions outside the loop.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against Staking.sol, Pb.sol, PbStaking.sol and the OZ ECDSA code. All 58 ABI functions were read; slash (976 lines) by structure (signature verification, protobuf decoding of the slash request with its enum Panic(33) checks, nonce/expiry checks, validator and delegator updates, collectors payout loop, events). Loops: 12 source loops (bondValidator's maxBondedValidators loop, completeUndelegate's undelegation queue loop, the two bondedValAddrs loops of the getters and _unbondValidator's search, getDelegatorInfo's loop, slash's collectors loop, verifySignatures' signature loop, Pb's hasMore / copy / varint loops, PbStaking's two field loops) all shown as while in each inlined copy; implicit: calldata bytes[] decodes and memory copies (P7), zero-initialisations as 'while idx - 1' (P3). P11 includes the overflow check of 7 * (x + 1) with x < 10. No execution run.",
+  "summary": "Faithful with all 12 loops present; the protobuf decoding inlined in slash is hard to read (rotated varint loops whose final value is never bound), and the validator search loop is rotated with a raw storage element."
+}

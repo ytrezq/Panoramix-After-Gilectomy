@@ -1,0 +1,25 @@
+{
+  "id": "c00194",
+  "abi_functions": 68,
+  "reviewed": 68,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P6": 1},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "send, sendWithPermit, quoteSend, quoteOFT (and lzReceive's credit path through the immutable endpoint)",
+      "lines": "248-254, 313-319, 427-448, 475-502",
+      "decompiled": "require not Mask(224, 32, cd[_param1 + 4]) / revert with Panic(18)",
+      "source": "OFTCore._debitView -> _removeDust(_amountLD): (_amountLD / decimalConversionRate) * decimalConversionRate, with decimalConversionRate an immutable",
+      "issue": "solc immutables read as 0 (decimalConversionRate, endpoint, token decimals), so every send/quote path divides by zero and the text of these functions ends in 'revert with Panic(18)' right after argument decoding.",
+      "rule": "none (not a decompiler error)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "via-IR LayerZero OFT token (16 KB bytecode, 966-line text). Because of the immutable artifact the send/quote functions are short; their prologues (nonReentrant via transient storage, paused, extra-options length check 0xfe9e4f44, AddressZero) match the source up to the division. All functions reviewed in detail. Source loops: 2, whiles: lzReceiveAndRevert's for over packets (884, with the packet decoding and a copy line for the message) and _setEnforcedOptions' for (setEnforcedOptions 807). Implicit loops: the calldata decode of the EnforcedOptionParam[] (777) and the encoding of the stored options bytes (858). Address checks print in the via-IR form 'require not Mask(96, 160, _param2)' (21 lines), next to the 'x == address(x)' form of legacy builds; equivalent. No semantic problem found.",
+  "summary": "A small, faithful text with both source loops found; most send/quote paths collapse to a division-by-zero revert because the immutable decimal conversion rate reads as 0 in pre-deployment code."
+}

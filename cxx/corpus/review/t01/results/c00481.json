@@ -1,0 +1,38 @@
+{
+ "id": "c00481",
+ "abi_functions": 108,
+ "reviewed": 108,
+ "not_reviewed": [],
+ "source_loops": 8,
+ "loops_shown": {
+  "while": 8,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 8,
+  "P6": 36,
+  "P7": 30,
+  "P8": 60,
+  "P14": 80,
+  "P15": 63
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "obtainDepositData(uint256,bytes), allocateDeposits(...), finalizeUpgradeV2() and the other writers of slot 9",
+   "lines": "2301, 542, 1814",
+   "decompiled": "stor9 = stor9 & 0xffffffffffffffff0000000000000000ffffffffffffffff0000000000000000 | uint64(-_4 + uint64(stor9 >> 128)) << 128 | uint64(_4 + uint64(stor9)); while idx < stor9 >> 192",
+   "source": "BaseModule storage $.nodeOperatorsCount / deposited and depositable counters packed in one slot (uint64 fields)",
+   "issue": "The packed slot 9 (four uint64 counters) is declared as one uint256 and read and written with shifts and masks in 63 lines, so `nodeOperatorsCount` appears only as `stor9 >> 192` (P15).",
+   "rule": "Split a slot into fields when every access is a shift/mask of disjoint bit ranges, and print the read-modify-write as separate field assignments.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Lido CuratedModule (solc 0.8.33, osaka, no via-IR) with 7 linked external libraries (50 delegatecalls: deposit allocator, node-operator ops, withdrawn-validator lib...), whose loops are not in this bytecode. Source loops in this bytecode, all shown as readable whiles: finalizeUpgradeV2 (542), SigningKeys.loadKeys in getSigningKeys (832), SigningKeys.loadKeysSigs in getSigningKeysWithSignatures (1221) and obtainDepositData (2330), batchDepositInfoUpdate (1369), settleGeneralDelayedPenalty (1740), getDepositsAllocation (1814), obtainDepositData's allocation loop (`while True` with the exit test first, 2299), allocateDeposits (2402). The other 36 whiles are implicit ABI encodes/decodes, including the struct-array encodes of WithdrawnValidatorInfo[] into library delegatecalls (P7). Some events (e.g. topic 0x7220970e... at 2306) show their data as `mem[mem[64] len ...]` (free-pointer identification, see c00026). Small view functions and access-control paths read correctly.",
+ "summary": "Good text: every source loop in the bytecode is a readable while and the semantics look intact; the remaining noise is implicit ABI copy loops, a packed counter slot handled as raw bit arithmetic, and a few raw-memory event payloads."
+}

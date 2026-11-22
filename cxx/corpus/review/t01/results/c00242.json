@@ -1,0 +1,25 @@
+{
+  "id": "c00242",
+  "abi_functions": 59,
+  "reviewed": 59,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 7, "P3": 15, "P4": 181, "P8": 60, "P14": 120},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "on_retract, on_propose, the weight updates (6 renderings), claim/reclaim/report/sync (_sync_rewards, 4) and _claim (3)",
+      "lines": "299-307 (on_retract); 700-724 (claim's _sync_rewards); 789; 1844",
+      "decompiled": "stor15[_7 / 2] = SafeMath.sub(stor15[_7 / 2], 1) / mem[96] = _7 / 2 + 1 / idx = 0 / while idx + 1 != 6: stor15[concat(mem[96])] = SafeMath.sub(...) ...   |   s = 0 / while _9 != _8: ... rewards[concat(mem[96])] = ext_call.return_data[64] / mem[96] = SafeMath.add(mem[96], 1) / if s + 1 != 32: ... continue / break",
+      "source": "VoteBoostRewardDistributor.vy:433 for i: uint256 in range(6): self.num_proposals[epoch + i] -= 1 (and :412, :693); :792 for i: uint256 in range(32): if epoch == current: break; ... epoch += 1 (and :831)",
+      "issue": "Every Vyper range loop is rotated, as described for c00159: the first iteration is peeled before the loop (on_retract, on_propose, the weight updates) and the test reads 'idx + 1 != 6', or the in-body break test becomes the while condition and the range bound an 'if s + 1 != 32: continue / break' at the bottom; the loop variables live in memory words (mem[96], mem[448], mem[640]).",
+      "rule": "Same as c00159: recognise 'body; i = i + 1; if i != N: goto body' as one loop 'while i < N' (or i != N) without peeling; when a loop has two exits (a break test and the range bound), keep the range bound as the condition and print the other test as 'if ...: break'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Vyper 0.4.2. Source loops (5): on_propose's and on_retract's range(6), _update_weights' range(6), _sync_rewards' range(32) with an early break, _claim's range(32); all shown as whiles (15 renderings, all rotated: P3). No other whiles. P4: 181 mapping keys as one-element concat(mem[N]) (Vyper keeps keys in memory), P14: locals as mem[N]. The call to the distributor's claim() is preceded by its selector stored in decimal (mem[160] = 1316084013 = 0x4e71d92d). report (486 lines) was reviewed by structure, the other functions by reading; faithful. The first peeled iteration drops the overflow check of epoch + 1 correctly (the base is a quotient by 2).",
+  "summary": "Faithful Vyper text whose five range loops are all found but all rotated (peeled first iteration or break test as the loop condition), with keys and locals kept in memory words."
+}

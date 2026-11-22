@@ -1,0 +1,27 @@
+{
+ "id": "c00187",
+ "abi_functions": 46,
+ "reviewed": 46,
+ "not_reviewed": [],
+ "source_loops": 4,
+ "loops_shown": {
+  "while": 4,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 2,
+  "P3": 1,
+  "P7": 4,
+  "P8": 30,
+  "P9": 10,
+  "P11": 6,
+  "P14": 30
+ },
+ "findings": [],
+ "notes": "Horizen ZenStaker (solc 0.8.28). Source loops, all shown as whiles: Multicall.multicall (360), getDepositsInfo (832), getDepositorFullSummary's nested duplicate-skip loops (`while True` with exit tests first, 262/266, the inner `break` and `continue` faithful). Implicit: new bytes[] initialisation (`while idx - 1`, P3) and three ABI encodes of uint96/address arrays (P7). Reward accrual math is shown distributed, e.g. `min(block.timestamp, rewardEndTime) * stor11 - lastCheckpointTime * stor11` for (min(...) - lastCheckpointTime) * rate (see c00026's distribution finding; counted as P9). P11: bounds checks `idx >= mem[...]` on arrays allocated with length len inside `while idx < len`. Staking, withdraw and claim paths read correctly.",
+ "summary": "Clean text: all four source loops, including a nested search with break/continue, appear as readable whiles; minor noise from distributed reward arithmetic and dead bounds checks."
+}

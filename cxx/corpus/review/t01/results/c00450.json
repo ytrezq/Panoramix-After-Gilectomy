@@ -1,0 +1,47 @@
+{
+  "id": "c00450",
+  "abi_functions": 101,
+  "reviewed": 101,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P4": 12, "P7": 15, "P9": 4, "P11": 12},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "getAggchainHash(bytes) (unknown6a55f66c) and the other functions reading the gateway immutable",
+      "lines": "990-991",
+      "decompiled": "static call 0x0.unknowncce7d0df(?) with: gas gas_remaining",
+      "source": "AggchainBase: aggLayerGateway (immutable) .getDefaultAggchainVKey / signers call",
+      "issue": "The target is a solc immutable, zero in the pre-deployment runtime code, so the call reads as a call to address 0.",
+      "rule": "None (pre-deployment artifact).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "updateSignersAndThreshold (unknownf51f563a) and the initializers",
+      "lines": "1611-1616",
+      "decompiled": "var167943 = stor66.length ... _274 = var167943",
+      "source": "AggchainBase._removeSignerInternal: delete signerToURLs[signer]; aggchainSigners[index] = aggchainSigners[aggchainSigners.length - 1]",
+      "issue": "An internal variable id leaks into the text as `var167943` instead of the `_N` naming used everywhere else (also 6 times in c00069); the variable itself is a copy of `stor66.length` that nothing in between changes.",
+      "rule": "Rename every remaining internal value to the `_N` scheme before printing, and propagate a copy of a storage read when no store to that slot can intervene.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getAggchainHash(bytes) (unknown6a55f66c)",
+      "lines": "1018, 1027",
+      "decompiled": "if mem[162 len 2] << 240 != 0x1000000000000000000000000000000000000000000000000000000000000: revert with 0x45707950 ... if mem[224] != startingBlockNumber and (mem[224] * L2_BLOCK_TIME - startingBlockNumber * L2_BLOCK_TIME) / SafeMath.sub(mem[224], startingBlockNumber) != L2_BLOCK_TIME:",
+      "source": "AggchainFEP: aggchain type check on the first bytes of aggchainData; (l2BlockNumber - startingBlockNumber) * L2_BLOCK_TIME (checked)",
+      "issue": "The 2-byte type test keeps a shift on both sides (`x << 240 != 1 << 240` is `x != 1`), and the checked product is distributed (P9), hiding `(n - start) * L2_BLOCK_TIME`.",
+      "rule": "Cancel an identical left shift on both sides of (in)equality when the shifted operand loses no bits; keep products unexpanded.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "101 ABI functions, most of them one-line getters (checked in bulk); the 10 functions over 45 lines (initializers 08537cd1/558716c1, updateSignersAndThreshold, getAggchainSignerInfos, getAggchainSigners-like 96a4f546, batchSetAggchainMetadata, getAggchainHash, onVerifyPessimistic-like 3e1e0121...) read in full. All 5 source loops are whiles: batchSetAggchainMetadata (`while idx < cd[_param1 + 4]`), getAggchainSignerInfos (`while idx < stor66.length`), _updateSignersAndThreshold's three loops (`while s < _89 - 1`, `while s < _235`, `while s < _291`, the last also in both initializers). Implicit: storage-to-memory copies of aggchainSigners for hashing (printed once as `address(stor[s])`, once as `stor66[s]` for the same array), struct-array allocation and ABI encodings (P7). P11: `if s >= mem[128]: revert Panic(50)` inside `while s < mem[128]`-bounded loops. The long-string delete of signerToURLs is shown as a copy-line clear plus the length slot, correctly. Custom errors print as raw selectors (database). No semantic error found.",
+  "summary": "Faithful, abort-free text with all 5 source loops as whiles; minor issues only: a leaked internal name (`var167943`), unfolded shifts and distributed checked products, and an immutable call target printed as 0x0."
+}

@@ -1,0 +1,13 @@
+{
+  "id": "c00266",
+  "abi_functions": 2,
+  "reviewed": 2,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [],
+  "notes": "GUniLPOracleFactory (solc 0.6.12): build() reads token0 / token1, creates the oracle from the embedded creation code with its constructor arguments (bubbling the revert data on failure), calls rely(_owner) and deny(this), sets isOracle and emits NewGUniLPOracle with tok0 / tok1 indexed; isOracle is a plain getter. Both are exact and as simple as the source. No loops.",
+  "summary": "A clean, faithful text with nothing to simplify."
+}

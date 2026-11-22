@@ -1,0 +1,36 @@
+{
+  "id": "c00035",
+  "abi_functions": 54,
+  "reviewed": 54,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 14, "P6": 3, "P7": 6},
+  "findings": [
+    {
+      "kind": "semantics",
+      "severity": "medium",
+      "function": "onJoinPool(bytes32,address,address,uint256[],uint256,uint256,bytes)",
+      "lines": "945-990 (of the text; the tail after 'if totalSupply: ... else: ... revert')",
+      "decompiled": "if totalSupply: assert balances.length / revert with 'BAL#103' / else: ... if block.timestamp < stor9 >> 192: ... / revert / if not _1689: revert with 'BAL#000' / totalSupply = _1688 / balanceOf[recipient] = SafeMath.add(balanceOf[recipient], _1686) / log Transfer(...) / if mem[_1684]: ... / return 64, ...",
+      "source": "BasePool.onJoinPool -> _onInitializePool / _onJoinPool, _mintPoolTokens(recipient, bptAmountOut), return (amountsIn, dueProtocolFeeAmounts)",
+      "issue": "Both arms of the if end in a revert, so the minting, Transfer event and return printed after them are unreachable, and they use variables (_1684, _1686, _1688, _1689) that are defined nowhere in the function. The reader is told the join mints BPT and returns, which no path of this bytecode does (with the zero immutables every join reverts).",
+      "rule": "A block all of whose predecessors end in revert, return or stop is unreachable: do not print it. Any use of an SSA name without a definition on a printed path means its defining path was pruned; the use must be pruned with it.",
+      "verified": "evmrun --empty --caller 0x0 0xd5c096c4 (INIT join, poolId 0, empty arrays): 'revert 0x', as the text's else arm; the tail is never reached"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "onJoinPool, onExitPool, onSwap paths, getRateProviders, getScalingFactors and every function reading the pool's immutables",
+      "lines": "e.g. onJoinPool 'if caller: revert with BAL#205' / 'if poolId: revert with BAL#500'; 'const getRateProviders = 32, 0'",
+      "decompiled": "if caller: revert with 'BAL#205' ... const getRateProviders = 32, 0",
+      "source": "BasePool _vault, _poolId; ComposableStablePoolStorage _totalTokens, _bptIndex, the token, scaling-factor and rate-provider immutables",
+      "issue": "solc immutables are 0 in the pre-deployment runtime code: the vault-only check becomes 'caller == 0', the token count is 0, so getRateProviders / getScalingFactors return empty arrays, their loops (getRateProviders' and _scalingFactors' 'for i < totalTokens') are dead and most of the join/exit/swap math is pruned.",
+      "rule": "None needed.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "solc 0.7.1 (asserts for bounds and division by zero). Source loops counted are the live ones: _dropBptItem ('while s < _39: assert s + 1 < ...', with bptIndex = 0), _getAdjustedBalances, and StableMath._calculateInvariant's sum loop, its 255-iteration Newton loop ('while True: if t >= 255:' with the exit test inside) and the nested j loop, each printed four times in getRate / getActualSupply / updateProtocolFeePercent / disableRecoveryMode (one per caller of the invariant); getRateProviders' and _scalingFactors' loops are dead because the immutable token count is 0 (artifact, not counted). P7: vault.getPoolTokens decode loops and array copies. Getters, amplification update, recovery mode, protocol-fee cache and token-rate cache functions checked.",
+  "summary": "Correct on its live paths with the invariant loops readable; the zero immutables prune most of the pool logic, and onJoinPool still prints an unreachable minting tail that uses undefined variables."
+}

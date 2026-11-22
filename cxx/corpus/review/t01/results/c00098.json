@@ -1,0 +1,37 @@
+{
+ "id": "c00098",
+ "abi_functions": 48,
+ "reviewed": 48,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 14,
+  "P6": 20,
+  "P7": 24,
+  "P8": 60,
+  "P14": 80
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "initialize(...), changeSetting(address,bool,string,bytes), canPerform(address,bytes32,uint256[]) and the other string/bytes copies",
+   "lines": "394-403, 874-880, 1133",
+   "decompiled": "while s < mem[128]: mem[s + 32 * _params.length + 324] = mem[s + 160]; s = s + 32 / if not mem[128] % 32: ... else: mem[...] = ~(256**(-(mem[128] % 32) + 32) - 1) & mem[...]; while _30 + ceil32(_title.length) + 320 > idx: stor[s + sha3(sha3(_7, 2) + 3)] = mem[idx] ...",
+   "source": "solc 0.4 copies of bytes/string into call arguments and into storage (Agreement settings title/content)",
+   "issue": "The legacy word-copy loops of bytes (memory to memory, with the last-word masking) and of long strings into storage slots are printed as whiles (24 of them) instead of copy lines.",
+   "rule": "A loop `mem[d + i] = mem[s + i]` (or `stor[k + j] = mem[s + 32j]`) over i = 0, 32, ... < n is a copy of ceil32(n) bytes; with the following tail mask it is `mem[d len n] = mem[s len n]` plus a zeroed tail (P7). For storage, print `stor[k len ceil32(n)/32] = mem[s len n]`.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Aragon Agreement (solc 0.4.24). No explicit loop in the reached source (Agreement, DisputableAragonApp, AragonApp, helpers); all 24 whiles are implicit copies of bytes/strings (P7). Main flows (newAction, challengeAction, disputeAction, settleAction, rule, changeSetting) reviewed by structure: calls to the arbitrator/staking/kernel, storage writes and events are present; P2 calls come from solc 0.4 memory argument building with unknown free pointer (14 lines).",
+ "summary": "Loop-free source; the text is faithful but every bytes/string copy is a legacy word-copy while, and some calls keep raw-memory arguments."
+}

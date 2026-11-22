@@ -1,0 +1,58 @@
+{
+  "id": "c00039",
+  "abi_functions": 71,
+  "reviewed": 71,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 44, "P6": 9, "P7": 5, "P8": 450, "P9": 30, "P10": 6, "P11": 6, "P12": 120, "P14": 30, "P15": 4, "P18": 30},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "deposit, borrow, withdraw, payback, paybackFor, startAuction, buyFromAuction, drip (all code after the first call whose return size moves mem[64])",
+      "lines": "e.g. 2297-2302, 2414-2422, 2501, 2078, 1849-1850 context, 2393-2403",
+      "decompiled": "_54 = mem[64] / mem[mem[64]] = 0x70a08231... / mem[_54 + 4] = this.address / static call _tokenAddr with: args mem[mem[64] len _54 - mem[64] + 36] ... log Deposit(...): mem[mem[64] len _116 + ceil32(return_data.size) - mem[64] + 96], indexed _market",
+      "source": "InteractionV4.sol:211-223 balanceOf, safeTransferFrom, gem.join, vat.behalf, vat.frob, vat.urns, takeSnapshot, emit Deposit",
+      "issue": "P2 at scale (44 call lines, plus the Deposit and AuctionStarted events and 'Interaction/...' Error(string) reverts printed as raw memory with the message in hex). Even '_54 - mem[64]', where _54 = mem[64] was read with no store to slot 64 in between, is not reduced to 0, so balanceOf, gem.join, vat.frob, jug.drip and the library delegatecall lose their names and arguments.",
+      "rule": "Prove mem[64] >= 128 on every path (set to 128 at entry and only increased afterwards, the increments bounded by the Panic(65) checks), so stores at mem[64] + k (k >= 0) cannot alias slot 64; then copy-propagate _x = mem[64] and the last store to mem[64], and decode the selector/argument words of the call, log or revert.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "removeCollateralType(address), setCollateralType(address,address,bytes32,address,uint256)",
+      "lines": "943-944, 1242-1243",
+      "decompiled": "uint8(collaterals[_param1].field_512) = 2 / uint24(collaterals[_param1].field_520) = 0",
+      "source": "InteractionV4.sol:188 collaterals[token].live = 2; (setCollateralType: CollateralType(..., 1, clip))",
+      "issue": "A store of a constant into the uint32 field 'live' (read everywhere as uint32(field_512)) is printed as a uint8 store plus a uint24 store of 0 into a field_520 that does not exist.",
+      "rule": "Merge adjacent masked stores into one slot when their bit ranges together cover exactly a field that the code reads as one unit; the merged value is the concatenation (here uint32(field_512) = 2).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "the six add/remove list functions (addToWhitelist, removeFromWhitelist, addToBlacklist, removeFromBlacklist, addToAuctionWhitelist, removeFromAuctionWhitelist)",
+      "lines": "560-570, 595-605, 634-644, 673-683, 712-722, 751-761",
+      "decompiled": "_9 = addrs.length / while s < _9: if s >= addrs.length: revert Panic(50) / mem[0] = Bytes(12, 0), mem[32 * s + 172 len 20] / stor115[concat(Bytes(12, 0), mem[32 * s + 172 len 20])] = 0 / _9 = addrs.length",
+      "source": "InteractionV4.sol:96-97 for(uint256 i = 0; i < tokens.length; i++) tokensBlacklist[tokens[i]] = 0;",
+      "issue": "The loops are readable but the key tokens[i] is a concat of memory slices, the bound is re-assigned to the same value inside the body, and the bounds check is implied by the loop test (P11).",
+      "rule": "Print Bytes(12, 0), mem[a + 12 len 20] as address(mem[a]); forward mem[160 + 32*s] to cd[addrs + 36 + 32*s] through the decoding loop's element copy; drop a loop-invariant re-assignment and a check implied by the loop condition.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "borrowApr, borrowed, collateralRate, currentLiquidationPrice, borrow, payback, deposit (63 lines); deposit, removeCollateralType and the other SafeERC20 users (6 lines)",
+      "lines": "475-487, 336, 413, 787, 293; 961",
+      "decompiled": "s = 1000000000 * 10**18 ... + 500000000 * 10**18 ... / (10 * 10**6) ; 1000000000000000000000000000 * 10**18 ; mem[160 len 4] = 157198259",
+      "source": "RAY = 10**27, hMath.rpow half = b / 2, 10 ** 7, 10 ** 45; abi.encodeWithSelector(token.approve.selector, ...)",
+      "issue": "Powers of ten are printed as odd products (10**27 as '1000000000 * 10**18', 10**7 as '10 * 10**6', 10**45 as '1000000000000000000000000000 * 10**18'), and 4-byte selectors written to memory are printed in decimal (0x095ea7b3 as 157198259, 0x23b872dd as 599290589).",
+      "rule": "Print a constant c = m * 10**k with the largest k (10**27, 5 * 10**26, 10**45); print a value stored into a 4-byte memory slice in hex.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 71 ABI functions compared; the long ones (deposit 421 lines, payback 311, paybackFor 312, borrow 241, startAuction 235, withdraw 226) by structure: guards, calls in order, storage writes, events, reverts and return values, all matching the source; the small getters, setters and auth functions read in full (setHelioProvider's conditional store and borrowApr's rpow, including the x == 0 case folded into the Panic(17) of 'principal - RAY', are exact). Loops: the six address[] for-loops of the list functions and hMath.rpow's Yul for (borrowApr) are readable whiles. AuctionProxy.getAllActiveAuctionsForClip's for loop is not counted: it is an external library function reached by DELEGATECALL to the linked library, so it is not in this bytecode (likewise AuctionProxy.startAuction/buyFromAuction/resetAuction). The other 12 whiles are implicit: 6 address[] ABI-decoding loops, the Sale[] decode and encode of getAllActiveAuctionsForToken, and 4 bytes copies inside SafeERC20/functionCall (P7). P12: the whitelisted/auctionWhitelisted modifiers duplicate the whole body in both arms (deposit, startAuction, buyFromAuction, resetAuction). P9: FullMath.mulDiv inlined (collateralTVL and the takeSnapshot debts). P18/P14: the CollateralType memory copy read back as mem[128]/mem[160]. P8 estimated from 891 memory-write lines.",
+  "summary": "Faithful in every path checked, with all source loops readable; dominated by the unresolved free-memory pointer (44 raw-memory calls, raw-memory events and reverts with hex messages) and by modifier branches that duplicate whole function bodies."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "c00526",
+  "abi_functions": 69,
+  "reviewed": 69,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 51, "P6": 9, "P7": 6, "P8": 40, "P9": 42, "P18": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "borrowApr(address) (hMath.rpow inlined, n = YEAR)",
+      "lines": "436-448 (and 63 lines with the same constants)",
+      "decompiled": "s = 1000000000 * 10**18 / t = 15778476 / u = SafeMath.add(ext_call.return_data[0], _1) / while t: require SafeMath.mul(u, u) + 500000000 * 10**18 >= SafeMath.mul(u, u) / ... _8 = SafeMath.add2(SafeMath.mul2((SafeMath.mul(u, u) + 500000000 * 10**18) / (1000000000 * 10**18), s), 500000000 * 10**18) / (1000000000 * 10**18) / ... u = (SafeMath.mul(u, u) + 500000000 * 10**18) / (1000000000 * 10**18)",
+      "source": "hMath.sol:14 rpow: for { n := div(n, 2) } n { n := div(n,2) } { let xx := mul(x, x) ... x := div(xxRound, b) if mod(n,2) { ... z := div(zxRound, b) } }",
+      "issue": "The Yul loop is found and correct (the x == 0 case even folds to the Panic(17) of the later subtraction), but ONE = 10^27 and half prints as 1000000000 * 10**18 and 500000000 * 10**18, the new x is computed twice instead of once, and the helper SafeMath.mul(a, b) checks 'a * b / a == a', an overflow test only valid for its single use mul(u, u).",
+      "rule": "Print 10^k (and 5 * 10^k) as such; name a value computed once and used twice (x := (xx + half) / b) at its computation; specialise helper names to the check they make (a squaring check) or keep the general form b == a * b / a.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "deposit, withdraw, withdrawFor, borrow, payback, paybackFor, startAuction, buyFromAuction, resetAuction, getAllActiveAuctionsForToken",
+      "lines": "e.g. 2480-2530 (deposit), 2860-2875 (payback)",
+      "decompiled": "call ... with: args mem[mem[64] len _N - mem[64] + ...]  |  revert with memory from mem[64] len ...",
+      "source": "SafeERC20 transfers, GemJoin/HayJoin/vat calls after the first external call",
+      "issue": "Same root cause as c00600/c00471: 51 call argument lists and 14 reverts built at mem[64] after the first call stay raw memory.",
+      "rule": "As in c00471 (bounded mem[64]; decode buffers relative to any base).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "69 ABI functions; the long ones (deposit, withdraw(For), borrow, payback(For), auctions, currentLiquidationPrice, willBorrow) read by structure, the rest in full. Source loops in this bytecode: addToWhitelist (676), removeFromWhitelist (715), addToAuctionWhitelist (637), removeFromAuctionWhitelist (598), addToBlacklist (559), removeFromBlacklist (524), hMath.rpow (borrowApr 439); all while. AuctionProxy.getAllActiveAuctionsForClip, listed by the pack, runs in the linked library (delegate 0x11e9..3d3a.unknown7ce53fed) and is not counted; the two loops of getAllActiveAuctionsForToken decode and re-encode the returned Sale[] (implicit, P7). P9: the FullMath-style mulmod arithmetic of collateralTVL/currentLiquidationPrice (42 mulmod lines). Storage naming is good where getters exist (wards, collaterals, whitelist...).",
+  "summary": "A faithful text in which all seven loops of this bytecode are found (including the Yul rpow loop); the usual raw buffers after the first call, 10^27 printed as 10^9 * 10^18 and a few recomputed or oddly specialised helpers are the main readability costs."
+}

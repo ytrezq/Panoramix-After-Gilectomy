@@ -1,0 +1,58 @@
+{
+  "id": "c00545",
+  "abi_functions": 75,
+  "reviewed": 75,
+  "not_reviewed": [],
+  "source_loops": 10,
+  "loops_shown": {"while": 10, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 59, "P4": 8, "P6": 18, "P7": 60, "P11": 10, "P15": 518},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "addPosition, removePosition, unknowna07bee0b (forcePositionOut), swapPositions, getCreditPositions, getDebtPositions and every inlined loop over creditPositions/debtPositions",
+      "lines": "17-18 (def storage), 2310-2330, 1755-1800 (439 lines with sha3(10)/sha3(11))",
+      "decompiled": "stor10 is array of fixed array of uint32 at storage 10 / stor[_96 / 8 + sha3(10)] = 256**(4 * (_96 % 8)) * (Mask(32, 32 * ((_96 - 1) % 8), _97) >> 32 * ((_96 - 1) % 8)) | stor[_96 / 8 + sha3(10)] & ...",
+      "source": "Uint32Array.sol:16-24 array.push(); for (uint256 i = len - 1; i > index; i--) array[i] = array[i - 1]; array[index] = value;",
+      "issue": "creditPositions/debtPositions are uint32[] storage arrays packed 8 per slot, but every element access is printed as raw slot arithmetic stor[i / 8 + sha3(10)] with shifts and masks, so the shift loops of Uint32Array.add/remove and the position loops do not read as array element moves.",
+      "rule": "stor[i / k + sha3(s)] read through Mask(w, w * (i % k), .) >> w * (i % k) (or written by the matching mask-merge), with k * w = 256, is element i of a packed uintW[] at slot s: print it as stor10[i] (and def storage 'array of uint32').",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "multicall(bytes[]) and the inlined Address/SafeTransferLib error paths (95 lines)",
+      "lines": "944-952, 966-979",
+      "decompiled": "_31 = mem[64] / mem[mem[64]] = 0x8c379a0... / mem[_31 + 4] = 32 / mem[_31 + 36] = 29 / mem[_31 + 68] = 'Address: call to non-contract' / revert with memory from mem[64] len _31 - mem[64] + 100",
+      "source": "Address.verifyCallResultFromTarget: require(isContract(target), \"Address: call to non-contract\")",
+      "issue": "A temporary defined as mem[64], with no store to mem[64] after it, is not identified with mem[64], so the revert keeps 'from mem[64] len _31 - mem[64] + 100' instead of revert with 'Address: call to non-contract' (44 'revert with memory' lines, 95 lengths of the form _N - mem[64]).",
+      "rule": "After '_t = mem[64]', mem[64] reads as _t until the next store to mem[64]; then _t - _t folds to 0 and the Error(string) payload is recognised.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown575bbce6/unknownb0646e27 (decrease/increaseShareSupplyCap), locked(), isShutdown(), blockExternalReceiver(), holdingPosition(), initiateShutdown, liftShutdown ... (79 lines)",
+      "lines": "16 (def storage), 53-55, 81-92, 397, 420",
+      "decompiled": "stor8 is uint256 at storage 8 / return bool(uint8(stor8 >> 216)) / return stor8 >> 224 / uint192(stor8) = _param1",
+      "source": "slot 8: uint192 shareSupplyCap, bool locked, bool isShutdown, bool ignorePause, bool blockExternalReceiver, uint32 holdingPosition",
+      "issue": "Slot 8 is not split into its six fields although getters name four of them, so they read as shifts of stor8 (P15).",
+      "rule": "Split a slot by the disjoint (offset, width) pairs of its accesses and name each field after the getter that returns it.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "multicall(bytes[]), addPosition(...)",
+      "lines": "913-916, 2315-2326",
+      "decompiled": "s = 0 / while True: / if s >= data.length: stop  |  while idx > index: if SafeMath.sub(idx, 1) >= stor10.length: revert with Panic(50) / if idx >= stor10.length: revert with Panic(50) ... if not idx: revert with Panic(17)",
+      "source": "Cellar.sol:71 for (uint256 i = 0; i < data.length; i++) address(this).functionDelegateCall(data[i]); Uint32Array.sol:22 for (uint256 i = len - 1; i > index; i--) array[i] = array[i - 1];",
+      "issue": "The multicall loop prints as 'while True' with its exit as the first statement; the shift loop keeps checks its guard implies (idx > index >= 0 gives idx >= 1, and idx < length after the push).",
+      "rule": "'while True: if c: stop ...' is 'while not c: ...'; inside 'while idx > index', idx - 1 cannot underflow and 'not idx' is false.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 75 ABI functions reviewed (the ERC20/ERC4626 views, auth setters, deposit/mint/redeem/withdraw, totalAssets*, addPosition/removePosition, receiveFlashLoan, cachePriceRouter and callOnAdaptor (629/702 lines) by structure). Source loops in this bytecode: multicall (914), _withdrawInOrder (3317, 3670), _calculateTotalAssetsOrTotalAssetsWithdrawable's three loops (1866 withdrawable; 2992 and 3074 in totalAssets, inlined again in maxWithdraw/maxRedeem/cachePriceRouter/callOnAdaptor), _makeAdaptorCalls' nested loops (4914/4931 in callOnAdaptor, 2443/2452 in receiveFlashLoan), receiveFlashLoan's repay loop (2542), Uint32Array.add (2318, 2346) and Uint32Array.remove (1596, 1626, 1760, 1796): all whiles. PriceRouter._getValues' loop is in the external PriceRouter (not counted). The other whiles are implicit: the checked 10**decimals helper ('while x > 1', 3432/3785), the packed uint32[] storage-to-memory copies of getCreditPositions/getDebtPositions ('while 32 * stor10.length + 160 > idx + 32'), validated abi.decode of AdaptorCall[] and the bytes/array encoding copies (P7). The 62 Panic(34) are solc's checks of storage bytes encoding (adaptorData/configurationData). Custom errors print as selectors (0x229e78bb, 0x34f1ec1b, ...), normal.",
+  "summary": "All loops are found, but the packed uint32[] position arrays are raw slot arithmetic (439 lines), slot 8's packed fields are shifts of one word, and the error paths keep memory reverts that a trivial mem[64] fold would name."
+}

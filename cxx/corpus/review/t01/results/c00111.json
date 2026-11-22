@@ -1,0 +1,25 @@
+{
+  "id": "c00111",
+  "abi_functions": 12,
+  "reviewed": 12,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "deployPAU(address,bytes32) (unknownfb99250d)",
+      "lines": "124-134",
+      "decompiled": "create2 contract with 0 wei salt: sha3(caller, _param2) code: code.data[9035 len 3917], _param1 / _3 = create2.new_address / ... / create2 contract with 0 wei salt: sha3(caller, _param2) code: code.data[1824 len 7211], _1, 0, _2, create2.new_address",
+      "source": "PAUFactory.sol:112-117 rateLimits = deployRateLimits(admin, salt); controller = deployController(accessControls, almProxy, rateLimits, salt) -> new Controller{salt}(accessControls, beacon, proxy, rateLimits)",
+      "issue": "The rateLimits address, already bound to _3, is printed as 'create2.new_address' inside the arguments of the next create2, where it reads as the address being created by that same statement.",
+      "rule": "Once the result of an external creation or call is bound to a variable, print the variable in later statements (here _3), and never print 'create2.new_address' inside another create2.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "A factory of CREATE2 deployments; all 12 functions compared with the source: the five deployX functions (salt = keccak256(abi.encode(msg.sender, salt)), constructor arguments appended to the creation code, the registry mapping set and the event), deployPAU's order (access controls, ALM proxy, rate limits, controller, PAUDeployed), and the five isX getters. beacon is an immutable read as 0 (artifact: the controller's beacon argument is 0). No loops.",
+  "summary": "Tiny and faithful; the only blemish is a previous create2 result printed as 'create2.new_address' inside the next create2's arguments."
+}

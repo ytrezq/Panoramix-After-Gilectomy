@@ -1,0 +1,63 @@
+{
+  "id": "c00486",
+  "abi_functions": 75,
+  "reviewed": 75,
+  "not_reviewed": [],
+  "source_loops": 10,
+  "loops_shown": {
+    "while": 10,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 59,
+    "P4": 8,
+    "P6": 18,
+    "P7": 45,
+    "P8": 80,
+    "P9": 20,
+    "P11": 50,
+    "P12": 10,
+    "P15": 83
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "every function touching creditPositions / debtPositions (totalAssets, totalAssetsWithdrawable, maxWithdraw, maxRedeem, redeem, withdraw, callOnAdaptor, cachePriceRouter, addPosition, removePosition, forcePositionOut, swapPositions, getCreditPositions, getDebtPositions); def storage",
+      "lines": "18-19 (def storage); 655-666 (getDebtPositions), 712-723; 1597-1610 (forcePositionOut); 3318-3324 (redeem); 437 lines with 'stor[... / 8 + sha3(10|11)]'",
+      "decompiled": "stor10 is array of fixed array of uint32 at storage 10  |  while 32 * stor11.length + 160 > idx + 32: mem[idx + 32] = uint32(stor[t + (s + 7) / 32 + sha3(11)] / 256**(s - Mask(251, 5, s + 7) / 8 - s * ((s + 7) / 32) + 4)) ...  |  mem[0] = Mask(32, 32 * (s % 8), stor[s / 8 + sha3(10)]) >> 32 * (s % 8)  |  stor[s / 8 + sha3(10)] = 256**(4 * (s % 8)) * (Mask(32, 32 * (SafeMath.add(1, s) % 8), ...) | ~(4294967295 * ...",
+      "source": "Cellar.sol: uint32[] public creditPositions / debtPositions; Uint32Array.sol:40 for (i = index; i < len - 1; i++) array[i] = array[i + 1]; :22 array[i] = array[i - 1]; getCreditPositions() returns creditPositions",
+      "issue": "A uint32[] packs 8 elements per slot; the text never prints element i as stor10[i]: reads are masked shifts of stor[i / 8 + sha3(10)], writes are whole-slot mask arithmetic, and the storage-to-memory copy of the getters is a while loop whose byte-offset bookkeeping is unreadable.",
+      "rule": "For a dynamic array at slot p whose accesses are slot sha3(p) + i / k, bits w * (i % k) (k = 256 / w), declare 'array of uintw' and print reads and masked writes as p[i]; a loop copying p[0..n) into consecutive memory words is one copy line 'mem[d len 32 * n] = p[0 len n]'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "callOnAdaptor, cachePriceRouter, deposit, mint, multiAssetDeposit, redeem, withdraw, receiveFlashLoan, multicall, setHoldingPosition, setAlternativeAssetData, addPosition, removePosition",
+      "lines": "59 P2 lines; 36 'revert with memory from mem[64]'; e.g. 1359-1390 (deposit's delegatecall to the holding adaptor)",
+      "decompiled": "static call stor9.getPriceInUSD(address asset) with: args 0 ...  |  delegate call ... args mem[mem[64] len ...]  |  revert with memory from mem[64] len _x - mem[64] + 36",
+      "source": "Cellar.sol: adaptor.functionDelegateCall(abi.encodeWithSelector(BaseAdaptor.deposit.selector, assets, adaptorData, configurationData)); custom errors Cellar__... with arguments",
+      "issue": "Same cause as P2 in c00463: the adaptor delegatecalls lose their selector and arguments (the adaptorData bytes are copied from storage by a while loop into the unresolved buffer), and 36 custom-error reverts are memory ranges at the free pointer.",
+      "rule": "Same as c00463: bound the free-memory word so writes at mem[64] + k do not alias it.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "deposit, mint, multiAssetDeposit, redeem, withdraw, setHoldingPosition and every function reading slot 8 (shareSupplyCap / locked / isShutdown / ignorePause / blockExternalReceiver / holdingPosition) or slot 16 (feeData)",
+      "lines": "16, 24 (def storage); 1255-1259, 1326-1328 (deposit); 79 stor8 lines",
+      "decompiled": "stor8 is uint256 at storage 8 / if uint8(stor8 >> 192): revert with 'REENTRANCY' / _1 = stor8 / _2 = uint192(stor8) / uint8(stor8.field_192) = 1 / ... / mem[0] = _1 >> 224 | _2 >> 224 / stor13[_1 >> 224 | _2 >> 224]",
+      "source": "Cellar.sol slot 8: uint192 shareSupplyCap, bool locked, bool isShutdown, bool ignorePause, bool blockExternalReceiver, uint32 holdingPosition; getPositionData[holdingPosition]",
+      "issue": "Slot 8 (six fields) and slot 16 (three uint64) are declared as single words (P15), so holdingPosition reads as '_1 >> 224 | _2 >> 224', where the second term is uint192(stor8) >> 224 and always 0.",
+      "rule": "Split a slot into the fields its accesses use; x >> k with x known below 2^k is 0, and a | 0 is a.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against Cellar.sol and its CellarWithOracle / BalancerFlashLoans / MultiAssetDeposit / NativeSupport layers, ERC20/ERC4626 (solmate), Auth, Uint32Array, SafeTransferLib, Math. The pack's 'Reaches' lists include PriceRouter, Registry, ERC4626SharePriceOracle, OracleLibrary and TickMath functions; they are external contracts called through interfaces, not inlined here, so their loops (PriceRouter._getValues) are not counted. deposit, mint, redeem, withdraw, multiAssetDeposit, receiveFlashLoan, totalAssets, totalAssetsWithdrawable, maxWithdraw/maxRedeem, the position-management functions and the small owner functions were read; callOnAdaptor (950 lines) and cachePriceRouter (650 lines) by structure (both contain the totalAssets computation before and after, as in the source). Checked: nonReentrant lock/unlock on bit 192 of slot 8, shares computed with the pre-transfer totalSupply, mulDivDown/Up preconditions and the (p - 1) / d * bool(p) + bool(p) rounding, Uint32Array add/remove bounds, the checked exponentiation helper for 10**decimals. Loops: 10 source loops (multicall - shown 'while True' with the bound inside -, receiveFlashLoan, the three loops of _calculateTotalAssetsOrTotalAssetsWithdrawable in each caller, _makeAdaptorCalls outer and inner, _withdrawInOrder, Uint32Array.add and remove) all shown as while; implicit: storage-bytes adaptorData copies (21), packed uint32[] copies (2), ABI encodes and memory copies (P7 45 in all), the exponentiation helper (2). P11: Panic(50) checks implied by the loop bound, 't - 1 > t' re-checked in every iteration of Uint32Array.remove after it was checked before the loop. The asset is an immutable (artifact: 'call 0x0.transferFrom'). No execution run: no semantic suspicion remained.",
+  "summary": "Faithful on every path read, all loops present; readability suffers mainly from the packed uint32[] position arrays printed as raw slot and mask arithmetic, the unresolved free-memory buffers of adaptor delegatecalls and custom-error reverts, and unsplit packed slots 8 and 16."
+}

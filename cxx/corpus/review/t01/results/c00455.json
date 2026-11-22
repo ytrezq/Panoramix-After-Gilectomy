@@ -1,0 +1,25 @@
+{
+  "id": "c00455",
+  "abi_functions": 38,
+  "reviewed": 38,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 0, "P7": 25, "P8": 80, "P11": 12},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "getTokenMetadata, claimAsset (unknowncd586579), the wrapped-token deploy path (unknown7843298b): 6 renderings of _returnDataToString",
+      "lines": "1463-1468, 1636-1641, 2103-2108, 2276-2281, 2677-2682, 2850-2855",
+      "decompiled": "_25 = bool(mem[_1 + 32 len 1] << 248) / s = 0 / while _25: _25 = SafeMath.inc(s) < 32 and bool(mem[_1 + s + 33 len 1] << 248) / s = SafeMath.inc(s) / continue",
+      "source": "PolygonZkEVMBridgeV2Pessimistic.sol:1144 while (nonZeroBytes < 32 && data[nonZeroBytes] != 0) { nonZeroBytes++; }",
+      "issue": "The loop's condition is evaluated once before the loop for s = 0 and then at the end of the body for s + 1 into a flag, so the text reads 'while _25' with the real test hidden in an assignment; byte tests are '<< 248' of a 1-byte slice.",
+      "rule": "'c = C(i0); while c: B; c = C(i + 1); i = i + 1' with no other use of c is 'while C(i): B; i = i + 1'; bool(x[a len 1] << 248) is x[a len 1] != 0.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (7, all whiles): getRoot's for over the 32 tree levels (125, 163, 285, 480, 2540: 'while idx < 32: if not (depositCount >> idx) % 2'), _addLeaf's for ('while not (_8 + 1 >> t) % 2: if t + 1 >= 32: ...', 272, 467, 2526), calculateRoot's for in verifyMerkleProof (1185/1198/1221 and 3539/3552/3575 for the two proofs of each claim), setMultipleSovereignTokenAddress (707), unsetMultipleClaimedBitmap (343), _returnDataToString's while (see the finding) and its byte-copy for (1507 and 5 copies). The byte-scan loop has no bounds check, correctly, since data.length == 32 in that branch and the condition tests nonZeroBytes < 32; the copy loop keeps 'if idx >= mem[_1]' although idx < s <= 32 = mem[_1] (P11). Implicit whiles: 5 validated ABI decodings of uint32[]/address[] calldata arrays ('require not Mask(224, 32, cd[idx])') and about 25 memory copies (metadata strings, Error(string), abi.encode for token deployment), P7. The claim functions (780 and 596 lines) and the token-wrapper deploy (923) were reviewed by structure (proof verification loops, claimed-bitmap update, mint or transfer, events), the small functions by reading. Same bytecode as one other contract of the corpus.",
+  "summary": "Faithful via-IR text with all seven source loops found as whiles; the Merkle-tree loops read well, and the main blemishes are a flag-rotated scan loop and kept bounds checks, plus memory-copy loops for strings."
+}

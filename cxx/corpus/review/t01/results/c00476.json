@@ -1,0 +1,36 @@
+{
+  "id": "c00476",
+  "abi_functions": 36,
+  "reviewed": 36,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {"while": 8, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 5, "P3": 7, "P4": 3, "P6": 22, "P7": 6, "P14": 30},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "getSubscription, pendingRequestExists, ownerCancelSubscription, removeConsumer, cancelSubscription (7 loops)",
+      "lines": "342-351, 428, 571, 657, 721, 791, 847",
+      "decompiled": "if stor3[subId].field_512: mem[160] = address(stor[sha3(sha3(subId, 3) + 2)]); idx = 160; s = 0 / while 32 * stor3[subId].field_512 + 160 > idx + 32: mem[idx + 32] = address(stor[s + sha3(sha3(subId, 3) + 2) + 1]); idx += 32; s += 1",
+      "source": "VRFCoordinatorV2: SubscriptionConfig memory subConfig = s_subscriptionConfigs[subId]; (copies address[] consumers to memory)",
+      "issue": "The compiler's storage-to-memory copy of the consumers array is a do-while: printed with its first element peeled and an end-pointer condition, it takes 9 lines for one array copy (and is followed in getSubscription by a second re-encoding loop).",
+      "rule": "As in c00041: a loop writing mem[d + 32k] = address(stor[base + k]) for k < len (first element peeled, condition d + 32 * len > p + 32) is the copy 'mem[d len 32 * len] = stor[base len len]'; fold the peeled iteration back.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getSubscription, removeConsumer, cancelSubscription, addConsumer, pendingRequestExists",
+      "lines": "344-348",
+      "decompiled": "mem[32 * stor3[subId].field_512 + 160] = .. / address(stor[s + sha3(sha3(subId, 3) + 2) + 1])",
+      "source": "struct SubscriptionConfig { address owner; address requestedOwner; address[] consumers; } in mapping s_subscriptionConfigs",
+      "issue": "The array member consumers of the struct in a mapping has its length named (stor3[subId].field_512) but its elements are raw keccak arithmetic (the c00600 struct-member-mapping case, for an array).",
+      "rule": "sha3(sha3(k, s) + j) + i with constant j is element i of the dynamic array at member j of s[k]: print stor3[subId].field_512[i].",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Chainlink VRFCoordinatorV2. Small functions, subscription management, pendingRequestExists, removeConsumer, requestRandomWords reviewed in detail; fulfillRandomWords (VRF proof verification) by structure. Source loops: 8, all whiles: deregisterProvingKey's for (287), fulfillRandomWords' for over numWords (1484), pendingRequestExists' nested fors (435 'while True' outer with the exit inside, 443 inner; also inlined in removeConsumer 665/667 and cancelSubscription 799/801), removeConsumer's for (731), cancelSubscriptionHelper's for (586, 863), VRF.fieldHash's 'while (x_ >= FIELD_SIZE)' (1224, 1290), VRF.hashToCurve's 'while (!isOnCurve(rv))' printed with isOnCurve inlined as 'while addmod(mulmod(_300, mulmod(_300, _300, P), P), 7, P) != mulmod(_297, _297, P)' (loop variables updated at the end of the body; correct). (The pack's match at VRF.projectiveECAdd :347 is a comment, not a loop.) Implicit loops: 7 storage-to-memory copies of consumers (finding 1, rotated: P3), 6 memory copies of uint256[2] ('while idx < 2: mem[u] = mem[t]', P7, constant trip count 2), address re-encodings. P14: VRF proof fields read at constant memory addresses (mem[480], mem[544], mem[608]). The modexp precompile result reads as 'ext_call.return_data[0 len min(32, return_data.size)], mem[_337 + min(32, return_data.size) len ..]' (exact, as the precompile's output size is not assumed).",
+  "summary": "Faithful, with all eight source loops (including the VRF field-hash and hash-to-curve loops) shown as whiles; the main readability cost is the rotated storage-to-memory copy loop of each subscription's consumers array."
+}

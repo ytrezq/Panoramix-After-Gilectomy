@@ -1,0 +1,34 @@
+{
+ "id": "c00031",
+ "abi_functions": 70,
+ "reviewed": 70,
+ "not_reviewed": [],
+ "source_loops": 1,
+ "loops_shown": {
+  "while": 1,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P8": 10,
+  "P16": 8
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "setTimelockWindows(address,bytes32[],uint128[],uint128[])",
+   "lines": "740-753",
+   "decompiled": "while idx < cd[_param2 + 4]: ... require cd[32 * idx + _param3 + 36] == uint128(cd[32 * idx + _param3 + 36]) ... mem[64] = mem[64] + 64 / uint128(stor17[_param1][cd[32 * idx + _param2 + 36]].field_0) = uint128(cd[32 * idx + _param3 + 36])",
+   "source": "MapleGlobals.sol:353 for (uint256 i_; i_ < functionIds_.length; ++i_) _setTimelockWindow(contract_, functionIds_[i_], delays_[i_], durations_[i_]);",
+   "issue": "Elements of the calldata arrays are printed as raw calldata arithmetic (cd[32 * idx + _param3 + 36]) instead of _param3[idx], and the allocation of the unused TimelockParameters memory struct survives as 'mem[64] = mem[64] + 64'.",
+   "rule": "cd[32 * i + p + 36] for a dynamic calldata array parameter p whose length is cd[p + 4] is p[i]; drop free-pointer bumps whose memory is never read.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "solc 0.8.25 without optimizer; 70 ABI functions, mostly getters/setters with onlyGovernor/onlyGovernorOrOperationalAdmin checks, all reviewed. One source loop (setTimelockWindows:353), a readable while. No implicit loop shown. No semantic error found.",
+ "summary": "Clean and faithful; the single loop is readable, with calldata array elements printed as raw offsets."
+}

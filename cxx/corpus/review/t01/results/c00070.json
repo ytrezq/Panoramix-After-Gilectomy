@@ -1,0 +1,36 @@
+{
+  "id": "c00070",
+  "abi_functions": 72,
+  "reviewed": 72,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 1, "P2": 22, "P4": 27, "P7": 41},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "executeSignatures(bytes,bytes), executeSignaturesGSN(...), relayTokens, payInterest, disableInterest, unknown785b15d5, unknownd496af24 (30 loops)",
+      "lines": "1530-1580, 2053-2100",
+      "decompiled": "s = _18 + 32 / t = _19 + _20 + 32 / idx = mem[_18] / while idx >= 32: mem[t] = mem[s]; s = s + 32; t = t + 32; idx = idx - 32 / mem[_19 + _20 + floor32(max(31, _42)) + 32] = 256**(-_42 + floor32(max(31, _42)) + 32) - 1 & mem[...] | mem[_18 + ...] & ~(...)",
+      "source": "Message.sol:92 return keccak256(abi.encodePacked(prefix, msgLength, message));",
+      "issue": "Each bytes part of abi.encodePacked is copied by solc 0.4's word loop 'while idx >= 32' followed by a masked merge of the last partial word, printed as a while plus an unreadable mask expression instead of one copy line per part (P7).",
+      "rule": "'while n >= 32: mem[t] = mem[s]; s += 32; t += 32; n -= 32' followed by 'mem[t'] = (mem[t'] & (256**(32 - r) - 1)) | (mem[s'] & ~(256**(32 - r) - 1))' with r = n % 32 copies exactly n bytes: print mem[t0 len n0] = mem[s0 len n0] (the bytes after t0 + n0 in the last word are kept).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "executeSignatures(bytes,bytes), executeSignaturesGSN(...)",
+      "lines": "1624-1633, 2147-2156",
+      "decompiled": "y = 0 / while True: / if y >= mem[_71]: _163 = 0; break / if mem[_71 + 32 * y + 44 len 20] != address(_132): y = y + 1; continue / _163 = 1; break / require not _163",
+      "source": "Message.sol:6-12 addressArrayContains: for (uint256 i = 0; i < array.length; i++) { if (array[i] == value) return true; } return false;",
+      "issue": "The search loop is printed as 'while True' with its exit test first and the element as a 20-byte memory slice.",
+      "rule": "'while True: if c: S_exit' is 'while not c:' then S_exit; x[p + 12 len 20] is address(mem[p]).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 72 ABI functions reviewed (getters and setters read; relayTokens, payInterest, the interest functions and both executeSignatures by structure). Live source loops: hasEnoughValidSignatures' signature loop ('while idx < _9', 1596/2119) and addressArrayContains (1625/2148). uintToString's two while loops (Message.sol:148/154) are only reached by hashMessage's AMB branch, and every call here passes isAMBMessage = false, so they are rightly absent (not counted). Implicit loops: 30 solc 0.4 word-copy loops 'while idx >= 32' (first finding) and 11 ABI encoding copies 'while idx < 32 * _N' (P7). hashMessage's non-AMB branch is exact ('104'/'124' prefixes at 1520-1526). P4: mapping keys of the form concat(Bytes(12, 0), ...).",
+  "summary": "Faithful, with both live loops found; readability suffers from solc 0.4's encodePacked word-copy loops and partial-word masks, which should be single copy lines."
+}

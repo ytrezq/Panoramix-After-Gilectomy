@@ -1,0 +1,25 @@
+{
+  "id": "c00287",
+  "abi_functions": 16,
+  "reviewed": 16,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P4": 4, "P7": 3, "P8": 12},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "createInstance(bytes,bytes32), upgradeInstance",
+      "lines": "232-235",
+      "decompiled": "mem[... + 256 len 4] = 1549851163; mem[... + 260] = 0x5c60da1b81905261002f91610169565b6001600160a01b0382167f7a45a402e4; ... static call create2.new_address.implementation() with: gas gas_remaining",
+      "source": "MapleProxyFactory: IProxied(instance_).implementation() after create2 of the proxy",
+      "issue": "The call is already named, yet the scratch stores of its calldata stay: the selector in decimal and a word that mixes the selector with stale creation-code bytes left in memory, which looks like a meaningful constant.",
+      "rule": "Drop memory stores whose only reader is a call printed with decoded arguments (dead stores, P8); print 4-byte selector stores in hex.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small factory (418 lines), all functions reviewed. No source loops; the 3 whiles are bytes copies for the initializer/migrator calls (P7). The CREATE2 deployment is shown well: `create2 contract with 0 wei salt: sha3(arguments_[all], salt_) code: Bytes(540, <proxy code>), this.address, 0`, and getInstanceAddress returns `address(sha3(0xff, this.address, sha3(arguments_, salt_), sha3(code)))`, matching the source. Governor checks via mapleGlobals, version/implementation registries and upgrade paths follow the source. P4: `concat(mem[...])` keys for the upgrade-path mapping. No semantic error found.",
+  "summary": "Clean, faithful text without loops; the CREATE2 deployment and address derivation are rendered well, with only dead scratch stores around named calls."
+}

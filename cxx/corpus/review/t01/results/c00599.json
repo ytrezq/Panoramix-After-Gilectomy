@@ -1,0 +1,47 @@
+{
+  "id": "c00599",
+  "abi_functions": 54,
+  "reviewed": 54,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 11, "P3": 1, "P6": 15, "P7": 2, "P8": 40, "P11": 10, "P14": 15},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setFlowLimits(bytes32[],uint256[]) and every function deriving a token manager address (22 lines)",
+      "lines": "e.g. 464-477 (setFlowLimits), and in interchainTransfer / callContractWithInterchainToken / deployTokenManager paths",
+      "decompiled": "mem[_5 + 32 len 386] = Bytes(386, 0x608060405234801561001057600080fd5b5061016280..) / mem[_8 + 85] = sha3(Bytes(386, 0x6080604052..)) / ... address(sha3(Bytes(2, 0xd694), Bytes(20, address(_11)), Bytes(1, 0x01)))",
+      "source": "Create3Address._create3Address: keccak256(type(CreateDeploy).creationCode) inside the CREATE2/CREATE3 address derivation of tokenManagerAddress(tokenId)",
+      "issue": "The keccak of a constant 386-byte creation code is printed with the whole constant (twice per site, 38 lines over 600 characters) instead of as the 32-byte hash it always is.",
+      "rule": "sha3 of a constant byte string is a constant: fold it at decompile time (and drop the memory copy of the constant when nothing else reads it).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "multicall(bytes[])",
+      "lines": "336-343, 344-379",
+      "decompiled": "mem[160] = 96; s = 160; idx = data.length / while idx - 1: mem[s + 32] = 96; s = s + 32; idx = idx - 1  |  idx = 0; s = 96; t = 0 / while idx < data.length: ... mem[32 * idx + 160] = _30; idx = idx + 1; s = _30; t = delegate.return_code",
+      "source": "Multicall.sol:22-33 results = new bytes[](data.length); for (...) { (bool success, bytes memory result) = address(this).delegatecall(data[i]); ... results[i] = result; }",
+      "issue": "The initialisation of results (every element pointing to the empty bytes at 96) is rotated (first element before a count-down loop 'while idx - 1'), and the main loop carries two variables s and t (result and success of the previous iteration) that are never read.",
+      "rule": "Recognise count-down initialisation loops as one loop over all elements; drop loop-carried variables that are never read.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setFlowLimits and the other onlyRole(OPERATOR) / onlyOperator functions",
+      "lines": "456-457",
+      "decompiled": "if not 2 * uint1(stor[sha3(0xde9bdca3..26ab, Bytes(20, caller))].field_1): revert with 0xbb6c1639, caller, 1",
+      "source": "RolesBase.onlyRole(uint8(Roles.OPERATOR)) -> hasRole(account, role): roles & (1 << role) != 0",
+      "issue": "Testing bit 1 of the roles word is printed as '2 * uint1(x.field_1)'.",
+      "rule": "2**k * Mask(1, k, x) >> k is x & 2**k; print the bit test as 'x & 2' (or Mask(1, 1, x)).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small functions (getters, roles, ownership, pause, flow limits getters, upgrade) compared line by line; the token transfer / deploy functions (unknown95109d5c, unknownda081c73, unknown70756cde, unknown65657636, unknowne1d40c77, unknown49160658: execute and the interchain transfer paths) by structure: role checks, the order of gateway and token-manager calls, events, reverts with custom errors. Source loops: multicall's for (347), setFlowLimits' for (461), _setup's for over trusted chains (1723); all whiles with clear bodies. Implicit: the bytes[] initialisation in multicall (339, rotated count-down) and the results encoding (388, with copy lines inside); the abi.decode loop of setup's string[] (1661). No semantic problem found.",
+  "summary": "A clean text: complete, faithful, every source loop a readable while; the main noise is the 386-byte CreateDeploy creation code printed inside sha3 at every token-manager address derivation instead of a folded constant hash."
+}

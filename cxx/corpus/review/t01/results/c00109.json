@@ -1,0 +1,36 @@
+{
+  "id": "c00109",
+  "abi_functions": 43,
+  "reviewed": 43,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 3, "P2": 4, "P3": 1, "P4": 8, "P6": 5, "P7": 12, "P11": 2},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "initialize(address,uint256,uint32,uint32,uint32,uint32,uint32,uint32,(uint32,uint32,uint32,uint32),address) (unknown687fe40e)",
+      "lines": "766-781",
+      "decompiled": "mem[164] = _param7 / mem[196] = 0 / mem[228] = _param8 / mem[260] = 0 / mem[128] = 132 / mem[160] = 0x69d33c2f.. / idx = 0 / while idx < 132: mem[idx + 292] = mem[idx + 160]; idx = idx + 32 / delegate _param13 with: args mem[292 len 132]",
+      "source": "L1Staking/Staking.initialize: (bool success, ) = extensionImpl.delegatecall(abi.encodeWithSelector(IStakingExtension.initialize.selector, _delegationUnbondingPeriod, 0, _delegationRatio, 0)); require(success, 'Extension init failed');",
+      "issue": "A copy of a 132-byte buffer with constant addresses is left as a 5-iteration while loop, and because of it the delegatecall to the extension loses its selector and arguments although every word of the buffer is a known constant-address store.",
+      "rule": "A word-copy loop with constant start, step and bound (here 0..128 by 32) has a known trip count: turn it into 'mem[292 len 132] = mem[160 len 132]' (or unroll it); the call's input then resolves to selector 0x69d33c2f with args _param7, 0, _param8, 0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "_fallback (delegation to the staking extension)",
+      "lines": "319-322",
+      "decompiled": "mem[128 len calldata.size] = call.data[0 len calldata.size] / delegate stor25.mem[128 len 4] with: gas gas_remaining, args mem[132 len calldata.size - 4]",
+      "source": "Staking.sol:52 fallback(): calldatacopy(ptr, 0, calldatasize()); delegatecall(gas(), extensionImpl, ptr, calldatasize(), 0, 0)",
+      "issue": "The forwarded calldata is printed as a 'function' mem[128 len 4] plus memory arguments, while the 1-3 byte branch just above prints the same delegatecall as 'args call.data[0 len calldata.size]'.",
+      "rule": "When a call's input range is exactly the destination of a preceding copy line from calldata, print the source range (call.data[0 len calldata.size]) instead of splitting it into a selector and memory arguments.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "solc 0.7.6. Small getters and setters, multicall, fallback/receive, initialize, stake/stakeTo/unstake/withdraw reviewed in detail; allocate/allocateFrom/closeAllocation/collect and the four transfer*ToL2 functions by structure. The only source loop is OZ-style multicall's for: 'while idx < data.length' (887); it decodes the revert reason with abi.decode as the source does. Implicit loops: multicall's rotated zero-init of new bytes[](n) (P3), 12 memory-to-memory copies left as loops (P7: bytes copies with the 'if s > n: mem[..] = 0' padding, the return encoding as 'while True' with the return inside, initialize's fixed 132-byte copy of finding 1, the L2 message payloads of transfer*ToL2). P1: the string 'thawingPeriod'-style parameter names in ParameterUpdated logs are printed as '0x847236019b3a7c60063287e4.. * 3600' (3 lines), hiding a string literal. receive is correct ('if stor77 != caller: revert Only transfer tool can send ETH'), and the non-payable fallback rejects value. P11: 'assert idx < mem[128]' under 'while idx < data.length' (mem[128] = data.length).",
+  "summary": "Faithful text with its single source loop recovered; the notable problem is a constant-size copy loop left unconverted that hides the extension-initialization delegatecall's arguments, plus a few string constants mangled by P1."
+}

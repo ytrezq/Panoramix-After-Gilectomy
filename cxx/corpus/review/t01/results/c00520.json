@@ -1,0 +1,87 @@
+{
+ "id": "c00520",
+ "abi_functions": 50,
+ "reviewed": 50,
+ "not_reviewed": [],
+ "source_loops": 14,
+ "loops_shown": {
+  "while": 14,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P1": 80,
+  "P2": 279,
+  "P3": 5,
+  "P4": 1168,
+  "P6": 34,
+  "P7": 60,
+  "P8": 300,
+  "P11": 30,
+  "P12": 40,
+  "P16": 400,
+  "P18": 20
+ },
+ "findings": [
+  {
+   "kind": "loop",
+   "severity": "medium",
+   "function": "checkSignatures(bytes32,address[],bytes[]) and the 10 functions that inline it (cancelNonce, cancelRecovery, toggleRecoveryEnabled, setThreshold, setRecoveryThreshold, overrideRecoverySigners, configureAdmins, configureModules, configureOwners, setUserRecoverySigners)",
+   "lines": "1088-1225 (checkSignatures), 2163-, 2718-, 3291-3445, 3882-, 4532-, 5291-, 6697-, 7796-, 8803-, 10336-",
+   "decompiled": "s = cd[_param2 + 36]; t = 0; u = 0 / while address(s): ... if not _140: if t + 1 < cd[_param2 + 4]: _147 = u else: return storA70A_a70a07de == u ... s = cd[32 * t + _param2 + 68]; t = t + 1; continue / revert InvalidSigner(t)   (elsewhere 'while True: if not address(s): revert ... ')",
+   "source": "MultiSig.sol:249 for (uint256 i = 0; i < len;) { if (signers[i] == address(0)) revert InvalidSigner(i); ... if (validSigs == $.threshold) break; } return validSigs == $.threshold;",
+   "issue": "The loop is found but rotated: the printed condition is the in-body zero-signer test (or True), the real bound i < len is tested at the bottom of every arm next to a duplicated 'return threshold == u', and the code after the loop is the InvalidSigner revert, so the loop reads as 'while the signer is non-zero'.",
+   "rule": "When a loop's header block only tests a body condition whose failure leaves the loop to a revert, and the back edge is guarded by 'i + 1 < n' whose failure leads to the same code as the loop exit of the source form, re-rotate to 'while i < n' (the entry test is implied by the dominating 'n != 0' check) and keep the zero test as an 'if ... revert' in the body.",
+   "verified": "reading only (text_check passes on this contract, so the rotation is exact on the sampled paths)"
+  },
+  {
+   "kind": "naming",
+   "severity": "medium",
+   "function": "def storage and every function using an EnumerableSetLib set (owners, recovery signers, modules)",
+   "lines": "18-21, 236, 1100-1102, 5729-5732",
+   "decompiled": "def storage (vyper): stor0 is fixed array of mapping of uint256 at storage 0 ... storA70A is mapping of fixed array of struct of 1 slot at storage 0xa70a.. / stor0[address(cd[32 * idx + _param1 + 36])][sha3(0xa70a07de.., Bytes(4, 0x978aab92))] = uint95(storA70A[concat(Bytes(4, 0x978aab92))][0].field_1) + 1 / stor[sha3(_101, sha3(0xa70a07de.., Bytes(4, 0x978aab92)))]",
+   "source": "solady EnumerableSetLib: rootSlot = keccak256(set.slot . _ENUMERABLE_ADDRESS_SET_SLOT_SEED) and the position slot keccak256(value . rootSlot) (EtherFiSafe is solc 0.8.28, not Vyper)",
+   "issue": "The layout is declared Vyper because the root-slot hash puts the slot before the 4-byte seed; the Solidity-order position mapping keccak(value . rootSlot) is then printed either as raw stor[sha3(...)] (263 lines) or as stor0[value][rootSlot], a fixed array of mappings at slot 0 that does not exist (73 lines).",
+   "rule": "Decide the hash convention per access, not per contract: keccak(k . s) with s a slot expression is the mapping s[k] and keccak(s . c) with s a slot and c a short constant is a derived slot; never invent a base slot 0 to make keccak(x . y) fit 'array at 0, then mapping'.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "checkSignatures and its 10 inlining functions, execTransactionFromModule, recoverSafe",
+   "lines": "1104-1110, 1183-1193, 1210-1225 vs 1287-1292; 827-829",
+   "decompiled": "_105 = mem[64]; mem[mem[64]] = 0x2cc396b1..; mem[_105 + 4] = t; revert with memory from mem[64] len _105 - mem[64] + 36  |  static call address(cd[32 * t + _param2 + 36]) with: args mem[mem[64] len _108 + ceil32(_110) - mem[64] + 100]",
+   "source": "MultiSig.sol:250 revert InvalidSigner(i); SignatureUtils.isValidSignature -> IERC1271(signer).isValidSignature(digestHash, signature)",
+   "issue": "Inside the signature loop the free-memory pointer is a loop phi, so the custom errors (230 'revert with memory' lines) and the ERC-1271 call lose their selector and arguments, while the single-signer path after the loop prints 'revert with 0x2cc396b1, 0' and 'isValidSignature(bytes32, bytes)'.",
+   "rule": "Same as c00516: after '_v = mem[64]' with no store to slot 64 in between, mem[mem[64] + k] is mem[_v + k] and '_v - mem[64]' is 0; the buffers then decode as at constant offsets.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "every function inlining _currentOwner, initialize, configureAdmins, configureOwners, configureModules, setUserRecoverySigners",
+   "lines": "1990-1993, 2008-2009",
+   "decompiled": "call address(ext_call.return_data[0]).unknown14842627(?) with: args Array(len=_8 + 1, data=mem[96 * _8 + .. + 388 len 32 * _8 + 32], _8 + 1, mem[128 * _8 + .. + 452 len 32 * _8 + 32]), 32 * _8 + 128 / log 0xb56e2554..: Array(len=_8 + 1, data=..., _8 + 1, mem[...])",
+   "source": "MultiSig.sol:347 _configureAdmin(accounts, shouldAdd) -> roleRegistry().configureSafeAdmins(address[], bool[]); emit AdminsConfigured(address[], bool[])",
+   "issue": "An argument list with two dynamic arrays shows the second one as its head offset and appends its length and data inside the first Array(...), so the call and event appear to take one malformed array and a number.",
+   "rule": "Decode heads in order; every head that is an offset o into the same buffer introduces its own Array(len = word at o, data = following words) printed in its own position.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "dataProvider() and every call through it",
+   "lines": "11, 750-788",
+   "decompiled": "const dataProvider = 0 / static call 0x0.unknown96bf4064(?) with: args caller",
+   "source": "EtherFiSafeBase: IEtherFiDataProvider public immutable dataProvider",
+   "issue": "solc immutable read as 0 in pre-deployment code; data-provider and role-registry calls go to address 0. Not a decompiler error.",
+   "rule": "none (corpus artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "The pack resolved almost no internal functions for this contract (inheritance EtherFiSafe -> EtherFiSafeCore -> MultiSig/ModuleManager/RecoveryManager, libraries ArrayDeDupLib, SignatureUtils, solady EnumerableSetLib), so the reached code was read from the sources directly. 14 source loops, all present as whiles: EtherFiSafeCore:62 (initialize), :123 (getAdmins), :206 (execTransactionFromModule), ModuleManager:70, :106, :151, MultiSig:95, :249 (checkSignatures, rotated: first finding), :337 (_currentOwner, inlined in the 11 owner-gated functions), RecoveryManager:225 (recoverSafe), :300 (getRecoverySigners), ArrayDeDupLib:28 and :31 (nested, inlined for every array with more than one element), solady values():611. Solady's 'for {} 1 {} { ... break }' blocks in length/contains/add/remove always break in their first iteration, have no back edge, and are correctly shown as straight-line code (not counted). MultiSig:95 and ModuleManager:70 appear rotated after the duplicate check ('while idx + 1 < cd[..]', first iteration peeled: P3, 5 places). ~60 ABI-encoding loops (address[] cleanup, bool[] cleanup, bytes[] encoding) for calls and events stay whiles (P7). Large functions (configureOwners 1680 lines, setUserRecoverySigners 1390, configureModules 1180) reviewed by structure; checkSignatures, cancelNonce, execTransactionFromModule, initialize and getAdmins in detail. Faithful details checked: emit AccountRecovered($.incomingOwner) after the delete prints 'log ..: 0' as the source does; the tstore/tload of MODULE_BATCH_SLOT and its restore; ECDSA tryRecover error codes. P4: the set root is printed as storX[concat(Bytes(4, 0x978aab92))] (1168 lines). P8: keccak scratch writes around every set access and around tstore. Selector/event names are mostly unknown (not in the signature database).",
+ "summary": "Faithful and every loop is present, but the signature loop is rotated so its condition reads as a zero-signer test, the storage is declared Vyper and Solady set positions appear as a fictitious array at slot 0 or raw hashes, and inside loops custom errors, ERC-1271 calls and two-array arguments lose their structure."
+}

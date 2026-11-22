@@ -1,0 +1,37 @@
+{
+ "id": "c00238",
+ "abi_functions": 33,
+ "reviewed": 33,
+ "not_reviewed": [],
+ "source_loops": 2,
+ "loops_shown": {
+  "while": 2,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 1,
+  "P3": 1,
+  "P7": 1,
+  "P8": 10,
+  "P13": 6
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "pushAddressArray(bytes32,address[]), clearAddressArray(bytes32)",
+   "lines": "327-333, 449-466",
+   "decompiled": "while s < addressArray[_param1].length: stor[sha3(addressArray[_param1][s], sha3(_param1, 109) + 1)] = 0 ... / if not stor[sha3(Bytes(12, 0), mem[32 * s + 172 len 20], sha3(_param1, 109) + 1)]: ... addressArray[_param1][_24] = mem[32 * s + 172 len 20]",
+   "source": "GovernedRegistry.sol:168 for (...) addressArray[key].add(data[i]); AddressSetLib.sol:29 for (...) delete set._indexes[set._values[i]];",
+   "issue": "The set's _values array is named addressArray[key] but its _indexes mapping (member 1 of the same struct) stays stor[sha3(x, sha3(key, 109) + 1)], and the decoded address is read as a 20-byte slice of memory.",
+   "rule": "For a mapping of structs at p, sha3(k2, sha3(k1, p) + j) is member j of m[k1], a mapping, indexed by k2; Bytes(12, 0), mem[a + 12 len 20] is address(mem[a]).",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "solc 0.6.12. 2 source loops, both readable whiles: pushAddressArray:168 (AddressSetLib.add inlined, with the add-if-absent test) and AddressSetLib.clear:29 (clearAddressArray, followed by the delete of the array as a zeroing copy line). Implicit: the rotated storage-to-memory copy in getAddressArray (P3) and the returned-bytes copy of the delegatecall helper dc8990e1 (P7). All 33 functions reviewed (typed getters/setters behind the governor's isAuthorizedChanger check); no semantic error found.",
+ "summary": "Clean and faithful; both loops are readable, with the AddressSet index mapping left as raw sha3 slots."
+}

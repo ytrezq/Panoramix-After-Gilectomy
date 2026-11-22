@@ -1,0 +1,85 @@
+{
+ "id": "c00237",
+ "abi_functions": 50,
+ "reviewed": [
+  "all 50 ABI functions (constants/immutables, getters, auth, file, ERC20, initialize, ERC4626 views with inlined _rpow, upgradeToAndCall/proxiableUUID, drip, mint/deposit (with and without referral), redeem, withdraw, both permits)"
+ ],
+ "not_reviewed": [],
+ "source_loops": 1,
+ "loops_shown": {
+  "while": 1,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P1": 2,
+  "P2": 2,
+  "P6": 1,
+  "P7": 3,
+  "P8": 12,
+  "P10": 38,
+  "P15": 2
+ },
+ "findings": [
+  {
+   "kind": "naming",
+   "severity": "medium",
+   "function": "drip, mint, deposit, redeem, withdraw (chi update), initialize (Initializable); def storage",
+   "lines": "21-22, 26-28 (def storage); 610-611, 664-665 (and every drip copy); 88, 260; 182-195",
+   "decompiled": "stor5 is uint167 at storage 5; stor5_167 is uint25 at storage 5 offset 167 ... stor5 = _5 / (1000000000 * 10**18); stor5_167 = 0 ... return uint192(stor[5]); _1 = not uint64(stor[0x111f...aa0 * 3600]) and not storF0C5_64 ... storF0C5 = 1; storF0C5_8 = 0",
+   "source": "uint192 public chi; chi = uint192(nChi); // safe as nChi is limited to maxUint256/RAY; InitializableStorage { uint64 _initialized; bool _initializing; } $._initialized = 1;",
+   "issue": "Because the stored value is known to fit in fewer bits (x / 10**27 < 2**167, the constant 1 < 2**8), the uint192 chi field is declared and written as two fields uint167 + uint25 and the uint64 _initialized as uint8 + uint56, while every read uses the full width ('uint192(stor[5])', 'uint64(stor[0x111f... * 3600])'). chi is never named although the public getter chi() reads it, and the Initializable slot is printed both as storF0C5 and as a constant times 3600.",
+   "rule": "Take a storage field's width from the mask of the store (bits cleared and written), not from the value range of what is stored; name a field by the getter that returns it and print a slot the same way at every use.",
+   "verified": "by reading: 2**256 / 10**27 < 2**167; source layout puts chi (uint192) and rho (uint64) in slot 5"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "drip and its 14 inlined copies (mint, deposit, deposit/mint with referral, redeem, withdraw)",
+   "lines": "594, 601, 607 (drip); 648, 655, 661; 721, 728, 734",
+   "decompiled": "if (1000000000 * 10**18 * (SafeMath.mul3(totalSupply, _5 / ...) / ...) - 1000000000 * 10**18 * (SafeMath.mul3(totalSupply, uint192(stor[5])) / ...)) / SafeMath.sub(...) != 1000000000 * 10**18 and ...: revert with Panic(17)",
+   "source": "diff = totalSupply_ * nChi / RAY - totalSupply_ * chi_ / RAY; vat.suck(address(vow), address(this), diff * RAY); usdsJoin.exit(address(this), diff);",
+   "issue": "diff * RAY is distributed into 'RAY * a - RAY * b', so diff is never named and its checked multiplication is printed as a 300-character division test; the exit argument repeats the same difference in another order.",
+   "rule": "Keep (a - b) * c when a - b is computed (and checked) nearby, print the check as SafeMath.mul(a - b, c), and name a value used by two calls once.",
+   "verified": "by reading against drip()"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "mint (both), withdraw, permit(v, r, s); def SafeMath",
+   "lines": "672; 1058-1062; 1100; 42-54",
+   "decompiled": "_24 = -1 * _18 * shares and (_18 * shares - 1) / (1000000000 * 10**18) + 1; if -1000000000 * 10**18 * shares: _40 = ...; _41 = ...; mem[224] = SafeMath.mul4(0x100...0, v) with def mul4(a, b): require b == uint8(b); return a * b",
+   "source": "_divup(x, y): z = x != 0 ? ((x - 1) / y) + 1 : 0; abi.encodePacked(r, s, v)",
+   "issue": "_divup's 'x != 0' is printed as the truth value of '-1 * x', withdraw keeps two identical variables (_40 returned, _41 burned), and the uint8 range check of v is folded into an invented 'SafeMath.mul4' helper; SafeMath.mul's check 'a * b / a == a' is only right because it is called with a == b.",
+   "rule": "Print a nonzero test of -x as x != 0; merge variables assigned the same value on every path; never fold a parameter range check into an arithmetic helper, and give a helper the parameters its check actually uses.",
+   "verified": "by reading: mul is called only as mul(u, u) in the inlined _rpow"
+  },
+  {
+   "kind": "naming",
+   "severity": "low",
+   "function": "withdraw, mint, deposit (events Deposit)",
+   "lines": "1002, 1088-1090; 684, 758",
+   "decompiled": "def withdraw(uint256 shares, address to, address from) ... log Withdraw(..., uint256 assets=shares, uint256 shares=_41); log Deposit(address token, address user, uint256 amount, uint256 balance)",
+   "source": "withdraw(uint256 assets, address receiver, address owner); event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)",
+   "issue": "Parameter names from another contract with the same signature call withdraw's assets 'shares', so the Withdraw event reads 'assets=shares, shares=_41'.",
+   "rule": "Use database names for functions and events but neutral parameter names unless they come from the contract's own metadata.",
+   "verified": "by reading"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "initialize, drip and copies, mint/deposit/redeem/withdraw, proxiableUUID, upgradeToAndCall",
+   "lines": "5-9, 12; 198-201; 596-607; 677; 109-110; 509-516",
+   "decompiled": "const vat = 0; call 0x0.hope(address usr) with: args 0; call 0x0.suck(...) with: args 0, this.address, ...; if this.address: revert with 0xe07c8dba",
+   "source": "vat, usdsJoin, usds, vow, asset and UUPS __self (immutables)",
+   "issue": "solc immutables read as 0: every Vat/UsdsJoin/USDS call goes to 0x0 and onlyProxy/notDelegated compare address(this) with 0.",
+   "rule": "Known artifact of immutables in runtime code; show them as named unknown constants rather than 0.",
+   "verified": "source declares them immutable"
+  }
+ ],
+ "notes": "Source loop: _rpow's Yul for (SUsds L166), inlined in 15 functions as 'while t' (counted once); the x == 0 case is folded to 0 because n > 0 on that path, which matches. Implicit: 3 permit copy loops (P7). ERC4626 math (divup, checked products, division-by-zero panics), ERC20 allowance handling, OZ v5 initializer and UUPS checks, both permit paths (65-byte ecrecover then ERC1271 fallback) match the source.",
+ "summary": "All 50 functions reviewed; the single source loop (_rpow) is a while in all 15 inlined copies and the semantics match. Problems: chi (uint192) and Initializable._initialized (uint64) are split into narrower fields because of the stored value's range, drip's diff * RAY is distributed, and a parameter check is folded into an invented SafeMath helper."
+}

@@ -1,0 +1,39 @@
+{
+ "id": "c00478",
+ "abi_functions": 43,
+ "reviewed": 43,
+ "not_reviewed": [],
+ "source_loops": 8,
+ "loops_shown": {
+  "while": 8,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 3,
+  "P3": 16,
+  "P4": 2,
+  "P6": 1,
+  "P7": 15,
+  "P8": 50,
+  "P14": 60
+ },
+ "findings": [
+  {
+   "kind": "loop",
+   "severity": "low",
+   "function": "sendRequestToProposed(uint64,bytes,uint16,uint32,bytes32)",
+   "lines": "1750-1762",
+   "decompiled": "if 0 >= stor13.length: revert with 0x80833e33, _param5 / mem[0] = 13 / _5 = sha3(13) / s = 0 / while _param5 - stor[_5 + uint8(s)]: if uint8(s) == 255: revert Panic(17); if uint8(uint8(s) + 1) >= stor13.length: revert with 0x80833e33, _param5; mem[0] = 13; _5 = sha3(13); s = uint8(s) + 1",
+   "source": "FunctionsRouter.sol:542 for (uint256 i = 0; i < s_proposedContractSet.ids.length; ++i) { if (id == s_proposedContractSet.ids[i]) return s_proposedContractSet.to[i]; } revert RouteNotFound(id);",
+   "issue": "The search loop is inverted: the match test became the loop condition, printed as the difference `_param5 - stor[_5 + uint8(s)]`, the bound test is peeled before the loop and repeated in the body, and the array element is raw `stor[sha3(13) + s]` with the keccak recomputed each iteration.",
+   "rule": "Print a nonzero `a - b` condition as `a != b`; show `stor[sha3(slot) + i]` as `stor13[i]` like the `.length` reads; hoist the loop-invariant `sha3(13)` and fold the peeled bound check back into the loop header.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Chainlink FunctionsRouter (silo gitmodule, solc 0.8.19). Source loops, all whiles: getProposedContractById (68), updateContracts (155), _getProposedContractById in sendRequestToProposed (1755, inverted), getSubscriptionsInRange (1128), pendingRequestExists consumer loop (325, also in the cancel paths), removeConsumer (1066), _cancelSubscriptionHelper consumer loop (1233, 1456, 1501), timeoutRequests (1329). Implicit: storage-to-memory consumer copies printed as rotated whiles (`while ... > idx + 32`, P3), new-array initialisation (`while idx - 1`), uint32[] config copies into storage with a cleanup loop (`while u:` in updateConfig), ABI encodes (P7). fulfill (303 lines) reviewed by structure.",
+ "summary": "Faithful router text with all eight source loops present as whiles; one search loop is printed inverted with a difference condition and raw array slots, and consumer copies are rotated loops."
+}

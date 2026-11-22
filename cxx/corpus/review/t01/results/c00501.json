@@ -1,0 +1,73 @@
+{
+ "id": "c00501",
+ "abi_functions": 56,
+ "reviewed": 56,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 10,
+  "P6": 44,
+  "P8": 150,
+  "P10": 400,
+  "P11": 2,
+  "P12": 3000,
+  "P14": 300,
+  "P17": 132
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "redeemUnderlying(uint256)",
+   "lines": "6282-6583",
+   "decompiled": "_493 = 128 ... _499 = mem[64] / mem[mem[64]] = 0xeabe7d91... / call comptroller with: args mem[mem[64] len _499 - mem[64] + 100]; log Failure(uint256 error, uint256 info, uint256 detail): mem[mem[64] len _504 - mem[64] + 96]; return memory from mem[64] len _510 - mem[64] + 32",
+   "source": "CToken.sol:664 comptroller.redeemAllowed(address(this), redeemer, vars.redeemTokens); :690-721 getCashPrior, doTransferOut, emit Transfer/Redeem/JTokenBalance, redeemVerify, statusSnapShot",
+   "issue": "The arms of exchangeRateStoredInternal allocate different numbers of Exp structs, so mem[64] is unknown after their merge and the rest of redeemUnderlying is printed from raw memory: 10 calls lose their function names and arguments (redeemAllowed, pie, chi, join, exit, redeemVerify, getBorrowRate), and 18 more lines show Failure events, 'mul-overflow'/'add-overflow' revert strings and the return value as memory slices. Every other function of the contract is resolved.",
+   "rule": "Keep the free-memory pointer as a symbolic value (a phi of the arms) after a merge instead of dropping it; with `_x = mem[64]` identified with later `mem[64]` reads, the stores `mem[mem[64]] = sel`, `mem[_x + 4] = a` resolve and the call, log and return read their arguments back (this is P2's rule).",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "accrueInterest() and every function that inlines CarefulMath/Exponential (mint, redeem, borrow, repayBorrow, liquidateBorrow, transfer, transferFrom, seize...)",
+   "lines": "1137-1166, 505-519, 593-605",
+   "decompiled": "if ext_call.return_data[0]: if ...: _9 = 0; _10 = _8 * r else: _9 = 2; _10 = 0 / _11 = _9; _12 = _10 else: _11 = 0; _12 = 0 / if not _11: mem[224] = _12; _13 = 0 else: mem[224] = 0; _13 = _11 / if not _13: ...",
+   "source": "CToken.sol:428-431 (mathErr, simpleInterestFactor) = mulScalar(...); if (mathErr != MathError.NO_ERROR) return failOpaque(...)",
+   "issue": "Each (MathError, value) result is printed as an error flag and a value set in both arms of an if, copied through SSA temporaries, then tested again, so a three-line source step becomes 15-20 lines.",
+   "rule": "Jump-thread a test of a variable whose value is a known constant in each predecessor (`if c: f = K1 ... else: f = K2` then `if f: A else: B` becomes `if c: ...A else: ...B`) and drop SSA copies that only rename.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "accrueInterest(), getCash(), _reduceReserves(uint256), mint, redeem, borrow... (every getCashPrior/doTransferOut)",
+   "lines": "1132, 3400-3417",
+   "decompiled": "args _4 / (1000000000 * 10**18), totalBorrows, totalReserves; if 1000000000 * 10**18 * reduceAmount / (1000000000 * 10**18) != reduceAmount: revert with 'mul-overflow'",
+   "source": "CDaiDelegate.sol:119,163 mul(pot.chi(), pie) / RAY; add(mul(amount, RAY) / pot.chi(), 1)",
+   "issue": "The constant RAY = 10**27 is printed as `1000000000 * 10**18` in 132 lines.",
+   "rule": "Print a constant that is exactly 10**k as `10**k` (or as m * 10**k with the smallest m), not as a product of two such forms.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "mint(uint256), redeem(uint256), liquidateBorrow(...), repayBorrow(...), exchangeRateStored()...",
+   "lines": "2646, 6920, 6936, 10130, 10250",
+   "decompiled": "revert with Error(string reason), 32, 40, 'MINT_NEW_TOTAL_SUPPLY_CALCULATION_FAILED', mem[mem[64] + 108 len 24]",
+   "source": "CToken.sol mintFresh require(vars.mathErr == MathError.NO_ERROR, \"MINT_NEW_TOTAL_SUPPLY_CALCULATION_FAILED\")",
+   "issue": "Exact (solc 0.5 CODECOPYs only the 40 string bytes and reverts with the ceil32 length, so the 24 padding bytes are old memory; checked in the disassembly at 0x118a-0x11a6), but 23 reverts read as a raw ABI tuple while the same message elsewhere is `revert with '...'`.",
+   "rule": "Print an Error(string) revert whose head and length are known as `revert with 'MSG'` and mention the unwritten padding separately (e.g. a trailing comment), since only the padding differs.",
+   "verified": "disassembly (pancxx disasm, CODECOPY of 0x35 bytes then add 0x40)"
+  }
+ ],
+ "notes": "Compound cToken (CDai delegate, solc 0.5.17, no via-IR). Text is faithful on every path checked: accrueInterest, seize, transfer/transferFrom, _becomeImplementation, _resignImplementation, _reduceReserves, the redeem/mint/liquidate flows (error codes, Failure events, JTokenBalance/JTokenStatus events, storage writes, call order). Large functions reviewed by structure (redeem 1567 lines, liquidateBorrow 1169, mint 1105, redeemUnderlying 956). No loop in the source or the text. P12 is high because the decompiler copies each continuation into the early-return arm of accrueInterest and into both arms of exchangeRateStoredInternal (mintFresh twice, doTransferIn four times in mint); estimate. P10 counts the (MathError, value) SSA pairs (estimate). P11: SafeMath.sub(totalReserves, reduceAmount) after `if reduceAmount <= totalReserves`. P14: Exp mantissas and RedeemLocalVars fields read as mem[224], mem[256], mem[288]. Events JTokenBalance/JTokenStatus show raw topics (not in the signature database). Duplicate extcodesize checks on the same address are elided soundly. In _becomeImplementation the approve argument prints as `Bytes(12, 0), mem[172 len 20]` (one address word shown as two values) and the abi.decode results as mem[172 len 20]/mem[204 len 20].",
+ "summary": "Faithful, mostly readable Compound cToken text with no loops; the main problems are one function (redeemUnderlying) whose second half falls back to raw memory after a free-pointer merge, and verbose CarefulMath error-flag plumbing duplicated across many early-return arms."
+}

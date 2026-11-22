@@ -1,0 +1,36 @@
+{
+  "id": "c00211",
+  "abi_functions": 30,
+  "reviewed": 30,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P9": 6},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "push(), quit(uint256), quit(), and the other users of the dai immutable",
+      "lines": "159-162, 422-425",
+      "decompiled": "require ext_code.size(0) / static call 0x0.balanceOf(address account) with: ... / call 0x0.transfer(address recipient, uint256 amount) with: args stor7, _boxId",
+      "source": "RwaMultiSwapOutputConduit: DSTokenAbstract public immutable dai; push() { _doPush(dai.balanceOf(address(this))); } _doQuit: dai.transfer(quitTo, wad)",
+      "issue": "The dai immutable reads as 0 in pre-deployment code, so the DAI calls target address 0.",
+      "rule": "None needed (artifact).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "push(uint256), quit(uint256)",
+      "lines": "354, 153",
+      "decompiled": "def push(uint256 _chain_id)   |   def quit(uint256 _boxId)",
+      "source": "push(uint256 wad), quit(uint256 wad): DAI amounts",
+      "issue": "Parameter names taken from the signature database belong to unrelated functions with the same signature and suggest a chain id and a box id for what are DAI amounts.",
+      "rule": "Use database parameter names only when the database entry is unambiguous for the selector; otherwise print _param1.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Unoptimized solc 0.6.12 build. No loops anywhere (source or text). push(uint256)/push() match _doPush in order: the to/psm checks, expectedGemAmt with Math/sub-overflow and Math/mul-overflow checks (the product to18ConversionFactor * (WAD + tout) is distributed into 10**(18 - d) * tout + 10**18 * 10**(18 - d), P9), the gem lookup, the resets to = 0 and psm = 0 before buyGem, and the Push event (raw topic). The auth functions (rely/deny/hope/nope/mate/hate/kiss/diss), file/pick/hook/clap/slap functions and getters were read; faithful.",
+  "summary": "Small, faithful, loop-free text; only the dai immutable artifact, a distributed overflow check and misleading database parameter names stand out."
+}

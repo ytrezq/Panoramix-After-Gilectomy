@@ -1,0 +1,47 @@
+{
+  "id": "c00084",
+  "abi_functions": 71,
+  "reviewed": 71,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 4, "P4": 12, "P6": 5, "P7": 18, "P8": 40, "P11": 22, "P16": 241},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "lzReceiveAndRevert(((uint32,bytes32,uint64),uint32,address,bytes32,uint256,address,bytes,bytes)[])",
+      "lines": "1525-1545, 1559-1560, 1600",
+      "decompiled": "mem[mem[64]] = 0xd045a0dc00000000000000000000000000000000000000000000000000000000 ... call this.address.mem[_21 len 4] with: value cd[...] wei ... args mem[_21 + 4 len ...]  |  static call caller.mem[_16 len 4] with:  |  revert with mem[_24 len 4], 32, mem[_24 + 36 len _25 + 32], ...",
+      "source": "this.lzReceiveSimulate{ value: packet.value }(packet.origin, packet.guid, packet.message, packet.executor, packet.extraData); ... revert SimulationResult(IPreCrime(msg.sender).buildSimulationResult());",
+      "issue": "The selectors of the self call, of buildSimulationResult and of the SimulationResult custom error are printed as mem[_21 len 4] although the full word at _21 was written one or two lines before with the selector, so the calls and the error lose their names (and the arguments stay raw memory).",
+      "rule": "Forward a 32-byte store to a narrower read at the same address: after mem[a] = C, mem[a len 4] is C >> 224 (and mem[a + k len n] the corresponding bytes); a constant 4-byte head of call or revert data is a selector to be named.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "lzReceiveAndRevert, lzReceive, lzReceiveSimulate, setEnforcedOptions, setTransferLimitConfigs, initialize, combineOptions",
+      "lines": "e.g. 1511-1531",
+      "decompiled": "require cd[32 * idx + _param1 + 36] <′ calldata.size - _param1 - 355 ... if stor72AB[uint32(cd[_param1 + cd[32 * idx + _param1 + 36] + 36])] == cd[_param1 + cd[32 * idx + _param1 + 36] + 68]:",
+      "source": "InboundPacket calldata packet = _packets[i]; if (!isPeer(packet.origin.srcEid, packet.origin.sender)) continue;",
+      "issue": "Tuple and tuple-array parameters are typed 'array' and decoded as nested raw calldata arithmetic (P16, 241 lines), so packet.origin.srcEid, packet.origin.sender, packet.value... are unreadable.",
+      "rule": "Type tuple parameters from the ABI (or the decoding pattern) and print member accesses by name (_packets[idx].origin.srcEid).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "every AccessControl-guarded function (pause, unpause, grantRole, revokeRole, upgradeTo, upgradeToAndCall, setTransferLimitConfigs...)",
+      "lines": "e.g. 494-517 (pause)",
+      "decompiled": "idx = 41 / s = caller / while idx > 1: if idx >= 42: revert with Panic(50) / mem[idx + 160 len 1] = byte(s % 16, 0x3031...) / idx = idx - 1 / s = s / 16",
+      "source": "Strings.toHexString(uint256 value, uint256 length): for (uint256 i = 2 * length + 1; i > 1; --i) { buffer[i] = _HEX_SYMBOLS[value & 0xf]; value >>= 4; }",
+      "issue": "The loop itself is clear, but its bounds check idx >= 42 can never hold (idx starts at 41 and decreases) and is kept in all 22 copies (P11); the role mapping _roles[PAUSER].members[caller] is printed as a pseudo-variable stor9C35[caller].",
+      "rule": "A check implied by the loop's invariant (idx in [2, 41]) is dead; a mapping whose slot is sha3(constant key, base) is better shown as base[constant][key] than as a variable named after the hash.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (4): lzReceiveAndRevert's for over _packets, _setEnforcedOptions' for (setEnforcedOptions; the second while there is the EnforcedOptionSet array encoding), Strings.toHexString's for (22 copies, two per AccessControl revert message, 'while idx > 1'), _setTransferLimitConfigs' for ('while s < _37', after the ABI decoding loop of the configs). Implicit: name()/symbol() storage-string copies, eip712Domain string and array encodings, bytes copies of options and messages, ABI decoding loops of tuple arrays (P7). All functions reviewed line by line or, for initialize, by structure.",
+  "summary": "Faithful, with all four source loops as clear whiles; the obscurities are tuple parameters decoded as raw calldata arithmetic and selectors read back from memory as mem[x len 4] in the PreCrime simulation paths."
+}

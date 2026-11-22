@@ -1,0 +1,25 @@
+{
+  "id": "c00183",
+  "abi_functions": 40,
+  "reviewed": 40,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 9, "P4": 5, "P6": 8, "P7": 23, "P8": 60, "P11": 4, "P12": 30},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "execute(bytes)",
+      "lines": "1329-1337 and 1460-1468 vs 1384-1386",
+      "decompiled": "_280 = mem[64] / mem[mem[64] + 32] = 0x957705a3... / mem[_280 + 64] = _279 / _281 = mem[64] / mem[mem[64]] = _280 - mem[64] + 64 / mem[64] = _280 + 96 / mem[0] = sha3(mem[_281 + 32 len mem[_281]]) / if not stor4[concat(mem[0])]:   ...   if not ext_call.success: mem[mem[64] + 32] = 0x957705a3... / mem[mem[64] + 64] = _279 / _365 = mem[64] / mem[mem[64]] = 64 / ... / stor4[sha3(mem[_365 + 32 len mem[_365]])] = 0   (while the success path prints stor4[sha3(0x957705a374326b30f4a1069c936d736cc9993ed6c820b4e0e2fd94a8beca0d1d, _279)] = 1)",
+      "source": "AxelarGateway.sol:538 if (isCommandExecuted(commandId)) continue; :564 _setCommandExecuted(commandId, true); :569 if (success) emit Executed(commandId); else _setCommandExecuted(commandId, false); with key keccak256(abi.encodePacked(PREFIX_COMMAND_EXECUTED, commandId))",
+      "issue": "The same storage key is printed three ways: as a hash of raw memory in the duplicate check and in the reset after a failed command (the 'un-execute' write), and as sha3(PREFIX, _279) in the set; the reader cannot see that the failed-call path clears the flag it just set.",
+      "rule": "Resolve a hashed buffer built at b = mem[64]: words stored at b + 32 and b + 64 and the length 64 at b give sha3(mem[b + 32 len 64]) = sha3(w1, w2) (free-pointer folding as in the known P2 root cause); a one-element concat(mem[0]) key holding such a hash is that hash.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (2, both whiles): execute's command loop (1325: duplicate check, 6-way command-hash dispatch, allowOperatorshipTransfer as the loop-carried s, self-call with the chosen selector, Executed event or reset) and setTokenMintLimits' loop (424, 'while True' with the exit test first). Implicit whiles (25): ABI decoding of the transaction (bytes32[], string[], bytes[], 1238-1307), copies of strings and call buffers, including copies of constant length printed as loops ('while idx < 68' at 636/1789, 'while idx < 100' at 683/723: the abi.encodeWithSelector buffers of 4 + 2 or 3 words; see c00007's finding on constant-trip copies). The self-call's arguments stay raw memory (the selector is variable, mem[... len 4] = _348 >> 224). The tails 1362-1431 repeat the key buffer writes and the set store in each dispatch arm (P12). The command functions (mintToken, burnToken, deployToken, approveContractCall*, validateContractCallAndMint, callContractWithToken) were reviewed by reading; faithful.",
+  "summary": "Faithful text with both source loops found; the main command loop is readable, but the command-executed key is hidden behind raw-memory hashes on two of its three uses, and call buffers are copied by loops, some of constant length."
+}

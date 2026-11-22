@@ -1,0 +1,135 @@
+{
+  "id": "c00127",
+  "abi_functions": 28,
+  "reviewed": 28,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 98, "P3": 1, "P4": 30, "P6": 899, "P7": 751, "P8": 1500, "P9": 975, "P10": 10, "P11": 60, "P12": 200, "P14": 400, "P18": 80},
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "flashLoan(address,address[],uint256[],uint256[],address,bytes,uint16)",
+      "lines": "28767, 28876, 28889, 29642, 29655, 30276, 30846, 31145, 31609 (mode NONE branch); 31644-34058 (borrow branch), markers 33535, 33617, 33715, 34058",
+      "decompiled": "if _4056 / (365 * 24 * 3600) > 0xfff..fe6268e1b017bfe18bffffff / (...): _5515 = mem[64]; mem[mem[64]] = 0x8c379a0..; mem[_5515 + 4] = 32; mem[_5515 + 36] = mem[_5440]   (block ends here)  ...  ...  # Decompilation aborted (34058, indent 2)",
+      "source": "LendingPool.sol:521-553 the second loop: if mode == NONE {updateState; cumulateToLiquidityIndex; updateInterestRates; safeTransferFrom} else {_executeBorrow(..., false)}; emit FlashLoan",
+      "issue": "13 aborts, all in flashLoan. The whole _executeBorrow branch (debt-token mint, setBorrowing, updateInterestRates, ReserveDataUpdated, Borrow, FlashLoan, and the next iteration) is lost inside updateState, and several updateState/_mintToTreasury sub-paths of the NONE branch are lost too. Inside the borrow branch the cut paths are not marked where they stop: blocks end in the middle of building a revert (32707-32712, 32719-32724, 32733-32737) and fall through to the single marker printed at indent 2 at the end of the function, so they read as continuing.",
+      "rule": "Print the abort marker at the end of each truncated path (the block where exploration stopped), never only once after the enclosing if/else; a path that was cut must not fall through to code after its block.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "flashLoan(address,address[],uint256[],uint256[],address,bytes,uint16)",
+      "lines": "28188-28204, 31617-31643, 31644-",
+      "decompiled": "mem[256] = 0 / if assets.length <= 0: stop / require assets[0] == address(assets[0]); mem[288] = address(assets[0]); ... assert modes[0] <= 2 / while not cd[32 * _2917 + modes + 36]: ... log FlashLoan ...; mem[256] = mem[256] + 1; if assets.length <= mem[256]: stop; <loads of element i again>; continue / <borrow branch after the loop>",
+      "source": "LendingPool.sol:514 for (vars.i = 0; vars.i < assets.length; vars.i++) { ... if (modes[i] == NONE) {...} else {_executeBorrow(...)} emit FlashLoan }",
+      "issue": "The second for loop is rotated (P3): the loads of iteration 0 are printed before the loop and again at the bottom, the real test 'i < assets.length' is an exit at the bottom of the body, and the loop condition is the body's first if (modes[i] == NONE). The else arm of that if (_executeBorrow) is printed after the loop, from where it cannot reach the next iteration.",
+      "rule": "Choose the loop header from the back edge's dominating test on the induction variable (i < assets.length, the only test that exits to the function's end), not from the first branch of the body; both arms of an if inside the body stay inside the while. The prologue 'loads for i = 0' and the bottom 'loads for i + 1' are then the same statements at the top of the body.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "deposit, withdraw, borrow, repay, swapBorrowRateMode, rebalanceStableBorrowRate, flashLoan",
+      "lines": "e.g. deposit 1897-5806 (mintToTreasury at 2141, 2227, 2349, ..., 5500: 22 copies); withdraw 10527-10594 = 10998-11063 = 11482-11547 ... (8 copies of the tail)",
+      "decompiled": "call address(reserveData[asset].field_1024).mintToTreasury(uint256 amount, uint256 index)  (122 call sites in the text)  |  log ReserveDataUpdated (25 sites)  |  log Withdraw (8 sites)",
+      "source": "ReserveLogic.sol:323 one mintToTreasury call in _mintToTreasury; :241 one ReserveDataUpdated in updateInterestRates; LendingPool.sol:181 one Withdraw",
+      "issue": "Paths through updateState (_updateIndexes, calculateCompoundedInterest, _mintToTreasury) never merge again, so everything after them is printed once per path: 34,060 lines for 21.9 KB of code, deposit 3,910 lines for about 40 lines of source. The paths differ only in how much memory each one allocated for error strings that were not used (mem[64] = ... + 608 vs + 672), and in SSA copies of the same values.",
+      "rule": "At a join, merge states that differ only in memory above the free-memory pointer and in mem[64] itself (make mem[64] a phi), when that memory is not read after the join; the dead error-string allocations then stop splitting the paths.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all state-changing functions (747 instances)",
+      "lines": "e.g. 5615-5634 (deposit), 16759-16773 (getUserAccountData), 17319-17335 (liquidationCall)",
+      "decompiled": "_4360 = mem[64]; mem[64] = mem[64] + 64; mem[_4360] = 2; mem[_4360 + 32] = 0x3533..; if 0xffffffffffffffffffffffffffffffff < _4357: _4363 = mem[64]; mem[mem[64]] = 0x8c379a0..; mem[_4363 + 4] = 32; _4367 = mem[_4360]; ...; while idx < _4367: mem[_4363 + idx + 68] = mem[_4360 + idx + 32]; idx = idx + 32 ...; revert with memory from mem[64] len _4363 + ceil32(_4367) - mem[64] + 68",
+      "source": "ReserveLogic.sol:233 require(vars.newLiquidityRate <= type(uint128).max, Errors.RL_LIQUIDITY_RATE_OVERFLOW) and every require(..., Errors.X) with a string constant",
+      "issue": "Each require with a constant error string is 15-20 lines: the string is written to a fresh allocation, then copied word by word into the revert buffer by a while (P7), although its two words were written three lines above; the same require reads 'revert with '64'' where the string sits at a constant address. About 11,000 lines of the text are these blocks.",
+      "rule": "Forward stores to loads through a symbolic base: mem[_N] and mem[_N + 32] read back right after 'mem[_N] = 2; mem[_N + 32] = c' are 2 and c when no store in between may alias them (stores at mem[64] + k after 'mem[64] = _N + 64' cannot, with offsets taken as non-wrapping, see c00600). With the length known, the loop runs once and is the copy of a constant: 'revert with '53''.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "borrow(address,uint256,uint256,uint16,address), flashLoan, deposit, withdraw",
+      "lines": "22966-22973 vs 27999-28031 (borrow); 28092 vs 28171-28174 (flashLoan); 10528-10537 (withdraw); 5757-5763 (deposit)",
+      "decompiled": "mem[192] = asset ... mem[416] = 1  ...  if mem[416]: _5899 = mem[352]; ... call address(_5899) with: args mem[mem[64] len _5902 - mem[64] + 68]  |  log Borrow(...): ..., indexed address(_5919), indexed address(_5918), indexed uint16(_5917)  |  call mem[204 len 20] with: args mem[...]  |  return memory from mem[64] len _3345 - mem[64] + 32",
+      "source": "LendingPool.sol:210-221 ExecuteBorrowParams(asset, msg.sender, onBehalfOf, amount, mode, aToken, referralCode, true); :915 if (vars.releaseUnderlying) transferUnderlyingTo(user, amount); :509 executeOperation(...); :183 return amountToWithdraw",
+      "issue": "Values stored in memory at constant addresses below the first mem[64]-relative store are re-read as unknown: 'if mem[416]:' is always true, transferUnderlyingTo(caller, amount), aToken.burn, aToken.mint, transferFrom and executeOperation lose their names and arguments (P2), Borrow's topics are memory words, and withdraw's 'return amountToWithdraw' is 'return memory from mem[64] len _3345 - mem[64] + 32' right after '_3345 = mem[64]'.",
+      "rule": "A store at ceil32(x) + c or mem[64] + c with every mem[64] value >= c0 (range analysis on mem[64]) never aliases a constant range below c0; and two reads of mem[64] with only such stores between them are equal (so _3345 - mem[64] = 0).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "liquidationCall(address,address,address,uint256,bool)",
+      "lines": "294-311",
+      "decompiled": "mem[ceil32(return_data.size) + 192] = 164 / mem[ceil32(return_data.size) + 225 len 3] = 10950825 / mem[ceil32(return_data.size) + 224 len 1] = 0 / while idx < 164: mem[idx + .. + 388] = mem[idx + .. + 224] ... / delegate address(ext_call.return_data[0]) with: args mem[ceil32(return_data.size) + 388 len 164]",
+      "source": "LendingPool.sol:436 collateralManager.delegatecall(abi.encodeWithSignature('liquidationCall(address,address,address,uint256,bool)', collateralAsset, debtAsset, user, debtToCover, receiveAToken))",
+      "issue": "The only effect of the function, the delegatecall to the collateral manager, shows raw memory: the selector 0x00a718a9 (leading zero byte) is written as two pieces, and the 164-byte copy into the call buffer is a constant-bound while, so the call's function and five arguments are not decoded.",
+      "rule": "Merge adjacent constant writes of byte ranges into one word write (here mem[b + 224 len 4] = 0x00a718a9); a word-copy loop with a constant bound n is mem[d len n] = mem[s len n]; after both, the buffer decodes as liquidationCall(collateralAsset, debtAsset, user, debtToCover, receiveAToken).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "flashLoan, finalizeTransfer (def storage)",
+      "lines": "8-13 (def storage); 29053-29096, 30064-30215, 31315-31466, 30267, 31547, 1045",
+      "decompiled": "stor2 is fixed array of struct of 1 slot at storage 2 ... stor7 is fixed array of address at storage 7  |  _3986 = sha3(Bytes(12, 0), mem[300 len 20], 53); static call stor5[_3986] with: ...  |  uint128(stor[_3209 + 1]) = ...",
+      "source": "slots 2-51 are uint256[50] ______gap (never used); _reserves[vars.currentAsset].stableDebtTokenAddress / variableDebtTokenAddress / interestRateStrategyAddress / liquidityIndex",
+      "issue": "When the slot sha3(key, 53) is first held in a variable, member k of the struct is printed as element _N of an invented array storK at slot k (115 lines) or as raw stor[_N + k] (33 lines); def storage then declares six arrays inside the gap. The same members are reserveData[asset].field_1280 etc. elsewhere.",
+      "rule": "stor[v + k] where v = sha3(key, s) (through any SSA copy) is the mapping access s[key].field_{256k}, exactly as when the sha3 is inline; never type a slot from such accesses.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "all functions using WadRayMath (1,877 lines)",
+      "lines": "e.g. 202, 464, 1968, 29047",
+      "decompiled": "(_4 * uint128(...) + 1000000000 * 10**18 * uint128(...) + 500000000 * 10**18) / (1000000000 * 10**18)  |  (1000000000000000000 * 10**18 * _3207 + 10**9 * _3188 / 2) / (10**9 * _3188)",
+      "source": "WadRayMath.RAY = 1e27, halfRAY = 5e26; rayDiv(amount.wadToRay(), totalLiquidity.wadToRay())",
+      "issue": "10**27 is printed as '1000000000 * 10**18', 5*10**26 as '500000000 * 10**18' and 10**36 as '1000000000000000000 * 10**18'; with the distributed products (P9) this makes rayMul unrecognisable.",
+      "rule": "Print a constant c = m * 10**k with the largest k (10**27, 5 * 10**26, 10**36), not as a multiple of 10**18.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getUserAccountData(address) and the calculateUserAccountData copy in finalizeTransfer",
+      "lines": "707, 709, 731, 752, 801, 826, 835",
+      "decompiled": "if mem[ceil32(_1) + 448] <= 0:  |  _221 = mem[ceil32(_1) + 480] / 2 / mem[ceil32(_1) + 480]  |  if mem[ceil32(_1) + 448] > -5001 / (_168 / mem[ceil32(_1) + 448]):  |  _417 = (...) / 10000 - mem[ceil32(_1) + 480]  (on the path where it is 0)",
+      "source": "GenericLogic.sol:216 totalCollateralInETH > 0 ? ...; :249 percentMul(..).wadDiv(totalDebtInETH) with a zero numerator; PercentageMath.percentMul require(value <= (type(uint256).max - HALF_PERCENT) / percentage)",
+      "issue": "Unsigned 'x <= 0' is 'not x'; x / 2 / x is 0 for x != 0 (wadDiv of 0); -5001 used as an unsigned dividend is 2**256 - 5001 = uint256.max - 5000; a value known to be 0 on the path is still subtracted.",
+      "rule": "For unsigned x: x <= 0 == (x == 0); floor(floor(x/2)/x) == 0 when x != 0; print an unsigned operand above 2**255 as 2**256 - k or uint256.max - (k - 1), not as a negative number; substitute values a dominating test fixed (if x: ... else: x is 0).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "deposit, withdraw, borrow, repay, swapBorrowRateMode, rebalanceStableBorrowRate, flashLoan",
+      "lines": "e.g. 1956-1957, 5678-5681, 10516-10519, 27990-27991",
+      "decompiled": "require ext_call.return_data[96] == ext_call.return_data[123 len 5] / mem[ceil32(_1) + 512] = Bytes(27, 0), ext_call.return_data[123 len 5]  |  uint128(reserveData[asset].field_768) = mem[_4325 + 144 len 16]",
+      "source": "getSupplyData() returns (uint256, uint256, uint256, uint40); reserve.currentStableBorrowRate = uint128(vars.newStableRate)",
+      "issue": "The uint40 range check and value are byte slices (580 lines with 'len 5]'), and the uint128 rate writes take the low half of a memory word as a 16-byte slice (75 lines) instead of uint128 of the value read two lines above.",
+      "rule": "x[a + 32 - n len n] is Mask(8n, 0, x[a]): print 'x[a] == uint40(x[a])', 'uint40(x[a])' and 'uint128(_4358)'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "deposit, borrow, finalizeTransfer, initReserve, initialize",
+      "lines": "5782, 27826, 927, 957 (x & ~m | m); 263-266 (initReserve); 118-124 (initialize)",
+      "decompiled": "userConfiguration[onBehalfOf] = userConfiguration[onBehalfOf] & ~(1 << 2 * uint8(..) + 1) | 1 << 2 * uint8(..) + 1  |  if uint8(..field_1952): _20 = 1 else: _20 = stor55[0] == asset  |  if stor1: _6 = 0 else: _4 = stor1; stor1 = 1; stor0 = 2; _6 = not _4",
+      "source": "UserConfiguration.setUsingAsCollateral(id, true) / setBorrowing(id, true); LendingPool.sol:937 id != 0 || _reservesList[0] == asset; VersionedInitializable isTopLevelCall = !initializing",
+      "issue": "(x & ~m) | m is x | m; a short-circuit 'or' is an if/else with a constant arm; _4 = stor1 inside the else of 'if stor1' is 0, so _6 is 1.",
+      "rule": "(x & ~m) | m == x | m; 'if a: v = 1 else: v = b' with boolean b is 'v = bool(a) or b'; substitute the value of the tested expression inside each arm.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The seven big functions were reviewed by structure (control flow, external calls, storage writes, events, reverts), checked on one representative path each against the source: deposit (3,910 lines), rebalanceStableBorrowRate (3,777), withdraw (4,485), repay (4,374), swapBorrowRateMode (4,510), borrow (5,080), flashLoan (6,027). The small functions, getUserAccountData (whole calculateUserAccountData loop, all branches of the result), finalizeTransfer's tail, liquidationCall, initReserve, initialize and the getters were compared line by line; no semantic error found. Source loops: calculateUserAccountData's for (while at 520 in getUserAccountData and 972 in finalizeTransfer, counter kept in memory, P14), getReservesList's for (168), flashLoan's two for loops (28095; 28204 rotated, see finding). Of the 756 whiles, 747 are 'while idx < _N' copies of error strings / bytes (P7), plus 4 other implicit copies (179 address[] return encoding, 304 the 164-byte call buffer, 28144 and 28160 the abi.encode of assets and premiums); none spurious. The library calls through delegatecall (ValidationLogic at 0x11f3..3e7d, ReserveLogic.init at 0x1184..3efe) print as unknownXXXXXXXX with decoded arguments (storage-pointer selectors are not in the database): normal. P9: calculateCompoundedInterest prints exp*(exp-1) as '-_8 + _8 * _8 - 2 * _8 * L + L * L + L' and a - b != 0 as 'a != b' (975 lines). P2 count from the header (98); P7, P8, P11, P12, P14, P18 estimated.",
+  "summary": "Semantically sound where it finished, but the text is about 30 times the source: paths through updateState never merge, every constant error string is a 15-line copy loop, and memory values written at constant addresses are not forwarded, so many calls (burn, mint, transferFrom, executeOperation, the collateral-manager delegatecall) lose their names and arguments. flashLoan's borrow branch is aborted and its second loop is rotated around the mode test."
+}

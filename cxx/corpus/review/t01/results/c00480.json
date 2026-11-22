@@ -1,0 +1,47 @@
+{
+  "id": "c00480",
+  "abi_functions": 97,
+  "reviewed": 97,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {"while": 8, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P6": 6, "P7": 4, "P8": 150, "P11": 14, "P18": 35},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "68 external calls and 28 custom-error reverts across connectToVaultHub, reconnectToVaultHub, voluntaryDisconnect, abandonDashboard, setFeeRate, mint*/burn*, fund, withdraw, rebalance*, pause/resume deposits, triggerValidatorWithdrawals, ... (role checks)",
+      "lines": "1706-1711, 1730-1735 (connectToVaultHub); 1690-1692; 5570-5573 (setFeeRate)",
+      "decompiled": "_16 = mem[64] / mem[mem[64]] = 0xf2fde38b.. / mem[_16 + 4] = 0 / call address(_15).mem[_16 len 4] with: args 0  |  _12 = mem[64] / mem[mem[64]] = 0xe2517d3f.. / revert with mem[_12 len 4], caller, 0",
+      "source": "Dashboard.sol:331-332 _transferOwnership(address(VAULT_HUB)); VAULT_HUB.connectVault(address(_stakingVault())); AccessControl: revert AccessControlUnauthorizedAccount(account, role)",
+      "issue": "The selector is stored with mem[mem[64]] and read back as mem[_16 len 4] with _16 = mem[64], and the two spellings of the same address are not identified: the arguments (written through _16 + 4) are decoded but the function or error name is printed as a memory slice although the constant is on the line above. 96 such lines here; the same display is frequent in other via-IR texts (c00085: 303, c00516: 135).",
+      "rule": "After 'x = mem[64]' with no store to slot 64 before a use, rewrite mem[mem[64] + k] as mem[x + k] everywhere (stores and loads); then mem[x len 4] after 'mem[x] = C' is C >> 224 and the call or revert prints with that selector.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all functions using VAULT_HUB, LIDO_LOCATOR, STETH, WSTETH and the clone's immutable arguments (stakingVault)",
+      "lines": "1671-1675, 1700-1705, 1731-1733",
+      "decompiled": "mem[160 len SafeMath.sub(ext_code.size(this.address), 45)] = ext_code(this.address).data[45 len ...] / _4 = mem[160] / call address(_4).fund()  |  call address(_15).mem[_16 len 4] with: args 0 (transferOwnership(VAULT_HUB = 0))  |  call 0x0.mem[_20 len 4]",
+      "source": "immutable VAULT_HUB, STETH, WSTETH, LIDO_LOCATOR; _stakingVault() reads the clone arguments appended to the proxy code",
+      "issue": "solc immutables read as 0 (calls to 0x0, transferOwnership(0)), and the stakingVault address comes from the implementation's own code bytes, since the clone arguments are absent from this bytecode.",
+      "rule": "none (bytecode artifact)",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setConfirmExpiry, correctSettledGrowth, transferVaultOwnership, setFeeRate (Confirmations), connectToVaultHub and the role checks",
+      "lines": "5460-5466, 5478-5481, 1688-1691",
+      "decompiled": "mem[_17 + 32 len 64] = 0 / mem[_17 + 32] = 0 / _20 = mem[0] / mem[0] = 0x59783a4a.. / mem[0] = _20  |  while idx < 2: if idx >= mem[_17]: revert with Panic(50)  |  mem[0] = caller / mem[0] = 0xad3228b6.. / mem[0] = caller / mem[32] = 0xad3228b6..",
+      "source": "Confirmations.sol:130-160 for (i < numberOfRoles) over confirmingRoles() = [DEFAULT_ADMIN_ROLE, NODE_OPERATOR_MANAGER_ROLE]; AccessControl hasRole",
+      "issue": "Dead scratch traffic is printed: a save/restore of mem[0] around a constant, a zeroing repeated, keccak scratch written twice; the Panic(50) checks inside the constant-bound loops are implied by idx < 2 = mem[_17].",
+      "rule": "Drop stores overwritten before any read and a restore of a word to its saved value; fold mem[_17] to the constant 2 stored there and drop 'idx >= 2' under 'idx < 2'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "97 ABI functions, most of them role-gated one-line wrappers or getters, all read; the longer ones (proveUnknownValidatorsToPDG, unguaranteedDepositToBeaconChain, triggerValidatorWithdrawals, minimalReserve, the confirmation-gated setters) read by structure. Source loops: grantRoles (813), revokeRoles (1541), the three Confirmations loops (bound folded to the constant 2, in setConfirmExpiry 1085/1122/1134 and in the three other confirmation-gated functions), unguaranteedDepositToBeaconChain x2 (5788, 6037), _proveUnknownValidatorsToPDG (2432); all shown as while. getRoleMembers' storage copy (119) and the returned-struct decoders (2383) are implicit. P18: 35 range checks of decoded return words printed as 'require not mem[a len 20] << 96' (a uint96 check: the first 20 bytes are zero) and int104/uint48 checks on memory slices. 109 reverts bubble return data with 'revert with memory from _n len return_data.size' (correct). Storage: the ERC-7201 namespaced AccessControl and Confirmations storages print as stor[sha3(caller, 0xad32..)] and storE4CA[concat(call.data[0 len calldata.size])][role].",
+  "summary": "Faithful and mostly readable (calls, role checks, confirmation logic and loops match), but 96 calls and reverts print their selector as a memory slice although the constant is stored on the previous line, because mem[mem[64]] and mem[x] with x = mem[64] are not identified."
+}

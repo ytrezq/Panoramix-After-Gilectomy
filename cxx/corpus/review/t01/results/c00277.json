@@ -1,0 +1,71 @@
+{
+  "id": "c00277",
+  "abi_functions": 28,
+  "reviewed": 28,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {
+    "while": 1,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 3,
+    "P6": 7,
+    "P7": 8,
+    "P8": 4,
+    "P11": 12,
+    "P18": 12
+  },
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "WITHDRAWALS_DISABLER_ROLE (0x8d7601c0)",
+      "lines": "6",
+      "decompiled": "const addResolvers(address[] resolvers, uint256[] withdrawAllowances) = 0x94a954c0bc99227eddbc0715a62a7e1056ed8784cd719c2303b685683908857c",
+      "source": "bytes32 public constant WITHDRAWALS_DISABLER_ROLE = keccak256('BridgingManager.WITHDRAWALS_DISABLER_ROLE')",
+      "issue": "The selector collides in the signature database with addResolvers(address[],uint256[]), so a parameterless constant getter is printed as a constant whose name is a function signature with two array parameters the code never reads.",
+      "rule": "A database name whose parameters the function does not decode (here: no calldata read at all, a constant) is a selector collision; fall back to unknownXXXXXXXX or keep only names whose parameter list matches the decoded calldata.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "getOutboundCalldata (0xa0c76a96), outboundTransfer, finalizeInboundTransfer",
+      "lines": "100, 403, 530, 596",
+      "decompiled": "return 32, 196, '.V{6', _l1Token, _from, _to, _amount, 160, Bytes(60, 0)  |  mem[_47 + 32 len 4] = 599290589  |  mem[_80 + 32 len 4] = 777419574",
+      "source": "return abi.encodeWithSelector(IInterchainTokenGateway.finalizeInboundTransfer.selector, l1Token_, from_, to_, amount_, '');",
+      "issue": "The 4-byte selector 0x2e567b36 (finalizeInboundTransfer) is printed as the string literal '.V{6' because its bytes happen to be printable, and in outboundTransfer the same selector and transferFrom's 0x23b872dd are printed in decimal (777419574, 599290589), so the encoded calls are not recognisable.",
+      "rule": "Print a 4-byte value stored at a call-data or encoded-bytes start as a hex selector (with its function name when known), never as text or a decimal number.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "outboundTransfer (0xd2ce7d65)",
+      "lines": "524-572, 587-596, 648-652, 661-678",
+      "decompiled": "mem[_47 + 32 len 4] = 599290589 / .. while idx < _52: mem[idx + mem[64]] = mem[_47 + idx + 32] .. / call _l1Token with: args mem[mem[64] len _52]  |  log TxToL2(.., bytes _data=mem[mem[64] len _100 + ceil32(return_data.size) + ceil32(_102) - mem[64] + 64])  |  return memory from mem[64] len _108 + ceil32(_110) - mem[64] + 128",
+      "source": "IERC20(l1Token_).safeTransferFrom(from, address(this), amount_); ... emit TxToL2(sender_, recipient_, seqNum, data_); ... return abi.encode(retryableTicketId);",
+      "issue": "The deposit's safeTransferFrom(from, this, amount) is a nameless call on raw memory (selector in decimal, arguments only in earlier stores), its 'SafeERC20: low-level call failed' revert is copied by a loop, TxToL2's data and the returned abi.encode(retryableTicketId) are raw memory. The same OpenZeppelin safeTransfer in finalizeInboundTransfer is printed as 'call _token.transfer(..) with: args _to, _amount'. All because a store at mem[mem[64]] is assumed to possibly change mem[64].",
+      "rule": "mem[64] only ever holds 0x80 plus non-negative bounded sizes, so a store at mem[64] + k (k >= 0) never changes mem[64]; with that the copy becomes a copy line and the call, the event data and the return get their values.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "l1Token, l2Token, router, inbox, counterpartGateway; calculateL2TokenAddress, outboundTransfer, finalizeInboundTransfer",
+      "lines": "3-11, 51-54, 357-392, 445-454, 627-660",
+      "decompiled": "const l1Token = 0 / def calculateL2TokenAddress(..): return 0 / if _l1Token: revert with 0xfe15603f / if not caller: (router branch) / call 0x0.createRetryableTicket(..)",
+      "source": "address public immutable l1Token; l2Token; router; inbox; counterpartGateway",
+      "issue": "The immutables read as 0: calculateL2TokenAddress always returns 0, only token 0 is supported, the router branch of L1OutboundDataParser.decode is taken when caller == 0, finalizeInboundTransfer requires l2ToL1Sender == 0, and the retryable ticket goes to inbox 0 for recipient 0. Not a decompiler error.",
+      "rule": "None (corpus artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 28 ABI functions (11 constants) and the fallback reviewed; no semantic error found. The only source loop is OZ Strings.toHexString in _checkRole's message, inlined twice in each of the six role-checked functions: readable whiles with the dominated bounds check (P11). outboundTransfer's 8 whiles are bytes copies (decoding of data_ and extraData, call data, revert string, event data, return; P7). getRoleAdmin and the role-admin checks read adminRole as raw stor[sha3(role, 0) + 1], and initialize writes hasRole[0][admin] as raw stor[sha3(sender, sha3(Bytes(64, 0)))] although def storage names hasRole. initialize's parameter is named 'sender' and the Initialized event 'initializer' from the signature list.",
+  "summary": "Faithful; naming is the weak point (a role constant named after an unrelated addResolvers(address[],uint256[]), the finalizeInboundTransfer selector printed as the string '.V{6'), and outboundTransfer's token pull, event data and return are raw memory."
+}

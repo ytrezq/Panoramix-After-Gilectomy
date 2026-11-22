@@ -1,0 +1,25 @@
+{
+  "id": "c00245",
+  "abi_functions": 32,
+  "reviewed": 32,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P10": 4, "P11": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "skim(bytes32,address), snip, flow, cash, free, pack (the rmul/rdiv paths)",
+      "lines": "449-464 (skim)",
+      "decompiled": "if not _1: _7 = 0 / _8 = 1 else: _7 = _1 * ext_call.return_data[32] / _8 = _1 * ext_call.return_data[32] / _1 == ext_call.return_data[32] / require _8 ... _10 / (1000000000 * 10**18) ... require _10 / (1000000000 * 10**18) - min(_10 / (1000000000 * 10**18), ext_call.return_data[0]) <= _10 / (1000000000 * 10**18)",
+      "source": "End.sol:400-402 uint256 owe = rmul(rmul(art, rate), tag[ilk]); uint256 wad = min(ink, owe); gap[ilk] = add(gap[ilk], sub(owe, wad)); (mul: require(y == 0 || (z = x * y) / y == x); RAY = 10 ** 27)",
+      "issue": "RAY is printed as the unfolded 1000000000 * 10**18 (12 lines), the 'y == 0 ||' multiplication check as two variables and a require (P10), and sub(owe, min(ink, owe))'s check, which always holds, is kept (P11); owe is recomputed four times.",
+      "rule": "Fold constant products (10**27); x - min(x, y) <= x always holds; print 'require not a or a * b / a == b'; bind a repeated subexpression once.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loop in the source or the text. skim and skip checked line by line against end.sol: the vat/cat/flip calls, the overflow guards (the decompiler drops 'wad <= 2**255' in skim, which is exact since wad <= owe < 2**256 / 10**27), Art/gap updates and events; division by zero is 'assert b' (INVALID in 0.6), as in the bytecode. The other functions (cage x2, file x2, flow, thaw, free, pack, cash, auth functions) read line by line.",
+  "summary": "A clean, faithful text with no loops; only cosmetic simplifications (an unfolded RAY constant, a tautological check, repeated subexpressions) remain."
+}

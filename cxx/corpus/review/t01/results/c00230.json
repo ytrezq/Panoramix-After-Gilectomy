@@ -1,0 +1,25 @@
+{
+  "id": "c00230",
+  "abi_functions": 177,
+  "reviewed": 177,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "12 address getters, e.g. 0x06e7a9d0 (LendAndLongUSDC2FixedTermLoanManager), aaveStrategyFactory, openTermLoanV101Implementation, PoolManagerV100Initializer / V200Initializer",
+      "lines": "8 ('const unknown06e7a9d0 = 0x9f533db668811d50707692812a2eed6b0836922'), and 11 others",
+      "decompiled": "const unknown06e7a9d0 = 0x9f533db668811d50707692812a2eed6b0836922  |  const unknown19642c99 = 0x1ab799f77f9a9f4dd0d2b6e7c83dcf3f48d5650",
+      "source": "MapleAddressRegistryETH.sol:122 address constant public LendAndLongUSDC2FixedTermLoanManager = 0x09f533dB668811D50707692812A2eed6B0836922; :31 aaveStrategyFactory = 0x01ab799f77F9a9f4dd0D2b6E7C83DCF3F48D5650",
+      "issue": "Address constants whose first hex digit is 0 are printed as plain numbers with 39 (or fewer) digits, so they do not read as addresses and cannot be compared or searched as such; the other 165 are printed with 40 digits.",
+      "rule": "A value used or returned as an address (the getter returns it unmasked as a 160-bit value, or it is masked to 160 bits) prints with exactly 40 hex digits, zero-padded, like the 63-digit case of P6.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "An address registry: 177 'address constant public' getters, each printed as a 'const' line; all names but 'governor' come out as unknownXXXXXXXX (not in the signature database). Constants checked against the source by sampling, including the twelve with a leading zero digit; the fallback reverts. No loops, storage or calls. Unoptimised build (solc 0.8.7 noopt).",
+  "summary": "Trivial and faithful: every getter is a constant; only addresses starting with a zero digit lose their leading zero."
+}

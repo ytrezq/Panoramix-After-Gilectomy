@@ -1,0 +1,36 @@
+{
+  "id": "c00181",
+  "abi_functions": 46,
+  "reviewed": 46,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 1, "P6": 1, "P7": 8, "P16": 80},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize(string,string,address)",
+      "lines": "521-522",
+      "decompiled": "_2 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64",
+      "source": "OpenZeppelin Initializable (ERC-7201 slot 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00): _initialized, _initializing",
+      "issue": "Same as c00467: the Initializable slot is printed factored by 3600 (P1) next to its own name storF0C5, hiding that both operands read one slot.",
+      "rule": "Never factor a storage slot constant; use the slot's name everywhere.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "lzReceiveAndRevert, lzReceive, lzReceiveSimulate, setEnforcedOptions, quoteOFT, quoteSend, send, combineOptions",
+      "lines": "e.g. 602-640 (lzReceiveAndRevert)",
+      "decompiled": "def unknownbd815db0(array _param1) payable: ... while idx < cd[_param1 + 4]: ... cd[_param1 + cd[32 * idx + _param1 + 36] + 36] ...",
+      "source": "OAppPreCrimeSimulator.lzReceiveAndRevert(InboundPacket[] calldata _packets): for (uint256 i = 0; i < _packets.length; i++) {...}",
+      "issue": "Same as c00084: tuple and tuple-array parameters are decoded as raw nested calldata arithmetic (P16), so packet fields have no names.",
+      "rule": "Type tuple parameters from the ABI and print member accesses by name.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Same LayerZero OApp/OFT library code as c00084 (lzReceiveAndRevert, _setEnforcedOptions, combineOptions, lzReceive/lzReceiveSimulate): the two source loops (lzReceiveAndRevert's for, 602; _setEnforcedOptions' for, 690) are clear whiles; the others are implicit (message/options bytes copies, the EnforcedOptionSet encoding, the simulation-result copy: P7). Unlike c00084 (via-IR), this build prints the buildSimulationResult call by name. Owner checks use custom errors (0x118cdaa7 = OwnableUnauthorizedAccount). All functions reviewed line by line.",
+  "summary": "Faithful, with both source loops as clear whiles; the main obscurity is tuple parameters decoded as raw calldata arithmetic, plus a factored Initializable slot."
+}

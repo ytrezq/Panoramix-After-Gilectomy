@@ -1,0 +1,47 @@
+{
+  "id": "c00414",
+  "abi_functions": 39,
+  "reviewed": 39,
+  "not_reviewed": [],
+  "source_loops": 9,
+  "loops_shown": {"while": 9, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 29, "P3": 2, "P4": 31, "P6": 3, "P7": 15, "P8": 150, "P11": 20, "P18": 40},
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "updateAsset(address,(bool,bool,bool,(bytes20,bytes4,bytes)[],(bytes20,bytes4,bytes),bool,bool,uint32,uint48,uint256[]))",
+      "lines": "7584-7630, 9376",
+      "decompiled": "while idx < _3015: ... if 0 >= idx: if idx >= mem[_3024]: ...  # Decompilation aborted / mem[_3024 + 32 * idx + 32] = sha3(...); idx = idx + 1; continue / ...  # Decompilation aborted",
+      "source": "OlympusPrice.v2.sol:600-605 the duplicate-feed loop of _validateAssetPriceFeeds (from _validateUpdateAsset :843), then :1148-1182 the feed/strategy/moving-average updates, the final successAllFeeds check and the three events",
+      "issue": "With updateFeeds and two or more feeds, the outer feed loop reaches i = 1 and the text aborts before the inner duplicate check, so on that path the rest of updateAsset (storage writes of the new feeds, strategy and moving average, PRICE_PriceFeedCallFailed, the events) is lost; a second abort ends another path at 9376. The same inner loop is a readable while in validateAddAsset, addAsset and validateUpdateAsset.",
+      "rule": "Not a rewrite: the nested loop inside the inlined validation exhausts the decompiler's budget in this, the largest function.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getPrice(address), getPrice(address,uint8), getPriceIn(address,address), getPriceIn(address,address,uint8)",
+      "lines": "1449-1452, 2177-2185, 4969, 5098, 5837, 6292, 6422, 7199",
+      "decompiled": "    mem[128] = _23\n    _312 = block.timestamp / _313 = 128 / _314 = 192\nmem[_313 + 32] = uint48(_312)\nreturn memory\n  from mem[64]\n   len _314 - mem[64]",
+      "source": "OlympusPrice.v2.sol:197-223 return (_unitPrice(), uint48(block.timestamp)) / return (price_, timestamp_) / ...",
+      "issue": "The four price functions return only through 'return memory from mem[64] len _N - mem[64]' (all 8 of their returns): each arm writes the values at a different memory position and the return reads the phi, so the returned price and timestamp never appear in a return statement.",
+      "rule": "When the arms of a branch leave the return buffer at different places, duplicate the return into each arm (or name the phi of mem[64] per arm) so each arm's return resolves to its words: 'return _23, uint48(block.timestamp)'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getPrice x2, getPriceIn x2, storeObservation(s), updateAsset, addAsset; removeAsset",
+      "lines": "1424 (17 copies); 296-300",
+      "decompiled": "if decimals >= 78 and decimals >= 32:  |  if SafeMath.sub(assets.length, 1) >= assets.length: revert Panic(50) / assets[s] = assets[SafeMath.sub(assets.length, 1)] / if not assets.length: revert Panic(49)",
+      "source": "_unitPrice: 10 ** _decimals (checked exp helper); removeAsset :1011-1012 assets[i] = assets[len - 1]; assets.pop()",
+      "issue": "x >= 78 and x >= 32 is x >= 78; after SafeMath.sub(length, 1) succeeded, length >= 1, so the index and pop-on-empty panics are dead.",
+      "rule": "Merge x >= a and x >= b into x >= max(a, b); a - 1 not underflowing implies a >= 1 for later conditions (no write to the length in between).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Unoptimized build. All 39 ABI functions reviewed; the long ones (addAsset 1320 lines, updateAsset 2180, getPriceIn x2 1240/1360, validateUpdateAsset 730, storeObservation(s)) by structure. removeAsset was checked line by line (permissioned via kernel.modulePermissions, unit-of-account and approved checks, the swap-and-pop loop, the field-by-field delete of the Asset struct with the obs array cleared as a copy line and the two bytes members cleared with their Panic(34) encoding checks, AssetRemoved): exact. Loops: 9 explicit, all shown as whiles: removeAsset's search, storeObservations' loop over assets, ensureValidSubKeycode (i < 20, in 4 submodule functions), _getFeedPrices, _getInclusivePrices, _updateAssetMovingAverage, _validateAssetMovingAverage, and _validateAssetPriceFeeds' outer and inner loops (inner aborted only in updateAsset). Implicit: abi.decode of Component[] from storage bytes (readable whiles), solc's checked 10 ** _decimals helper ('while u > 1', 17 copies, readable), getSubmodules/getAssets storage-to-memory copies printed rotated (P3, 164, 190) and 15 memory-to-memory copies as whiles (P7). Parameter names from the signature DB mislead in places (removeAsset(address _nftContract)), which is normal. The 29 P2 lines and the raw custom-error reverts have the same cause as in c00585 (a named read of mem[64] not unified with later reads). No execution run.",
+  "summary": "Faithful where complete and the loops are all present, but the four price getters return only through raw memory reads of a phi buffer, and updateAsset loses its whole update-and-emit tail when two or more feeds are given."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "c00334",
+  "abi_functions": 15,
+  "reviewed": 15,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 26, "P7": 9, "P12": 6},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "GetResponse(uint32,string,bytes)",
+      "lines": "758-772 and the following 'if 10 == _param1:' ... branches",
+      "decompiled": "if 1 == _param1: / if uint24(_param1) != 2: revert with 'TURING: Geth intercept failure' / mem[...] = _param3.length / ... / return 32, mem[... len ceil32(_param3.length) + 32] / if 10 == _param1: / if uint24(_param1) != 2: revert with 'TURING: Incorrect input state' / ...",
+      "source": "TuringHelper.sol:84-85 require((rType & 0x00ffffff) == 2, string(GetErrorCode(rType))); return _payload; (GetErrorCode maps rType 1, 10, 11, ... to messages)",
+      "issue": "The require is copied into each branch of the inlined GetErrorCode switch, and inside 'if 1 == _param1:' the test 'uint24(_param1) != 2' is not folded although it is always true there: each branch prints a conditional revert followed by a dead copy of the return of _payload. The single live return (rType & 0xffffff == 2) is lost among the dead ones.",
+      "rule": "Inside the true arm of 'if x == c', substitute c for x (uint24(1) != 2 is true), make the revert unconditional and drop what follows it; then the duplicated require/return copies vanish and one return remains on the path where no error code matched.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No source loops. The nine whiles are memory-to-memory bytes copies of the 0.8.9 copy helper (payload and URL into call buffers and return data, P7). The P6 words are Error(string) (25) and supportsInterface (1) selectors with 63 digits. Reviewed: GetResponse, APIRequest / TuringTx call paths with the l2geth intercept (Turing request built in memory, revert reasons decoded), owner/permission functions and supportsInterface; P12 counts the duplicated require/return copies in GetResponse.",
+  "summary": "Faithful on live paths; GetResponse repeats a conditional revert and a dead return per error code because a value fixed by a dominating equality test is not propagated."
+}

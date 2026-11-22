@@ -1,0 +1,36 @@
+{
+  "id": "c00519",
+  "abi_functions": 47,
+  "reviewed": 47,
+  "not_reviewed": [],
+  "source_loops": 16,
+  "loops_shown": {"while": 16, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 12, "P3": 8, "P7": 12, "P8": 40, "P9": 40, "P11": 10, "P15": 3},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "spend(address,bytes32,uint8,address[],uint256[],...) (SpendingLimitLib.getFinalDailyRenewalTimestamp / getFinalMonthlyRenewalTimestamp, TimeLib)",
+      "lines": "1861-1876 (daily), 1877-1990 (monthly)",
+      "decompiled": "if mem[_88 + 216 len 8] + mem[_88 + 320] <′ mem[_88 + 320]: revert with Panic(17) / ... (checks of the first step) / t = mem[_88 + 192] / while block.timestamp > uint64(24 * 3600 * ((uint64(t) + mem[_88 + 320]) /′ (24 * 3600)) - mem[_88 + 320] + 24 * 3600): ... t = 24 * 3600 * ((uint64(t) + mem[_88 + 320]) /′ (24 * 3600)) - mem[_88 + 320] + 24 * 3600  |  while True: ... 146097 ... 1461001 ...",
+      "source": "SpendingLimitLib.sol:272-274 do { renewalTimestamp = uint256(renewalTimestamp).getStartOfNextDay(timezoneOffset); } while (block.timestamp > renewalTimestamp); and :287-289 the monthly version",
+      "issue": "Both do-while loops are found and equivalent, but the daily one is rotated (the first step's checks before the loop, the step computed both in the condition and in the body, P3) and getStartOfNextDay is inlined four times per line; the monthly one is a 'while True' whose body expands the civil-date conversion (146097, 1461001...) into lines of 1000+ characters (P9).",
+      "rule": "Print a do-while as one loop: name the step 'r = next(r)' once in the body and test 'block.timestamp > r' at the end; name inlined function results (next day, day number) instead of repeating their expressions.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize(...) (OpenZeppelin Initializable v5)",
+      "lines": "382-383",
+      "decompiled": "_1 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64",
+      "source": "Initializable: uint64 _initialized at 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00",
+      "issue": "Same as c00525: the Initializable slot printed as a multiple of 3600 and _initialized split by its byte-wise write.",
+      "rule": "Never factor a slot by a time unit; take field widths from typed reads.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops in this bytecode (16): CashModuleCore getPendingCashback (906), _validateSpend (1814), clearPendingCashback outer/inner (1042 'while True', 1046), _cashback outer/inner (spend, 2060/2072), getPendingWithdrawalAmount (734 'while True'), CashModuleStorageContract _areAssetsWithdrawable and _processWithdrawal (processWithdrawal 1302/1335/1432), ArrayDeDupLib.checkDuplicates outer/inner (872/874, 984-1029, 1775/1777; missing from the pack's 'reaches' list), EnumerableAddressWhitelistLib x2 (615/657), SpendingLimitLib daily/monthly do-while (1868, 1881); all shown as loops. CashLendLib's external/public functions and their private helpers (supplyToLend, postLiquidateTransfers, hasOpenBorrows, _executeDebits, _resupplyCollateral, _sizeResupply, _sourceDebits, _sourceLegacyDebits, _unwindLendCollateral, _transferLoose) run in the linked library 0x11e0766c..e139 via delegatecall and are not counted. Implicit: storage-array copies printed as rotated loops ('while c + 32 * len + k > idx + 32', 4), 2 'while idx - 1' zero-inits (P3), calldata decoders and encoders (P7 ~12). P11: Panic(50) checks implied by loop bounds (e.g. 'if s >= cd[_param2 + 4]' inside 'while s < idx' with idx < len). 47 ABI functions read; spend (540 lines), processWithdrawal, getData, setupModule by structure.",
+  "summary": "All loops of this bytecode are present (library code correctly left to the linked library), the calls and checks match; the spending-limit do-while loops are rotated or 'while True' with date arithmetic expanded into huge lines, and the Initializable slot prints as a multiple of 3600."
+}

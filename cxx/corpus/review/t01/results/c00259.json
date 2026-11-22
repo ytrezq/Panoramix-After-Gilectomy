@@ -1,0 +1,36 @@
+{
+  "id": "c00259",
+  "abi_functions": 23,
+  "reviewed": 23,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P6": 1, "P7": 2, "P8": 1},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "depositToL2Locked(uint256,address,uint256,uint256,uint256) (unknown64843d60)",
+      "lines": "478-485, 495-511",
+      "decompiled": "while idx < _102: mem[_96 + idx + ceil32(return_data.size) + 548] = mem[_101 + idx + 32] ... call 0x0.outboundTransfer(...) ... require return_data.size >=′ 32 / ... while idx < _108: mem[_96 + idx + ceil32(_15) + ceil32(return_data.size) + 352] = mem[_96 + _107 + idx + ceil32(_15) + 352]",
+      "source": "L1GraphTokenLockTransferTool.depositToL2Locked: l1Gateway.outboundTransfer{ value: ... }(graphToken, l2Wallet, amount, maxGas, gasPriceBid, abi.encode(...)) (returned bytes ignored)",
+      "issue": "The bytes argument encoding and the abi.decode of the returned bytes are word-copy whiles (P7); the decoded copy is never read afterwards, so the second loop and its mem[64] bookkeeping are dead (P8).",
+      "rule": "A word-copy loop over a known length is a copy line; a memory copy whose destination is never read (and whose bounds checks are kept separately) is dead.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "depositToL2Locked, depositETH/withdrawETH paths, getDeploymentAddress",
+      "lines": "487-491",
+      "decompiled": "require ext_code.size(0) / call 0x0.outboundTransfer(address _l1Token, ...) with: value SafeMath.add(_param5, _35) wei ... args 0, _34, ...",
+      "source": "IL1GraphTokenGateway public immutable l1Gateway; IERC20 public immutable graphToken; ... (constructor-set immutables)",
+      "issue": "The gateway and token immutables read as 0 in this pre-deployment bytecode (solc), so the outboundTransfer call targets 0x0 with token argument 0.",
+      "rule": "None (input artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 23 ABI functions reviewed (getters, ownership, depositETH/withdrawETH, setters, initialize read; depositToL2Locked (292 lines) by structure: ownership/lock checks, ETH accounting, outboundTransfer with value, two events). No source loop; the 2 whiles are implicit bytes copies. Custom event names are raw topics (not in the signature database).",
+  "summary": "Faithful and readable; only two implicit bytes copies left as whiles (one of them dead) and zero immutables."
+}

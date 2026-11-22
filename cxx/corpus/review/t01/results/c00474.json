@@ -1,0 +1,47 @@
+{
+  "id": "c00474",
+  "abi_functions": 187,
+  "reviewed": 187,
+  "not_reviewed": [],
+  "source_loops": 14,
+  "loops_shown": {"while": 14, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 51, "P7": 40, "P8": 15, "P11": 4, "P16": 45},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "the 4 Pendle swap functions with LimitOrderData (unknown3346d3a3, unknown80c4d566, unknown2a50917c, unknown7b8b4b95)",
+      "lines": "2342-2376 (and 2453, 2565, 2677)",
+      "decompiled": "while True: / require cd[_param3 + 68] <′ calldata.size - _param3 - 35 / ... / if s >= cd[_param3 + cd[_param3 + 68] + 4]: / u = 0 / v = t / while True: / require cd[_param3 + 100] <′ ... / if u < cd[...]: ... continue ... / <rest of the function> / ...",
+      "source": "PendleRouterDecoderAndSanitizer.sol:216 for (i < limit.normalFills.length) {...}  230 for (i < limit.flashFills.length) {...}",
+      "issue": "Each loop re-validates the calldata offset of limit.normalFills at its head, so the test sits after those requires and the loop is printed as 'while True' with the exit inside; the second loop and the rest of the function are then nested inside the first loop's exit branch, so two sequential loops read as nested.",
+      "rule": "A check at a loop head that does not depend on loop-carried values and reads only immutable inputs (calldata, constants) gives the same result every iteration: evaluate it once before the loop, then the exit test becomes the while condition and the code after the exit moves after the loop.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "redeemDueInterestAndRewards, claim(address[],address[],uint256[],bytes32[][]), exactInput, uniswapV3Swap, joinPool, exitPool, flashLoan, lockOffers, fill and the Pendle functions",
+      "lines": "e.g. 2062-2079 (redeemDueInterestAndRewards), 1990-2012 (exactInput)",
+      "decompiled": "while idx < cd[_param2 + 4]: ... _10 = mem[64] / _11 = mem[s] / t = 0 / while t < _11: mem[_10 + t + 32] = mem[s + t + 32] ... / mem[_10 + _11 + 32] = 0 / mem[_10 + _11 + 32] = cd[...] << 96 / mem[mem[64]] = _10 + _11 - mem[64] + 20",
+      "source": "addressesFound = abi.encodePacked(addressesFound, sys[i]); ... return addressesFound",
+      "issue": "Every 'addressesFound = abi.encodePacked(addressesFound, x)' copies the growing buffer with an inner while (40 copy loops, plus the final return copy), the zero store before the append is dead, and the new length '_10 + _11 - mem[64] + 20' is not folded to _11 + 20.",
+      "rule": "Known P7 (copy loop to copy line); with the free-memory pointer known not to alias (as in c00409), '_10 - mem[64]' with _10 = mem[64] folds to 0, and a store fully overwritten by the next store is dead.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "exactInput, send, uniswapV3Swap",
+      "lines": "2007-2011; 2878-2887",
+      "decompiled": "if s > SafeMath.add(23, s): revert with Panic(17) / s = SafeMath.add(23, s)  |  require SafeMath.add(1, s) <= SafeMath.add(3, s)",
+      "source": "pathIndex += chunkSize; opts[cursor + 1:cursor + 3]",
+      "issue": "An overflow test of an addition already wrapped in SafeMath.add is kept; the slice check start <= end compares two SafeMath adds of the same s.",
+      "rule": "After SafeMath.add(a, b) succeeds, a > SafeMath.add(a, b) is false; SafeMath.add(1, s) <= SafeMath.add(3, s) is true once both succeed.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "187 ABI functions plus the fallback reviewed. Most are one-line 'return abi.encodePacked(addresses)' decoders, shown as 'return Array(len=20k, data=Bytes(20, a), ...)' after the ABI checks; about 40 sampled against the source, all exact (a uint160 parameter is checked as 'x == address(x)', which is the same mask). Read in full: send (the 0x0003 options walk: slice bounds, uint16 '3 + size' overflow check, native-drop revert), exactInput (hops = len / 23, final pathIndex folded to 23 * (len / 23)), redeemDueInterestAndRewards, one Pendle function with _sanitizeLimitOrderData. Loops: 14 explicit (2 in _sanitizeLimitOrderData, claim, exactInput, exitPool, fill, flashLoan, joinPool, lockOffers, 3 in redeemDueInterestAndRewards, send's while, uniswapV3Swap), all present as whiles (the two limit-order loops as 'while True'). Implicit: validating calldata decodes and 40 memory copies (P7). P16: calldata array elements as cd[32 * idx + _paramN + 36]. No semantic error found; the contract has no storage.",
+  "summary": "Faithful and mostly clean (the 170 trivial decoders read well); the loops are all present, but abi.encodePacked accumulation is printed as nested copy loops and the limit-order loops are 'while True' with the second loop nested in the first one's exit."
+}

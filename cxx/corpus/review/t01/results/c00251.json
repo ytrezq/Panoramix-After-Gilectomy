@@ -1,0 +1,25 @@
+{
+  "id": "c00251",
+  "abi_functions": 23,
+  "reviewed": 23,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 7, "P7": 1, "P8": 20, "P18": 25},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "finalizeDeposit(uint256)",
+      "lines": "338-376",
+      "decompiled": "mem[ceil32(return_data.size) + 128] = ext_call.return_data[0] / mem[ceil32(return_data.size) + 160] = mem[160] / ... / if not mem[ceil32(return_data.size) + 220 len 4]: revert with 'Deposit not initialized' / ... if mem[ceil32(_1) + 184 len 8] - mem[ceil32(_1) + 280 len 8] > 18446744073709551615:",
+      "source": "AbstractBTCDepositor._finalizeDeposit: IBridgeTypes.DepositRequest memory deposit = bridge.deposits(depositKey); require(deposit.revealedAt != 0, 'Deposit not initialized'); ... initialDepositAmount = deposit.amount * SATOSHI_MULTIPLIER; tbtcAmount = _calculateTbtcAmount(deposit.amount, deposit.treasuryFee)",
+      "issue": "The returned DepositRequest is copied word by word into a second memory struct, and its fields (revealedAt, amount, treasuryFee) are used only as byte slices of that copy (len 4, len 8 at offsets 220, 184, 280), so the uint32/uint64 members are not visible as such.",
+      "rule": "After 'require return_data.size >= n', fold reads of the copied struct back to the return data (mem[b + k] = ext_call.return_data[k]) and print x[a + 32 - w len w] as uintN(x[a]) (the rule given for c00290).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loop in the source or what it reaches; the one while (503) is the memory copy of SafeERC20's call data (P7). finalizeDeposit (310 lines) was checked by outline against the source: enum range check (Panic 33), state check and write, bridge.deposits and vault checks ('Deposit not finalized by the bridge'), tbtc amount math with the checked products by 10**10, the optional depositTxMaxFee reimbursement (two calls to depositParameters), DepositFinalized, the StarkGate deposit with value and the gas refund; the other functions by reading. Same bytecode as one other contract of the corpus.",
+  "summary": "Faithful text without source loops; its only notable weakness is that the bridge's returned deposit struct is used through byte slices of a memory copy."
+}

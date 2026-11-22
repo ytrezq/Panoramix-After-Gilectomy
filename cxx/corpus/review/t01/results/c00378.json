@@ -1,0 +1,34 @@
+{
+ "id": "c00378",
+ "abi_functions": 7,
+ "reviewed": 7,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 1,
+  "P12": 1
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "_fallback (default function)",
+   "lines": "45-58",
+   "decompiled": "if calldata.size < 4: delegate stor3608 with: args call.data[0 len calldata.size] ... / mem[0] = 0 / mem[0 len calldata.size] = call.data[0 len calldata.size] / delegate stor3608.mem[0 len 4] with: args mem[4 len calldata.size - 4]",
+   "source": "Proxy._delegate: calldatacopy(0, 0, calldatasize()); delegatecall(gas(), implementation, 0, calldatasize(), 0, 0); returndatacopy; revert/return",
+   "issue": "The single forwarding delegatecall is printed twice, split on calldata.size < 4, and in the second arm the forwarded selector appears as mem[0 len 4] with the rest as mem[4 len calldata.size - 4]; both arms are 'delegate stor3608 with: args call.data[0 len calldata.size]'.",
+   "rule": "A call input 'mem[a len n]' just written by 'mem[a len n] = call.data[b len n]' is call.data[b len n]; do not split a call on whether its input holds a full selector when both arms print the same call; also 'ext_code.size(x) <= 0' is 'not ext_code.size(x)'.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Minimal owner-controlled proxy (7 ABI functions + fallback), read line by line; no loop. setOwner, upgradeTo, upgradeToAndCall and initialize match the source, including the event-before-write order of AdminChanged and the 'require not address(stor3608)' re-initialisation guard. No semantic error found.",
+ "summary": "Exact and readable; the fallback's forwarding delegatecall is printed twice with the selector as a memory slice in one arm."
+}

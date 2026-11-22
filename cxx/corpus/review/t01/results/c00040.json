@@ -1,0 +1,65 @@
+{
+ "id": "c00040",
+ "abi_functions": 40,
+ "reviewed": 40,
+ "not_reviewed": [],
+ "source_loops": 2,
+ "loops_shown": {
+  "while": 2,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 80,
+  "P4": 4,
+  "P6": 32,
+  "P7": 12,
+  "P8": 120,
+  "P9": 75,
+  "P11": 10,
+  "P12": 20,
+  "P14": 60,
+  "P15": 197,
+  "P18": 40
+ },
+ "findings": [
+  {
+   "kind": "loop",
+   "severity": "medium",
+   "function": "removeLoanImpairment, fund, acceptNewTerms, claim (inlined _addPaymentToList)",
+   "lines": "1068-1075, 2351, 2931, 4414",
+   "decompiled": "_248 = uint24(stor1 >> 24) and mem[_221 + 122 len 6] >= uint48(stor13[uint24(stor1 >> 24)].field_48) / s = uint24(stor1 >> 24); t = 0 / while _248: _248 = uint24(stor13[s].field_24) and mem[_221 + 122 len 6] >= uint48(stor13[uint24(stor13[s].field_24)].field_48); t = s; s = uint24(stor13[s].field_24)",
+   "source": "LoanManager.sol:879 while (next_ != 0 && paymentDueDate_ >= sortedPayments[next_].paymentDueDate) { current_ = next_; next_ = sortedPayments[current_].next; }",
+   "issue": "The loop condition is a loop-carried boolean computed once before the loop and again at the end of the body from the next values, so the header reads 'while _248' and the condition is written twice.",
+   "rule": "If the header tests a variable whose entry value is f(x0) and whose back-edge value is f(x_next), with f free of side effects and no store in the body to what f reads, print 'while f(x):' with the loop variables and drop the variable.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "loop",
+   "severity": "low",
+   "function": "updateAccounting, removeLoanImpairment, impairLoan, finishCollateralLiquidation, fund, acceptNewTerms, triggerDefault, claim (inlined _advanceGlobalPaymentAccounting)",
+   "lines": "715, 935-946, 1237, 1519, 2077, 2461, 3039, 3776",
+   "decompiled": "while True: if block.timestamp <= w: _164 = w; _165 = v; _167 = t; _168 = s; break / ... continue",
+   "source": "LoanManager.sol:739 while (block.timestamp > domainEnd_) { ... if ((paymentId_ = next_) == 0) break; }",
+   "issue": "The source condition becomes an exit test at the top of 'while True' because four SSA copies are attached to the exit.",
+   "rule": "A leading 'if not c: <copies of loop variables>; break' is the loop condition 'while c'; apply the copies after the loop (they are renamings).",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "the same functions and accruedInterest/assetsUnderManagement",
+   "lines": "e.g. 990-994",
+   "decompiled": "if v > ~((-1 * s * t + s * w) / (1000000000000 * 10**18)) / v = v + (-1 * s * t + s * w) / (1000000000000 * 10**18)",
+   "source": "LoanManager._accountToEndOfPayment: issuanceRate_ * (domainEnd_ - domainStart_) / PRECISION (PRECISION = 1e30)",
+   "issue": "The product is distributed into '-1 * s * t + s * w' (75 lines) and the constant 1e30 is printed as '1000000000000 * 10**18' (101 lines).",
+   "rule": "Keep a product with a difference factored (do not distribute a*b - a*c); print a power of ten as 10**k.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "2 source loops, both whiles (first two findings); the others are implicit: bytes[] calldata encodings for rejectNewTerms/acceptNewTerms (readable), memory copies and event/return encodings in triggerDefault, claim and finishCollateralLiquidation (P7), and checked-exponentiation helpers in getExpectedAmount. Reviewed by structure for triggerDefault (~800 lines) and claim (~1000 lines), others in detail; no semantic error found. P15: slot 1 (paymentCounter, paymentWithEarliestDueDate, domainStart, domainEnd, accountedInterest) and slot 2 (principalOut, unrealizedLosses) are declared uint256 and read as 'uint48(stor1 >> 96)' etc. (197 lines) although their getters exist; writes use field notation (uint24(stor1.field_24) = ...). P18: the PaymentInfo memory copy is read as mem[_221 + 122 len 6] slices. P6: 32 words with a leading zero nibble.",
+ "summary": "Faithful, both source loops present, but both are printed in rotated forms (a loop-carried condition variable, and 'while True' with an exit test); the packed slot 1 is read through shifts and interest arithmetic is distributed."
+}

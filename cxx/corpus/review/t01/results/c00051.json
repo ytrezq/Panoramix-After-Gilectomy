@@ -1,0 +1,76 @@
+{
+  "id": "c00051",
+  "abi_functions": 60,
+  "reviewed": 60,
+  "not_reviewed": [],
+  "source_loops": 12,
+  "loops_shown": {
+    "while": 12,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 2,
+    "P2": 91,
+    "P3": 32,
+    "P4": 8,
+    "P6": 2,
+    "P7": 50,
+    "P8": 60,
+    "P11": 60,
+    "P12": 10,
+    "P14": 20,
+    "P18": 40
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "arrangePortfolio, getMargin, getMarginAndMtM, getMarginAndMarkToMarket, getScenarioPnL, handleAdjustment, executeBid, settleOptions, setScenarios",
+      "lines": "1126-1132, 1150-1157, 1514-1529 (arrangePortfolio); 6125-6131 (handleAdjustment); 61 'revert with memory from mem[64]', 91 P2 lines",
+      "decompiled": "_89 = mem[64] / mem[mem[64]] = 0x6dfcc650... / mem[_89 + 4] = 96 / mem[_89 + 36] = _87 / revert with memory from mem[64] len _89 - mem[64] + 68  |  static call stor65 with: args mem[mem[64] len ...]",
+      "source": "SafeCast.toUint96 (revert SafeCastOverflowedUintDowncast(96, value)); PMRM_2.sol:338 require(seenExpiries < maxExpiries, PMRM_2_TooManyExpiries()); :448 revert PMRM_2_FindInArrayError(); spotFeed.getSpot(), volFeed.getVol(...)",
+      "issue": "Same cause as P2 in c00463: 61 custom-error reverts (SafeCast downcasts with their arguments, TooManyExpiries, FindInArrayError, UnsupportedAsset, ...) are memory ranges at the free pointer, and the feed/lib calls lose their selectors and arguments, although every word is written just before.",
+      "rule": "Same as c00463: bound the free-memory word so writes at mem[64] + k do not alias it; the revert range then decodes as 'revert with 0x6dfcc650, 96, _87' (or the error's name).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getScenarios, getScenarioPnL, getMarginAndMarkToMarket, getMargin, getMarginAndMtM, setScenarios, handleAdjustment (marginScenarios); def storage",
+      "lines": "28 (def storage); 404-416 (getScenarios); 5373-5383, 5573-5577 (getScenarioPnL); 27 'stor72[3 * ...' lines",
+      "decompiled": "stor72 is array of struct of 1 slot at storage 72  |  mem[_3] = stor72[3 * idx] / if uint8(stor72[3 * idx + 1].field_0) > 4: revert with Panic(33) / mem[_3 + 64] = stor72[3 * idx + 2]",
+      "source": "PMRM_2.sol: IPMRM_2.Scenario[] marginScenarios (slot 72), struct Scenario {uint spotShock; VolShockDirection volShock; uint dampeningFactor} (3 slots)",
+      "issue": "The array's elements are 3-slot structs, but def storage declares 1-slot elements and every member access is an index arithmetic 3 * i + k, so 'marginScenarios[i].volShock' reads as 'stor72[3 * idx + 1].field_0'.",
+      "rule": "When every access to a dynamic storage array is sha3(slot) + c * i + k with constant c > 1 and 0 <= k < c, the element is a c-slot struct: print stor72[i].field_(256*k) and declare 'array of struct of c slots'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "arrangePortfolio and the four margin functions, handleAdjustment (findInArray and _countExpiriesAndAssets inlined)",
+      "lines": "1524-1545 (findInArray); 1136-1147 (inner expiry loop); 6719 (handleAdjustment copy)",
+      "decompiled": "if 0 >= mem[mem[_11 + 128]]: revert (FindInArrayError) / _650 = mem[mem[mem[_11 + 128] + 32]] / v = 0 / while _650 - mem[... + 60 len 4]: if v + 1 >= mem[mem[_11 + 128]]: revert ... / _650 = mem[mem[32 * v + mem[_11 + 128] + 64]] / v = v + 1 / if v >= mem[mem[_11 + 128]]: revert with Panic(50)",
+      "source": "PMRM_2.sol:443-448 for (uint i; i < arrayLen; ++i) { if (expiryData[i].expiry == expiryToFind) return i; } revert PMRM_2_FindInArrayError(); :330 for (uint j = 0; j < seenExpiries; j++) {... break;}",
+      "issue": "The search loop is rotated: its bound test is peeled before the loop and repeated at the bottom (v + 1 >= len), the loop condition is the search predicate 'expiry != target', and a Panic(50) check implied by the bound follows the loop; the inner expiry loop is 'while True' with its bound as the first 'if ... break'. Exact (checked against the bytecode at pc 0x44ed-0x4533), but the source loop 'i < arrayLen' is not visible.",
+      "rule": "Print a loop whose body starts with 'if i >= n: exit' (or whose peeled guard plus bottom test are 'i < n' / 'i + 1 < n') as 'while i < n' with the predicate test inside the body; drop a bounds check implied by the loop bound.",
+      "verified": "disassembly (findInArray at pc 0x44ed: i < arrayLen tested before every element read; the text's peeled 'if 0 >= len' makes the rotated form exact)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "handleAdjustment, settleOptions, executeBid (perp settlement), the portfolio functions (OptionEncoding), renounceOwnership, acceptOwnership",
+      "lines": "6131 and 26 more 'if -...' tests; 1123, 1522 and 12 more '!= 10**10 * (...) / 10**10' checks; 231, 240",
+      "decompiled": "if -_979 - _980:  |  if Mask(63, 32, x) >> 32 != 10**10 * (Mask(63, 32, x) >> 32) / 10**10: revert with Panic(17)  |  _2 = stor[0x9016d09d...] / owner = 0",
+      "source": "BaseManager.sol:385-389 int netCash = pnl + funding; if (netCash == 0) return; OptionEncoding.fromSubId (strike = ((subId >> 32) & mask63) * 1e10); OwnableUpgradeable._transferOwnership (oldOwner = $._owner)",
+      "issue": "'netCash != 0' prints as the truth value of -(pnl + funding); the overflow check of a 63-bit value times 1e10 is kept though it can never fire; the old owner is read as a raw slot although def storage names that slot owner.",
+      "rule": "-(e) is nonzero exactly when e is; a checked product whose operands' known widths sum below 256 bits cannot overflow, so drop its check; a read of a named storage slot prints with its name (owner).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against PMRM_2_1.sol, PMRM_2.sol, BaseManager.sol and the OZ upgradeable bases. arrangePortfolio was followed through _countExpiriesAndAssets, _initialiseExpiries, _arrangeAssets, findInArray, addPrecomputes and the ABI encode/decode of the nested Portfolio; getMargin, getMarginAndMtM, getMarginAndMarkToMarket and getScenarioPnL are the same portfolio build plus one lib call (tails checked: scenario copy from marginScenarios, basis scenario when scenarioId == length, enum Panic(33) checks); handleAdjustment (1,681 lines) was reviewed by structure (onlyAccounts, nonReentrant, adjustmentsPaused, _processManagerData with its whitelisted-callee loop, checkAllAssetCaps, _chargeAllOIFee skipped for bypassed callers, the per-delta loop with perp settlement and its signed-overflow check, getPreviousAssetsLength, _assessRisk); its continuation is printed twice (P12) after the managerData test. The setters, getters and Ownable2Step functions were read. Loops: 12 source loops (executeBid, handleAdjustment, setScenarios x2, _processManagerData, _settleAccountOptions, _arrangeAssets, _chargeAllOIFee, _countExpiriesAndAssets x2, _initialiseExpiries, findInArray) all shown as while in each inlined copy; implicit: 30 zero-initialisations of new struct[] as rotated 'while idx - 1' (P3, with the 2 rotated findInArray copies), and about 90 ABI encode/decode loops for AssetBalance[], ManagerData[], Scenario[] and the nested Portfolio (readable whiles; the pure memory copies counted P7). The feeds and lib are storage addresses here (not immutables). Events print as topic hashes when not in the event database (24 of 27). No execution run beyond the disassembly check above.",
+  "summary": "Faithful on every path read, all loops present; readability suffers from the unresolved free-memory region (91 P2 calls, 61 hidden custom-error reverts), rotated search loops, 3-slot scenario structs indexed as 1-slot elements, and the many ABI encode/decode loops of the nested portfolio struct."
+}

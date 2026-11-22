@@ -1,0 +1,98 @@
+{
+  "id": "c00463",
+  "abi_functions": 42,
+  "reviewed": 42,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {
+    "while": 8,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 16,
+    "P2": 295,
+    "P3": 8,
+    "P6": 28,
+    "P7": 4,
+    "P8": 120,
+    "P9": 30,
+    "P11": 70,
+    "P12": 40,
+    "P14": 40,
+    "P18": 490
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getVaultLiquidation(address,uint256), getMultipleVaultsLiquidation, getAllVaultsLiquidation; partly getVaultEntireData, getVaultsEntireData (both), positionByNftId, positionsByUser",
+      "lines": "1680-2388, 2396-3098, 3100-3806, 3809-4517 (getVaultLiquidation); 4682-6161 (getVaultEntireData prefix); 21107-21216 / 21894-22002 / 22374-22482 (positionByNftId)",
+      "decompiled": "_78 = address(sha3(...)) == _param1 and 10000 / if _78: <constants + 2 try liquidate/simulateLiquidate + absorbAvailable, ~700 lines> ... else: _57 = ... and 10000 / if _57: <the same ~700 lines> ... else: <the same> ... else (TYPE() ok): <the same>",
+      "source": "main.sol:917-982 getVaultLiquidation: uint vaultType_ = getVaultType(vault_); if (vaultType_ != 0) { ... } (one body after the call)",
+      "issue": "getVaultType has four exits with different vaultType_ values (TYPE() result, multi-byte and 1-byte address checks, id 0); the whole continuation is printed once per exit, so getVaultLiquidation is 2,900 lines for ~70 source lines and the two wrappers repeat it again. getVaultEntireData merges only after 1,500 duplicated lines (at 6162).",
+      "rule": "When several paths reach the same code and differ only in the values of some variables, print that code once after the join and give the differing values a variable assigned in each path (a phi), instead of tail-duplicating it.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getVaultLiquidation, getMultipleVaultsLiquidation, getAllVaultsLiquidation, getVaultEntireData, getVaultsEntireData (both), positionByNftId, positionsByUser",
+      "lines": "1709-1759, 2422-2471, 3126-3175, 4748-4798, 5101-5150, 5464-5513, 8332, 9096, 9822, 11454, 12218, 12944, 14220, 14587, 14970, 17807, 18174, 18557, 21289, 22035, 25275, 25785 (22 blocks, ~1,150 lines)",
+      "decompiled": "_78 = address(sha3(...)) == _param1 and 10000 / if _78: ... / if _78 != 10000: static call _param1.unknownb7791bf2(?) ... require return_data.size >=′ 576 ... (50 lines) / else: <T1 try constantsView>",
+      "source": "main.sol:207 _getVaultConstants: if (vaultType_ == FluidProtocolTypes.VAULT_T1_TYPE) {try T1 constantsView} else {constants_ = IFluidVault(vault_).constantsView()} with vaultType_ = 10000 on this path (main.sol:56-60)",
+      "issue": "x = c and 10000 can only be 0 or 10000, so under 'if x:' (or after 'if not x: return/continue') the test 'x != 10000' is false and its 50-line arm (the non-T1 constantsView decode) is dead, yet it is printed 22 times.",
+      "rule": "Track the value set of 'c and K' (K a nonzero constant) as {0, K}; under a test that excludes 0 the variable equals K, so comparisons with K fold and the dead arm is dropped.",
+      "verified": "reading only (the dominating 'if _X:' / 'if not _X: return' and the definition '_X = ... and 10000' were checked for all 22 blocks by script)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getAllVaultsAddresses, getContractForDeployerIndex, getVaultEntireData, getVaultsEntireData, positionByNftId, positionsByUser, getVaultsAbsorb() and the liquidation functions",
+      "lines": "567-588, 616-626 (getAllVaultsAddresses); 1242-1321 (getContractForDeployerIndex); 7264-7271, 7282-7287 (getVaultEntireData); 127 sha3(mem[...]) lines, 15 'revert with memory', 18 'return memory'",
+      "decompiled": "_26 = mem[64] / mem[mem[64] + 32] = 0xda00.. / ... / _27 = mem[64] / mem[mem[64]] = _26 - mem[64] + 27 / _42 = sha3(mem[_38 + 32 len mem[_38]])  |  mem[_5983 + ceil32(return_data.size) + 68] = 0x696e76616c69642d6e756d626572... / revert with memory from mem[64] len _5983 + ceil32(return_data.size) - mem[64] + 100  |  _417 = mem[64] / mem[mem[64]] = address(_416) / return memory from mem[64] len _417 - mem[64] + 32",
+      "source": "addressCalcs.sol:20-31 keccak256(abi.encodePacked(bytes1(0xd6), bytes1(0x94), deployedFrom_, uint8(nonce_))); helpers.sol:31 require(tickRaw_ < X20, \"invalid-number\"); main.sol:196 return AddressCalcs.addressCalc(...)",
+      "issue": "The cause of P2 also hides other effects: the RLP keccak is a sha3 over a memory buffer whose length reads '_26 - mem[64] + 27' (=27), the tick check's revert reason 'invalid-number' is shown only as hex bytes and 'revert with memory', and returns are memory ranges with symbolic lengths. Where the same code runs at a constant address (getVaultType 507, getVaultState 330, getVaultAddress 256) it is folded to sha3(Bytes(22, ...), ...) and revert with 'invalid-number'.",
+      "rule": "Bound the free-memory word: if every value stored at mem[64] is a constant >= 96 plus nonnegative sizes kept below 2^64 by the Panic(65) checks, writes at mem[64] + k (k >= 0) cannot alias the word at 64, so 'v = mem[64]' re-read after them is v, '_26 - mem[64]' is 0, and the buffer, revert and return are resolved as at constant addresses.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getContractForDeployerIndex, getVaultLiquidation and every inlined _getVaultConstants",
+      "lines": "1359-1386; 1152-1190; 1771-1809",
+      "decompiled": "require return_data.size >=′ 576 / require ext_call.return_data[0] == ext_call.return_data[12 len 20] / require mem[ceil32(_1) + 800] == mem[ceil32(_1) + 812 len 20] / mem[... + 800] = mem[ceil32(_1) + 800] ...",
+      "source": "main.sol:232 constants_ = IFluidVault(vault_).constantsView() (struct of 16 words)",
+      "issue": "After the return data is copied to memory and its size checked >= 576, only the first word is read as ext_call.return_data[0]; the other 17 words stay reads of the copy buffer, and each address check reads as 'mem[a] == mem[a + 12 len 20]'.",
+      "rule": "A read of mem[b + k .. b + k + 32) inside a region written by 'mem[b len min(n, return_data.size)] = ext_call.return_data[0 len ...]', under a dominating return_data.size >= k + 32 and k + 32 <= n, is ext_call.return_data[k]; mem[a + 12 len 20] of a known word w is address(w).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getVaultEntireData and its inlined copies, positionByNftId, positionsByUser, vaultByNftId",
+      "lines": "6172-6173, 6891-6894, 7130 (_getVaultConfig, _getExchangePricesAndRates); 6937-6941; 21123-21180; 21216-21224; 247-248",
+      "decompiled": "mem[_4642] = Bytes(30, 0), mem[_4645 + 30 len 2] / mem[_4642 + 32] = uint16(_4646 >> 16)  |  mem[_5795 + 7 len 3] (= uint24(x >> 176))  |  mem[_5705 + 320] = uint16(mem[_4642]) / 2 / if mem[_5705 + 320] == 0x8000...: revert with Panic(17)  |  Mask(1, 3, (int24(_328) ^ int24(_328) >>′ 255) - (int24(_328) >>′ 255)) x15  |  return ..., Bytes(12, 0), Bytes(20, _10), ...",
+      "source": "main.sol:242-249 uint16(vaultVariables2_ & X16) ...; :300-305 supplyRateVault = int256((supplyRateMagnifier >> 1) & X15); if (...) supplyRateVault = -supplyRateVault; tickMath.sol:45 absTick_; main.sol:811 owner",
+      "issue": "The same field extraction is printed as a byte slice in one line and as a mask/shift in the next; the checked negation keeps its int256.min test although the operand is below 2^15; TickMath's absTick_ is recomputed in each of 15 tests with a no-op int24() of a 19-bit value; an address in a return is split into two byte items.",
+      "rule": "Print a byte slice of a word with a known value v as the equivalent shift/mask of v; fold a comparison that the operand's known range makes false (x < 2^15 is never 2^255); bind a subexpression used more than twice to a temporary; drop intN(x) when x is known to fit.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "FACTORY(), LIQUIDITY_RESOLVER(), getTotalVaults, totalPositions, getTokenConfig, vaultByNftId, getVaultAddress, all address computations and the LIQUIDITY_RESOLVER calls",
+      "lines": "3-4, 56, 64, 73, 235, 256, 548, 4862",
+      "decompiled": "const FACTORY = 0 / const unknown6902f79f = 0 / static call 0x0.totalVaults() / sha3(Bytes(22, 0xd6940000000000000000000000000000000000000000), ...)",
+      "source": "variables.sol:9-10 immutable FACTORY, LIQUIDITY_RESOLVER",
+      "issue": "solc immutables read as 0 in the pre-deployment runtime code, so the factory, the liquidity resolver and the deployer in addressCalc are address 0.",
+      "rule": "none (expected for this corpus)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against main.sol / helpers.sol and the libraries. The functions over 1,500 lines (getVaultLiquidation, getVaultEntireData, getMultipleVaultsLiquidation, getAllVaultsLiquidation, getVaultsEntireData x2, positionByNftId, positionsByUser) were reviewed by structure: control flow, loops, calls, reverts, returns; getVaultLiquidation's T1 and non-T1 try/catch blocks, the _decodeLiquidationResult copies (selector 0xcc36aa44, amtOut at +36, amtIn at +68, Error(string) and decode-failure fallbacks), _getVaultConstants (both struct layouts, field by field), _getVaultConfig, _getExchangePricesAndRates, _getTotalSupplyAndBorrow, the withdrawal-limit block of _getLimitsAndAvailability, getVaultState, getVaultType, TickMath.getRatioAtTick and positionByNftId's vaultType==0 path (amounts become 0 through the zero exchange prices, fetchLatestPosition's supply store correctly dropped) were checked line by line. getVaultsEntireData x2 and positionsByUser are the same inlined getVaultEntireData / positionByNftId bodies inside their loops; getVaultsAbsorb() = getVaultsAbsorb(address[]) after the getAllVaultsAddresses loop. The only missing extcodesize check (first simulateLiquidate call, 1820) is implied by the dominating 'if ext_code.size(_param1)' with only static calls between, so it is exact; the merge of the two BITS_USER_*_AMOUNT branches is exact (both constants are 1). Loops: 8 source for-loops (main.sol 182, 784, 795, 878, 902, 1012, 1024, 1050) all shown as while (inlined copies of 182 and 878 too); implicit: 4 memory copies as while (P7: getDeploymentName x2, uint[] and address[] encodes), 8 zero-initialisations of new struct[] rotated as 'while idx - 1' (P3), 3 calldata address[] decodes and 8 struct-array encodes as readable whiles. P1: the pack header has no P1 count, but 16 lines print the TYPE() selector as 0x8df3dc...000 * 24 * 3600. P11 includes ~40 in-loop Panic(50) checks implied by the loop bound (the tokensInAmt_[i] check in getMultipleVaultsLiquidation is real), 'if not _param2' after '_386 = ... or not _param2' (1250), '-(d) + b > b' after 'b > d', and the 22 dead blocks of the second finding. P12: the low-level catch block (_decodeLiquidationResult) is printed in 4-5 arms of each try. No execution run: no semantic suspicion remained after reading.",
+  "summary": "Faithful on every path read, with all 8 loops present, but very bloated: getVaultType's four exits make the decompiler duplicate whole continuations (4 x 700 lines per liquidation body) including 22 provably dead 50-line arms, and memory at the free pointer stays unresolved, so 295 calls lose their names and arguments and keccaks, revert reasons and returns read as raw memory."
+}

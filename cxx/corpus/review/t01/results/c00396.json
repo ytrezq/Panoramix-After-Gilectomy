@@ -1,0 +1,25 @@
+{
+  "id": "c00396",
+  "abi_functions": 9,
+  "reviewed": 9,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "assertionError() and the 8 other Panic constants (arithmeticError, divisionError, enumConversionError, encodeStorageError, popError, indexOOBError, memOverflowError, zeroVarError)",
+      "lines": "8-31",
+      "decompiled": "return Array(len=36, data=0x4e487b7100000000000000000000000000000000000000000000000000000000, 0x100000000000000000000000000000000000000000000000000000000)",
+      "source": "forge-std StdError.sol: bytes public constant assertionError = abi.encodeWithSignature(\"Panic(uint256)\", 0x01);",
+      "issue": "The 36-byte constant is printed as two 32-byte words, so the Panic code 1 appears as 1 << 224 (0x1000...0 with 57 digits) instead of a 4-byte selector followed by the word 1.",
+      "rule": "Print a constant byte string of length n by its own layout: when n = 4 + 32k, as Bytes(4, selector) followed by k words (0x4e487b71, 1).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Library of constant getters, no loops and no storage. The 9 getters return the right Panic payloads (codes 0x01, 0x11, 0x12, 0x21, 0x22, 0x31, 0x32, 0x41, 0x51); 'payable' reflects the absence of a callvalue check in this library bytecode. Only assertionError is named by the signature database.",
+  "summary": "Correct; the only issue is the word-wise printing of the 36-byte Panic payloads."
+}

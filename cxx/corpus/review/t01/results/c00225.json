@@ -1,0 +1,63 @@
+{
+ "id": "c00225",
+ "abi_functions": 49,
+ "reviewed": [
+  "all 49 ABI functions (position constants and getters, vault getters, setters, acceptGovernance, name, updateVaultName/Symbol, getAllVaults, getVault, updateDebtAllocator x2, updateKeeper, removeRoles, initialize, removeVault, latestVault x2, addNewVault x2, newVault x2)"
+ ],
+ "not_reviewed": [],
+ "source_loops": 2,
+ "loops_shown": {
+  "while": 2,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 10,
+  "P4": 14,
+  "P6": 32,
+  "P7": 24,
+  "P8": 194,
+  "P10": 3,
+  "P14": 2
+ },
+ "findings": [
+  {
+   "kind": "naming",
+   "severity": "medium",
+   "function": "addNewVault, newVault (both overloads, _sanctify), updateDebtAllocator x2, updateKeeper; def storage",
+   "lines": "19-25 (def storage); 815-878, 1080-1143, 1331-1400, 1604-1673; 269, 324, 361",
+   "decompiled": "mem[_46] = stor624E; mem[_46 + 32] = stor624E_160; if stor624E: call _param1.unknown2cf7fd85(?) with: args stor624E, stor624E_160",
+   "source": "_setRole(_vault, _positions[GOVERNANCE]); _setRole(_vault, Position(_debtAllocator, _positions[DEBT_ALLOCATOR].roles));",
+   "issue": "Where solc folded keccak256(position, 0) into a constant slot, the entries of _positions (slot 0) are printed as seven separate variables stor624E/stor4829/storE9CE/stor7373_160 at hashed slots, while the same entries are stor0[0x9409...] (GOVERNANCE) etc. in the 71 other places, so a reader cannot see that _sanctify uses the governance/management/keeper/debt-allocator positions.",
+   "rule": "For a constant slot, try keccak256(k . n) for the constant keys k already seen with mapping slot n in the program; on a match print the access as stor_n[k] (with its field) and do not declare a variable for it.",
+   "verified": "keccak256(GOVERNANCE . 0) = 0x624ef3c7..., MANAGEMENT -> 0x4829c109..., KEEPER -> 0xe9cef8c5..., DEBT_ALLOCATOR -> 0x7373cba2... (computed with a local keccak)"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "latestVault(address), latestVault(address,uint256), addNewVault x2, newVault x2",
+   "lines": "535-601, 631-697; 776-781, 800-806, 897-904; 1043, 1167",
+   "decompiled": "_27 = mem[64]; mem[mem[64]] = 0x672383c4...; mem[_27 + 4] = idx - 1; static call address(_2) with: args mem[mem[64] len _27 - mem[64] + 36] ... _43 = sha3(mem[mem[64] len _38 + _39 - mem[64] + 32]) ... return memory from mem[64] len _47 - mem[64] + 32",
+   "source": "string memory apiVersion = IVaultFactory(ReleaseRegistry(releaseRegistry).factories(i - 1)).apiVersion(); _vault = _assetToVault[_asset][apiVersion][_category]; IVault(_vault).accept_role_manager(); Registry(...).endorseMultiStrategyVault(_vault); IVault(_vault).add_role(address(this), Roles.ACCOUNTANT_MANAGER)",
+   "issue": "Calls whose selector is stored through a copy of mem[64] stay raw (8 calls: factories, apiVersion in both latestVault loops, accept_role_manager, endorseMultiStrategyVault, add_role), the mapping lookup in the loop is a hash of raw memory ('stor[sha3(1, _43)]' instead of stor6[token][apiVersion][1] as in removeVault), and the return is 'memory from mem[64] len _47 - mem[64] + 32'.",
+   "rule": "Treat a variable assigned mem[64] as equal to mem[64] until the next store to slot 64, then decode the selector and arguments, recognise the string-key mapping hash and fold the return length.",
+   "verified": "by reading: _27 = mem[64] is assigned just before the selector store at mem[mem[64]], so the length is 36 and the selector 0x672383c4 is the first word"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "removeRoles, name, newVault (both), removeVault",
+   "lines": "296; 164; 1239-1241 ('2 * Mask(250, 5, ...)', 6 lines); 500",
+   "decompiled": "s = cd[32 * idx + _param1 + 36]; _5 = _1 * bool(_1) + 160; mem[2 * Mask(250, 5, cd[_param3 + 4] + 31) + ceil32(cd[_param4 + 4]) + 388] = cd[_param4 + 4]; stor6[_3][...][concat(mem[160])] = 0",
+   "source": "for (uint256 i = 0; i < _vaults.length; ++i) { ... } ; delete _assetToVault[config.asset][IVault(_vault).apiVersion()][config.category];",
+   "issue": "removeRoles keeps a dead loop variable s assigned each iteration; name() prints 'x * bool(x)' for x; newVault prints two ceil32 terms as '2 * Mask(250, 5, x + 31)'; removeVault keys the deletion on 'concat(mem[160])' although mem[160] holds category[_vault].field_256 written before the calls.",
+   "rule": "Drop assignments to variables never read; fold x * bool(x) to x and Mask(250, 5, x + 31) to ceil32(x); forward a fixed memory word across calls whose output ranges cannot reach it.",
+   "verified": "by reading"
+  }
+ ],
+ "notes": "Source loops: RoleManager L546 removeRoles (text 286) and L681 latestVault (inlined in both overloads, 535 and 631, counted once). The other 24 whiles are implicit: storage/returndata/calldata copies and the string-key copies for _assetToVault hashing (P7). No immutables (positions are constants). Access checks, two-step governance, initialize's role constants (0x3fff, 6512, 32, 96, 7 days), removeVault's swap-and-pop, _addNewVault's order (AlreadyDeployed, accept_role_manager, endorse, sanctify, accountant setup, config, mapping, push, event) all match the source.",
+ "summary": "All 49 functions reviewed; both source loops are whiles and the semantics match. Main problems: _positions entries read through compile-time slots are printed as seven unrelated hashed-slot variables, and free-pointer aliasing leaves the latestVault loop's calls, mapping hash and return (and three vault-setup calls) as raw memory."
+}

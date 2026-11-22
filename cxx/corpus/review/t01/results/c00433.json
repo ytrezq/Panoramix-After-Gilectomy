@@ -1,0 +1,36 @@
+{
+  "id": "c00433",
+  "abi_functions": 43,
+  "reviewed": 43,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 4, "P3": 3, "P6": 22, "P7": 9, "P8": 60, "P9": 20, "P11": 15},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "migrate(uint256,address)",
+      "lines": "migrate +6-16",
+      "decompiled": "if 0 >= stor17.length: revert with 0x5428d449, _to / mem[0] = 17 / _3 = sha3(17) / s = 0 / while -_to + address(stor[_3 + s]): if SafeMath.inc(s) >= stor17.length: revert with 0x5428d449, _to ...",
+      "source": "VRFCoordinatorV2_5.sol:720-728 _isTargetRegistered: for (i < s_migrationTargets.length) if (s_migrationTargets[i] == target) return true; return false; (then revert CoordinatorNotRegistered(target))",
+      "issue": "The search loop is rotated (the first bound test peeled), its condition s_migrationTargets[s] != _to is printed as the sum -_to + address(stor[sha3(17) + s]), the array element is a raw slot although slot 17 is the array stor17, and sha3(17) and SafeMath.inc(s) are recomputed in the body.",
+      "rule": "Print a truthiness test of a - b (or -b + a) as a != b; show stor[sha3(k) + i] as stork[i] for a declared array at slot k; hoist loop-invariant hashes; un-peel the first iteration's bound test into the while condition.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "fulfillRandomWords (unknown301f42e9)",
+      "lines": "fulfillRandomWords VRF block (22 lines)",
+      "decompiled": "mem[_110 + 192] = -mem[_110 + 192] - 4294968273 / while addmod(mulmod(_189, mulmod(_189, _189, -4294968273), -4294968273), 7, -4294968273) != mulmod(_186, _186, -4294968273): ... while t >= 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f:",
+      "source": "VRF.sol FIELD_SIZE = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F; _isOnCurve; _fieldHash; y = FIELD_SIZE - y",
+      "issue": "The same field prime is printed as -4294968273 in mulmod/addmod and as 0xff..fc2f in comparisons, and FIELD_SIZE - y becomes -y - 4294968273.",
+      "rule": "Print a constant above 2**255 consistently in hex rather than as a negative decimal, and print c - y with c a constant as such.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: deregisterMigratableCoordinator, deregisterProvingKey, fulfillRandomWords (random words), getActiveSubscriptionIds, migrate consumers, pendingRequestExists, removeConsumer, _deleteSubscription, VRF._fieldHash (2 inlinings), VRF._hashToCurve, _isTargetRegistered; all while loops. Implicit: storage-to-memory copies of consumers (P3), 9 memory copies (P7). fulfillRandomWords (VRF proof verification, about 500 lines) reviewed by structure; BLOCKHASH_STORE immutable = 0 (artifact). Comment line 355 of VRF.sol ('for (sx,sy)') matched the loop regex and is not a loop.",
+  "summary": "All eleven loops are present; the VRF math is faithful but hard to read (negative-decimal field prime), and migrate's registration search is a rotated loop with an arithmetic inequality test."
+}

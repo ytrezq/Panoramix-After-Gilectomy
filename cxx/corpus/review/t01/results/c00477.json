@@ -1,0 +1,58 @@
+{
+  "id": "c00477",
+  "abi_functions": 26,
+  "reviewed": 26,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 1, "P2": 15, "P3": 2, "P4": 16, "P6": 14, "P7": 48, "P8": 300, "P9": 6, "P11": 8, "P15": 10, "P18": 40},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "transmit(bytes32[3],bytes,bytes32[],bytes32[],bytes32), manuallyExecute(...)",
+      "lines": "2412-2785 (transmit), 1732-2051 (manuallyExecute)",
+      "decompiled": "s = 0 / while True: / if s >= _115: <ConfigDigestMismatch and ForkedChain checks, log Transmitted, transmitter check, WrongMessageLength check, end of function> / ... <message execution body with 'continue' for the skipped-nonce events>",
+      "source": "EVM2EVMOffRamp.sol:273 for (uint256 i = 0; i < numMsgs; ++i) { ... } (the second loop of _execute), then OCR2BaseNoChecks.transmit:180-204",
+      "issue": "The main execution loop of _execute is printed as 'while True' whose first statement is the exit test; everything after the loop (in transmit the whole OCR2 post-report part: two custom-error checks, the Transmitted event, the transmitter and calldata-length checks) is nested inside that exit branch.",
+      "rule": "A 'while True' whose body starts with 'if c: <block that ends the function>' and has no other exit is 'while not c: <rest of body>' followed by the block.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "manuallyExecute, transmit, executeSingleMessage, setOCR2Config, applyPoolUpdates (custom-error reverts and events after the first dynamic allocation)",
+      "lines": "1536-1544, 1555-1560, 2415-2430, 2434",
+      "decompiled": "_73 = mem[64] / mem[mem[64]] = 0x83e3f564... / revert with memory from mem[64] len _73 - mem[64] + 4 ; log 0xb04e63db...: mem[mem[64] len _613 - mem[64] + 64]",
+      "source": "EVM2EVMOffRamp.sol:228 revert ManualExecutionGasLimitMismatch(); :232 revert InvalidManualExecutionGasLimit(i, newLimit); OCR2BaseNoChecks: revert ConfigDigestMismatch(...), emit Transmitted(...)",
+      "issue": "Custom errors and events are printed as raw memory although '_73 - mem[64]' is 0 (_73 = mem[64] with no store to slot 64 in between), so the selector and arguments written just before are not shown as 'revert with sel, args' / named event fields.",
+      "rule": "Prove mem[64] >= 128 (only ever increased from 128) so stores at mem[64] + k never alias slot 64; copy-propagate _x = mem[64] and decode the words written at mem[64]..mem[64] + len.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setOCR2Config(address[],address[],uint8,bytes,uint64,bytes)",
+      "lines": "597-600",
+      "decompiled": "_91 = stor8[address(_83)] / uint8(stor8[address(_83)].field_0) = uint8(idx) / uint8(stor8[address(_83)].field_0) = uint8(idx) / uint8(stor8[address(_83)].field_8) = 2 / stor8[address(_83)].field_16 = _91 >> 16",
+      "source": "OCR2BaseNoChecks.sol:116 s_oracles[transmitter] = Oracle(uint8(i), Role.Transmitter);",
+      "issue": "The 2-byte struct store is printed as the same uint8 store twice, plus a store of bits 16..255 with their own old value (a no-op).",
+      "rule": "Drop a store immediately repeated with the same value, and a masked store whose value is the slot's own bits at that range read before any intervening store to the slot.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "transmit, manuallyExecute, executeSingleMessage, getStaticConfig, setOCR2Config",
+      "lines": "2244 (static call 0x0), 2420-2427 (if chainid: revert 0x0f01ce85, 0, chainid), 566 (Bytes(220, 0) in the config event)",
+      "decompiled": "static call 0x0 with: ... / if chainid: revert ... ForkedChain(0, chainid)",
+      "source": "immutables i_commitStore, i_chainID, i_prevOffRamp, i_metadataHash, i_sourceChainSelector, ...",
+      "issue": "solc immutables read as 0 in this pre-deployment runtime code: the commit-store verify call goes to address 0, ForkedChain fires for every non-zero chain id, the previous-offramp nonce branch is dead, the leaf hash uses a zero metadata hash.",
+      "rule": "none (not a decompiler error)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 26 ABI functions compared; transmit (734 lines), manuallyExecute (705) and executeSingleMessage (621) by structure (decoding, both _execute loops, the commit-store call, the execution-state bit-field writes stor19[seq / 128] with 2-bit masks, the try/catch around this.executeSingleMessage, nonce increments, events); the rest read in full. No semantic error found. Loops: 11 source loops, all whiles: applyPoolUpdates (2), getDestinationTokens and getSupportedTokens (EnumerableMap iteration), setOCR2Config's delete and add loops, manuallyExecute's gas-limit loop, _execute's two loops (inlined in manuallyExecute and transmit; the second as 'while True', finding), _releaseOrMintTokens and _rateLimitValue (in executeSingleMessage). The 65 other whiles are implicit: 15 ABI-decoding loops, 2 rotated initialisations (P3: getTransmitters' storage copy, new EVMTokenAmount[]), the s_transmitters = transmitters storage copy, and 47 encoding/hashing copies of Internal._hash and abi.encodeWithSelector (P7). P1: setRateLimiterConfig keeps lastUpdated with the mask 0xffffffffffffffffffffff00ffffffff00000000000000000000000000000000 printed as 0x123456789abcdf012345677789abcdf0000000000000000000000000000000 * 3600 (checked equal). P9: the refill tokens + timeDiff * rate distributed into block.timestamp * rate - lastUpdated * rate. P15: TokenBucket slot 3 read as uint32(stor3 >> 128) and as stor3.field_128.",
+  "summary": "Faithful on the paths checked and every source loop is a while, but the main _execute loop is a 'while True' that swallows the rest of transmit, custom errors and events stay raw memory, and the OCR/rate-limiter bit fields are whole-slot arithmetic (with a P1 mask)."
+}

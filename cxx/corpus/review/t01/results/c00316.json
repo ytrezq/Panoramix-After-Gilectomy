@@ -1,0 +1,21 @@
+{
+ "id": "c00316",
+ "abi_functions": 12,
+ "reviewed": 12,
+ "not_reviewed": [],
+ "source_loops": 3,
+ "loops_shown": {
+  "while": 3,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P8": 5
+ },
+ "findings": [],
+ "notes": "1inch AquaRouter (solc 0.8.30, via-IR). Source loops, all readable whiles: multicall's delegatecall loop (147; the pack shows TransientLock.sol:25 as its source, a pack-tool mis-resolution), ship's token loop and dock's token loop (`while idx < cd[_param3 + 4]` with the packed Balance store `stor0[caller][app][hash][token] = 0xff00...` for (0, _DOCKED)). Events (Shipped, Pushed, Docked...) show raw topics because the signature database lacks them. The multicall revert path prints `mem[p len rds] = return_data; revert with memory from p len rds`, which is `revert with ext_call.return_data[0 len return_data.size]`.",
+ "summary": "Small, faithful and readable text; all three source loops are clear whiles."
+}

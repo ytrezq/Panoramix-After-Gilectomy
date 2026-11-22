@@ -1,0 +1,36 @@
+{
+  "id": "c00033",
+  "abi_functions": 51,
+  "reviewed": 51,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 19, "P3": 9, "P4": 3, "P6": 10, "P7": 31, "P8": 80, "P15": 30},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "setVotingDelay, setVotingPeriod, setProposalThreshold, setLateQuorumVoteExtension, updateTimelock, relay, unknown400a54f1, unknown539ffa38",
+      "lines": "setVotingDelay +4-15",
+      "decompiled": "if int128(stor4 >> 128) <=′ int128(uint128(stor4)): revert with Empty() / _12 = stor5[int128(uint128(stor4))] ... while _12 - sha3(call.data[0 len calldata.size]): if int128(stor4 >> 128) <=′ int128(uint128(stor4)): revert with Empty() ...",
+      "source": "Governor.sol:76 while (_governanceCall.popFront() != msgDataHash) {}",
+      "issue": "The do-nothing loop around popFront is rotated: one popFront is printed before the loop and repeated in the body (P3), the test x != y is printed as x - y, and the deque's begin/end are raw halves of stor4 (P15).",
+      "rule": "Un-peel an iteration that duplicates the loop body and test at the top; print a truthiness test of a - b as a != b; split a slot holding two int128 fields.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "token() and vote-weight reads (getVotes, getVotesWithParams, castVote*)",
+      "lines": "4-6, 28 calls to 0x0",
+      "decompiled": "const token = 0 / static call 0x0.getPastVotes(address account, uint256 blockNumber)",
+      "source": "GovernorVotes immutable token",
+      "issue": "solc immutables read as 0 in the pre-deployment runtime code, so vote token calls target 0x0.",
+      "rule": "None (bytecode artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops in this bytecode: Checkpoints._upperBinaryLookup (while t < s / u < t in quorum, state, castVote*), Governor._beforeExecute (execute), Governor._isValidDescriptionForProposer (propose, cancel), onlyGovernance popFront loop (8 setters). TimelockController.scheduleBatch and Strings.toHexString are reached only through the external timelock call in queue() and are not in this bytecode. Implicit: ABI decoding of targets/calldatas (with validation), hashProposal encoding copies (P7, 31), string[] allocation for ProposalCreated (while idx - 1, P3). quorum's binary search checked against upperLookup/Math.average (faithful).",
+  "summary": "Loops present and the governance logic faithful; minor readability costs from a rotated popFront loop, unsplit packed deque indices and immutables printed as 0x0."
+}

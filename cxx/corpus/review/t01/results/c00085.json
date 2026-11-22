@@ -1,0 +1,69 @@
+{
+  "id": "c00085",
+  "abi_functions": 19,
+  "reviewed": 19,
+  "not_reviewed": [],
+  "source_loops": 13,
+  "loops_shown": {"while": 13, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 36, "P6": 213, "P8": 101, "P10": 273, "P12": 4940, "P16": 1966, "P18": 44},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "execute(bytes,bytes[]), execute(bytes,bytes[],uint256), lockAcquired(bytes) (213 calls, 90 reverts)",
+      "lines": "340-344, 375-380, 861-865, 971-986 (lockAcquired); 2152-2154, 2156-2160, 2172-2178, 2196-2199, 3574-3577 (execute); 2088-2097",
+      "decompiled": "_157 = mem[64] / mem[mem[64]] = 0xa54b2831... / mem[_157 + 4] = this.address / static call 0x0.mem[_157 len 4] with: args this.address, ...  |  _500 = mem[64] / mem[mem[64]] = 0x8c379a0... / revert with mem[_500 len 4], 32, 19, 0x4554485f5452414e534645525f4641494c4544...",
+      "source": "Payments.pay -> SafeTransferLib.safeTransferETH / safeTransfer (\"ETH_TRANSFER_FAILED\", \"TRANSFER_FAILED\"); vault.currencyDelta / vault.take / vault.swap; ERC20(token).balanceOf(address(this))",
+      "issue": "The selector is stored at mem[mem[64]] right after _157 = mem[64] (no store to mem[64] in between), but the call target is printed as '.mem[_157 len 4]' and the revert data as 'mem[_500 len 4], 32, 19, ...', so 213 calls lose their function name (balanceOf, transfer, currencyDelta, take, swap...) and 90 reverts lose Error(string)/custom-error decoding, although their arguments are worked out. The same SafeTransferLib revert prints as revert with 'ETH_TRANSFER_FAILED' in pancakeV3SwapCallback (line 200), where the buffer address is a constant. lockAcquired's 'return \"\"' is left as _154 = mem[_152] / return mem[_153 len _154 + 64] for the same reason.",
+      "rule": "A variable defined by _v = mem[64] equals the expression mem[64] until the next store to mem[64]; canonicalise both to _v, so mem[_v len 4] after mem[_v] = W (no aliasing store between) folds to W >> 224, which names the function and decodes the revert.",
+      "verified": "reading only (disassembly: one mload(0x40) value used for both the store and the CALL's argument offset)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "execute(bytes,bytes[]) and execute(bytes,bytes[],uint256)",
+      "lines": "2110-4571 and 4572-7036 (execute); 7051-9512 and 9513-11980 (execute with deadline)",
+      "decompiled": "if this.address == caller: if paused: revert ... / while idx < commands.length: <2,460 lines> / else: if address(transient[0xe87e..]): revert with ContractLocked() / transient[0xe87e..] = caller / if paused: ... / while idx < commands.length: <the same 2,460 lines> / transient[0xe87e..] = 0",
+      "source": "Lock.sol:14-25 isNotLocked: if (msg.sender != address(this)) { if (Locker.isLocked()) revert ContractLocked(); Locker.set(msg.sender); _; Locker.set(address(0)); } else { _; }",
+      "issue": "The modifier's placeholder appears in both arms, and the command loop with the whole Dispatcher (one copy in the bytecode: ExecutionFailed and the v3 swap selector occur once) is printed in both arms, so each execute function is twice its size (P12 at the scale of a whole function body).",
+      "rule": "When both arms of an if jump into the same code region (same bytecode blocks, entered with different return addresses), print the arm-specific prefixes, then the region once, then the arm-specific suffixes guarded by the same condition: 'if c != this: prefix / body / if c != this: suffix' (c is not written by the body).",
+      "verified": "reading only (pancxx disasm: 0x2c4029e9 and 0x128acb08 each occur once in the bytecode)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "lockAcquired(bytes) and the command handlers of both execute functions",
+      "lines": "e.g. 860-1000, 2070-2085 (lockAcquired); 2119-2240 (execute)",
+      "decompiled": "cd[_param1 + Mask(27, 5, uint32(cd[_param1 + 100]) + 31) + cd[32 * idx + _param1 + Mask(27, 5, uint32(cd[_param1 + 100]) + 31) + 164] + cd[_param1 + Mask(27, 5, uint32(cd[_param1 + 100]) + 31) + cd[32 * idx + ...] + 196] + 260]",
+      "source": "BaseActionsRouter.sol:43-47 _handleAction(action, params[actionIndex]); CalldataDecoder decodeActionsRouterParams / decodeCLSwapExactInParams...; Dispatcher.sol:68-72 calldataload(add(inputs.offset, 0x20))",
+      "issue": "The calldata slice bases (params.offset, params[actionIndex].offset, inputs[commandIndex].offset, and the struct offset inside it) are recomputed inside every access instead of being named once, so a single field read spans 200-400 characters and 1,966 lines repeat the same subexpressions.",
+      "rule": "Common-subexpression naming: a pure expression of calldata and loop variables that occurs more than a few times in a block (here the slice base of the current element) is bound to a local once per iteration and the accesses are printed relative to it (cd[p + 260] with p = ...).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "lockAcquired(bytes)",
+      "lines": "889-891; 2078-2079",
+      "decompiled": "if -340282366920938463463374607431768211456 * mem[_209 len 16]: revert with 0x93dafdf1 / _287 = mem[_209 + 16 len 16]  |  if -uint128(-int128(_491)) - int128(_491): revert with 0x93dafdf1",
+      "source": "CLRouterBase/BinRouterBase: _getFullCredit(currency).toUint128() and the uint128 casts of the swap deltas (SafeCast: if (x > type(uint128).max) revert SafeCastOverflow())",
+      "issue": "The SafeCast range checks are printed as products and differences instead of comparisons: '-2^128 * (x >> 128) != 0' is 'x > 2^128 - 1' and the low half is a 16-byte memory slice rather than uint128(x).",
+      "rule": "For k < 256, (x >> k) * c with c = ±2^k is non-zero iff x >> k is non-zero (the product cannot wrap to 0), i.e. iff x >= 2^k; mem[p + 16 len 16] after the word mem[p] is known is uint128(mem[p]).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "receive, lockAcquired, pancakeV3SwapCallback, execute (Permit2 paths), vault(), clPoolManager(), binPoolManager()",
+      "lines": "62-75, 176, 188-189, 313-314, 344, 2171-2178",
+      "decompiled": "if caller: revert with 0x38bbd576 / require ext_code.size(0) / call 0x0.transferFrom(...) / address(sha3(Bytes(21, 0xff00...00), sha3(_3, _4, fee), 0)) / return 0",
+      "source": "RouterImmutables: PERMIT2, WETH9, vault, clPoolManager, binPoolManager, PANCAKESWAP_V3_DEPLOYER, PANCAKESWAP_V3_POOL_INIT_CODE_HASH (immutables)",
+      "issue": "solc immutables read as 0 in the pre-deployment runtime code: the vault/WETH9 sender checks become 'caller != 0', Permit2 and the pool managers are address 0, and the CREATE2 pool address uses deployer 0 and init-code hash 0.",
+      "rule": "None (input artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "execute (2 x 4,930 lines) and lockAcquired (1,790 lines) were reviewed by structure: command/action dispatch, loops, external calls, reverts. The 13 source loops (UniversalRouter.execute command loop; Permit2Payments batch check; StableSwapRouter._stableSwap (inlined twice); V2SwapRouter._v2Swap (twice); V3SwapRouter.v3SwapExactInput while(true); UniversalRouterHelper.getStableAmountsIn and getAmountInMultihop (both shown as 'while s:' counting down); BaseActionsRouter action loop; CLRouterBase/BinRouterBase exact-in and exact-out path loops; the Yul for of CalldataDecoder.decodeActionsRouterParams (lockAcquired and EXECUTE_SUB_PLAN)) are all readable while loops; the 58 whiles are 13 per dispatch copy x 4 copies (2 per execute, see the P12 finding) + 6 in lockAcquired, including 3 implicit ABI-encoding loops per copy (sub-plan bytes[], PermitBatch details, AllowanceTransferDetails[]). Checked exactly: v3 exact-in loop (toInt256 require, hasMultiplePools as 66 <= len, skipToken as +23, Panic(17) on negating int256.min, V3TooLittleReceived), pancakeV3SwapCallback (recursive exact-out swap with sqrt limits MIN+1/MAX-1, maxAmountIn from transient storage), stable exact-in (CONTRACT_BALANCE / ALREADY_PAID / pay vs permit2), successRequired as bit 255 of the command word, ExecutionFailed, isNotLocked/whenNotPaused/checkDeadline, owner functions (Ownable2Step), setStableSwap (stor3 shares its slot with paused: the text writes the address field only, consistent with def storage). Names: stableSwapFactory/stableSwapInfo are stor2/stor3 and most custom errors are raw selectors (not in the signature database).",
+  "summary": "Faithful and its loops are all found, but very hard to read: the 2,460-line dispatcher is printed twice in each execute function, 213 calls and 90 reverts lose their selector because mem[_v len 4] is not matched with the store through mem[64], and nested calldata offsets are recomputed in every access."
+}

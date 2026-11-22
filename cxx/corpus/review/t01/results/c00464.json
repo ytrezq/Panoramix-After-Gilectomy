@@ -1,0 +1,58 @@
+{
+  "id": "c00464",
+  "abi_functions": 70,
+  "reviewed": 70,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 4, "P6": 8, "P7": 34, "P8": 250, "P11": 4, "P12": 5, "P13": 15},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "genesisAssertionHash(), validateAssertionHash(...), forceConfirmAssertion(...), forceCreateAssertion(...), initialize(...)",
+      "lines": "403-413, 494-519, 543-590, 1086-1120, 1237-1280, 1324-1840 (33 whiles)",
+      "decompiled": "idx = 324 / s = 484 / while idx < 388: require cd[idx] == uint64(cd[idx]); mem[s] = cd[idx]; idx = idx + 32 ... ; idx = 0 / while idx < 2: mem[s] = Bytes(24, 0), mem[t + 24 len 8] ... / return sha3(0, sha3(Bytes(64, 0), mem[512 len 64], 1, 0), 0)",
+      "source": "RollupCore.sol:584 genesisAssertionHash(); AssertionStateLib.hash: keccak256(abi.encode(state)) with GlobalState { bytes32[2] bytes32Vals; uint64[2] u64Vals }",
+      "issue": "The ABI decoding and encoding of every uint64[2] are loops with a constant trip count of 2 (bounds 324..388 step 32, 0..2 step 1) that stay as whiles (33 of the 40 whiles), so their effect is never folded: genesisAssertionHash, a constant, still hashes mem[512 len 64], which the loop fills with zeros.",
+      "rule": "When the induction variable starts at a constant, steps by a constant and is compared with a constant bound, the trip count is constant; unroll such loops when the count is small (<= 4) and fold the resulting copies (here mem[512 len 64] = Bytes(64, 0)).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "decreaseBaseStake(uint256,uint64) and the other functions with string reverts after a memory allocation",
+      "lines": "856-905",
+      "decompiled": "_39 = mem[64] / mem[mem[64]] = 0x8c379a0... / mem[_39 + 68] = 0x415353455254494f4e5f49445f43414e4e4f545f42455f5a45524f0000000000 / revert with memory from mem[64] len _39 - mem[64] + 100 ; stor117[...].field_256 = sha3(mem[_43 + 32 len mem[_43]]) ; log 0x5440...: mem[mem[64] len _32 - mem[64] + 32]",
+      "source": "RollupAdminLogic.sol:301-330 require(..., 'ASSERTION_ID_CANNOT_BE_ZERO'/'EXPIRED_CONFIG_HASH'/'TOO_MANY_PENDING_STAKERS'/'PENDING_ASSERTION_NOT_UPDATED'); latestAssertion.configHash = RollupLib.configHash(...); emit BaseStakeSet(newBaseStake)",
+      "issue": "Inside and after the loop the free-memory pointer is a loop phi, so four require messages print as hex words in raw-memory reverts, the new configHash is a hash of raw memory, and the event is raw memory, although every use has the form '_x = mem[64]' followed by 'len _x - mem[64] + n' (the difference is 0).",
+      "rule": "Prove mem[64] >= 128 on every path (it starts at a constant and only grows), so stores at mem[64] + k do not alias slot 64; copy-propagate _x = mem[64], then decode Error(string) reverts, sha3 over the written words and the event's data.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setValidator(address[],bool[])",
+      "lines": "785-805",
+      "decompiled": "if SafeMath.sub(stor114.length, 1) == isValidator[v] - 1: if not stor114.length: revert Panic(49) ... else: if stor114.length - 1 >= stor114.length: revert Panic(50) ... if not stor114.length: revert Panic(49) / stor114[stor114.length - 1] = 0 / stor114.length-- / isValidator[v] = 0",
+      "source": "EnumerableSetUpgradeable.remove: if (lastIndex != toDeleteIndex) { ...swap... } set._values.pop(); delete set._indexes[value];",
+      "issue": "After SafeMath.sub(length, 1) succeeded, the Panic(49) and Panic(50) checks on length are dead (P11), and the common pop/delete tail of a one-armed if is printed in both arms (P12).",
+      "rule": "A successful checked 'len - 1' implies len >= 1, so 'not len' and 'len - 1 >= len' are false; sink a common suffix of both arms after the if.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "upgradeTo, upgradeToAndCall, upgradeSecondaryTo, upgradeSecondaryToAndCall",
+      "lines": "417-420, 441-444",
+      "decompiled": "if not this.address: revert with 'Function must be called through delegatecall' / if stor3608: revert with 'Function must be called through active proxy'",
+      "source": "UUPSNotUpgradeable.onlyProxy: require(address(this) != __self); require(_getImplementation() == __self)",
+      "issue": "The immutable __self reads as 0 in this pre-deployment code, so the proxy checks compare with 0.",
+      "rule": "none (not a decompiler error)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 70 ABI functions compared; forceCreateAssertion (554 lines) and initialize (369 lines) by structure (decoding, checks, storage writes, events, calls), the rest in full. No semantic error found (EnumerableSet add/remove in setValidator, the UUPS rollback branch without Upgraded event, decreaseBaseStake's pending-count logic all match). Loops: the three source loops (decreaseBaseStake over stakers, forceRefundStaker, setValidator) are readable whiles. The other 37 whiles are implicit: 33 constant-count uint64[2] decode/encode loops (finding), getValidators' storage-to-memory copy (P7), and 3 calldata-array encodings for the StakersForceRefunded / ValidatorsSet events. P13: the staker map is named isStaked (latestStakedAssertion read as isStaked[a].field_256); the EnumerableSet index mapping is named isValidator.",
+  "summary": "Faithful on the paths checked with the three source loops readable; cluttered by 33 un-unrolled two-iteration uint64[2] loops and by raw-memory reverts/events/hashes inside decreaseBaseStake's loop."
+}

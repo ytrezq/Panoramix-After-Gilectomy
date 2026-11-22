@@ -1,0 +1,36 @@
+{
+  "id": "c00556",
+  "abi_functions": 52,
+  "reviewed": 52,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 47, "P3": 1, "P4": 12, "P6": 2, "P7": 2, "P8": 213, "P18": 92},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "withdraw (unknown21195373), withdrawDelegated (unknownf64b3598), reprovision/thaw-fulfilling paths (unknown3993d849, unknownba7fb0b4)",
+      "lines": "1667-1703 (and 1399, 1911, 2313)",
+      "decompiled": "while True: / _458 = stor30[0][_param1][_param2][_param1].field_0 and t > 0 / if not _458: <decode accumulator, log, storage updates, second log> / stop / require mem[u] >=′ 160 / _469 = mem[u + 32] / ... / if uint64(stor[sha3(stor30[...].field_0, _526) + 1]) <= block.timestamp: ...",
+      "source": "LinkedList.traverse: while (cursor != bytes32(0) && iterations > 0) { (bool shouldBreak, bytes memory acc_) = processItem(cursor, processInitAcc); if (shouldBreak) break; ... } (processItem = _fulfillThawRequest via internal function pointers)",
+      "issue": "The traversal (with its internal function pointers correctly inlined) is printed as 'while True' whose exit branch holds the rest of the caller (events, stake updates, stop); the thaw request is read as raw slots stor[sha3(head, sha3(type, 29)) + k] and the accumulator only as mem[u + 32k] words.",
+      "rule": "Make the leading 'if not cond: <tail>; stop' the loop test with the tail after the loop; print stor[sha3(id, sha3(t, N)) + k] as N[t][id].field_(256k); bind the ABI-decoded accumulator words to names (known P18).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "stake/provision/delegation functions after the first allocation (GRT transfers, events)",
+      "lines": "e.g. 1688-1700",
+      "decompiled": "mem[mem[64]] = Bytes(12, 0), mem[ceil32(return_data.size) + 236 len 20] / ... / log 0x86c2f162...: mem[mem[64] len _508 - mem[64] + 96], indexed _502, ...",
+      "source": "emit ThawRequestFulfilled(...); emit StakeWithdrawn(...); TokenUtils.pushTokens / pullTokens",
+      "issue": "Event data and call inputs written through the free-memory pointer stay raw memory (47 lines) and 213 dead scratch stores remain.",
+      "rule": "Free-memory-pointer non-aliasing as in c00409; drop stores no later read observes (P8).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "52 ABI functions plus the fallback (forwards to HorizonStakingExtension) reviewed. The pack has no source for 35 functions ('no source definition found in the AST'); reviewed against HorizonStaking.sol, HorizonStakingBase.sol, LinkedList.sol and OZ Multicall directly. The withdraw/withdrawDelegated/reprovision functions reviewed by structure (the decompiler resolved traverse's internal function pointers into inline code: processItem = _fulfillThawRequest, deleteItem/getNextItem = _deleteThawRequest/_getNextThawRequest). Loops: 3 explicit, all whiles: LinkedList.traverse (4 inlined copies, 'while True'), HorizonStakingBase's getThawedTokens list walk ('while s:'), Multicall's delegatecall loop. Implicit: the bytes[] results init (rotated, P3) and 2 encode copies. No semantic error found (checked the thaw arithmetic: tokens = shares * tokensThawing / sharesThawing with its overflow and underflow checks, the nonce test, the stop on a not-yet-thawed request).",
+  "summary": "Faithful, including the function-pointer traversal, but the traversal is printed as 'while True' wrapping the caller's tail, thaw requests are raw storage slots, and event data is raw memory."
+}

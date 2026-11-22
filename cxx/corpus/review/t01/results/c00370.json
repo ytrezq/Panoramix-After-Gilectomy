@@ -1,0 +1,25 @@
+{
+  "id": "c00370",
+  "abi_functions": 15,
+  "reviewed": 15,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "renounceOwnership(), transferOwnership(address)",
+      "lines": "47-52, 77-82",
+      "decompiled": "_1 = stor[5] / owner = 0 / log OwnershipTransferred(address indexed previousOwner=address(_1), ...)",
+      "source": "OpenZeppelin Ownable._transferOwnership: address oldOwner = _owner; _owner = newOwner; emit OwnershipTransferred(oldOwner, newOwner);",
+      "issue": "The read of the old owner prints as stor[5] (whole slot) although def storage names slot 5 owner and every use is address(_1).",
+      "rule": "When every use of a full-slot read is masked to a named field, print the field name (_1 = owner).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "OpenZeppelin v5 ERC20 + Ownable, no loops. All 15 functions match by reading: custom errors with their arguments (OwnableUnauthorizedAccount, ERC20InvalidSender/Receiver/Approver/Spender, ERC20InsufficientBalance/Allowance), _spendAllowance's infinite-allowance test printed as '< 2**256 - 1' (equivalent to '!='), the unchecked balance/supply updates and the checked totalSupply increment in mint, the storage-string getters with the Panic(34) encoding check.",
+  "summary": "Clean, faithful text for a simple loop-free ERC20; only the old-owner read is printed as stor[5]."
+}

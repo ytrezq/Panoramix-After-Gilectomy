@@ -1,0 +1,38 @@
+{
+ "id": "c00207",
+ "abi_functions": 28,
+ "reviewed": 28,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 41,
+  "P6": 41,
+  "P7": 13,
+  "P8": 40,
+  "P9": 20,
+  "P15": 30
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "fund(address), triggerDefault(address,address), finishCollateralLiquidation/claim-style functions (ffb43a5f, 0827b071)",
+   "lines": "877-930, 1306, 1370, 1450, 1822, 1886, 1966, 2326-2697",
+   "decompiled": "mem[ceil32(_1) + ceil32(_2) + ... + ceil32(_12) + 160 len 4] = 157198259 / while idx < 68: mem[idx + ceil32(_1) + ... + 228] = ...; idx = idx + 32 / call fundsAsset with: args mem[ceil32(_1) + ... + 228 len ...]",
+   "source": "ERC20Helper.approve/transfer: _call(token, abi.encodeWithSelector(IERC20Like.approve.selector, spender, amount)) -> token.call(data)",
+   "issue": "The encoded call is copied into the call buffer by a word loop (even with the constant length 68), so approve/transfer calls show raw memory; the buffer addresses are printed as sums of ten ceil32 terms (the free pointer after ten calls), which makes these lines several hundred characters long.",
+   "rule": "Turn 'while i < n: mem[d + i] = mem[s + i]; i += 32' into a copy line (same rule as c00548), then decode the call; name the free-memory pointer value when it is stored (mem[64] = E) and express later addresses as that name plus a constant.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "No explicit loop in the source of the 28 ABI functions or what they reach (open-term LoanManager, ERC20Helper, MapleProxied). The 15 whiles are implicit: bytes[] calldata encodings for acceptNewTerms/rejectNewTerms-style calls (37fdb36f, dac83f8d) and ERC20Helper payload copies (P7). Reviewed in detail: fund, triggerDefault, the claim path and the getters; no semantic error found. Packed slots are read through shifts (P15).",
+ "summary": "Faithful and loop-free in the source; ERC20Helper calls lose their decoded form because the payload copy stays a word loop, and buffer addresses grow into long sums of ceil32 terms."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "c00136",
+  "abi_functions": 54,
+  "reviewed": 54,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 5, "P12": 80, "P15": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "_fallback",
+      "lines": "1240-1380",
+      "decompiled": "if calldata.size < 4: call stor260.nextState() ... (69 lines) else: call stor260.nextState() ... (the same 69 lines with _3, _4 for _1, _2)",
+      "source": "MoC.sol:49 function() external payable whenNotPaused() transitionState() { bproxManager.addValuesToBucket(BUCKET_C0, msg.value, 0, 0); mocState.addToRbtcInSystem(msg.value); }",
+      "issue": "The fallback body is printed twice, once for empty calldata and once for an unknown selector, identical up to variable names (P12).",
+      "rule": "When both arms of a branch reach code that is identical up to renaming of fresh variables, print it once after the branch (the dispatcher's 'no selector' and 'unknown selector' arms here).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown41c05606 (getter of slot 265) and the liquidation path",
+      "lines": "52-53",
+      "decompiled": "def unknown41c05606(): return address(stor[265])  |  if not stor265_160: ...",
+      "source": "slot 265 packs an address with a bool at byte 20",
+      "issue": "The address field of slot 265 is read as address(stor[265]) while the bool field at offset 160 is named stor265_160; def storage should declare both fields (P15).",
+      "rule": "Split a slot read through both address(.) and a field at offset 160 into two declared fields.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loop in the source and no while in the text. mintBPro, mintBProVendors, mintDoc(Vendors), redeemBPro(Vendors), redeemFreeDoc(Vendors) and the other mint/redeem paths checked against the source: modifier order (nonReentrant, whenNotPaused, transitionStateWithRefund with the liquidation refund branch, notInProtectionMode, isValidGasPrice), the exchange call, the commission split (MoC fee vs RBTC fee, vendor markup, the transfer to address 0 when vendorAccount is 0, which the source does), refund of the change and the lock release. redeemDocRequest and alterRedeemRequestAmount have empty bodies in the source ('Feature removed'), and the text's empty bodies are right. Many callee functions and events are unknown to the database (unknownXXXX, log 0x...).",
+  "summary": "A clean, faithful text with no loops; only the duplicated fallback body and an unsplit packed slot are worth noting."
+}

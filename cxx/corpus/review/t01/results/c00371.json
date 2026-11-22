@@ -1,0 +1,25 @@
+{
+  "id": "c00371",
+  "abi_functions": 11,
+  "reviewed": 11,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P8": 4, "P12": 6, "P18": 3},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "wipe(bytes32) (unknownd771aa58)",
+      "lines": "88-130",
+      "decompiled": "if this.address != caller: (auth via owner / authority.canCall) ... if ilks[_param1] != 1: revert 'LineMom/ilk-not-added'; static call 0x0.ilks(bytes32) ...; _29 = return_data.size + mem[64]; _30 = mem[64] / else: if ilks[_param1] != 1: revert ...; static call 0x0.ilks(bytes32) ...; _29 = return_data.size + 128; _30 = 128 / ... return memory from _30 + 96 len 32",
+      "source": "LineMom.sol wipe(bytes32 ilk) external auth returns (uint256 line): require(ilks[ilk] == 1, ...); (,,, line,) = vat.ilks(ilk); autoLine.remIlk(ilk); vat.file(ilk, 'line', 0); emit Wipe(ilk, line);",
+      "issue": "The body after the auth check is printed twice, once per arm of the caller test, differing only in the memory base of the return-data copy (P12); the returned value and the event data stay memory reads (mem[_30 + 96]) although they are word 3 of vat.ilks' return data.",
+      "rule": "Merge identical code that follows a branch when the two copies differ only by a value that can be bound to a phi (_30 = mem[64] or 128); fold reads of a return-data copy mem[b + k] (k + 32 <= checked size) to ext_call.return_data[k].",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loops. All functions read: owner/authority/autoLine getters, addIlk/delIlk (unknownf2dd3992/unknownb9b422d9), setOwner, setAuthority, file('autoLine'), wipe (DSAuth-style isAuthorized: this, owner, authority.canCall(caller, this, msg.sig); the call-buffer stores before canCall are dead, P8). vat is an immutable read as 0 (calls to 0x0). Unknown event topics print raw.",
+  "summary": "Small, faithful and readable; only wipe's body is duplicated across the auth branch and its return value stays a memory read."
+}

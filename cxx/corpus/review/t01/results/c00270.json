@@ -1,0 +1,58 @@
+{
+ "id": "c00270",
+ "abi_functions": 30,
+ "reviewed": 30,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P9": 12,
+  "P11": 42,
+  "P13": 138,
+  "P15": 3
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "vest(uint256), vest(uint256,uint256), create(address,uint256,uint256,uint256,uint256,address)",
+   "lines": "309, 371, 202",
+   "decompiled": "bgn[_id].field_512 = uint128(bgn[_id].field_512) | (min(_19, _maxAmt) << 128) + (bgn[_id].field_640 << 128)\n...\nbgn[_2 + 1].field_0 = (_bgn << 208) + (_eta << 208) | uint48(_bgn) << 160 | address(_usr)",
+   "source": "DssVest.sol:226 awards[_id].rxd = toUint128(add(_award.rxd, amt)); DssVest.sol:183-192 awards[id] = Award({usr: _usr, bgn: toUint48(_bgn), clf: toUint48(add(_bgn, _eta)), ...})",
+   "issue": "The new field value (rxd + amt, bgn + eta) has its shift distributed over the sum, (a << 128) + (b << 128), so the packed write is not recognised as a field store: vest's rxd update reads as whole-slot arithmetic on tot's slot, and create's clf as two shifted terms. Elsewhere (yank) the same struct's fields print as plain field writes.",
+   "rule": "Factor a common left shift out of a sum, (a << k) + (b << k) = (a + b) << k (exact modulo 2^256); then old & low_mask | (v << k) with v < 2^(256-k) is the field write field_k = v (here rxd = uint128(rxd + amt), clf = uint48(bgn + eta)).",
+   "verified": "reading only (the uint128/uint48 overflow checks just before guarantee the sums fit, so the forms are equal)"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "vest(uint256), vest(uint256,uint256)",
+   "lines": "319, 381",
+   "decompiled": "args address(ext_call.return_data[0]), this.address, SafeMath.mul(1000000000 * 10**18, _18)",
+   "source": "DssVest.sol:435 vat.suck(chainlog.getAddress(\"MCD_VOW\"), address(this), mul(_amt, RAY)); RAY = 10**27",
+   "issue": "RAY = 10**27 prints as the product 1000000000 * 10**18, as if the code multiplied a WAD by 10^9; the getAddress key 'MCD_VOW' prints as a 64-digit hex number.",
+   "rule": "Print an exact power of ten as 10**k (k the full exponent) rather than splitting it at 10**18; print a left-aligned printable-ASCII bytes32 as a string literal.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "vest(uint256), vest(uint256,uint256), chainlog(), vat(), daiJoin()",
+   "lines": "3-5, 310-327, 372-389",
+   "decompiled": "require ext_code.size(0)\nstatic call 0x0.getAddress(bytes32 id) ...\ncall 0x0.suck(...)\ncall 0x0.exit(...)",
+   "source": "DssVest.sol:417-419 immutable chainlog, vat, daiJoin",
+   "issue": "The immutables chainlog, vat and daiJoin are 0 in this build, so pay's three calls go to 0x0 and the extcodesize check before suck is merged with the one before getAddress (same address, no call between).",
+   "rule": "none (build artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "solc 0.6.12 optimized; no source loops and no implicit loops. All 30 functions checked: auth/lock order (file and create are auth lock, the others lock), every revert string, the Award field writes (usr/bgn/clf slot 0, fin/mgr/res slot 1, tot/rxd slot 2), yank's three cases using the old fin (_19/_20) in unpaid as the memory copy does, the evaluation order of mul(_tot, sub(_time, _bgn)) / sub(_fin, _bgn) (right operand first), events and pay's calls (suck amount mul(_amt, RAY) checked) are right. require(_tau > 0, 'tau-zero') is folded into a synthesized SafeMath.div helper (correct, checked before the division). Known patterns: P13 the awards mapping is named bgn after the member getter bgn(uint256) although awards(uint256) returns the whole struct (138 lines); P9 tot * (time - bgn) distributed as time * tot - bgn * tot in the mul-overflow check (6 copies of accrued: accrued, unpaid, vest x2, yank x2); P11 the sub-underflow checks and assert fin != bgn implied by bgn <= time < fin in every copy, plus in yank's last arm the re-tests time < clf, time >= bgn, time < fin already decided by the enclosing ifs. min(_19, _maxAmt) recomputed 6 times in vest(uint256,uint256); _tot <= 0 for an unsigned value. stor0 is the internal locked.",
+ "summary": "Accurate and readable: every check, write, call and event matches the source. The main obscurity is packed-field updates whose shift is distributed over a sum (vest's rxd, create's clf), plus the known P13 naming (awards called bgn) and P9/P11 noise in the six inlined copies of accrued."
+}

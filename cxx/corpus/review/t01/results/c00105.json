@@ -1,0 +1,36 @@
+{
+  "id": "c00105",
+  "abi_functions": 78,
+  "reviewed": 78,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P3": 1, "P7": 4, "P8": 4},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "multicall(bytes[])",
+      "lines": "1101, 1122-1123",
+      "decompiled": "mem[128] = 0 / ... _33 = mem[128] / mem[_31 + cd[...] + 32 len mem[128]] = mem[160 len mem[128]] / mem[_31 + _33 + cd[...] + 32] = 0",
+      "source": "Multicall.sol:32-34 Address.functionDelegateCall(address(this), bytes.concat(data[i], context)) with context = msg.data[msg.data.length - _contextSuffixLength():] (empty here)",
+      "issue": "The empty context's length mem[128] = 0 is written once before the loop and never changed, but it is re-read in every iteration, so a zero-length copy and its terminator stay in the loop body and every following offset carries a '+ _33'.",
+      "rule": "A word written at a constant address below the first allocation (here 128, the zero-length bytes written before mem[64] = 160) is not aliased by writes at addresses >= mem[64] made later; forward it, then drop copies of length 0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "functions reading ADDRESSES_PROVIDER (setUserEMode, getUserAccountData, borrow, liquidationCall, ...)",
+      "lines": "e.g. 249, 343, 788, 795",
+      "decompiled": "static call 0x0.getPriceOracle() with: ...",
+      "source": "Pool.sol ADDRESSES_PROVIDER (immutable).getPriceOracle()",
+      "issue": "The immutable ADDRESSES_PROVIDER reads as 0 in the pre-deployment runtime code.",
+      "rule": "None needed.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Aave v3 Pool: nearly every ABI function is a thin wrapper that DELEGATECALLs an external logic library (35 'delegate 0x11...' calls: SupplyLogic, BorrowLogic, FlashLoanLogic, PoolLogic, LiquidationLogic, EModeLogic), so the loops the pack lists in FlashLoanLogic.executeFlashLoan, PoolLogic.executeInitReserve / executeMintToTreasury and in the internal helpers they reach (GenericLogic.calculateUserAccountData, LiquidationLogic._burnBadDebt, ValidationLogic.validateFlashloan / validateSetUserEMode, UserConfiguration._getFirstAssetIdByMask) run in the libraries and are not counted. In-bytecode loops: getReservesList (while with the dropped-reserve counter, Panic(50) bound and the final length store, correct) and multicall (while with the delegatecall to this, FailedCall 0xd6bda275 / AddressEmptyCode 0x9996b315 raw selectors, correct). Implicit: the zero-initialisation of 'new bytes[](n)' rotated as 'while idx - 1' (P3), the ABI encode loops of getReservesList and multicall, mintToTreasury's calldata decode loop and flashLoan's array copy (P7). P8: the mem[0]/mem[32] hash scratch writes in getReservesList. Wrappers checked by sampling their argument forwarding to the library calls.",
+  "summary": "Short and faithful: the Pool forwards to linked libraries, and its two own loops are clean whiles; only minor leftovers (an unforwarded zero length in multicall, hash scratch writes, the zero immutable)."
+}

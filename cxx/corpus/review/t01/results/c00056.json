@@ -1,0 +1,36 @@
+{
+  "id": "c00056",
+  "abi_functions": 24,
+  "reviewed": 24,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "getTokenConfig*, getUnderlyingPrice, price, validate, pokeFailedOverPrice, activateFailover (13 functions)",
+      "lines": "3-6, 27-102",
+      "decompiled": "const numTokens = 0 ... def getUnderlyingPrice(address cToken): require cToken == address(cToken); revert with 'Not found'",
+      "source": "UniswapConfig immutables numTokens, the 29 token configs, anchorPeriod, upper/lowerBoundAnchorRatio; UniswapConfig.sol:824 require(i < numTokens, 'Not found')",
+      "issue": "With every immutable read as 0, every token-config lookup fails, so these functions reduce to 'revert with Not found' (pokeFailedOverPrice and activateFailover keep their failover checks first, in the right order).",
+      "rule": "none (build artifact)",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "acceptOwnership()",
+      "lines": "84-90",
+      "decompiled": "_1 = stor[0] / owner = caller / stor1 = 0 / log OwnershipTransferred(address indexed previousOwner=address(_1), ...)",
+      "source": "ConfirmedOwner: address oldOwner = ownerAddr; ownerAddr = msg.sender; pendingOwnerAddr = address(0)",
+      "issue": "The old owner is read as raw 'stor[0]' although the slot is declared and printed as owner everywhere else.",
+      "rule": "A read of a named slot is printed with its name (address(owner) here), whatever width is read.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 24 ABI functions are present (8 as constants: the four immutables read as 0, and ETH_BASE_UNIT, EXP_SCALE, MAX_INTEGER, MAX_TOKENS), compared one by one with the source. No loops in the runtime source (the configuration loop is in the constructor).",
+  "summary": "Tiny and faithful; because the token configuration lives in immutables (0 here), nearly every function decompiles to 'revert with Not found', which is a build artifact."
+}

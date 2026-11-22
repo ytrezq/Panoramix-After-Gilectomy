@@ -1,0 +1,91 @@
+{
+  "id": "c00559",
+  "abi_functions": 26,
+  "reviewed": 26,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 1, "P2": 155, "P3": 5, "P6": 52, "P7": 8, "P8": 2000, "P9": 60, "P11": 54, "P12": 570, "P18": 300},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "FACTORY(), LIQUIDITY(), LIQUIDITY_RESOLVER() and every function using them",
+      "lines": "34-56 (pack consts); 37, 287, 876 (calls to 0x0); 1443, 1532, 1621, 1710; 1803 eth.balance(0); 309 mem[_26 + 34] = 0",
+      "decompiled": "const FACTORY = 0 / static call 0x0.unknown93656c17(?) / static call 0x0.unknowne72ef91b(?) / _330 = eth.balance(0) / mem[_26 + 34] = 0",
+      "source": "variables.sol:20-22 immutable FACTORY, LIQUIDITY, LIQUIDITY_RESOLVER",
+      "issue": "solc immutables read as 0 in the pre-deployment runtime code: the factory, liquidity and resolver calls go to 0x0 and the deployer address inside the RLP of addressCalc is a zero word.",
+      "rule": "none (bytecode artifact)",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getAllPoolAddresses, getAllPools, estimateSwapIn, estimateSwapOut, getPoolReserves, getPoolReservesAdjusted, getPoolsReserves(Adjusted), getAllPoolsReserves(Adjusted)",
+      "lines": "306-327, 980-984, 1035-1040 (getAllPools loop); 11678-11680, 11893-11895, 11923-11925, 11941-11947, 13073-13076 (estimateSwapIn); 281-283, 482-484, 13060-13064 (returns)",
+      "decompiled": "_26 = mem[64] / mem[mem[64] + 32] = 0xda00.. / ... / mem[mem[64]] = _26 - mem[64] + 27 / _42 = sha3(mem[_38 + 32 len mem[_38]])  |  static call address(_97) with: args mem[mem[64] len _98 - mem[64] + 4]  |  mem[.. + 68] = 0x4e6f20706f6f6c732061726520656e61626c6564.. / revert with memory from mem[64] len _286 + ceil32(return_data.size) - mem[64] + 100  |  _40 = mem[64] / ... / return memory from mem[64] len _40 - mem[64] + 288",
+      "source": "addressCalc keccak256(abi.encodePacked(...)) inside the for loops of getAllPoolAddresses / getAllPools; constantsView(), readFromStorage(), this.getDexPricesAndExchangePrices(), VERSION(); revert(\"No pools are enabled\") main.sol:798, 969",
+      "issue": "The same constructs are decoded where the buffer is at a constant offset (getPoolAddress 79-99 prints sha3(Bytes(22, 0xd694..), Bytes(1, uint8(_tokenId))); getPool and getDexCollateralReservesAdjusted name constantsView / readFromStorage / getDexPricesAndExchangePrices) but stay raw where the buffer is at mem[64]: the addressCalc hash in the loops, 143 call argument lists, the 'No pools are enabled' Error(string) (only visible as hex) and 26 return lengths of the form _40 - mem[64] + k with _40 = mem[64]. This is the P2 root cause, here also hiding a keccak input, a revert reason and constant return sizes.",
+      "rule": "As in c00600: every store to mem[64] is a constant >= 96 or the old value plus a non-wrapping amount, so mem[64] >= 96 and writes at mem[64] + c (c >= 0, below 2^64) never alias slot 64; then 'x = mem[64]; mem[x + k] = ...; mem[mem[64]] = x - mem[64] + n' folds to mem[x] = n, the sha3/call/revert buffers resolve as for constant bases, and 'x - mem[64]' with x = mem[64] and no store to 64 in between is 0.",
+      "verified": "reading only (text_check passes on this corpus; the buffers were traced by hand)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getDexLimits(address) and its 8 inlined copies",
+      "lines": "1789, 1800-1801, 1814, 1816, 1827-1828, 1841",
+      "decompiled": "if mem[c+6432] < SafeMath.mul2(mem[c+6400], min(SafeMath.mul(10, Mask(10, 228, ext_call.return_data[0]) >> 228), mem[c+6496])) / 10000: ... mem[448] = SafeMath.sub(SafeMath.mul2(...same...) / 10000, mem[c+6432]) / mem[480] = SafeMath.sub(...same...) ... if min(10 * (Mask(10, 228, _5) >> 228), mem[c+6496]) * mem[c+6400] / 10000 - mem[c+6432] > _330: mem[480] = _330",
+      "source": "main.sol:316-353 maxUtilizationToken0_ = (totalSupply * combined) / 1e4; borrowableToken0.available = maxUtilizationToken0_ - totalBorrow; expandsTo = available; if (expandsTo > balanceLiquidity_) expandsTo = balanceLiquidity_",
+      "issue": "maxUtilizationToken0_ and limits_.borrowableToken0.expandsTo are re-substituted as their full expression at every use (4 copies of a 170-character expression per token), once without the SafeMath wrappers (1814) and once with them (1841), so the reader cannot see that the comparison reads the stored expandsTo, and the SafeMath form suggests a second overflow check that the bytecode does not make there.",
+      "rule": "When a value computed once is stored and later re-read (memory word or the operand of several uses), print it as a named variable at its first computation and use the name afterwards; never re-print a checked expression where the bytecode only reads its result.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "getDexPricesAndExchangePrices(address) (BytesSliceAndConcat.bytesSlice)",
+      "lines": "231-248",
+      "decompiled": "_4 = mem[_2] / ... s = _2 + (mem[_2] - 4) % 32 + 32 * (not (mem[_2] - 4) % 32) + 4 / t = (mem[_2] - 4) % 32 + 32 * (not (mem[_2] - 4) % 32) + mem[64] / while t < _4 + (_4 - 4) % 32 + 32 * (not (_4 - 4) % 32) + mem[64] - 4: mem[t] = mem[s]; s = s + 32; t = t + 32 / mem[mem[64]] = _4 - 4 / mem[64] = ceil32(t)",
+      "source": "bytesSliceAndConcat.sol:105-129 lengthmod := and(_length, 31); mc := add(add(tempBytes, lengthmod), mul(0x20, iszero(lengthmod))); for {...} lt(mc, end) {...} { mstore(mc, mload(cc)) }",
+      "issue": "The Yul copy loop is found, but its bound mixes _4 and mem[_2] for the same length and repeats the lengthmod expression three times; the loop is a plain copy of L = _4 - 4 bytes from _2 + 36 to tmp + 32 (the first partial word lands below tmp + 32 and is overwritten by the length store). Also 'if 4 > mem[_2]: revert Panic(17)' (236) is implied by SafeMath.sub(mem[_2], 4) two lines above (P11).",
+      "rule": "Name the start t0 and print the bound as t < t0 + L. A loop 'while t < t0 + L: mem[t] = mem[s]; s += 32; t += 32' with s0 - t0 = d constant and no other effect is the copy mem[t0 len ceil32 range] = mem[t0 + d len ...]; with the later store of the length word at t0 - (t0 - tmp) it is exactly mem[tmp + 32 len L] = mem[src + 32 len L].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "estimateSwapIn, estimateSwapOut",
+      "lines": "11639, 13139 (and the final 'not _1630 and _9' before the return)",
+      "decompiled": "_6 = mem[_2 + 32 len 4] << 224 == 0xb3bfda99.. and mem[_2 + 36]  |  _1631 = not _1630 and _9 / return _1631",
+      "source": "main.sol:1087-1090 if (errorSelector_ == targetErrorSelector_) value1_ := mload(add(lowLevelData_, 36)); main.sol:892-896 if (_priceMoveExceedsLimit(...)) return 0; return amountOut_;",
+      "issue": "A value is produced by 'cond and x', which the text interpreter evaluates like Python (x when cond is non-zero, else 0) but reads as a boolean conjunction: amountOut_ looks like a bool.",
+      "rule": "Print a phi 'cond ? x : 0' as 'x if cond else 0' (or an if/else assignment) whenever x is not known to be 0/1; keep 'and' for boolean operands only.",
+      "verified": "reading only (validate/text_interp.cpp evaluates land as a == 0 ? a : b)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "estimateSwapIn, estimateSwapOut, getDexLimits, getAllPoolAddresses, getAllPools",
+      "lines": "13041-13058 (1e27, 64 lines); 1553 (7200); 311, 322, 334, 346 (nonce shifts, 12 lines); 843-854 and 214 similar lines (checked mul)",
+      "decompiled": "SafeMath.div(1000000000 * 10**18 * mem[_10 + 32], mem[_10])  |  mem[c + 2 * 3600] = mem[c' + 2 * 3600]  |  mem[_26 + 55] = (idx << 224) + 0x100000000000000000000000000000000000000000000000000000000  |  if mem[X + 32] != mem[_48] * mem[X + 32] / mem[_48] and mem[_48]: revert with Panic(17) / mem[_48] = SafeMath.div(mem[_48] * mem[X + 32], mem[X])",
+      "source": "1e27 in the price formulas; uint32(nonce_) with nonce_ = i + 1 in addressCalc; (reserves_.token0Debt * token0DenominatorPrecision) / token0NumeratorPrecision",
+      "issue": "Constant printing and folding: 1e27 shows as 1000000000 * 10**18, the memory offset 7200 as 2 * 3600 (P1 variant on a small offset), (idx + 1) << 224 is distributed into (idx << 224) + 1 << 224 while the guards print SafeMath.add(1, idx); checked products that the text elsewhere prints as SafeMath.mul2(a, b) are printed as an inline overflow test plus a raw product.",
+      "rule": "Print 10^k as 10**k (or 1e27); apply the time-unit factoring only to values used arithmetically, never to memory offsets; fold (x << k) + (c << k) to (x + c) << k; recognise 'if b != a * b / a and a: revert Panic(17)' followed by a use of a * b as SafeMath.mul2(a, b) at that use.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getPoolsReserves(address[]), getPoolsReservesAdjusted(address[])",
+      "lines": "3418-3426; 8125-8133",
+      "decompiled": "t = cd[_param1 + 4] / idx = _param1 + 36 / while idx < _param1 + 32 * cd[_param1 + 4] + 36: require cd[idx] == address(cd[idx]); mem[s] = cd[idx]; s = s + 32; t = cd[idx]; idx = idx + 32",
+      "source": "ABI decoding of address[] memory pools_ (implicit)",
+      "issue": "The decoding loop carries a variable t that is never read (initialised with the length, then overwritten with each element).",
+      "rule": "Drop loop-carried variables whose values reach no use outside their own update.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Very long functions reviewed by structure (calls, branches, reverts, returns, loops): estimateSwapIn (11615-13114) and estimateSwapOut (13115-14644) with their core (routing, sqrt, price-limit) read in full; getDexLimits (1230-2048) read in full; getPoolReserves, getPoolReservesAdjusted, getPoolsReserves(Adjusted), getAllPoolsReserves(Adjusted) (1350-1620 lines each) by structure: they are the same inlined code (getPoolTokens, try this.getDexPricesAndExchangePrices, the reserves getters, getDexLimits). Semantics checked and found right: swapIn/swapOut try/catch with ADDRESS_DEAD (57005), _decodeLowLevelUint1x, the No-pools branch, the signed routing formula and its check order (legacy right-operand-first), price formulas, _priceMoveExceedsLimit both arms, reserve normalisation, limits. Implicit loops: 6 return-encoding loops (375, 1060, 4920, 6544, 9787, 11571) and 2 string-decoding copies of VERSION()'s result (13099, 14625) are P7; the 5 'while idx - 1' allocation loops of new Pool[] / PoolWithReserves[] print their first iteration before the loop (P3); 2 address[] calldata decoders are fine. P12: each getDexLimits copy duplicates the tail of the token0/token1 borrowable block in both arms of 'maxBorrowLimit > borrow' (1909-1937 vs 1941-1969, 1975-2008 vs 2012-2045; 18 such arms in 9 copies). P11: 45 'if -block.timestamp + A + B > SafeMath.add(A, B): revert' under 'if block.timestamp <= SafeMath.add(A, B)', and 9 Panic(50) checks implied by the loop bound. P8: ~2300 zero-initialisation lines of memory structs, most dead, plus 23 back-to-back mem[64] stores. P18: 262 'require mem[a] == mem[a + 12 len 20]' address checks and 42 'Bytes(12, 0), mem[..]' on returned structs. P9: the two FixedPointMathLib.sqrt expansions per estimate function (lines of ~3000 characters) and products distributed over differences ((expandsTo - withdrawable) * expandDuration printed as mem[288] * ED - ED * W).",
+  "summary": "Semantically faithful as far as read (all branches, reverts, calls and returns of the source are present), but the text is dominated by memory noise: free-pointer-relative buffers left raw (155 P2 lines, hidden revert reason and hash input), ~2300 zero-initialisation lines, duplicated tails, expanded sqrt, and values re-substituted instead of named."
+}

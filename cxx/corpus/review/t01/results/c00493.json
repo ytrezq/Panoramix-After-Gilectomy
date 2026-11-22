@@ -1,0 +1,25 @@
+{
+  "id": "c00493",
+  "abi_functions": 48,
+  "reviewed": 48,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {"while": 8, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P3": 3, "P4": 5, "P6": 2, "P7": 19},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "transmit(bytes32[3],bytes,bytes32[],bytes32[],bytes32) (_verifyReportSignature inlined)",
+      "lines": "1520-1531, 1557-1566",
+      "decompiled": "mem[_235 + 32] = sha3(mem[mem[64] len _234 + _param2.length - mem[64]]) / ... _239 = sha3(mem[_237 + 32 len mem[_237]])  |  _274 = sha3(mem[0], 9) / mem[_272] = bool(uint8(stor9[concat(mem[0])].field_0)) / mem[_272 + 32] = uint8(stor[_274].field_8) / if uint8(stor[_274]):",
+      "source": "KeeperRegistry2_0.sol:674 bytes32 h = keccak256(abi.encode(keccak256(report), reportContext)); :682-683 signer = s_signers[signerAddress]; if (!signer.active) revert OnlyActiveSigners();",
+      "issue": "The signed digest stays a hash of memory ranges (sha3(report) and the 128-byte encoding with reportContext = calldata[4 len 96] are not combined into sha3(sha3(report), ...)), and one storage struct s_signers[signer] is printed three ways in four lines: stor9[concat(mem[0])], stor[_274] and stor[_274].field_8.",
+      "rule": "Same free-pointer root cause as P2 for the digest. For mappings: once _274 = keccak(key . 9) is recognised as the slot of stor9[key], print every access through _274 as stor9[key].field_n, and print the key as the address written to mem[0] rather than concat(mem[0]).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Most of the registry's functions live in KeeperRegistryLogicA/B reached through the fallback's delegatecall; this contract's own code is transmit, setConfig, the views and the payment helpers. OVM_GasPriceOracle.getL1GasUsed's loop is in the Optimism predeploy (external call), not counted. Loop map: getActiveUpkeepIDs (457), setConfig's three loops (898 old transmitters, 933 old signers, 970 new signers/transmitters with the duplicate checks), transmit's three report loops (1398, 1584, 1671) and _verifyReportSignature's rs loop (1538: rawVs bound 32, uint8 + 27 overflow check, ecrecover, OnlyActiveSigners, signedCount += shift(1, 8 * uint5(index)) — the uint5 is exact, 8 * index is an unchecked uint8 product — and DuplicateSigners after the loop), all checked against the source. Implicit: calldata decode loops, memory-to-storage copies of signers/transmitters, ABI encode loops of the ConfigSet event and config digest (P7), getState's storage-to-memory copies rotated (P3, 2) and transmit's struct-array zero-init rotated (P3, 1).",
+  "summary": "Faithful, with all source loops as readable whiles and the signature-verification logic exact; minor issues are unresolved digests and inconsistent naming of one storage struct."
+}

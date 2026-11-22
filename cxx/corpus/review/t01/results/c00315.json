@@ -1,0 +1,36 @@
+{
+  "id": "c00315",
+  "abi_functions": 19,
+  "reviewed": 19,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P4": 1, "P14": 6},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "poke(uint256[],uint256[],uint8[],bytes32[],bytes32[])",
+      "lines": "189-195, 227-232",
+      "decompiled": "_8 = mem[64] / mem[mem[64] + 32] = cd[32 * idx + val_ + 36] / mem[_8 + 64] = cd[32 * idx + age_ + 36] / mem[_8 + 96] = 0x657468757364... / _9 = mem[64] / mem[mem[64]] = _8 - mem[64] + 96 / _11 = sha3(mem[_9 + 32 len mem[_9]])  |  _6 = mem[64] ... log LogMedianPrice(uint256 val, uint256 age): mem[mem[64] len _6 - mem[64] + 64]",
+      "source": "median.sol:92-97 keccak256(abi.encodePacked(val_, age_, wat)); median.sol:126 emit LogMedianPrice(val, age);",
+      "issue": "_8, _9 and _6 are copies of mem[64] with no store to mem[64] in between, but they are not identified with it, so the signed message hash does not read sha3(val, age, 'ethusd') and the price event prints a raw memory range instead of its two arguments.",
+      "rule": "After '_t = mem[64]', mem[64] reads as _t until the next store to it; then mem[_t] = 96 and the sha3 is over the three words written at _t + 32 .. _t + 128, and the log data is (uint128(...), uint32(block.timestamp)).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "poke(...)",
+      "lines": "204-219, 223",
+      "decompiled": "signer2 = ecrecover(...) / ... mem[0] = Bytes(12, 0), mem[_8 + 232 len 20] / if orcl[concat(Bytes(12, 0), mem[_8 + 232 len 20])] != 1: ... if (u >> mem[_8 + 232 len 1]) % 2: ... read = uint128(cd[val_ + 16 * Mask(251, 1, val_.length) + 36])",
+      "source": "address signer = recover(...); require(orcl[signer] == 1, \"Median/invalid-oracle\"); uint8 sl = uint8(uint256(signer) >> 152); ... val = uint128(val_[val_.length >> 1]);",
+      "issue": "The recovered signer is named signer2 but then re-read as memory slices of the precompile's output, its top byte (the oracle slot) as mem[_8 + 232 len 1], and the median index as 16 * Mask(251, 1, n).",
+      "rule": "Use the named precompile result where the memory it was written to is read back (address(signer2), uint8(signer2 >> 152)); 16 * Mask(251, 1, n) is 32 * (n / 2) modulo 2^256.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 19 ABI functions reviewed (small contract read in full). The pack shows the wrong overloads' source for kiss(address[]) and diss(address[]) (those of kiss(address)/diss(address)); the real source (median.sol:163-175) has a for loop in each. The 5 source loops (poke, lift, drop, kiss[], diss[]) are all clear whiles. LibNote's anonymous log copies a fixed 224 bytes of calldata, printed exactly as 'log call.func_hash: 32, 224, call.data[0 len 224], indexed caller, indexed a, indexed cd[36]'.",
+  "summary": "Faithful with all loops as clear whiles; poke's message hash and price event are obscured by free-memory-pointer temporaries, and the recovered signer is read back from memory instead of its name."
+}

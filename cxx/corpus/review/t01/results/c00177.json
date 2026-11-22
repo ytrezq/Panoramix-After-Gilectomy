@@ -1,0 +1,35 @@
+{
+ "id": "c00177",
+ "abi_functions": 53,
+ "reviewed": 53,
+ "not_reviewed": [],
+ "source_loops": 3,
+ "loops_shown": {
+  "while": 3,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P1": 1,
+  "P6": 13,
+  "P8": 30
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "the four message-verification functions that inline Merkle.verifySha2 (af53dade, 06fc6005, a25a59cc, c07703c9)",
+   "lines": "643-662 and the same block 3 more times",
+   "decompiled": "s = 0 / while sha256hash.result: _6 = mem[0] / if u + 32 >= end: s = -sha3(cd[_param1 + 132], cd[_param1 + 164]) + mem[0]; t = t / 2; break / mem[16 * Mask(1, 1, t)] = mem[0] ... s = _6 - sha3(cd[_param1 + 132], cd[_param1 + 164]) ... / s = s + sha3(cd[_param1 + 132], cd[_param1 + 164]); _9 = s",
+   "source": "Merkle.sol:60-80 for {} 1 {} { leafSlot := shl(5, and(1, index)); mstore(leafSlot, leaf); ...; if iszero(staticcall(gas(), 0x02, 0, 64, 0, 32)) { break }; leaf := mload(0); index := shr(1, index); ... } isValid := and(eq(leaf, root), iszero(index))",
+   "issue": "The loop's leaf is carried as an offset from the initial leaf (s = mem[0] - sha3(..) in every assignment and s + sha3(..) after the loop), so the variable never shows the leaf itself; the slot index prints as 16 * Mask(1, 1, t) instead of 32 * ((t >> 1) & 1).",
+   "rule": "If every assignment to a loop variable has the form 'x - c' with c loop-invariant and every use is 'v + c', print the variable as x (drop the offset); c * Mask(1, k, x) is c * 2^k * ((x >> k) & 1).",
+   "verified": "reading only (equal modulo 2^256)"
+  }
+ ],
+ "notes": "via-IR build. 3 source loops, all present: the loop at AvailBridgeOld.sol:183 ('while idx < cd[_param1 + 4]' in d590bd34), Merkle.verify's Yul 'for {} 1 {}' (exited by 'if iszero(lt(i, end)) { break }': a real loop, printed as 'while True' with the same exit, faithful) and Merkle.verifySha2's Yul loop (printed as 'while sha256hash.result' with the end test inside), each inlined in four verification functions. No implicit loop. All 53 functions reviewed (many getters/setters); no semantic error found.",
+ "summary": "Faithful and compact, with every loop present; the only oddity is the sha256 Merkle loop, whose leaf is carried as an offset from the initial leaf and whose slot computation is printed as a scaled mask."
+}

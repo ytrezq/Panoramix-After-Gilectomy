@@ -1,0 +1,58 @@
+{
+ "id": "c00367",
+ "abi_functions": 5,
+ "reviewed": 5,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P7": 72,
+  "P8": 9,
+  "P11": 2,
+  "P18": 28
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "getAggregateFeePercentages(), getCurrentLiveBalances(), getTokens(), getTokenInfo()",
+   "lines": "15-53, 84-99, 128-145, 248-304",
+   "decompiled": "require ext_call.return_data[0] == bool(ext_call.return_data[0])\nmem[ceil32(return_data.size) + 448] = ext_call.return_data[0]\nrequire mem[160] == bool(mem[160])\n...\nmem[ceil32(return_data.size) + 192] = mem[288]\nmem[ceil32(return_data.size) + 224] = mem[320]\n...\nreturn memory\n  from ceil32(return_data.size) + 192\n   len 64\n...\n_5 = mem[64]\nmem[mem[64]] = 32\n...\nreturn memory\n  from mem[64]\n   len _5 + 32 * _6 - mem[64] + 64",
+   "source": "PoolInfo.sol getAggregateFeePercentages: poolConfig = _vault.getPoolConfig(address(this)); return (poolConfig.aggregateSwapFeePercentage, poolConfig.aggregateYieldFeePercentage); getTokens/getCurrentLiveBalances/getTokenInfo: return _vault.<getter>(address(this))",
+   "issue": "Every return is raw memory. getAggregateFeePercentages returns the two fields (ext_call.return_data[160] and [192]) as a 64-byte slice of a memory struct, and after the first store into that struct the call's output words turn from ext_call.return_data[0] into mem[160], mem[192]...; the three array getters end in return memory from mem[64] len _5 + 32 * _6 - mem[64] + 64 (just 32 * _6 + 64).",
+   "rule": "Use the required lower bound of return_data.size (>= 416 here) to show that a store at ceil32(return_data.size) + k (k >= 0x1c0) cannot overlap the output buffer [0x80, 0x80 + 416), so its words stay ext_call.return_data[...]; and keep mem[0x40] across stores at mem[0x40] + k (k >= 0), which folds _5 - mem[64] to 0 and lets the return print as values or Array(...).",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "getAggregateFeePercentages(), getTokens(), getTokenInfo()",
+   "lines": "40, 42, 126, 139, 173, 200, 254, 270",
+   "decompiled": "require mem[352] == mem[379 len 5]\nrequire mem[384] == mem[412 len 4]\nrequire mem[idx] == mem[idx + 12 len 20]\nmem[u] = Bytes(12, 0), mem[t + 12 len 20]",
+   "source": "ABI decoding of PoolConfig.tokenDecimalDiffs (uint40), pauseWindowEndTime (uint32) and IERC20[] / TokenInfo.rateProvider addresses; re-encoding of IERC20[]",
+   "issue": "Range checks of decoded uint40/uint32/address values print as comparisons with byte slices of the same word, and the cleaned address in the re-encoding as Bytes(12, 0) followed by a 20-byte slice, where other texts print uint40(x), address(x).",
+   "rule": "For a word w at offset o, w[o + 32 - n len n] is the low n bytes: print w == w[o + 32 - n len n] as require w == uint(8n)(w) (address(w) for n = 20) and Bytes(32 - n, 0), w[o + 32 - n len n] as uint(8n)(w)/address(w).",
+   "verified": "reading only"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "all 5",
+   "lines": "7, 18, 58, 103, 149",
+   "decompiled": "static call 0x0.getPoolConfig(address _pool) with: ...",
+   "source": "PoolInfo.sol IVault private immutable _vault",
+   "issue": "The _vault immutable is 0 in this build, so every call targets 0x0.",
+   "rule": "none (build artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "solc 0.8.27 optimized; the pack has no source definitions (the AST lookup failed), reviewed against contracts/PoolInfo.sol. No source loops. The 12 while loops are all implicit: ABI decoding of the returned IERC20[], TokenInfo[] (with per-element 96-byte memory structs, enum < 2, address and bool checks), uint256[] x3, and the re-encoding of the same arrays for the return (P7, about 72 lines). Selectors 0x81fa807c, 0xb156aa0a, 0xd335b0cf (and the vault's getCurrentLiveBalances 0x535cfd8a, getStaticSwapFeePercentage 0xb45090f9) are not in the signature database. Decode checks (offsets <= 2^64-1, bounds within return_data.size, allocation Panic(65)), the 416-byte PoolConfig decoding (13 words, LiquidityManagement inline) and the total return lengths (e.g. getTokenInfo's 256 + 32 * (n1 + n3 + n4) + 96 * n2, written with the first encode loop's final u) were checked and are right. P8: the selector and argument stores mem[128], mem[132] before calls that print their name and arguments; P11: Panic(33) on re-encoding an enum already validated < 2 at decoding; P18: PoolConfig and TokenInfo fields only as memory slices.",
+ "summary": "Correct but opaque: five pass-through view functions whose ABI decode/re-encode copies stay as 12 while loops and whose results are returned as raw memory, because the output buffer and the free-memory pointer are not tracked past the first allocation."
+}

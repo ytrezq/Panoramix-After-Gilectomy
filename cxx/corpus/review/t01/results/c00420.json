@@ -1,0 +1,40 @@
+{
+ "id": "c00420",
+ "abi_functions": 46,
+ "reviewed": 46,
+ "not_reviewed": [],
+ "source_loops": 12,
+ "loops_shown": {
+  "while": 12,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 5,
+  "P3": 40,
+  "P4": 8,
+  "P6": 23,
+  "P7": 20,
+  "P8": 60,
+  "P9": 30,
+  "P14": 120
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "pendingRequestExists(uint256) and other readers of subscription consumers",
+   "lines": "pendingRequestExists: storage-to-memory copy before `while 32 * stor5[_param1].field_512 + 256 > idx + 32`; return at the loop exit",
+   "decompiled": "mem[256] = address(stor[sha3(sha3(_param1, 5) + 2)]) / idx = 256 / while 32 * stor5[_param1].field_512 + 256 > idx + 32: mem[idx + 32] = address(stor[s + sha3(...) + 1]) ...; _25 = mem[64] / mem[mem[64]] = 0 / return memory from mem[64] len _25 - mem[64] + 32",
+   "source": "SubscriptionAPI: Subscription memory subConfig = s_subscriptionConfigs[subId] (consumers copied to memory); return false",
+   "issue": "The copy of the storage address[] consumers into memory is a rotated while (first element peeled, P3; 10 such loops) instead of a copy line, and `return false` prints as a memory return because `_25 = mem[64]` is not identified with the following mem[64].",
+   "rule": "Print a storage-array-to-memory element copy loop as `mem[p len 32*n] = stor[...] (array copy)`, folding the peeled first iteration; and identify `_x = mem[64]` with later reads of mem[64] (see c00026).",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Chainlink VRFCoordinatorV2Plus (silo gitmodule copy, solc 0.8.19); same code family as c00424 (VRF field-hash and hash-to-curve loops, fulfillRandomWords numWords loop, proving-key, migration-target and consumer loops: same as c00424). Source loops shown as whiles: VRF.sol:203, :246, deregisterProvingKey (119), fulfillRandomWords (396), pendingRequestExists nested consumers x proving keys (539/540, `while True` + inner while), removeConsumer (568), _isTargetRegistered (626), deregisterMigratableCoordinator (644), migrate's consumer loop (680), SubscriptionAPI getActiveSubscriptionIds (302) and _deleteSubscription (390). The other whiles are implicit: rotated consumer copies (P3), ABI encodes (P7). fulfillRandomWords (786 lines) reviewed by structure.",
+ "summary": "Faithful VRF coordinator text with all twelve source loops as whiles (including the nested pending-request loop); noise comes from rotated storage-to-memory consumer copies and memory-built returns."
+}

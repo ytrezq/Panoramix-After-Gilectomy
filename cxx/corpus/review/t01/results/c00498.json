@@ -1,0 +1,36 @@
+{
+  "id": "c00498",
+  "abi_functions": 22,
+  "reviewed": 22,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 59, "P6": 12, "P7": 8, "P8": 120},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "consolidate (both overloads: unknown884c4115, unknownc09e9237), fundsRequired-like views (unknown5426225b, unknown4e660f12), onFlashLoan, collateralRequired",
+      "lines": "1417-1450 (consolidate); 243, 376; 852",
+      "decompiled": "while idx < cd[_param5 + 4]: / _175 = mem[64] / mem[mem[64]] = 0xe1ec3c68... / mem[_175 + 4] = cd[32 * idx + _param5 + 36] / static call _param3 with: args mem[mem[64] len _175 - mem[64] + 36] / ... / mem[_177 + ceil32(return_data.size)] = mem[_177] / mem[_177 + ceil32(return_data.size) + 32] = mem[_177 + 32] ...",
+      "source": "LoanConsolidator._getDebtForLoans: Cooler(cooler_).loans(ids_[i]); and the clearinghouse/DAI/USDS/gOHM/flash-lender calls",
+      "issue": "About 49 calls built after the first allocation lose their names and arguments (Cooler.loans, repayLoan, transfers, approve, flashLoan...), and in this unoptimized build every decoded return struct is copied word by word into a fresh memory struct that is never read (about 120 dead stores).",
+      "rule": "Free-memory-pointer non-aliasing as in c00409 ('_175 - mem[64]' folds to 0, so the call resolves to loans(ids_[idx])); drop memory stores no later load, call, log or return can observe.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "consolidate (both overloads): _isValidClearinghouse inlined twice",
+      "lines": "1155-1177, 1189-1211",
+      "decompiled": "s = 0 / while True: / if s >= _18: _29 = 0; break / ... static call stor3.registry(uint256) ... / if mem[_27 + 12 len 20] != _param1: s = s + 1; continue / _29 = 1; break",
+      "source": "LoanConsolidator.sol:626 for (i; i < registryCount; i++) if (CHREG.registry(i) == clearinghouse_) return true; return false;",
+      "issue": "The search loop is a 'while True' whose test and both outcomes go through a flag (as isEmodeValid in c00409).",
+      "rule": "When the loop exits only set a variable used right after the loop, keep the bound as the loop test ('while s < _18') and print the found/not-found outcomes after it.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "22 ABI functions plus the fallback reviewed (unoptimized solc 0.8.36 build). consolidate (two overloads, ~500 lines each) and onFlashLoan reviewed by structure, the rest read in full. Loops: 4 explicit, all whiles: _getDebtForLoans (consolidate and the two view helpers), _isValidClearinghouse ('while True', twice per consolidate), _repayDebtForLoans (onFlashLoan), collateralRequired. Implicit: configureDependencies' abi.encode([1, 1, 1, 1]) and the Keycode[4] return as 'while idx < 4' loops (P7, constant size), ids arrays re-encoded for the flash-loan data, copies. Checked: the debt sums (principal at return word 6, interest at word 7 of loans()), the fee overflow check, role checks. No semantic error found.",
+  "summary": "Faithful, all 4 loops present; the unoptimized build plus the symbolic free-memory pointer make most external calls nameless and leave ~120 dead memory copies."
+}

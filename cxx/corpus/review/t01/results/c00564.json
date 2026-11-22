@@ -1,0 +1,36 @@
+{
+  "id": "c00564",
+  "abi_functions": 74,
+  "reviewed": 74,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 70, "P3": 2, "P6": 33, "P7": 19},
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "execute()",
+      "lines": "4823-4841",
+      "decompiled": "static call 0x52aa...e497.unknownb5c736e4(?) with: args sha3(0xa0b8...eb48, 5) ... if (ext_call.return_data[0] >> 219) % 2: if not Mask(14, 220, ext_call.return_data[0]): revert with Panic(18) / ...  # Decompilation aborted",
+      "source": "PayloadIGP135.sol action10 (USDai-USDC DEX + T2 vault launch limits, remove Team MS auth) via LiquidityCalcs.calcExchangePrices for USDC, and action11 (USDC-USDT DEX max borrow shares)",
+      "issue": "The text stops inside action 10, in the inlined exchange-price computation of the USDC slot read from the Liquidity layer; the rest of action 10 (its limit settings and the auth removal) and all of action 11 are lost.",
+      "rule": "Coverage: the per-function budget is spent on actions 1-9 (about 3,500 lines of straight-line encoding code); merging the identical per-action config encodings or raising the budget for straight-line code would reach the end.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "execute()",
+      "lines": "1326, 1339 and each action's skip check",
+      "decompiled": "static call 0x0.unknown1392d4ee(?) ... static call 0x0.unknowna5caf0f6(?) with: args 1",
+      "source": "main.sol:119 PayloadIGPMain(ADDRESS_THIS).isProposalExecutable(); :38 PayloadIGPMain(ADDRESS_THIS).actionStatus(action_)",
+      "issue": "ADDRESS_THIS is a solc immutable, zero in the pre-deployment runtime code, so the self-calls target 0x0.",
+      "rule": "None needed.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "73 of the 74 ABI functions are constant getters and simple setters (proposal creation time, actions to skip), checked and correct; execute() (3,520 lines) reviewed by structure: TIMELOCK check 'not-valid-caller', 'proposal-not-executable', each action under 'if not actionStatus(n)', calls to the Liquidity layer and DEX/vault factories with their config arrays. setActionsToSkip's loop is a clean while with the mapping write and ActionSkipped event. Implicit loops: two zero-initialisation loops of 'new Struct[](10)' printed rotated ('while idx - 1' with the first element allocated before the loop, P3) and 19 struct-array ABI encode loops ('while idx < _577: _596 = mem[s]; mem[t] = address(...); ...', P7), which are readable field by field.",
+  "summary": "Correct where decompiled, with the only source loop a clean while; execute() is straight-line governance calls with raw-memory arguments (P2) and is cut off by an abort inside action 10."
+}

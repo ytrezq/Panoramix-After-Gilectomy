@@ -1,0 +1,69 @@
+{
+  "id": "c00597",
+  "abi_functions": 74,
+  "reviewed": 74,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 5, "P4": 2, "P6": 2, "P7": 7, "P8": 40, "P9": 4, "P11": 26, "P12": 8, "P13": 15},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "submitExchangeRateData, submitValidatorStats, submitValidatorVerificationDetail, submitWithdrawnValidators vs set*UpdateFrequency, get*ReportableBlock, initialize",
+      "lines": "937, 760, 1548, 1349 vs 459-461, 431-435, 807-830; def storage 53-56",
+      "decompiled": "if SafeMath.mod(_param1, stor78E4) > 0: revert with 0x222ea985\n...\nstor278[0x783e3ebf40ee443ac9cbca8dc88c9f47450598583c2168f0ae0021de08ad333b] = _param1",
+      "source": "StaderOracle.sol:134 _exchangeRate.reportingBlockNumber % updateFrequencyMap[ETHX_ER_UF]; :654 updateFrequencyMap[_key] = _updateFrequency",
+      "issue": "The same updateFrequencyMap entries have two names: stor278[key] where the code hashes the key, and separate variables stor78E4, stor6831, stor7A64, storBC6E (keccak(key . 278) of ETHX_ER, VALIDATOR_STATS, VALIDATOR_VERIFICATION_DETAIL and WITHDRAWN_VALIDATORS) where the slot is a constant; the reader cannot link the frequency set by setERUpdateFrequency with the modulus checked by submitExchangeRateData.",
+      "rule": "For every mapping base B and constant key k used with it, compute keccak(k . B) and print a constant slot equal to it as B[k] (keccak taken as collision-free), so one storage location keeps one name.",
+      "verified": "keccak computed for the six keys: 0x78e40c66.., 0x0683174e.. (printed with 63 digits as 0x683174ee..: P6), 0x7a641f2a.., 0xbc6eadc4.. match"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "submitSDPrice((uint256,uint256)) (inlined insertSDPrice)",
+      "lines": "1112-1141",
+      "decompiled": "s = stor277.length - 1\nwhile True:\n    if s < 1:\n        ... stor277[s] = _param2\n        log 0x6c291a7c...: _param2, _param1, block.number, indexed caller\n        if stor266 > 0x7fff...: revert with Panic(17)\n        break\n    ...\n    if _param2 < stor277[s - 1]:\n        stor277[s] = stor277[s - 1]; s = s - 1; continue\n    stor277[s] = _param2\n    log 0x6c291a7c...: ...\n    if stor266 > 0x7fff...: revert with Panic(17)\n    break",
+      "source": "StaderOracle.sol:316-320 while ((j >= 1) && (_sdPrice < sdPrices[j - 1])) { sdPrices[j] = sdPrices[j - 1]; j--; } sdPrices[j] = _sdPrice; then :299 emit SDPriceSubmitted and :302 2 * trustedNodesCount",
+      "issue": "The insertion loop is printed as 'while True' whose two exits each carry a copy of the code after the loop (the final store, the SDPriceSubmitted event and the overflow check of 2 * trustedNodesCount), so the loop condition 'j >= 1 and price < sdPrices[j-1]' never appears and the event is printed three times.",
+      "rule": "When every exit of a 'while True' loop runs the same statements before leaving, move them after the loop and turn the exit tests into the loop condition ('while s >= 1 and _param2 < stor277[s - 1]').",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "submitSDPrice((uint256,uint256)) (inlined getMedianValue)",
+      "lines": "1145-1149",
+      "decompiled": "if stor277.field_1 >= stor277.length: revert with Panic(50)\nstor253 = SafeMath.add(stor277[SafeMath.sub(stor277.length, 1) / 2], stor277[stor277.field_1]) / 2",
+      "source": "StaderOracle.sol:324-325 len = dataArray.length; (dataArray[(len - 1) / 2] + dataArray[len / 2]) / 2",
+      "issue": "len / 2 (the length word shifted right by one bit) is printed as a struct member 'stor277.field_1' of the array, which reads as another variable rather than half the length.",
+      "rule": "Print field_N only for a mask that matches a declared packed field; a shift of a whole word by k is 'x >> k' (or x / 2**k), here stor277.length / 2.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "submitMissedAttestationPenalties, submitValidatorVerificationDetail, submitWithdrawnValidators",
+      "lines": "1241, 1265, 1291-1302, 1661, 1723",
+      "decompiled": "_23 = sha3(sha3(cd[_param1 + 36], 64, mem[...]), 273)\nif uint8(stor[_23]) >= stor266 / 2 + 1:\n...\nhash2 = sha256hash(mem[mem[64] len ...]) # precompiled\n...\nmem[0] = mem[_53]\nstor274[concat(mem[0])] = uint16(stor274[concat(mem[0])] + 1)",
+      "source": "StaderOracle.sol:722 _submissionCount = submissionCountKeys[_submissionCountKey]; :563-564 missedAttestationPenalty[UtilLib.getPubkeyRoot(pubkey)]++",
+      "issue": "The submission count is read through a raw slot although the same mapping is printed stor273[...] two lines above, and the penalty key is the sha256 result already named hash2 but is printed as a memory read in a one-element concat (P4).",
+      "rule": "Print stor[sha3(k, B)] with a known mapping base B as B[k]; a memory word filled from return data and not overwritten reads as that return value (here hash2).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize, setERUpdateFrequency, disableERInspectionMode, closeERInspectionMode",
+      "lines": "807-830, 455, 238, 393",
+      "decompiled": "stor278[0x783e...] = 2 * 3600 ... = 4 * 3600 ... = 14 * 3600\nif _param1 > 14 * 3600: revert with 0x7d5ba07f\n_3 = SafeMath.add(stor268, 14 * 3600) > block.number",
+      "source": "StaderOracle.sol:77-82 setUpdateFrequency(..., 7200 / 14400 / 50400); MAX_ER_UPDATE_FREQUENCY = 7200 * 7 (blocks)",
+      "issue": "Block counts are factored as hours (7200 as 2 * 3600, 50400 as 14 * 3600) although they are compared with block.number, which suggests a 2-hour or 14-hour duration.",
+      "rule": "Factor a constant by a time unit only when it is combined with block.timestamp or a value derived from it; otherwise print it in decimal.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 74 ABI functions and the fallback reviewed; no semantic difference found. Loops: StringsUpgradeable.toHexString's for (inlined twice in each of the five onlyRole functions; the role-0 instance is folded to writing '0'), insertSDPrice's while (obscure, finding) and submitMissedAttestationPenalties' for over the pubkeys; all whiles. Implicit: ABI encodes of the bytes[] arrays for keys, events and calls (readable whiles with copy lines; 14 in submitValidatorVerificationDetail) and seven memory-to-memory bytes copies (P7) in the key encodes and the sha256 input. P2: getPoolUtils/getNodeRegistry/markValidatorReadyToDeposit/withdrawnValidators calls after the encodes ('_30 = mem[64]' then 'len _30 - mem[64] + 4'), and getPubkeyRoot's InvalidPubkeyLength revert is raw memory for the same reason. P13: AccessControl's _roles[role].members printed as hasRole[role][account]; adminRole as stor[sha3(role, 101) + 1]. P11: getReportableBlockFor's '(n / f) * f' overflow test, toHexString/insertSDPrice bounds checks, 'length - 1 > length', initialize's 'not initializing' test, computeExchangeRate's division-by-zero test. P9: updateWithInLimitER's products distributed ('10000 * _17 - _17 * stor264'). Address/uint80 return checks print as slice comparisons ('x == ext_call.return_data[12 len 20]', '[22 len 10]') next to 'x == address(x)'. No execution run.",
+  "summary": "Faithful, with readable straight-line code; the main problems are naming (one updateFrequencyMap entry under two names, len / 2 printed as 'stor277.field_1') and the insertion-sort loop printed as 'while True' with its tail and event duplicated into each exit."
+}

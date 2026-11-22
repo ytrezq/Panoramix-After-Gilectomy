@@ -1,0 +1,39 @@
+{
+ "id": "c00504",
+ "abi_functions": 36,
+ "reviewed": 36,
+ "not_reviewed": [],
+ "source_loops": 2,
+ "loops_shown": {
+  "while": 2,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 8,
+  "P3": 1,
+  "P6": 5,
+  "P7": 75,
+  "P8": 120,
+  "P11": 10,
+  "P14": 150
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "claimCollateral(address[],address[],uint256[],address) and other functions reverting with address-carrying custom errors",
+   "lines": "3074, 3077-3080, 3246",
+   "decompiled": "revert with Bytes(16, 0x09f8c937000000000000000000000000), Bytes(20, _17); revert with Bytes(16, 0xe474a425000000000000000000000000), Bytes(20, _17), Bytes(12, 0), mem[... len 20]",
+   "source": "MarketUtils: revert Errors.DisabledMarket(market); revert Errors.EmptyAddressInMarketTokenBalanceValidation(market, token)",
+   "issue": "Custom-error data is chunked by how it was stored (selector merged with the 12 zero bytes of the next word, then a 20-byte address) instead of as selector + ABI words, so DisabledMarket(address) is unrecognisable; 7 lines here and 1011 lines across the corpus texts have `revert with Bytes(16, 0x...`.",
+   "rule": "Re-chunk revert (and call) data as a 4-byte selector followed by 32-byte words; a word that is `Bytes(12, 0) ++ x` with x 20 bytes is `address(x)`. Then print `revert with 0x09f8c937, address(_17)` (or the error name).",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "GMX ExchangeRouter (solc 0.8.29, no via-IR, linked libraries). Most work is delegated to external libraries (FeeUtils.batchClaimFundingFees, ReferralUtils, order/deposit handlers...), so the FeeUtils/ReferralUtils/MarketUtils swap-path/EventUtils loops are not in this bytecode. Source loops in this bytecode: PayableMulticall.multicall (`while idx < data.length`, readable, with ErrorUtils.revertWithParsedMessage inlined correctly) and MarketUtils.batchClaimCollateral (inlined, `while s < _281` in claimCollateral). The other 76 whiles are implicit: calldata array validation, ABI encodes of arrays into library/handler calls, decodes of returned arrays (P7), and the rotated new-bytes[] initialisation in multicall (P3). Immutables (dataStore, handlers, router) read as 0: artifact. The revert string of multicall's Error(string) path and keys such as keccak256(abi.encode(\"CLAIMABLE_COLLATERAL_AMOUNT\")) stay as memory slices because `_x = mem[64]` is not identified with later mem[64] (see c00026). claimCollateral (946 lines) reviewed by structure.",
+ "summary": "Faithful router text whose two source loops are shown as readable whiles; the noise is implicit ABI copy loops, raw-memory error/key construction, and custom errors printed as unaligned byte chunks."
+}

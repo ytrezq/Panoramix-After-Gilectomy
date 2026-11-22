@@ -1,0 +1,38 @@
+{
+ "id": "c00252",
+ "abi_functions": 26,
+ "reviewed": 26,
+ "not_reviewed": [],
+ "source_loops": 2,
+ "loops_shown": {
+  "while": 2,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P1": 2,
+  "P2": 2,
+  "P6": 4,
+  "P7": 4,
+  "P8": 20,
+  "P14": 10
+ },
+ "findings": [
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "migrateUnbondingLocks, getMigrateUnbondingLocksParams, migrateDelegator/migrateSender-style functions",
+   "lines": "848-850",
+   "decompiled": "require ext_code.size(0) / static call 0x0.getDelegatorUnbondingLock(address _delegator, uint256 _unbondingLockId) with: args _l1Addr, _100",
+   "source": "L1Migrator immutables (bondingManagerAddr, ticketBrokerAddr, ...)",
+   "issue": "solc immutables read as 0 in pre-deployment code, so the BondingManager calls target address 0. Not a decompiler error.",
+   "rule": "none (corpus artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "2 source loops, both readable whiles: L1Migrator.sol:437 (the unbonding-lock loop, inlined in getMigrateUnbondingLocksParams and migrateUnbondingLocks) and OpenZeppelin Strings.toHexString:64 (the AccessControl revert message, two instances per role check in pause, unpause, setL2Migrator, setBridgeMinter, grantRole, revokeRole, as 'while idx > 1' with the 'Strings: hex length insufficient' check). Implicit: return and call-argument encodings of uint256[] (P7). All 26 functions reviewed; no semantic error found.",
+ "summary": "Clean and faithful; both loops are readable whiles and the only visible issue is the immutable artifact on the BondingManager calls."
+}

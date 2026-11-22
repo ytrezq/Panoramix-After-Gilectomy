@@ -1,0 +1,37 @@
+{
+ "id": "c00427",
+ "abi_functions": 54,
+ "reviewed": 54,
+ "not_reviewed": [],
+ "source_loops": 3,
+ "loops_shown": {
+  "while": 3,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 31,
+  "P6": 23,
+  "P7": 1,
+  "P8": 60,
+  "P14": 40
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "unknown7bd243de(uint256,address,address[]) (MapleGlobals / withdrawal-manager call with an address[] argument), unrealizedLosses, totalAssets",
+   "lines": "2377-2386, 572-579",
+   "decompiled": "while idx < _54: mem[t] = Bytes(12, 0), mem[s + 12 len 20] ... / static call stor12 with: ...  |  _8 = mem[64] ... s = SafeMath.add(s, mem[_8])",
+   "source": "MaplePoolManager: an external call taking an address[] memory argument; unrealizedLosses_ += IStrategyLike(strategyList[i_]).unrealizedLosses()",
+   "issue": "The ABI encoding of an address[] argument is a while loop and the call loses its decoded form (P2); returned values are read back as mem[_8] instead of ext_call.return_data[0].",
+   "rule": "After 'mem[p len min(32, rds)] = ext_call.return_data[...]' and 'require rds >= 32', mem[p] is ext_call.return_data[0]; an element-wise cleanup copy of an address[] is 'Array(len, data)' in the call's arguments.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "solc 0.8.38 without optimizer. 3 source loops, all readable whiles: setIsStrategy:201 (search with early return, then revert 'PM:SIS:INVALID_STRATEGY'), totalAssets:450 (inlined in maxDeposit, maxMint, unrealizedLosses), unrealizedLosses:501. The source caches strategyList.length while the text re-reads it each iteration, which is exact (only static calls in the body). One implicit while: the address[] encoding in 7bd243de. Reviewed all 54 functions (most are getters and setters); no semantic error found.",
+ "summary": "Clean and faithful text with all three loops readable; only minor leftovers (an address[] argument encoding loop, return values read through memory)."
+}

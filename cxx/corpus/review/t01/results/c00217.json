@@ -1,0 +1,96 @@
+{
+  "id": "c00217",
+  "abi_functions": 20,
+  "reviewed": 20,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {
+    "while": 7,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 1,
+    "P3": 18,
+    "P6": 1069,
+    "P7": 3,
+    "P8": 40,
+    "P10": 6,
+    "P11": 40,
+    "P12": 60,
+    "P15": 26
+  },
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "relayMessage(address,address,bytes,uint256,(...)) and relayMessage(...,bytes32,bytes32)",
+      "lines": "9169-17580 (26 aborts, 12429-17578); 669-8959 (25 aborts, 3417-8950)",
+      "decompiled": "mem[_6756] = mem[_6572] / mem[_6756 + 32] = _6572 + 32 / ...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)",
+      "source": "L1CrossDomainMessengerFast.sol:341-347 Lib_SecureMerkleTrie.verifyInclusionProof(abi.encodePacked(storageKey), abi.encodePacked(uint8(1)), _proof.storageTrieWitness, account.storageRoot); :199-233 the relay",
+      "issue": "On every path where verifyStateCommitment returns true, the text walks the state trie (parseProof, walkNodePath, decodeEVMAccount) and aborts at or before the start of the second trie walk (the storage proof). Lost: the storage-trie verification and Lib_BytesUtils.equal, and the whole relay (successfulMessages/blockedMessages checks, the CanonicalTransactionChain check, xDomainMsgSender writes, the call to _target, RelayedMessage/FailedRelayedMessage, the successfulMessages and relayedMessages writes, the nonReentrant exit). No call, log or storage write appears after line 668 (fn 1) or 9168 (fn 2).",
+      "rule": "Not a rewrite: the depth of the inlined trie code (each break of walkNodePath re-enters the next walk) exceeds the decompiler's limit; sharing the continuation after a loop exit instead of duplicating it into each break site would keep the tail reachable.",
+      "verified": "reading only (grep of the text: no call/log/sstore after 668 and 9168 except in the dead arm below)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "both relayMessage",
+      "lines": "606-668; 9139-9168",
+      "decompiled": "if not ext_call.return_data[0]:\n    if not ext_call.return_data[0]:\n        revert with 'CDMF: Provided message could not be verified.'\n    ... successfulMessages[...] check ... call _target ... successfulMessages[_102] = 1 ... relayedMessages[...] = 1 ... stop",
+      "source": ":194-197 require(_verifyXDomainMessage(xDomainCalldata, _proof) == true, ...) with _verifyStateRootProof(_proof) && _verifyStorageProof(...)",
+      "issue": "The tail after the && is copied into its short-circuit arm (state-root proof false), where the require always fails, and the 60-line relay after it is kept although unreachable. Because the live arm aborts (finding 1), this dead tail is the only place the text shows the relay, so a reader can believe a message is relayed when verifyStateCommitment returns false.",
+      "rule": "Inside 'if c:', a nested 'if c: revert' is unconditional; drop everything after it in that arm (evaluate each condition under the facts of the conditions that dominate it).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "both relayMessage (all reverts after the first loop or merge)",
+      "lines": "e.g. 10340-10348, 10729-10737, 498-505, 444-450 (1024 occurrences)",
+      "decompiled": "_3408 = mem[64]\nmem[mem[64]] = 0x8c379a0...\nmem[_3408 + 4] = 32 / mem[_3408 + 36] = 83 / mem[_3408 + 68] = 0x43444d463a20...\nrevert with memory from mem[64] len _3408 - mem[64] + 164",
+      "source": ":332-335 require(exists == true, \"CDMF: Message passing predeploy has not been initialized or invalid proof provided.\"); Lib_MerkleTrie.sol:189-201, Lib_RLPReader requires, ReentrancyGuard, Pausable",
+      "issue": "1024 Error(string) reverts print as raw memory with hex text (only 73 reverts are recognized as strings). In 982 of them the base _N was assigned mem[64] a few lines before with no write to mem[64] in between, so '_N - mem[64]' is 0 and the layout is the plain Error(string) one.",
+      "rule": "A variable assigned mem[64] equals mem[64] until the next write to mem[64]; substitute it (so x - mem[64] = 0 and all offsets are constants from the revert start) before matching 'selector 0x08c379a0, 32, len, text' as revert with 'text'.",
+      "verified": "reading only (script over the text: 982/1024 have '_N = mem[64]' with no 'mem[64] =' in between)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "relayMessage(...,bytes32,bytes32)",
+      "lines": "385-432, 470-496",
+      "decompiled": "_42 = return_data.size + ceil32(_2) + ... / _43 = ceil32(_2) + ... (in both arms)\nrequire _42 - _43 >=′ 32\nif mem[_43] != block.number:\n    mem[mem[64]] = 0xa5ab6190...\n...\nwhile idx < _57: mem[idx + mem[64] + 68] = mem[_55 + idx + 32] ...\nargs 32, mem[mem[64] + 36 len ceil32(_57) + 32]",
+      "source": ":358-381 _verifyDepositHashes (if block.number == lastHashUpdateBlock() ... else ...); :90 resolve(\"OVM_L2MessageRelayer\")",
+      "issue": "After the standard-bridge if/else, whose arms leave mem[64] at different values, the free-memory pointer is no longer named: the LP lastHashUpdateBlock result reads back as mem[_43], the 'OVM_L2MessageRelayer' string copy becomes a while loop (P7) and the getAddress call gets raw arguments (P2), and all of fn 1 after it stays addressed from mem[64]. The 5-argument relayMessage has no such branch and the same code resolves to copy lines and Array(len=20, ...).",
+      "rule": "At a merge, give the phi of mem[64] a name (as is already done for _42/_43) and resolve later memory relative to it; a read of a just-returned word through it is ext_call.return_data[0] when 'require return_data.size >= 32' dominates.",
+      "verified": "reading only (compare 470-496 with 9046-9057)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize(address)",
+      "lines": "177-242",
+      "decompiled": "if stor0_160 / 256: _5 = 0 else: _2 = stor0_160 / 256; stor0_160 = 257; _5 = not _2 ... then 4 more copies of: _8 = stor0_160 / 256 or not uint8(stor0_160); if not _8: revert ...; if stor0_160 / 256: _12 = 0 else: ...; ... if _12: uint8(stor[0].field_168) = 0",
+      "source": "Initializable.sol:31-45 initializer, also on each __X_init_unchained (OZ 4.3)",
+      "issue": "The four nested initializer modifiers are faithful but dead: after the first block _initializing is nonzero on both paths (tested nonzero, or set by stor0_160 = 257; the libAddressManager write touches only bits 0-159), so each 'if not _8: revert' never fires and _12, _19, _28, _36 are 0. '_5 = not _2' is 1 since _2 was just tested zero. def storage merges _initialized and _initializing into one uint16 while writes use field_168 (P15).",
+      "rule": "Forward storage values written earlier in the same function (no call in between, only disjoint bits written) and carry facts true in both arms of a merge; in the else arm of 'if x:', x is 0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "both relayMessage; def SafeMath",
+      "lines": "20-27; 558, 9092; 9091 and later",
+      "decompiled": "def add2(a, b): if a > 0xff..ffdf: revert Panic(17); return a + b  |  mem[_72 + 32 len 4] = 3419729129  |  2 * Mask(250, 5, _message.length + 31)",
+      "source": "Lib_RLPReader._copy src += 32 / dest += 32 (checked); encodeWithSignature(\"relayMessage(address,address,bytes,uint256)\")",
+      "issue": "add2/add3 take b but their overflow test only fits b = 32 / b = 1 (all 54 and 6 uses pass those constants), so the helper reads as a general add. The selector 0xcbd4ece9 is printed in decimal (it is Bytes(4, 0xcbd4ece9) elsewhere). Two ceil32 terms merge into 2 * Mask(250, 5, len + 31) although len < 2^64 is checked.",
+      "rule": "Print a helper specialized to a constant with that constant (add(a, 32) with its own test, or add32(a)); print a 4-byte memory word in hex; Mask(250, 5, x + 31) is ceil32(x) when x < 2^250, so 2 * ceil32(x).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "relayMessage x2 (8700 lines each) reviewed by structure: control flow, loops, calls, storage writes, events, reverts; the 18 other ABI functions and the fallback reviewed in full (faithful; resolve() returns 'Bytes(12, 0), ext_call.return_data[12 len 20]' for the checked address). Source facts the text shows faithfully: (1) the 7-arg relayMessage calls the public relayMessage, so its inner nonReentrant check (498, 529) fails whenever stor151 = 2 set at 332 survives the deposit-hash CALLs: the function always reverts unless a reentrant call changed stor151; the decompiler rightly does not fold it across CALLs. (2) The source's 'failedMessages[h] == true;' is a comparison: the text writes nothing to failedMessages (only the dead scratch write mem[32] = 204 at 653). The onlyRelayer tail (reentrancy and pause checks) is printed in both arms of 'if relayer' (P12, 498-549, 9066-9084). Loops: 7 explicit (Lib_BytesUtils.slice Yul for, toNibbles, _getSharedNibbleLength, _parseProof, _walkNodePath, Lib_RLPReader._copy, readList), all present as whiles in both functions (27 _copy, 16 slice, 8 readList, 4 toNibbles, 2 walkNodePath, 2 parseProof, 2 sharedNibble). The slice loop's condition is obscure ('idx < _2026 + _2163 - u - v + (_2026 - u - v) % 32 + 32 * (not (_2026 - u - v) % 32)'), _getSharedNibbleLength's condition is carried in a flag (while _4340). Implicit: 18 zero-init loops of new RLPItem[](32)/new TrieNode[](n) printed rotated (first iteration before 'idx = 32; while idx - 1:', P3); 3 memory copies as whiles in fn 1 (479, 661, 671, P7) that fn 2 shows as copy lines. 36 'if L >= 32: require L >=′ 32' (toBytes32's abi.decode check) are kept, several in the else arm of 'if 32 <= L' (P11). No execution run: no doubtful effect on a reachable path.",
+  "summary": "The small functions are exact and clean, but both relayMessage texts lose the storage proof and the whole relay to 'Decompilation aborted' on the live path, and show the relay only in the dead short-circuit arm after an always-taken revert; about 1000 revert reasons print as raw memory because a variable equal to mem[64] is not substituted."
+}

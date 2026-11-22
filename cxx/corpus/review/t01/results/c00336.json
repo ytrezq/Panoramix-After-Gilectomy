@@ -1,0 +1,25 @@
+{
+  "id": "c00336",
+  "abi_functions": 14,
+  "reviewed": 14,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P9": 6},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "exec(uint256)",
+      "lines": "132-177, 134",
+      "decompiled": "if -3988009 * _13 * _13 - 3988000 * _13 * _param1: ... _28 = (((_27 + (3988009 * _13 * _13 + 3988000 * _13 * _param1) / _27) / 2 + SafeMath.div(3988009 * _13 * _13 + 3988000 * _13 * _param1, ..   (lines of 900+ characters)",
+      "source": "FlapperUniV2._getUsdsToSell: Babylonian.sqrt(reserveUsds * (lot * 3_988_000 + reserveUsds * 3_988_009)) (7 Newton steps r = (r + x / r) >> 1, then min(r, x / r))",
+      "issue": "The radicand reserveUsds * (lot * 3988000 + reserveUsds * 3988009) is distributed and repeated about 20 times, the 7 Newton steps are nested into two giant expressions (P9), and the test 'x != 0' is printed as the truth value of its negation '-x'.",
+      "rule": "Bind the radicand once and keep its product undistributed; bind each Newton step to its own temporary; in a boolean context -x (mod 2^256) is nonzero exactly when x is, so print 'if x'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Sky FlapperUniV2, no source loops (Babylonian.sqrt is straight-line). All 14 functions reviewed; exec follows the source: auth, getReserves with sync when balances exceed reserves, _getUsdsToSell (sqrt), _getAmountOut, the 'insufficient-buy-amount' check against pip.read() and spotter.par(), transfer to the pair, swap, the two transfers, mint, Exec event. The swap's amount order shows only the (_buy, 0) branch because the immutable usdsFirst reads as 0, and the pair/usds/gem/spotter addresses as 0x0 (artifact). RAY prints as 1000000000 * 10**18 (as in c00003).",
+  "summary": "Faithful straight-line code without loops; the square-root and radicand arithmetic is expanded into unreadable 900-character lines."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "c00592",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 411, "P6": 140, "P7": 23},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "receiveFlashLoan, emergencyExit, withdrawAllToVault, withdrawToVault, doHardWork, salvage (SafeERC20 / Address inlined)",
+      "lines": "1096-1106 and 127 'mem[mem[64]] = 0x8c379a0...' lines in all",
+      "decompiled": "mem[_203] = 32 / mem[_203 + 32] = 0x5361666545524332303a... / ... call ... / mem[mem[64]] = 0x8c379a000...0 / mem[mem[64] + 4] = 32 / _224 = mem[_203] / ... / revert with Error(string reason), 32, mem[mem[64] + 36 len _224 + 32], Bytes(-_224 + ceil32(_224), 0)",
+      "source": "Address.sol verifyCallResultFromTarget -> _revert(returndata, 'SafeERC20: low-level call failed'); SafeERC20 messages",
+      "issue": "127 Error(string) reverts are built at the free pointer and printed as raw memory (the 63-digit 0x8c379a0... selector is most of the P6 count), although the same message is decoded as \"revert with 'SafeERC20: low-level call failed'\" at 1043 in the same function. Here the message length mem[_203] = 32 is lost after the call's return-data copy and the conditional 'mem[64] = ...' write.",
+      "rule": "Same root cause as P2: allocations at mem[64] only grow (each new mem[64] >= the previous one plus the allocated size), so a range allocated earlier ([_203, _203 + 64)) is disjoint from anything written later at or above the newer mem[64] (return-data copies, later allocations); forward its words across those writes, then fold the revert to \"revert with 'message'\".",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "isRewardToken(address)",
+      "lines": "515-525",
+      "decompiled": "s = 0 / while True: / if s >= stor4541: _20 = 0; break / if mem[32 * s + 172 len 20] != _token: s = s + 1; continue / _20 = 1; break / return bool(_20)",
+      "source": "BaseUpgradeableStrategyStorage.sol:119-124 for (uint i = 0; i < _list.length; i++) { if (_searchFor == _list[i]) return true; } return false;",
+      "issue": "The loop's own test is hidden as the first statement of 'while True', and both exits go through a flag; the getAddressArray loop just above also re-reads the invariant bound (_9 = stor4541) each iteration.",
+      "rule": "When the first statement of a 'while True' body is 'if c: <exit>', print 'while not c:' with the exit after the loop; an early 'return' from inside the body can stay a return instead of a flag and break. A bound re-assigned to the same invariant expression in every iteration is that expression.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Long functions (doHardWork ~2,400 lines, withdrawToVault ~2,700, withdrawAllToVault ~1,600, emergencyExit ~800) reviewed by structure: loops, external calls (Aave POOL()/withdraw/repay/borrow, universal liquidator swaps, SafeERC20), storage writes and events; receiveFlashLoan, isRewardToken, rewardTokens() and the _liquidateReward loop checked in detail and correct (caller == Balancer vault 0xba12...c8, 'Only one can be true' / 'One has to be true', amounts[0] + fees[0] overflow check, makingFlashDeposit = stor3 branch, aToken() = address(stor8CDE)). Loop map: getAddressArray -> 'while s < _9' (rewardTokens(), isRewardToken and inlined copies), _isAddressInList -> 'while True' (isRewardToken), _liquidateReward -> 'while s < rewardTokens.length' (2902, 7924), _depositNoFlash -> 'while w < s' (6014, 9111), _redeemNoFlash -> 'while v > s' (5229, 6538, 9587) and, inlined with newBorrowTarget = 0, 'while u > 0' (1630, 4092). P7 counts the ABI encode loops of address[] ('mem[t] = Bytes(12, 0), mem[s + 12 len 20]') and receiveFlashLoan's calldata decode loop. Getter-named storage: aToken, debtToken etc. stay storNNNN because their getters return address(slot).",
+  "summary": "Faithful, with every source loop a readable while; readability suffers mainly from 411 raw-memory call arguments (P2) and 127 Error(string) reverts left as memory writes, both from the unresolved free-memory pointer."
+}

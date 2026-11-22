@@ -1,0 +1,25 @@
+{
+  "id": "c00271",
+  "abi_functions": 34,
+  "reviewed": 34,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 1, "P9": 24, "P10": 30},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "getPastVotes(address,uint256), getPastTotalSupply(uint256)",
+      "lines": "getPastVotes +11-16",
+      "decompiled": "if not checkpoints[account].field_128: _2 = checkpoints[account].length; _3 = 0 else: _2 = checkpoints[account].field_128; _3 = 128",
+      "source": "Checkpoints.upperLookupRecent: if (len > 5) { uint256 mid = len - Math.sqrt(len); ... } (Math.log2 step: if (x >> 128 > 0) { x >>= 128; result += 128; })",
+      "issue": "The first log2 step of Math.sqrt(len) shifts the array length right by 128, which is printed as a struct member field_128 of the array's length slot, as if a packed field existed there; the rest of sqrt is expanded inline (P9).",
+      "rule": "When a slot is declared as a dynamic array's length, print stor >> k as length >> k, not as field_k; recognize the exact sqrt sequence (log2 estimate plus fixed Newton steps) as sqrt(x).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "One source loop, Checkpoints._upperBinaryLookup, inlined in getPastVotes and getPastTotalSupply as while t < s (with Math.average as SafeMath.add(s & t, (s ^ t) / 2)). Small ERC20Votes/permit/ownable text otherwise faithful.",
+  "summary": "Small faithful text with its single loop readable; Math.sqrt is fully expanded and its first shift is mislabeled as a packed field of the checkpoint array."
+}

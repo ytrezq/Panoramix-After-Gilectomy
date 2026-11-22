@@ -1,0 +1,25 @@
+{
+  "id": "c00325",
+  "abi_functions": 16,
+  "reviewed": 16,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P3": 1, "P6": 1, "P7": 4, "P8": 10},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "registerBobaBubble(string) (unknowne9eff3c9)",
+      "lines": "323-331",
+      "decompiled": "mem[_41 + _42 + 32 len 1] = byte(_21 % 10, 0x3031..66) / s = _41 + _42 + 33 / t = _21 / while t / 10: mem[s - 2 len 1] = byte(t / 10 % 10, 0x3031..66); s = s - 1; t = t / 10",
+      "source": "Strings.sol:28 while (true) { ptr--; mstore8(ptr, byte(mod(value, 10), HEX_DIGITS)); value /= 10; if (value == 0) break; }",
+      "issue": "Same as c00032: Strings.toString's do-while is rotated (first digit written before the loop, the loop tests t / 10 and writes the digit of t / 10), one iteration off from the source.",
+      "rule": "Recognise a do-while (body; if c: goto body) as one loop with the test at its end instead of peeling one iteration.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Turing example contract; all 16 functions compared line by line. registerBobaBubble builds the require message 'Invalid request:' + toString(...) before testing (as solc does) and copies it through P7 loops; the stor3/stor4 writes and the event are right. Source loop: Strings.toString's while(true) only (rotated). Implicit: string copies (235, 262, 337, 352). Calls to the immutable Turing helper target 0x0 (artifact).",
+  "summary": "Small, complete and faithful; only Strings.toString's do-while is rotated by one iteration and the string concatenation copies stay loops."
+}

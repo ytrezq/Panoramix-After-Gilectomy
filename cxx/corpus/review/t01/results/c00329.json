@@ -1,0 +1,36 @@
+{
+  "id": "c00329",
+  "abi_functions": 22,
+  "reviewed": 22,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 3, "P8": 15, "P10": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "permit(address,address,uint256,uint256,uint8,bytes32,bytes32)",
+      "lines": "199-221",
+      "decompiled": "_9 = mem[64] / mem[mem[64] + 32] = 0x6e71edae... / ... / _10 = mem[64] / mem[mem[64]] = 192 / mem[64] = mem[64] + 224 / _12 = sha3(mem[_10 + 32 len mem[_10]]) / mem[_9 + 256] = 0x1901... / mem[_9 + 258] = _6 / mem[_9 + 290] = _12 / signer2 = ecrecover(sha3(mem[mem[64] + 32 len _9 - mem[64] + 290]), uint8(v), r, s)",
+      "source": "dai.sol permit: bytes32 digest = keccak256(abi.encodePacked(\"\\x19\\x01\", domainSeparator, keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline))));",
+      "issue": "The struct hash and the EIP-712 digest are hashes of raw memory: _10 = _9 = mem[64] (no store to slot 64 in between) and mem[64] = _9 + 224 are not propagated, so 'mem[mem[64] + 32 len _9 - mem[64] + 290]' is not seen to be mem[_9 + 256 len 66] = 0x1901 ++ _6 ++ _12; the same hashes resolve in DOMAIN_SEPARATOR(), where mem[64] is a constant.",
+      "rule": "With mem[64] proven >= 128 (stores at mem[64] + k cannot alias slot 64), copy-propagate _x = mem[64] and the last store 'mem[64] = _9 + 224'; then sha3 over a range whose words were all written becomes sha3(PERMIT_TYPEHASH, owner, spender, value, _8, deadline) and sha3(Bytes(2, 0x1901), _6, _12).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "DOMAIN_SEPARATOR(), permit(...)",
+      "lines": "3-8 (const deploymentChainId = 0), 67-68, 186-198",
+      "decompiled": "const deploymentChainId = 0 / _2 = chainid and sha3(0x8b73c3c6..., ...) / if not chainid: _6 = 0 else: ... _6 = sha3(...)",
+      "source": "dai.sol: uint256 public immutable deploymentChainId; bytes32 private immutable _DOMAIN_SEPARATOR; block.chainid == deploymentChainId ? _DOMAIN_SEPARATOR : _calculateDomainSeparator(block.chainid)",
+      "issue": "Both immutables read as 0, so the cached-separator branch becomes 'chainid == 0 -> 0'.",
+      "rule": "none (not a decompiler error)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "solc 0.7.6 build, 230 lines. All 22 ABI functions compared in full (name, symbol, version, decimals, PERMIT_TYPEHASH and deploymentChainId as constants). No semantic error found: auth, the invalid-address checks, burn's and transferFrom's allowance logic with the max-allowance exemption, the unchecked balance updates next to the checked totalSupply (_add) as in the source, and the permit nonce, deadline, owner != 0 and signer checks all match. No source loops and no whiles. P10: burn/transferFrom print the balance read through SSA copies in both arms of the allowance ifs (_18 = _16, _16 = _14).",
+  "summary": "Faithful, compact token text; the only notable defect is the permit digest left as a hash of raw memory, plus the immutables artifact."
+}

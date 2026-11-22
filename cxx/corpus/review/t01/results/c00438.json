@@ -1,0 +1,36 @@
+{
+  "id": "c00438",
+  "abi_functions": 43,
+  "reviewed": 43,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P3": 3, "P6": 8, "P7": 8, "P18": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "migrate(uint256,address) (_isTargetRegistered), and other searches over storage arrays",
+      "lines": "792-803",
+      "decompiled": "if 0 >= stor17.length: revert with 0x5428d449, _to / mem[0] = 17 / _3 = sha3(17) / s = 0 / while -_to + address(stor[_3 + s]): if SafeMath.inc(s) >= stor17.length: revert with 0x5428d449, _to; mem[0] = 17; _3 = sha3(17); s = SafeMath.inc(s)",
+      "source": "VRFCoordinatorV2_5.sol:722 for (uint256 i = 0; i < migrationTargetsLength; ++i) if (s_migrationTargets[i] == target) return true; (then revert CoordinatorNotRegistered)",
+      "issue": "The rotated search loop is correct but its condition is a subtraction used as a truth value, the element is stor[_3 + s] instead of stor17[s] (the array hash was bound to a temporary), and SafeMath.inc(s) and sha3(17) are recomputed in the body.",
+      "rule": "Print 'while a - b' (or '-b + a') as 'while a != b'; print stor[sha3(n) + i] as the array element storn[i] also when sha3(n) is held in a temporary; hoist loop-invariant sha3 of constants.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "fulfillRandomWords (VRF._verifyVRFProof, _hashToCurve, _fieldHash, ECC helpers)",
+      "lines": "1168, 1225, 1234 and 22 lines with -4294968273",
+      "decompiled": "while s >= 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f: ... / while addmod(mulmod(_179, mulmod(_179, _179, -4294968273), -4294968273), 7, -4294968273) != mulmod(...)",
+      "source": "VRF.sol:205 while (x_ >= FIELD_SIZE); :250 while (!_isOnCurve(rv)); FIELD_SIZE = 0xFFFF...FFFEFFFFFC2F",
+      "issue": "The secp256k1 field modulus prints as a hex word in comparisons and as the negative decimal -4294968273 in addmod/mulmod, so the same constant is not recognisable as the same; the loops themselves are clear.",
+      "rule": "Print a constant in one form throughout a function; prefer the unsigned hex form for values above 2**255 used as unsigned operands (mulmod/addmod moduli are unsigned).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (11), all whiles: _deleteSubscription, VRF._fieldHash (1168, 1234), VRF._hashToCurve (1225), _isTargetRegistered (migrate, rotated with the bound check inside), pendingRequestExists (and its inlined copies), deregisterMigratableCoordinator, deregisterProvingKey, fulfillRandomWords' numWords loop, getActiveSubscriptionIds, migrate's consumers loop, removeConsumer's search (swap-and-pop). Implicit: uint256[2] proof copies with constant trip count 2 (P7, 'while idx < 2'), storage arrays copied to memory as rotated whiles (P3), return encodings. Packed subscription/consumer structs are written through memory slices ('uint64(stor4[caller][..].field_8) = mem[184 len 8]', P18). VRF elliptic-curve arithmetic and the billing (native/LINK) paths follow the source.",
+  "summary": "Faithful, all eleven loops present and readable; small issues are subtraction-as-condition, array elements via temporaries, and one modulus printed two ways."
+}

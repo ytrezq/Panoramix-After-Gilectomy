@@ -1,0 +1,36 @@
+{
+  "id": "c00130",
+  "abi_functions": 48,
+  "reviewed": 48,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P4": 7, "P6": 36, "P8": 120, "P11": 10, "P15": 15},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "ens(), registrar() and every registry/registrar call",
+      "lines": "4-5, 742, 758 (47 calls to 0x0)",
+      "decompiled": "const registrar = 0 / const ens = 0 / static call 0x0.owner(bytes32 node) / static call 0x0.ownerOf(uint256 tokenId)",
+      "source": "NameWrapper immutables ens and registrar",
+      "issue": "solc immutables read as 0 in the pre-deployment runtime code, so ENS registry and registrar calls target 0x0.",
+      "rule": "None (bytecode artifact).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "isWrapped(bytes32) (unknownfd0cd0d9), ownerOf, getData users",
+      "lines": "710, 732-736",
+      "decompiled": "mem[160] = 256 * names[_param1].field_8 / if stor1[concat(mem[0])].field_192 >= block.timestamp: ... _56 = 65536 * uint1(stor1[concat(mem[0])].field_176) != 65536 and stor1[concat(mem[0])]",
+      "source": "bytes memory name = names[node]; ERC1155Fuse.getData: if (expiry < block.timestamp) { if (fuses & PARENT_CANNOT_CONTROL == PARENT_CANNOT_CONTROL) owner = address(0); fuses = 0; }",
+      "issue": "A short storage bytes word is shown as 256 * (x >> 8) instead of x with its low byte cleared, the key of the packed _tokens slot is concat(mem[0]) instead of the hash variable (P4), and the fuse bit test is 65536 * uint1(field_176) != 65536 rather than a bit test on the fuses field.",
+      "rule": "256 * (x >> 8) = Mask(248, 8, x); a one-element concat(mem[0]) whose word is a known value is that value; k * uint1(y) != k is not bit(y).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: balanceOfBatch (ERC1155Fuse 98) and safeBatchTransferFrom (172), both while; the third while is the ABI decoding of accounts with address validation. BytesUtils_LEGACY.namehash is recursive and is kept, correctly, as the separate function internal_0x3bc5 ('recursive, a call takes 6 of the 1024 words of the stack'), called from isWrapped(bytes32), upgrade and wrap; checked against namehash/readLabel/_checkBound (faithful, including OffsetOutOfBoundsError 0x8a3c1cfb and the 'Junk at end of name' revert). Storage bytes reads (names[node]) decode the short/long layout with Panic(34) checks twice, as the bytecode does. Constant ETH_NODE is loaded through scratch memory (mem[0] save/restore, P8). Returns and reverts at the free pointer as raw memory (3 returns, 23 reverts).",
+  "summary": "A clean text: both loops present, recursion handled as a named internal function, few known patterns; immutables print as 0x0 and some packed-field tests stay cryptic."
+}

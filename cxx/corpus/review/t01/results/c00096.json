@@ -1,0 +1,36 @@
+{
+  "id": "c00096",
+  "abi_functions": 7,
+  "reviewed": 7,
+  "not_reviewed": [],
+  "source_loops": 17,
+  "loops_shown": {"while": 17, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 78, "P3": 14, "P4": 42, "P6": 76, "P7": 21, "P8": 467, "P11": 21},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all 7 functions (Invariable modifiers, LibBalance, LibTokenSilo inlined)",
+      "lines": "e.g. 802-818, 366-387 (223 lines with stor[sha3(...)])",
+      "decompiled": "mem[0] = 1 / mem[32] = 206 / ... mem[32] = sha3(1, 206) / _649 = sha3(mem[0], sha3(1, 206)) / ... uint128(stor[_649])  |  stor[sha3(_param1, sha3(_182, 0) + 29)]",
+      "source": "Invariable.sol:186-189 s.sys.silo.germinating[GerminationSide.ODD][tokens[i]].amount ...; LibBalance: s.accts[account].internalTokenBalance[token]",
+      "issue": "Single-level mappings are named (stor202[token], stor27[_param1], stor31[idx]) but two-level mappings and mappings inside a struct of a mapping stay raw stor[sha3(...)] with the hash scratch writes kept around them (the P8 count), so germinating amounts and internal balances are hard to recognise.",
+      "rule": "keccak(k2 . keccak(k1 . S)) is the slot of storS[k1][k2]; keccak(k2 . (keccak(k1 . S) + o)) is storS[k1].field_{256*o}[k2] (a mapping member at slot offset o of a struct stored in mapping S); apply recursively, then drop the mem[0]/mem[32] scratch writes that only fed the hash.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all 7 functions",
+      "lines": "e.g. 149-157, 166-171, 918-925 (76 reverts)",
+      "decompiled": "_149 = mem[64] / mem[mem[64]] = 0x8c379a000...0 / mem[_149 + 4] = 32 / mem[_149 + 36] = 21 / mem[_149 + 68] = 0x4e6f6e2d4265616e206e6f7420696e2057656c6c2e... / revert with memory / from mem[64] / len _149 - mem[64] + 100",
+      "source": "LibWell.sol:113 revert(\"Non-Bean not in Well.\"); Invariable.sol:40 require(..., \"INV: Insufficient token balance\"); SiloFacet.sol:173/176 require messages",
+      "issue": "Every require/revert message built at the free pointer stays a raw memory revert (all 76 P6 lines are this 0x8c379a0 selector with 63 digits); the message text is only visible as hex words.",
+      "rule": "_x = mem[64] followed by writes of Error(string)'s selector, 32, n and the n-byte text at _x, _x + 4, _x + 36, _x + 68, then 'revert with mem[_x len 4 + 64 + ceil32(n)]' (the length written as _x - mem[64] + c with mem[64] unchanged, i.e. c), is \"revert with 'text'\"; this needs only _x - mem[64] = 0 when nothing wrote mem[64] in between (writes at _x + k with k >= 4 do not alias mem[64] once mem[64] >= 0x80 is known).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Functions are 900-1,300 lines each; deposit checked in detail (noOutFlow pre-snapshot: getWhitelistedTokens / getSoppableWellLpTokens / getSopTokens / getNonBeanIndex / getTokensOfInterest / getTokenBalances loops; LibTransfer.receiveToken with SafeCast and internal-balance branches; fundsSafu's getTokenEntitlementsAndBalances with the uint128 checked sums, the bean branch and the nested fieldCount loop over stor31[j]; the final checks), the other six by structure; the Invariable part is the same code in all seven ('same as deposit'). Source loops counted are those in this bytecode: LibSilo._mow is an external library function (delegate 0x113cfe45...), so LibFlood.handleRainAndSops' two loops run in the library and are not counted. Loop map: getWhitelistedTokens and getSoppableWellLpTokens -> 'while idx < stor205.length' (field_160 / field_184 filters), getSopTokens -> 'while s < _98', getNonBeanIndex -> rotated 'while address(_153) == stor195: if t + 1 >= _109: revert ...' (P3, 14 copies; the 'if t >= _109: Panic(50)' after each is implied by the loop exit, counted in P11 with the 'min(a, X) <= X' underflow checks of decreaseInternalBalance), getTokensOfInterest's two merge loops, getTokenBalances, noOutFlow / noNetFlow / oneOutFlow / fundsSafu check loops, getTokenEntitlementsAndBalances i and j ('while idx < stor7'), transferDeposits' amounts loop (2161), _transferDeposits (2302), _removeDepositsFromAccount (6418), safeBatchTransferFrom (4181). P7: decode loops of IWell.tokens() and event-data copies. P8 counts the mem[32] hash-scratch writes (each with its mem[0] partner).",
+  "summary": "Faithful and complete: every in-bytecode source loop is a readable while (getNonBeanIndex rotated). Readability is hurt by raw stor[sha3(...)] for nested mappings with their hash-scratch writes, 76 undecoded require messages, and P2/P4."
+}

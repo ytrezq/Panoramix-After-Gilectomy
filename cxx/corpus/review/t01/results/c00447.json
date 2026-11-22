@@ -1,0 +1,36 @@
+{
+  "id": "c00447",
+  "abi_functions": 16,
+  "reviewed": 16,
+  "not_reviewed": [],
+  "source_loops": 25,
+  "loops_shown": {"while": 25, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 36, "P3": 13, "P6": 16, "P7": 40, "P10": 8, "P18": 65},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "withdrawFeeTokens (unknown5cb80c5d) and every function: 127 lines with `_N - mem[64]`",
+      "lines": "123-127, 146, 156, 160-164",
+      "decompiled": "_18 = mem[64]; mem[mem[64]] = 0x70a08231...; mem[_18 + 4] = this.address; static call address(cd[...]) with: args mem[mem[64] len _18 - mem[64] + 36] ... log 0x508d...: mem[mem[64] len _30 - mem[64] + 32], ... ; revert with memory from mem[64] len _28 - mem[64] + 36",
+      "source": "FeeTokenHandler.sol:23-31 feeToken.balanceOf(address(this)); feeToken.safeTransfer(...); emit FeeTokenWithdrawn(...); SafeERC20FailedOperation(token)",
+      "issue": "`_18` is a copy of mem[64] and nothing stores to slot 64 before the call, yet `_18 - mem[64]` is not folded to 0, so balanceOf loses its name and argument (P2), the event data and the custom-error revert stay raw memory. The only store in between is `mem[mem[64]] = ...`, which could only hit slot 64 if mem[64] were 64.",
+      "rule": "Keep a lower bound for the free-memory pointer (it is 128 after the entry store `mem[64] = 128`, and later stores to slot 64 only add non-negative amounts guarded against wrap); then a store to `mem[mem[64] + k]`, k >= 0, cannot alias slot 64, `_18 - mem[64]` folds to 0 and the call, log and revert decode.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getFee (unknown20487ded), forwardFromRouter (unknowndf0aa9e9), getAllDestChainConfigs, getDestChainConfig",
+      "lines": "2483, 2867, 3035, 3238, 3543, 3690, 5029, 316 (13 loops); 365, 380, 2340, 3273",
+      "decompiled": "while idx - 1: mem[s + 32] = 96 ... ; while _65 + 32 * stor6[...].field_512 + 32 > s + 32: mem[s + 32] = address(stor[t + sha3(sha3(uint64(stor4[idx]), 6) + 2) + 1])",
+      "source": "new bytes[](n) / new address[](n) and storage address[] -> memory copies (laneMandatedCCVs, defaultCCVs)",
+      "issue": "Implicit loops are rotated: the zero-initialisation of `new bytes[](n)` counts down with `while idx - 1` after one element printed before the loop (P3), and storage-array-to-memory copies run on `s + 32` with the first element hoisted, instead of plain copy lines (P7).",
+      "rule": "Un-rotate loops whose pre-header repeats the first iteration; a loop that stores the zero-value pointer (0x60) into consecutive words is `new T[](n)`, and an element-wise storage-to-memory copy of an address array can print as one copy line with `address()` masking.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "getFee (742-2293) and forwardFromRouter (2294-5276) reviewed by structure (loops, calls, storage writes, events, reverts); the 14 others fully. All 25 source loops are shown as whiles: forwardFromRouter's CCV loop, applyDestChainConfigUpdates (`while True` with exit test), getAllDestChainConfigs (`while idx < stor4.length`), _assertNoDuplicates x2, _validateDefaultAndMandatedCCVs x2, _decodeGenericExtraArgsV3 (`while idx < cd[...] >> 248`), _withdrawFeeTokens, _validateRequestedFinality (`while idx < 16`, 3 copies, with a P10 two-armed `if not ...: _440 = s else: _440 = SafeMath.add(s, 1)`), _computeCCVAndExecutorHash, _distributeFees, _getCCVsForPool x2, _getReceipts x2, _mergeCCVLists x5 (outer `while s < _N` + inner `while True`), _resolveUserOrDefaultCCVs x4. The `for` in _validateDestChainAddress is commented out and not counted. The SafeERC20 v5 return check (`if not return_data.size: not ext_code.size(token) else mem[0] != 1`) matches. P18: uint64/uint8/uint16 struct fields of the DestChainConfig returned as memory slices (`Bytes(24, 0), mem[t + 24 len 8]`). Selectors stored for abi.encodeCall in decimal (`mem[_22 + 32 len 4] = 2835717307` = transfer). Custom errors and events print raw (database). No semantic error found.",
+  "summary": "Faithful, abort-free text in which all 25 source loops appear as whiles; the main readability problem is the unresolved free-memory pointer (`_N - mem[64]` on 127 lines) that turns calls, events and custom-error reverts into raw memory, plus rotated implicit allocation/copy loops."
+}

@@ -1,0 +1,47 @@
+{
+  "id": "c00151",
+  "abi_functions": 8,
+  "reviewed": 8,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P3": 1, "P6": 1, "P8": 1, "P11": 1},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "deployUSDY / multiexcall (onlyGuardian)",
+      "lines": "39-40, 69, 75, 99, 108-109, 119-120",
+      "decompiled": "if caller: revert with 'USDYFactory: You are not the Guardian' ... grantRole args Bytes(64, 0) ... transferOwnership args 0 ... if ext_call.return_data[12 len 20]: revert with Panic(1)",
+      "source": "USDYbsa_Factory.sol:56 address internal immutable GUARDIAN; :164 require(msg.sender == GUARDIAN); :96-103 grantRole(.., GUARDIAN), transferOwnership(GUARDIAN), assert(owner() == GUARDIAN)",
+      "issue": "The immutable GUARDIAN reads as 0 in the pre-deployment bytecode, so the modifier prints as `if caller`, grantRole(DEFAULT_ADMIN_ROLE, GUARDIAN) folds to 64 zero bytes and the assert compares the returned owner with 0.",
+      "rule": "None needed (artifact of the undeployed bytecode).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "deployUSDY(string,string,(address,address,address)) (unknown4820e908)",
+      "lines": "63, 110",
+      "decompiled": "args Array(len=cd[_param1 + 4], data=..., Bytes(ceil32(..) - .., 0), cd[_param2 + 4], call.data[_param2 + 36 len ..], Bytes(..)), ceil32(cd[_param1 + 4]) + 192, _param3, _param4, _param5",
+      "source": "USDYbsa_Factory.sol:91-93 usdyProxied.initialize(name, ticker, blocklist, allowlist, sanctionsList); :105-112 emit USDYDeployed(proxy, admin, impl, name, ticker, listData)",
+      "issue": "With two dynamic arguments, the first head word (offset 160, resp. 256) is replaced by an Array(...) that swallows both tails, and the second string argument is printed as its own offset `ceil32(len1) + 192` (+288 in the event), so it reads as a number; the event USDYDeployed is also unnamed (raw topic).",
+      "rule": "For an ABI-encoded buffer, map every head word whose value equals the offset of a [len, data, pad] tail segment to that segment (Array/string), and print the head in order with the tail removed; apply it to each dynamic argument, not only the first.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "multiexcall((address,bytes,uint256)[])",
+      "lines": "139-145, 160-167",
+      "decompiled": "_23 = mem[64]; mem[mem[64] len L] = call.data[...]; call address(..) with: value .. args mem[mem[64] len _23 + L - mem[64]] ... _28 = mem[64]; mem[mem[64]] = 0x8c379a0...; mem[_28 + 68] = 0x43616c6c204661696c6564...; revert with memory from mem[64] len _28 - mem[64] + 100",
+      "source": "USDYbsa_Factory.sol:137-139 address(target).call{value: value}(data); require(success, \"Call Failed\")",
+      "issue": "The call arguments (P2) and the Error(string) revert 'Call Failed' stay raw memory, although the temporaries _23 and _28 equal mem[64] (no store to slot 64 in between), so the lengths are just L and 100 and the buffer is the calldata slice and a standard Error(string).",
+      "rule": "A variable bound to mem[64] equals mem[64] until the next store to address 64; substitute it, cancel `x - mem[64]`, then decode the buffer at mem[64] like a constant-address one (call args, Error(string)).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Three loops in the text: line 127 is the zero-initialisation of `new bytes[](n)` (each element = 96, the empty-bytes pointer), rotated (`while idx - 1`, P3); line 133 is the source for-loop of multiexcall, clear; line 174 is the ABI encoding of the returned bytes[] (offsets + copy line), implicit and readable. Line 155 Panic(50) bound check of results[i] is implied by idx < exCallData.length = mem[128] (P11). Line 141 zero word after the call data is never read (P8). Getters usdyProxy/usdyProxyAdmin/usdyImplementation are unknown0792c02f/unknown1ee9af43/unknown29d0e9c9 (sigdb); initialize's parameter names come from another contract (sigdb). `create.new_address` changes meaning between line 52 (ProxyAdmin) and 53 (proxy); printing `stor1` at line 52 would be clearer.",
+  "summary": "Small factory, faithful; the immutable GUARDIAN reads as 0 (artifact). The main readability problems are the garbled ABI encoding of two string arguments in initialize and the event, and the raw-memory call/revert in multiexcall."
+}

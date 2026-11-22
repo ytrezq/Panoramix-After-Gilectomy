@@ -1,0 +1,25 @@
+{
+  "id": "c00044",
+  "abi_functions": 4,
+  "reviewed": 4,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P15": 1},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "deploy(address,address,address,uint24,int24)",
+      "lines": "44-46",
+      "decompiled": "stor0 = 0 / stor1 = 0 / uint208(stor[2]) = 0",
+      "source": "PancakeV3PoolDeployer.deploy: delete parameters; (struct Parameters {address factory; address token0; address token1; uint24 fee; int24 tickSpacing;})",
+      "issue": "The delete of the packed struct clears slot 2 as uint208(stor[2]) although def storage splits that slot into stor2, stor2_160 and stor2_184, and the stores just above use those names (P15).",
+      "rule": "Split a masked whole-slot store over declared fields into one store per field it covers (stor2 = 0, stor2_160 = 0, stor2_184 = 0).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loops. All functions compared with the source: onlyFactory check, parameters struct stores (tickSpacing stored as its 24 bits and read back as int24 in parameters()), create2 with salt keccak256(abi.encode(token0, token1, fee)) and the embedded pool creation code, delete parameters, setFactoryAddress's one-time check and event (raw topic, unknown to the database). Storage fields are storN because the struct getter returns several values.",
+  "summary": "A tiny faithful text; only the packed-struct delete is printed as a whole-slot mask."
+}

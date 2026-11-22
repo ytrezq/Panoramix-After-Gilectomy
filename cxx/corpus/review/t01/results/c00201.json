@@ -1,0 +1,25 @@
+{
+  "id": "c00201",
+  "abi_functions": 28,
+  "reviewed": 28,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 7, "P6": 41, "P7": 40, "P8": 80},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "supply, withdraw, borrow, repay, supplyCollateral, withdrawCollateral, liquidate, flashLoan (the SafeTransferLib reverts and require(cond, ErrorsLib.X) with a string constant): 31 loops",
+      "lines": "e.g. 380-392 (flashLoan)",
+      "decompiled": "_4 = mem[64] / mem[64] = mem[64] + 64 / mem[_4] = 17 / mem[_4 + 32] = 0x7472616e73666572207265766572746564... / if not ext_call.success: ... _6 = mem[_4] / idx = 0 / while idx < _6: mem[idx + mem[64] + 68] = mem[_4 + idx + 32] ... / revert with Error(string reason), 32, mem[mem[64] + 36 len _6 + 32], ...",
+      "source": "SafeTransferLib.safeTransfer: require(success, ErrorsLib.TRANSFER_REVERTED) ('transfer reverted'), and the other ErrorsLib string constants",
+      "issue": "Each constant revert message is allocated at the free pointer and copied into the Error(string) buffer by a loop; the length read back (mem[_4]) is the constant 17 stored two lines above, and mem[64] is _4 + 64 just after its update, so the loop runs at most once over known data and the revert is simply 'transfer reverted'.",
+      "rule": "Same as c00050's first finding: fold mem[64] to b + k after 'b = mem[64]; mem[64] = mem[64] + k' and treat b + c ranges as disjoint for distinct small c (offsets are below 2^64); then the length and data words are constants and the buffer is 'revert with <string>'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Via-IR build. The only source loop, extSloads' for (151-166), is shown as a clean while. The 40 implicit whiles are memory copies: 31 copies of ErrorsLib string constants into Error(string) buffers (finding) and 9 copies of the bytes data forwarded to the callbacks (onMorphoSupply/Repay/SupplyCollateral/Liquidate/FlashLoan) and of revert data. The market functions (300 to 509 lines: interest accrual with wTaylorCompounded, share math, health checks, callbacks, transfers) were reviewed by structure, setters and getters by reading; faithful. Same contract family as the other Morpho copies of the corpus.",
+  "summary": "Faithful via-IR text with its single source loop found; nearly all of its 41 whiles are compiler memory copies, mostly of constant revert strings that a free-pointer folding would turn into plain revert messages."
+}

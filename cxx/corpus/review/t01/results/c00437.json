@@ -1,0 +1,58 @@
+{
+  "id": "c00437",
+  "abi_functions": 59,
+  "reviewed": 59,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 39, "P3": 9, "P4": 6, "P6": 35, "P7": 60, "P10": 4, "P11": 10, "P13": 243, "P15": 95},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "propose(address[],uint256[],bytes[],string) (also cancel/queue paths that rewrite proposal details)",
+      "lines": "6201-6214, def storage line 11",
+      "decompiled": "idx = _380; while _303 + sha3(sha3(_145, 0x7fd2...601) + 2) > idx + 1: if uint1(stor1[idx].field_0): ... stor1[idx] = 0; if 31 < _399: mem[0] = idx + 1; stor[sha3(idx + 1) len ...] = 0 ; def storage: stor1 is fixed array of struct of 1 slot at storage 1",
+      "source": "GovernorStorageUpgradeable._propose: $._proposalDetails[proposalId] = ProposalDetails(targets, values, calldatas, descriptionHash) (shrinking the stored bytes[] deletes the old tail)",
+      "issue": "The tail-clearing loop works on slot `idx + 1`, where idx is already an absolute slot inside the calldatas array data (sha3-based), but the text factors the constant 1 out as a fixed array `stor1` at slot 1 and indexes it by the absolute slot; `def storage` thus invents a variable at slot 1 that the contract doesn't have, while the same loop also writes `idx + 1` directly.",
+      "rule": "Treat `c + x` as an access to an array at slot c only when x is a plain index (no sha3 base or other absolute slot inside it); otherwise print `stor[x + c]`.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown0e29ceac (initialize) and every function using Initializable",
+      "lines": "702-713, def storage lines 32-34",
+      "decompiled": "_1 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64 ... storF0C5 = 1; storF0C5_8 = 0",
+      "source": "Initializable.initializer: uint64 initialized = $._initialized; ... $._initialized = 1; (slot 0xf0c57e16...6a00)",
+      "issue": "The uint64 `_initialized` field appears under three forms: read as `uint64(stor[X * 3600])` (the namespaced slot factored by 3600, P1), written as two fields `storF0C5` (uint8) and `storF0C5_8` (uint56) that are always written together.",
+      "rule": "Never factor a constant used as a storage slot (P1 must not apply to slot indices); merge adjacent fields that are only ever written together and read together as one wider field.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "propose, hashProposal, execute(uint256), queue(uint256), cancel(uint256), proposalDetails",
+      "lines": "6112-6200, 3179-3196",
+      "decompiled": "stor[s + sha3(sha3(_145, 0x7fd223d3380145bd26132714391e777c488a0df7ac2dd4b66419d8549fb3a601) + 2)] = 2 * _342 + 1 ; stor[sha3(s + sha3(sha3(_145, 0x7fd2...601) + 2)) len _342 / 32] = mem[...]",
+      "source": "GovernorStorageUpgradeable: $._proposalDetails[proposalId].calldatas[i] (bytes[] in a mapping of structs)",
+      "issue": "Elements of the dynamic arrays inside the `stor7FD2_7fd223d3[...]` struct are printed as raw `stor[s + sha3(sha3(id, base) + 2)]` instead of `stor7FD2_7fd223d3[_145].field_512[s]`, so every line of the copy carries the 70-character slot expression several times.",
+      "rule": "Recognize `sha3(slot_of(x)) + i` where `slot_of(x)` is a known variable or struct member as element i of that dynamic array, recursively (a mapping's struct member's array).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setProposalThreshold, setVotingDelay (unknown79051887), updateTimelock, setVotingPeriod, relay, updateQuorumNumerator, upgradeToAndCall",
+      "lines": "218-232",
+      "decompiled": "_10 = stor7C71_7c712897[uint128(stor7C71)]; stor7C71_7c712897[...] = 0; uint128(stor7C71) = uint128(_9 + 1); while _10 - sha3(call.data[0 len calldata.size]): (same 5 lines again)",
+      "source": "GovernorUpgradeable.sol:258 while ($._governanceCall.popFront() != msgDataHash) {}",
+      "issue": "The loop whose condition pops the queue is printed with one pop before the loop and the condition as a difference `_10 - sha3(...)` (P3); the deque's packed begin/end (uint128 each) stay one uint256 `stor7C71` (P15).",
+      "rule": "Print a difference used as a truth value as `!=`; split a slot read only through `uint128(x)` and `x >> 128` into two fields.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Functions over ~400 lines (propose, cancel x2, queue x2, execute x2, castVote* and the by-sig variants) reviewed by structure; the rest fully. Source loops: the governance-call push loop in execute (`while s < _231` in execute(uint256) and execute(address[]...)), Checkpoints._upperBinaryLookup (`while t < s` with Math.average as SafeMath.add(s & t, (s ^ t) / 2), in quorum/state and every state check), _checkGovernance pop loop (7 onlyGovernance functions, rotated), _isValidDescriptionForProposer hex loop (`while True` with breaks, in propose and cancel). The other ~95 whiles are implicit: calldata ABI decodes of address[]/uint256[]/bytes[], storage-to-memory copies of the proposal details, memory ABI encodings for hashProposal and the timelock scheduleBatch/executeBatch calls (P7), one struct-array allocation `while idx - 1`. P13: `proposalProposer` names the _proposals mapping of ProposalCore structs (243 lines); P4: `proposalProposer[concat(mem[0])]` in cancel. The EIP712 name 'BerachainGovernance' is written as three field writes with the ASCII in hex (`uint8(...) = 38; uint96(...field_8) = 0; ...field_104 = 0x4265...`, P15); the '#proposer=0x' marker is compared as a hex word. Custom errors and Initialized(uint64) print as raw selectors/topics (database). The receive (`_fallback`) keeps `require calldata.size < 4` before `require not calldata.size` (P11). No semantic error found.",
+  "summary": "Faithful text with no aborts and all 4 source loops shown, but a misleading invented `stor1` array at slot 1 for a hash-relative slot, the Initializable slot printed as `X * 3600` and split into wrong fields, and very long raw sha3 slot expressions for the proposal-details arrays."
+}

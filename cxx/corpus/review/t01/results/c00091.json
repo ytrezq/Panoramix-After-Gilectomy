@@ -1,0 +1,47 @@
+{
+  "id": "c00091",
+  "abi_functions": 104,
+  "reviewed": 104,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 30, "P6": 272, "P7": 32, "P8": 120, "P11": 10, "P14": 20},
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "execute()",
+      "lines": "4958-5053 (marker at 5053, indent 2); truncated paths end at 4993 and 5004",
+      "decompiled": "if mem[_9062]: ... if mem[_9066]: ...static call 0x0 with: args mem[..] (action 9 check); mem[64] = ceil32(return_data.size) + mem[64]   (block ends)  else: mem[_9066 + ..] = 1 ... mem[.. + 256] = 0   (block ends) / else: ... while idx < _9072: ... / ...  # Decompilation aborted",
+      "source": "PayloadIGP142.sol:188-230 execute(): action1() ... action13(), each isActionSkippable(n); the cut falls in action7 (_restrictAndPauseVault of the old vaults)",
+      "issue": "The decompiler gave up inside action 7: its body after the first UserBorrowConfig array and all of actions 8 to 13 (dex restrictions, pauses, updateOracle calls) are missing from the text. As in other aborted functions, the cut paths inside the nested ifs (4993, 5004) just end and fall through to the single marker printed at indent 2.",
+      "rule": "Print the abort marker at the end of each cut path rather than once after the enclosing if/else, so no truncated path reads as falling through.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "execute(), propose(string) and the immutable getters",
+      "lines": "1 (const unknowncc025f7c = 0), 536-551, 296-300",
+      "decompiled": "static call 0x0.unknown1392d4ee(?) ... static call 0x0.unknowna5caf0f6(?) with: args 1  |  call 0x0.unknownfb0ae918(?) with: args uint40(block.timestamp)",
+      "source": "constants.sol:41 address public immutable ADDRESS_THIS; PayloadIGPMain(ADDRESS_THIS).isProposalExecutable() / isActionSkippable(n) / setProposalCreationTime(...)",
+      "issue": "solc immutables read as 0 before deployment, so every self-call through ADDRESS_THIS targets 0x0.",
+      "rule": "none (build artifact)",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "execute()",
+      "lines": "723-737, 4474-4515",
+      "decompiled": "idx = 0; s = ceil32(_1) + ceil32(_2) + 2080; t = .. + 2276 / while idx < 2: mem[t] = Bytes(12, 0), mem[s + 12 len 20]; idx = idx + 1; s = s + 32; t = t + 32 (twice) ... call 0x52aa..e497.unknowndd4cbf6b(?) with: gas gas_remaining",
+      "source": "LIQUIDITY.pauseUser(user, supplyTokens, borrowTokens) with two-element address arrays",
+      "issue": "The abi.encode of a two-element memory address array whose elements are constants written just above is a 'while idx < 2' (P7); the call that follows prints neither its name nor its arguments, while the same encodings with a known base print as copy lines elsewhere.",
+      "rule": "Unroll a copy loop with a constant trip count (here 2) or print it as a copy line; the elements, already known constants, then make the call buffer decodable.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "103 of the 104 ABI functions are constant getters, small setters (setActionsToSkip, setProposalCreationTime, toggleExecutable...), price helpers or propose; they were compared line by line and are right (propose's 'address(this) == PROPOSER_AVO_MULTISIG' comparisons are in the source). execute() (4,500 lines, cut in action 7) was reviewed by structure: the order of the action guards 1..9, the external calls of actions 1-6, and the abort. The single source loop (setActionsToSkip's for, main.sol:55) is a clean while at 224 with its condition, body and event. The other 32 whiles are implicit: abi.encode of address[] / uint256[] / string[] / bytes[] arguments (nested copies at 4480 and 4503 for the DSA cast). In propose, the inlined setProposalCreationTime re-tests the seven addresses although the two tested first are already known true on that path (P11). Calls with dynamic arrays print raw ABI head words (GOVERNOR.propose: 'args 160, 224, 288, 448, 736, 1, ...').",
+  "summary": "A governance payload whose many small functions decompile cleanly; execute() is aborted inside action 7 (actions 7-13 lost, with unmarked cut paths) and its calls through the immutable ADDRESS_THIS target 0x0 as a build artifact."
+}

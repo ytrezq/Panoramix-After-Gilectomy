@@ -1,0 +1,25 @@
+{
+  "id": "c00380",
+  "abi_functions": 1,
+  "reviewed": 1,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P7": 6, "P11": 1},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getUserOpHashes(address,(address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes)[]) (unknown3024e00c)",
+      "lines": "105-160, 173-190",
+      "decompiled": "mem[mem[64]] = 0xa6193531...; ... while idx < _95: mem[_89 + idx + 420] = mem[_93 + idx + 32] ... static call _param1 with: gas gas_remaining args mem[mem[64] len _89 + ceil32(_95) + ceil32(_101) + ceil32(_110) + ceil32(_114) - mem[64] + 516] ... return memory from mem[64] len _87 + 32 * _90 - mem[64] + 64",
+      "source": "BundlerHelper.sol:16-18 for (uint i = 0; i < userOps.length; i++) ret[i] = entryPoint.getUserOpHash(userOps[i]);",
+      "issue": "The only call of the contract, getUserOpHash(UserOperation) (0xa6193531), loses its name and argument (P2), its struct argument being built by five word-copy loops of the bytes fields (P7), and the returned bytes32[] is raw memory, although `_89` and `_87` are copies of mem[64] with no store to slot 64 before use.",
+      "rule": "Fold `x - mem[64]` when x is a copy of mem[64] and the intervening stores are at `mem[64] + k`; print element-wise memory word copies as copy lines; then the call decodes with its tuple argument and the return as `ret`.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "One-function helper (190 lines), fully reviewed. Source loop: the getUserOpHash loop (`while s < _85`), with an implied bounds check `if s >= mem[128]` (P11). Implicit loops: the UserOperation[] calldata decode (`while idx < _param2 + 32 * cd[_param2 + 4] + 36`), the bytes-field copies for the call encoding (with the `if idx > len: mem[...] = 0` tail of solc 0.8.15) and the return copy (P7). No semantic error found.",
+  "summary": "Faithful, abort-free text whose single source loop is a clear while, but its only external call and its return value are left as raw memory because the free-memory pointer is not resolved."
+}

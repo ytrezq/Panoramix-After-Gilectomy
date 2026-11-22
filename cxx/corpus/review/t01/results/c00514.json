@@ -1,0 +1,25 @@
+{
+  "id": "c00514",
+  "abi_functions": 32,
+  "reviewed": 32,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 5, "P3": 2, "P4": 1, "P6": 13, "P7": 2, "P11": 1},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "processLogsAndMessages(...) (0x2153d9b8, DynamicIncrementalMerkleMemory.push inlined)",
+      "lines": "795-823",
+      "decompiled": "_2144 = not x % 2 and not v / if not _2144: ... else: mem[32 * uint32(u) + ... + 32] = w / if not x % 2: <hash (w, zero)>; _2199 = 1 / else: <hash (side, w)>; _2199 = 1",
+      "source": "DynamicIncrementalMerkleMemory.sol:109-120 bool isLeft = currentIndex % 2 == 0; if (isLeft && !updatedSides) { self._sides[i] = currentLevelHash; updatedSides = true; ... } currentLevelHash = Merkle.efficientHash(isLeft ? ... : ..., ...)",
+      "issue": "Inside the arm taken when 'isLeft and not updatedSides' holds, the text tests 'x % 2' again and keeps an else arm that cannot run, duplicating the hash-operand selection of the other arm.",
+      "rule": "Within the true arm of 'if a and b', a and b are known true: fold any test of a (here x % 2 == 0) and drop the dead arm (P11/P12).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The pack's reach list misses DynamicIncrementalMerkleMemory (used through 'using ... for'); its loops are counted here. Loop map: processLogsAndMessages' log loop (741, with the per-log decode from calldata in its body), DynamicIncrementalMerkleMemory.push levels loop ('while uint32(u) < _2015' 794, uint32 counter with the 0xffffffff overflow check), _handleInteropCenterMessage's call loop (1062), extendUntilEnd's loop (1854), setLegacySharedBridgeAddress' loop (561). _recalculateRoot's loop is not counted: root() runs right after extendUntilEnd, which clears _needsRootRecalculation, so the recalculation is dead on the only path that reaches it (the text correctly has no loop for it). Implicit: two rotated struct zero-init loops in setLegacySharedBridgeAddress ('while idx - 1', P3) and the interop bundle decode loops (P7). Reviewed in detail: processLogsAndMessages' structure (Unauthorized check on the bootloader caller, log loop, message dispatch by sender 0x8001 / 0x8008 and the interop / asset-router / base-token handlers, the messages-consumed check, root and storage writes) and the merkle code; other functions are getters and simple handlers, checked.",
+  "summary": "Faithful, with every live source loop (including the merkle library's) a readable while; only a redundant re-test inside the merkle push and the usual P2/P6 noise."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "c00428",
+  "abi_functions": 31,
+  "reviewed": 31,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 5, "P2": 101, "P6": 31, "P7": 30, "P8": 200, "P11": 15},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "queue((address,bytes4,bytes)[])",
+      "lines": "4497-4513",
+      "decompiled": "if _param1 + 36 >= _param1 + 32 * cd[_param1 + 4] + 36: / if not cd[_param1 + 4]: revert with 0x50fd835e / if cd[_param1 + 4] > 15: revert with 0xe94a6a92, cd[_param1 + 4], 15 / idx = 0 / while idx < cd[_param1 + 4]: if not this.address: revert with 0x7a21bdf4, Bytes(64, 0) ... / stor2 = uint64(stor2 + 1)",
+      "source": "LZBridgeAndDelegateConfig.sol:226-236 if (len == 0) revert ITimelockBatchQueue_BatchEmpty(); if (len > _maxBatchSize()) revert ...; for (i < len) if (actions_[i].target == address(this)) _revertActionInvalid(...); return _queueAction(actions_);",
+      "issue": "The case where the ABI decoding loop of actions_ runs zero times is split off under a condition that, given the bounds checked at 4488-4496 (all terms below 2^64), is exactly len == 0; inside it the BatchEmpty revert is unconditional, yet the text goes on with the size check, a copy of the self-target loop (comparing zero memory with this.address) and the action-id increment, all dead.",
+      "rule": "a + c >= a + k*n + c with no wrap (a, n bounded by dominating checks, k > 0) is n == 0; code after 'if not n: revert' under a condition implying n == 0 is unreachable and should not be printed.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "the four single-action queue helpers (unknown944cc2fc, unknown059e024c, unknown1123626e, unknown83d2a969) and executeQueuedAction",
+      "lines": "1081, 1818, 1938, 2675, 2795, 3532, 3652, 4389; e.g. 1094-1100",
+      "decompiled": "idx = 0 / while idx < 1: if idx >= mem[192]: revert with Panic(50) ...   |   _19 = mem[mem[32 * idx + 224] + 32 len 4] << 224 == 0xaaf021300000000000000000000000000000000000000000000000000000000 or ...",
+      "source": "TimelockBatchQueue._queueAction:206 and :226 for (uint256 i = 0; i < len; ++i) with actions_ = a one-element array built by the helper; _onSubActionQueued's selector checks",
+      "issue": "Loops whose trip count is the constant 1 are kept as loops with a bounds check against the array length (also 1); selector tests shift a 4-byte slice left by 224 and compare with a 63-digit constant (P6) instead of comparing the selectors.",
+      "rule": "A loop 'i = 0; while i < 1: B; i = i + 1' is B with i = 0; 'x[a len 4] << 224 == c << 224' is 'x[a len 4] == c', printed with the 8-digit selector.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Unoptimized build (solc 0.8.36, no optimizer). Source loops: executeQueuedAction's for (408), queue's self-target check (4583, plus the dead copy at 4503), _queueAction's two loops (4603/5340 in queue, and folded to 'while idx < 1' in the four single-action helpers), _onActionCancelled's delete loop ('uint8(stor7[_param1][idx].field_N) = 0'). Implicit whiles: ABI decoding of BatchAction[] and of each sub-action's payload, ABI encodings for events and hashing (keccak256(abi.encode(actions_))), and 'delete action.actions' (1039-1055, a readable loop over 2-slot elements with a copy line clearing long payloads). executeQueuedAction (672 lines), queue (970) and the helpers (857 each, largely the same _queueAction code: reviewed once) were read by structure; executeQueuedAction's checks (field_160/304/312/208/256 of stor3) and the delete loop line by line. P1: 5 lines of a selector word factored as 0x747c...* 3600. P2: 101 call lines (gateway / delegate / facilitator calls built in memory). P11: 'if idx >= mem[N]' bounds checks under 'while idx < len' of the same length.",
+  "summary": "Faithful text whose five source loops are all found, with one dead branch (an empty-decode case keeping a copy of a check loop after an unconditional revert), loops of trip count 1 kept as loops, and the usual undecoded calls and 63-digit selector constants."
+}

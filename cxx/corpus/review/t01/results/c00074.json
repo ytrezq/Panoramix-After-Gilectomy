@@ -1,0 +1,25 @@
+{
+  "id": "c00074",
+  "abi_functions": 9,
+  "reviewed": 9,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P7": 1, "P8": 12},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "createHypervisor(address,address,uint24,string,string)",
+      "lines": "139 vs 146-157",
+      "decompiled": "mem[... + 21179 len ceil32(name.length)] = name[all], mem[name.length + 160 len ceil32(name.length) - name.length]  |  mem[_20] = symbol.length / _22 = mem[ceil32(name.length) + 160] / idx = 0 / while idx < _22: mem[_20 + idx + 32] = mem[idx + ceil32(name.length) + 192] ... / if not _22 % 32: ... else: mem[...] = ~(256**(-(_22 % 32) + 32) - 1) & mem[...]",
+      "source": "new Hypervisor{salt: ...}(pool, owner(), name, symbol)  (ABI encoding of the two string constructor arguments)",
+      "issue": "The two identical string encodings are rendered differently: name (at a constant address) as one copy line, symbol (at an address depending on name.length) as a word loop with a padding mask (P7).",
+      "rule": "A word loop mem[d + i] = mem[s + i] for i < n step 32, followed by masking the last partial word, is the copy mem[d len n] = mem[s len n] with zero padding, whatever the (symbolic) base addresses.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loop in the source (the pack found no AST source for the factory's own functions; createHypervisor was read in HypervisorFactory.sol). Checked line by line: onlyOwner, the three requires, token sorting, feeAmountTickSpacing / getPool / createPool (later extcodesize checks dropped after static calls, which is exact), the CREATE2 salt keccak256(abi.encodePacked(token0, token1, fee, tickSpacing)) with 3-byte fee and tick spacing, the constructor arguments, the two mapping writes, the push and the HypervisorCreated event. The encodePacked scratch writes and mapping-hash scratch are dead (P8).",
+  "summary": "A small, faithful text with no source loop; only the inconsistent rendering of the second string copy as a while loop stands out."
+}

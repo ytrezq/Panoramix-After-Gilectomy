@@ -1,0 +1,25 @@
+{
+  "id": "c00318",
+  "abi_functions": 19,
+  "reviewed": 19,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 5},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "deposit, withdraw, forceWithdrawal, startDepositCancellation, cancelDeposit",
+      "lines": "3-7, 150-158, 83, 97, 109, 115",
+      "decompiled": "const starkNet = 0 ... _1 = bool(_amount) / _2 = _1 and _amount < 0x800000000000011000000000000000000000000000000000000000000000001 / call 0x0.transferFrom(address sender, address recipient, uint256 amount) with: args caller, 0, _pid",
+      "source": "L1DAIBridge immutables starkNet, dai, l2Dai, escrow, l2DaiBridge; require(l2Recipient != 0 && l2Recipient != l2Dai && l2Recipient < SN_PRIME, ...)",
+      "issue": "solc immutables read as 0, so every StarkNet/DAI call targets 0x0 with escrow and l2DaiBridge 0, and the l2Recipient != l2Dai test becomes a duplicate of l2Recipient != 0 and is folded away.",
+      "rule": "None (bytecode artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loops. All 19 functions compared line by line with the source: auth/whenOpen checks, payload arrays (printed as Array(len=4, data=...), with toSplitUint as uint128(x), x >> 128), events and calls are faithful. deposit's parameters are named _pid/_amount by the signature database (they are amount/l2Recipient). SN_PRIME and the Cairo selectors print in hex with 63 digits (P6).",
+  "summary": "A clean, faithful and readable text with no loops; only the solc-immutable artifact (all external targets 0x0) affects it."
+}

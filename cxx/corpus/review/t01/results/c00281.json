@@ -1,0 +1,96 @@
+{
+  "id": "c00281",
+  "abi_functions": 12,
+  "reviewed": 12,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {
+    "while": 4,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 1,
+    "P3": 2,
+    "P8": 36,
+    "P9": 452,
+    "P10": 3536,
+    "P11": 7,
+    "P12": 164,
+    "P15": 7,
+    "P18": 112
+  },
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "getAPRs(address), getTrancheAPR(address) (unknownb93fb61f)",
+      "lines": "609-8710 (getAPRs, abort at 8710); 9050-17079 (getTrancheAPR, abort at 17079); e.g. 817-830",
+      "decompiled": "if Mask(8, 24, ..): ... if not Mask(8, 16, ..): if not Mask(8, 8, ..): if not uint8(..): ... _2929 = min(_30, ..) / if prod1 != 0: if prod1 >= 10**18: revert with 0x5173648d, _11, _2929 / (nothing follows) / else: ...   ...   ...  # Decompilation aborted",
+      "source": "CDOLens.sol:55-78 risk = calculateRiskPremiumInner(..) (pow); aprSrt1, aprSrt, aprJrtSpread, aprJrt, accounting.reserveBps(), net APR, return TAPRs; :84-85 cdo.isJrt(tranche) and the return",
+      "issue": "Returns are printed only for the 4 trivial branches of pow (tvlRatioSrt == 0 or 1e18, riskK == 0 or 1e18: lines 472-608, 8883-9047); on the main path (pow through log2 and exp2) the text ends right after risk is computed, so the reserveBps and isJrt calls and every return are lost. The cut paths are not marked: they end silently inside their branch (e.g. 827-829, and the arms Mask(8, 16) != 0 / Mask(8, 8) != 0 / uint8 != 0 have no code at all), so they read as a STOP with no return data; the abort marker appears once, at function level, after the whole tree.",
+      "rule": "Print the abort marker at each point where a path was cut (in every unfinished branch), never let an unfinished path fall through to the implicit end of the function; the root cause is the duplication described in the next finding.",
+      "verified": "reading only (returns and calls located by grep: only 4 reserveBps calls and 4 returns in each function, all before line 609 / 9050)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getAPRs(address), getTrancheAPR(address)",
+      "lines": "649-8709 (getAPRs), 9100-17078 (getTrancheAPR); e.g. 649-684 joined, 685/718/751/784/817/818/819 nested",
+      "decompiled": "if Mask(8, 56, x): ... _256 = _239 / else: _256 = 0x80..00 / if Mask(8, 48, x): ... if Mask(8, 40, x): ... if Mask(8, 32, x): ...  (480 byte tests, 164 copies of the pow clamp and the tail)",
+      "source": "@prb/math Common.sol exp2: eight one-armed 'if (x & 0xFF<<k > 0) { 8 one-armed bit tests }' blocks, then result *= UNIT; result >>= 191 - (x >> 64)",
+      "issue": "The first byte test of exp2 is joined with a phi (_256), but from the second one on the continuation (the remaining bytes, the pow clamp, mul, add, and the whole rest of the function) is copied into both arms of each test, up to 2^7 copies per pow branch; this blow-up is what exhausts the decompiler (previous finding). The arms only assign a value (no effect).",
+      "rule": "When both arms of a branch reach the same block and differ only in register values, join them at the immediate post-dominator and print the differing values as phis (as already done for the bit tests and the first byte); never duplicate a continuation that contains calls or returns.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getAPRs(address), getTrancheAPR(address), getPrice(address)",
+      "lines": "336-472 (e.g. 362-367, 440-472); 8726-8884; 253-318",
+      "decompiled": "require min(128, return_data.size) >=′ 128 ... int64(mem[ceil32(min(32, _1)) + ceil32(min(32, _2)) + ceil32(min(128, _3)) + 288])  |  static call mem[ceil32(_2) + ceil32(min(32, _3)) + 140 len 20].decimals()",
+      "source": ":44 IAprPairFeed.TRound memory round = feed.latestRoundData(); :57 aprBase = int256(round.aprBase); :108 IERC20Metadata(asset).decimals()",
+      "issue": "Every min(n, return_data.size) is kept after a dominating 'require min(n, return_data.size) >= n', so all memory addresses stay symbolic: round.aprBase (return_data[32] of latestRoundData) is printed 112 times as int64(mem[ceil32(min(32, _1)) + ceil32(min(32, _2)) + ceil32(min(128, _3)) + 288]) (it is mem[480]), while aprTarget got a name (_13); the asset address and the decimals are memory slices.",
+      "rule": "After 'require min(n, r) >= n' (or 'require r >= n'), min(n, r) = n on the dominated paths, so these addresses fold to constants; then a read of memory written by a return-data copy whose return data is still current (or captured) prints as ext_call.return_data[k] or a named temporary.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getAPRs(address), getTrancheAPR(address)",
+      "lines": "430-472 (vs 517-562); 610-628 and 232 other lines; 629-640; 8646-8652",
+      "decompiled": "if not _30: ... -1 * _30 * _73 + _30 * int64(..)  |  1000000000000000000 * 10**18 / _30  |  s = 5 * 10**17 ... u = 5 * 10**17 / while s: ... s = u / 2 ... u = u / 2  |  else: if _2658 < _30: _2889 = _30 else: _2889 = _2658",
+      "source": ":53 tvlRatioSrt == 0 branch; uUNIT_SQUARED / xUint; log2's for (delta = uHALF_UNIT; delta > 0; delta >>= 1); pow's final clamp",
+      "issue": "Inside 'if not _30' the text still multiplies by _30 (the spread is 0 there; the -1 / MIN check was dropped but _30 kept); 1e36 is printed as 1000000000000000000 * 10**18; log2's loop keeps two equal counters (s and u, both delta); one arm of pow's clamp is min(..) and the other an if/else for max(..).",
+      "rule": "Inside 'if x == c' replace x by c and refold; fold a product of constants to one constant (10**36); merge two loop variables that have the same initial value and the same update; 'if a < b: r = b else: r = a' is max(a, b).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize(address), renounceOwnership(), transferOwnership(address)",
+      "lines": "7-8, 83-106; 61; 74",
+      "decompiled": "storF0C5 is uint72 / _6 = stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600] / uint8(storF0C5) = 1 / uint56(storF0C5.field_8) = 0 / storF0C5 = 18446744073709551617 / storF0C5_72 = _6 >> 72 / revert with 0xd7e6bcf8 / log 0xc7f505b2...: 1 / _8 = stor[0x9016d0...9300]",
+      "source": "OZ Initializable: uint64 _initialized; bool _initializing (slot 0xf0c5...6a00); initializer modifier; __Ownable_init_unchained (onlyInitializing); emit Initialized(1)",
+      "issue": "The packed slot is typed uint72 + uint184 instead of uint64 + bool; '$._initialized = 1' is split into a uint8 and a uint56 write, and '_initializing = true' is a whole-slot write plus a store of the slot's own upper bits (P15). The slot is read once by its name and once as a P1 product; the owner slot (named owner) is read raw; NotInitializing(), OwnableInvalidOwner, OwnableUnauthorizedAccount and Initialized(uint64), all in the ABI, are printed as raw selectors / topic.",
+      "rule": "Read a constant slot that has a name by its name, whatever expression computes the constant; a store of a field's current value is a no-op; use the ABI's error and event names when the selector or topic matches.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "addCDOs(address[]), removeCDOs(address[]) (unknown887d8075, unknown8db63e8a), getPrice(address)",
+      "lines": "173-183, 196, 220; 119-129, 142; 234-243, 279-281",
+      "decompiled": "if _param1 + 36 < end: require ..; mem[160] = cd[_param1 + 36]; s = 192; idx = _param1 + 68 / while idx < end: ...  |  mem[32 * s + 172 len 20] != stor0[t]  |  if 32 > return_data.size: _1 = return_data.size; _2 = return_data.size else: _1 = 32; _2 = 32 / require not 256 * mem[128 len 31]  |  if 160 > return_data.size: require ... > 18446744073709551615 / revert with Panic(65)",
+      "source": ":127-157 address(arr[i]); removeCDOInner; :98 uint8 shareDecimals = vault.decimals()",
+      "issue": "The ABI decoding of address[] is a rotated loop (first element peeled, P3); its elements are then read as memory slices instead of _param1[s]; min(32, return_data.size) is an if/else assigning two identical variables; the uint8 range check reads as 'not 256 * mem[128 len 31]'; a require followed by a revert means 'always revert, with Panic(65) or empty data'.",
+      "rule": "mem[d + 32*i + 12 len 20] where mem[d ..] was filled element by element from a checked calldata array is param[i]; two phis with the same incoming values are one; 'not 2^8 * x[a len 31]' is 'x[a] < 2^8'; 'require c; revert X' is 'if c: revert X; revert'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The pack has no per-function source (no AST match); reviewed against CDOLens.sol and @prb/math 4.2.3 (pow with the final clamp, log2, exp2, msb, mulDiv18). getAPRs (8,392 lines) and getTrancheAPR (8,369 lines) reviewed by structure: calls (accounting, aprPairFeed, latestRoundData, totalStrategyAssets, totalAssets(nav), riskX/Y/K, reserveBps, getCDOAddress, isJrt), the four trivial pow branches in full (tvlRatio branches, mulDiv18 overflow errors with the right operands, checked add/sub, signed div checks, unsigned max of UD60x18Ext, net-APR factor, isJrt ? jrt : srt, int64 truncations): all faithful. The log2 input checks are correctly omitted (dead: x < 1e18 cannot reach log2), as are the msb tests above 2^32 (dead by range). Loops: addCDOs, removeCDOs, removeCDOInner (inlined in both) and log2 (4 printed copies) are whiles; the 2 implicit address[] decoding loops are rotated whiles (P3). P11: removeCDOInner's underflow/bounds/pop checks under t < length, and push's bound check after length++. P10 counted as the SSA-copy else arms of exp2's bit tests; P12 as the copies of pow's clamp + tail. P8: the scratch mem[0] writes, the zeroed TAPRs struct, unread return-data copies. No execution run (the aborted functions are not checkable by text_check).",
+  "summary": "The admin and array functions and getPrice are faithful and readable, but the two APR view functions abort: exp2's byte tests are not joined, the tail is duplicated per branch, and the main path loses everything after the risk premium (calls and returns), with the cut paths falling silently off the end; elsewhere memory addresses keep min(n, return_data.size) and PRBMath is expanded into multi-thousand-character lines."
+}

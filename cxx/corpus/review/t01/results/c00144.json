@@ -1,0 +1,64 @@
+{
+ "id": "c00144",
+ "abi_functions": 50,
+ "reviewed": 50,
+ "not_reviewed": [],
+ "source_loops": 4,
+ "loops_shown": {
+  "while": 4,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 23,
+  "P3": 110,
+  "P4": 23,
+  "P6": 29,
+  "P7": 100,
+  "P8": 120,
+  "P11": 20,
+  "P13": 2,
+  "P14": 300,
+  "P15": 18
+ },
+ "findings": [
+  {
+   "kind": "loop",
+   "severity": "medium",
+   "function": "relay(address,uint256,bytes), setVotingDelay, setVotingPeriod, setProposalThreshold, updateQuorumNumerator, updateTimelock, updateGovernorDelay",
+   "lines": "504-519, 196-211",
+   "decompiled": "if int128(stor2 >> 128) <=′ int128(uint128(stor2)): revert with Empty() / _19 = stor3[int128(uint128(stor2))] / stor3[...] = 0 / uint128(stor2) = uint128(int128(uint128(stor2)) + 1) / while _19 - sha3(call.data[0 len calldata.size]): <the same 5 lines> / continue",
+   "source": "Governor.sol:68-71 bytes32 msgDataHash = keccak256(_msgData()); while (_governanceCall.popFront() != msgDataHash) {}",
+   "issue": "The onlyGovernance loop, whose condition contains the popFront call, is shown rotated (P3): the whole popFront is printed once before the loop and again in the body, and the condition is a difference `_19 - sha3(...)` instead of `!=`. Seven functions carry this copy.",
+   "rule": "When the instructions before a `while` header equal the end of its body, fold them into a `while True: <body>; if <exit>: break` (or a do-while); and print a nonzero test of `a - b` as `a != b` (exact modulo 2^256).",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "queue(address[],uint256[],bytes[],bytes32), queue(uint256), castVote*, propose (both)",
+   "lines": "2657-2659, 952, 4936, 6074",
+   "decompiled": "mem[mem[64]] = _25 / mem[mem[64] + 32] = SafeMath.add(block.timestamp, _194) / log ProposalQueued(uint256 id, uint256 eta): mem[mem[64] len 64]; log VoteCast(address voter, uint256 proposalId, uint8 support, uint256 weight, string reason): proposalId, support, _1, 128, 0, indexed caller",
+   "source": "GovernorTimelockControl.sol emit ProposalQueued(proposalId, eta); Governor.sol emit VoteCast(account, proposalId, support, weight, reason)",
+   "issue": "Events are printed as raw ABI data: ProposalQueued reads `mem[mem[64] len 64]` although both words were just written at the same base, VoteCast shows the string offset and length (128, 0) instead of reason='', and ProposalCreated is one memory slice. 11 event lines are affected.",
+   "rule": "Forward stores into a log's data range when they use the same base expression with no intervening write to it, then decode the data with the event's ABI (heads, offsets, dynamic tails) and print it as named arguments.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "propose(address[],uint256[],string[],bytes[],string), propose(address[],uint256[],bytes[],string), getActions(uint256)",
+   "lines": "5047-5056, 5144, 5220",
+   "decompiled": "mem[_18 + 32] = 96 / s = _18 + 32 / idx = _17 / while idx - 1: mem[s + 32] = 96; s = s + 32; idx = idx - 1",
+   "source": "GovernorCompatibilityBravo.sol:131 bytes[] memory fullcalldatas = new bytes[](calldatas.length)",
+   "issue": "The compiler's initialisation of a new bytes[]/string[] (every element points to the empty array at 0x60) is a rotated countdown loop (15 times), not a fill line.",
+   "rule": "A loop that stores the same constant at p, p+32, ... for a known count is a fill: print `mem[p len 32*n] = 96 repeated` (or a one-line fill), including the iteration peeled before it.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "OpenZeppelin Governor (Bravo compatibility, timelock control, quorum fraction) on solc 0.8.30, no via-IR. Source loops reached in this bytecode: onlyGovernance popFront loop (rotated while, 7 functions), _beforeExecute pushBack loop (while in both execute), GovernorCompatibilityBravo._encodeCalldata (while in Bravo propose, queue/execute/cancel(uint256)), Checkpoints._upperBinaryLookup (readable `while t < s` in quorumNumerator(uint256), quorum, state and every caller of state). Governor._execute's loop is overridden by GovernorTimelockControl; the TimelockController/AccessControl/Strings loops run in the timelock contract (the pack lists them as reached). The other whiles are implicit: calldata array validation, storage copies of string[]/bytes[] in _storeProposal, ABI encodes of arrays for hashProposal/events/timelock calls (P7), and the new-array initialisations (P3). The SafeCast.toUint32 check of getAtBlock is correctly removed in quorumNumerator(uint256): `_param1 < uint32(latest._blockNumber)` dominates (checked in the disassembly at 0x2a28-0x2a31). The DoubleEndedQueue begin/end fields share slot 2 and are written as whole-slot arithmetic (P15); _proposals and _proposalDetails are named after the proposalSnapshot/getReceipt getters (P13); P4 = proposalSnapshot[concat(mem[0])]. Long functions (Bravo propose 1140 lines with 74 whiles, propose 673) reviewed by structure.",
+ "summary": "Faithful governor text with all four source loops shown as whiles, but the onlyGovernance loop is rotated, events with memory or dynamic data are printed as raw ABI words, and the long propose/queue/execute bodies are dominated by implicit array-copy loops and memory locals."
+}

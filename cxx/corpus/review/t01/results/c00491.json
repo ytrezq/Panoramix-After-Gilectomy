@@ -1,0 +1,49 @@
+{
+  "id": "c00491",
+  "abi_functions": 48,
+  "reviewed": 48,
+  "not_reviewed": [],
+  "source_loops": 6,
+  "loops_shown": {
+    "while": 6,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 12,
+    "P3": 2,
+    "P6": 31,
+    "P7": 3,
+    "P9": 20,
+    "P11": 10
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "move/attack/defend (unknownd8cc1a3c), step (unknownf8f43ff6), resolveClaim, claimData getters, addLocalData and every function touching claimData; def storage",
+      "lines": "3 (def storage); 1013-1064, 1215-1296; every 'claimData[5 * i + k]' access",
+      "decompiled": "claimData is array of struct of 1 slot at storage 1  |  u = 5 * _param2 / ... uint128(claimData[u + 4].field_0) ... / u = 5 * uint32(claimData[u].field_0)",
+      "source": "FaultDisputeGame: ClaimData[] public claimData; struct ClaimData {uint32 parentIndex; address counteredBy; address claimant; uint128 bond; Claim claim; Position position; Clock clock;} (5 slots)",
+      "issue": "The 5-slot ClaimData elements are declared as 1-slot structs, so every member access is index arithmetic: 'claimData[u + 4].field_0' with u = 5 * i is claimData[i].position and 'claimData[u].field_0' is parentIndex.",
+      "rule": "Same as c00051: when every access to a dynamic storage array is sha3(slot) + c * i + k with constant c > 1 and 0 <= k < c, the element is a c-slot struct: print claimData[i].field_(256*k + offset) and declare 'array of struct of 5 slots'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "step, move (LibPosition.depth / traceAncestor inlined in the ancestor loops)",
+      "lines": "1015-1018, 1247-1250 and the following loop conditions",
+      "decompiled": "_10 = (uint128(claimData[u + 4].field_0) >> (32 * (4294967295 < uint128(claimData[u + 4].field_0) >> 64 * (uint128(claimData[u + 4].field_0) > 18446744073709551615)) | ...)) / 8 | ... / if byte(0x7c4acdd00000000000000000000000000000000000000000000000000000000 * (...) >> 251, 0x9010a0d15021d0b0e1...) | 32 * (...) | 64 * (...) > 0:",
+      "source": "LibPosition.depth: msb of the generalized index via a de Bruijn sequence (assembly); FaultDisputeGame._findTraceAncestor: while ((currentDepth = claim.position.depth()) > SPLIT_DEPTH) / while (ancestor_.position.raw() != traceAncestorPos.raw())",
+      "issue": "The msb computation is inlined with the position re-read in every term (10+ times per line) and the de Bruijn multiplier prints with 63 digits (P6), so the loop conditions that use depth() are unreadable.",
+      "rule": "Bind the repeated operand (the position) to a temporary; recognise the de Bruijn msb idiom (multiply by 0x07c4acdd..., shift 251, byte table) as msb(x) / log2(x).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against SuperFaultDisputeGame.sol, LibPosition/LibClock/LibGameId and the bonds/credit logic. All 48 ABI functions were read by structure (the largest, initialize, is 293 lines). Loops: 6 source loops (resolveClaim's subgame loop, the two outputRoots encoding loops of the super-root proof, rootClaim's loop, _findTraceAncestor's depth loop and its ancestor-walk loop - the latter in two variants per caller) all shown as while; implicit: CWIA immutable-args copies (P7), zero-initialisations (P3). Immutables read through the clones-with-immutable-args calldata tail (cd[calldata.size - 2] offsets) are faithful. No execution run.",
+  "summary": "Faithful with all 6 loops present; the 5-slot ClaimData struct array is indexed as 1-slot elements (claimData[5 * i + k]), and the inlined LibPosition depth computation makes the game-tree loop conditions unreadable."
+}

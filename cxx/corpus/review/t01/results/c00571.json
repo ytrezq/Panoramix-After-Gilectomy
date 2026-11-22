@@ -1,0 +1,80 @@
+{
+  "id": "c00571",
+  "abi_functions": 17,
+  "reviewed": 17,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 57, "P4": 6, "P7": 14, "P8": 72, "P9": 8, "P12": 30, "P14": 60},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "liquidate(...), liquidatePerfect(...)",
+      "lines": "3826-3833 and 4740 (liquidate); 6769-6776 and the last line of liquidatePerfect",
+      "decompiled": "s = 0; t = _1442; ... while s <= s + t: mem[_54 + 32] = s + t ... (loop body ends in returns/continue) ... revert with Panic(17)   [after the loop, indent 2]",
+      "source": "vaultTypesCommon/coreModule/main.sol:308 while (true) { ... currentData_.debt += temp_; ... }",
+      "issue": "The outer 'while (true)' of _liquidate is printed with the overflow test of the checked 'currentData_.debt += temp_' as its loop condition, and the overflow panic as the code after the loop. The same loop in simulateLiquidate is printed as 'while True: mem[..] = SafeMath.add(s, t)', so the two copies disagree and this one reads as a bounded loop.",
+      "rule": "Do not take as loop condition a test whose false edge leads only to a revert (here Panic(17)): keep 'while True' and print the test inside the body as the checked operation (SafeMath.add) or as 'if not c: revert'.",
+      "verified": "reading only (exit edge of the loop at 3833 is the function's last line 4740 'revert with Panic(17)'; simulateLiquidate 1262 shows the same body as while True with SafeMath.add)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "liquidityCallback(address,uint256,bytes), dexCallback(address,uint256)",
+      "lines": "120-124, 81-84; def SafeMath 39-41",
+      "decompiled": "require cd[_param3 + 4] >=′ 32 / call _param1.transferFrom(address sender, address recipient, uint256 amount) with: args Bytes(12, 0), SafeMath.mul3(0x1000000000000000000000000, cd[_param3 + 36]), Bytes(20, 0), _param2   |   def mul3(a, b): require b == address(b); return a * b",
+      "source": "main.sol:751 SafeTransfer.safeTransferFrom(token_, abi.decode(data_, (address)), address(LIQUIDITY), amount_); (assembly: mstore(0x2c, shl(96, from)); mstore(0x40, to); mstore(0x0c, 0x23b872dd..))",
+      "issue": "The abi.decode range check of the 'from' address is fused with the shl(96, from) into a fake 'SafeMath.mul3' helper, and the transferFrom arguments are cut at the unaligned mstore offsets (12 + 32 + 20 + 32 bytes), so 'from, LIQUIDITY (= 0), amount' reads as four odd pieces.",
+      "rule": "Extract a helper only when its guard checks that very operation (an overflow of a*b); a range check of an operand (b == address(b)) stays a separate require. Re-split call arguments at 32-byte boundaries after the selector: Bytes(12, 0) ++ (x << 96) ++ Bytes(20, 0) with x < 2^160 is the two words address(x), 0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "fetchLatestPosition, liquidate, liquidatePerfect, simulateLiquidate, updateExchangePrices (261 lines)",
+      "lines": "391-396, 404, 408, 416 ...",
+      "decompiled": "_3 = Mask(30, 1, v) / 2 / _4 = Mask(50, 31, v) >> 31 / if (Mask(35, 131, t) >> 131) * (s >> 15) > ... / u = Mask(30, 166, t) >> 166",
+      "source": "helpers.sol:211 branchId_ = (tickLiquidationData_ >> 1) & X30; :239 (branchData_ >> 116) & X50",
+      "issue": "Bit-field extractions are printed as a mask at the field's position followed by a shift (and once as '/ 2'), instead of the narrow value of the shifted word.",
+      "rule": "Mask(n, k, x) >> k and Mask(n, k, x) / 2^k equal uint<n>(x >> k) (Mask(n, 0, x >> k)); print that form.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "fetchLatestPosition, liquidate, liquidatePerfect, simulateLiquidate (64 lines, 4 inlined copies of TickMath.getRatioAtTick)",
+      "lines": "434-495, 3928-3989 ...",
+      "decompiled": "require (int24(_29) ^ int24(_29) >>′ 255) - (int24(_29) >>′ 255) <= 32767 / if not ((int24(_29) ^ int24(_29) >>′ 255) - (int24(_29) >>′ 255)) % 2: ... if not Mask(1, 14, (int24(_29) ^ int24(_29) >>′ 255) - (int24(_29) >>′ 255)):",
+      "source": "TickMath.getRatioAtTick: absTick_ = tick_ < 0 ? uint256(-int256(tick_)) : uint256(int256(tick_)); if (absTick_ & 0x1 != 0) ...",
+      "issue": "The branchless absolute value is recomputed in each of the 16 bit tests.",
+      "rule": "(x ^ (x >>s 255)) - (x >>s 255) is abs(x); bind a non-trivial expression used more than twice to a temporary.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "rebalance, operate (and the other _spell wrappers)",
+      "lines": "62-72, 95-107",
+      "decompiled": "mem[ceil32(calldata.size) + 192 len return_data.size] = ext_call.return_data[0 len return_data.size] ... _6 = mem[ceil32(calldata.size) + 224] ... mem[ceil32(calldata.size) + ceil32(return_data.size) + 192] = mem[ceil32(calldata.size) + 192] / return mem[ceil32(calldata.size) + ceil32(return_data.size) + 192], _6",
+      "source": "return abi.decode(_spell(SECONDARY_IMPLEMENTATION, msg.data), (int, int))",
+      "issue": "The decoded return values are read back from memory at calldata-size-based offsets, and the first one is even copied to a second memory word before being returned, instead of 'return ext_call.return_data[0], ext_call.return_data[32]'.",
+      "rule": "A read inside the destination of a preceding copy line 'mem[a len n] = ext_call.return_data[0 len n]' with offset k < n (proven by 'require return_data.size >= ..') is ext_call.return_data[k]; a word copied mem[b] = mem[c] then read is mem[c].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all",
+      "lines": "1, 77, 116, 61, 133",
+      "decompiled": "const unknownb7791bf2 = Bytes(576, 0) / if caller: revert with 0x60121cca, 31036 / delegate 0x0 with: / call 0x0 with:",
+      "source": "immutables LIQUIDITY, SUPPLY, BORROW, OPERATE/ADMIN/SECONDARY_IMPLEMENTATION, VAULT_ID, ... (constantsView returns all of them)",
+      "issue": "solc immutables read as 0.",
+      "rule": "none (not a decompiler error)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small functions (readFromStorage, rebalance, dexCallback, operate, operatePerfect, liquidityCallback, fallback, fetchLatestPosition, updateExchangePrices*, simulateLiquidate's prologue) reviewed in detail; liquidate and liquidatePerfect (~2900 lines each) and simulateLiquidate (~1360) by structure (loops, reverts with their Fluid error codes, ETH validation, storage writes). Loops: fetchLatestPosition's 'while ((branchData_ & 3) == 2)' is 'while t % 4 == 2' with the break on MAX_MASK_DEBT_FACTOR (good); _liquidate's outer while(true) and inner while(true) (tickHasDebt scan) are whiles in all 3 inlined copies, the outer one with an obscure condition in 2 of them (finding 1). The other 16 whiles are implicit: 14 memory-to-memory copies left as loops (P7: bytes arguments of the LIQUIDITY.operate calls as 'while idx < n: mem[d + idx] = mem[s + idx]; idx += 32' + trailing zero, and operatePerfect's int256[] decode/encode), plus 2 in simulateLiquidate counted above. def SafeMath here defines sub as 'require a >= b' (the source's 'if (resExponent_ < DECIMALS_DEBT_FACTOR) revert();') and sub2 as the Panic(17) form, which is correct but means SafeMath.sub differs between texts. P12: the fallback body is printed twice (calldata.size >= 4 and 0 < calldata.size < 4). 162 lines print 10**27 as '1000000000 * 10**18' (as in c00003). P9: a few distributed products in the getRatioAtTick tail (504-507). P14: liquidate keeps its memory structs (currentData_, tickInfo_) as mem[_54 + k] reads/writes throughout.",
+  "summary": "Faithful text with all three source loops found, but one copy of _liquidate's main loop uses an overflow check as its condition, the callbacks show a fake SafeMath.mul3 and misaligned transferFrom arguments, and bit-field extraction (261 Mask..>>k lines) and repeated abs(tick) make the vault math hard to read."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "c00210",
+  "abi_functions": 30,
+  "reviewed": 30,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 10, "P4": 7, "P7": 12, "P8": 60},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "the TransferHelper.safeTransfer / safeTransferFrom sites in the burn / unsynthesize / revert functions (0x1ebe53ef, 0xc42a2894, 0xb1659a3c, 0xc23a4c88, 0xfb7c7c2a, 0xce654c17)",
+      "lines": "281-296, 315-331, 523, 634, 821, 1098",
+      "decompiled": "mem[164] = _param6 / mem[196] = SafeMath.sub(_param5, _param1) / mem[128] = 68 / mem[176 len 16] = uint128(_param6 >> 32) / mem[164 len 12] = 0 / mem[160 len 4] = 2835717307 / idx = 0 / while idx < 68: mem[idx + 228] = mem[idx + 160]; idx = idx + 32 / mem[296] = 0 / call _param4 with: args mem[228 len 68]",
+      "source": "TransferHelper.safeTransfer(token, to, value): token.call(abi.encodeWithSelector(0xa9059cbb, to, value)); require(success && (data.length == 0 || abi.decode(data, (bool))), 'TransferHelper::safeTransfer: transfer failed')",
+      "issue": "The call data of a constant length (68 or 100 bytes) is copied into the call buffer by a loop with a constant bound, the selector insertion (a read-modify-write of the word at 160) prints as rewrites of bytes that already hold the address, and the transfer call itself is left without name or arguments although every byte of its buffer is known.",
+      "rule": "A word-copy loop with constant bounds is a copy line ('mem[228 len 68] = mem[160 len 68]', the tail word beyond 68 being overwritten by 'mem[296] = 0'); a store of a slice whose value equals the bytes already there is a no-op and can be dropped, leaving 'mem[160 len 4] = 0xa9059cbb'; then the buffer decodes as transfer(_param6, ...).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Symbiosis Portal (30 functions), no explicit loops in the source; all 12 whiles are memory copies of encoded call data (constant 68 / 100 bytes) or of the bytes arguments forwarded to the synthesis contracts (P7). All functions were reviewed: the bridge-only functions (unsynthesize, revertSynthesize..., emergency unburn), the synthesize / metaSynthesize request functions by structure (onlyBridge / paused checks, the request-state enum with its Panic(33) check, balances, TransferHelper calls, the bridge transmitRequest call with raw arguments: P2), and the owner setters and getters in full; all correct. P4: stor107 / balances keyed with 'concat(mem[N])' at some sites.",
+  "summary": "Faithful and loop-free in the source; the text's whiles are constant-length call-data copies, and the TransferHelper calls stay undecoded behind them."
+}

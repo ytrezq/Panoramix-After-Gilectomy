@@ -1,0 +1,25 @@
+{
+  "id": "c00215",
+  "abi_functions": 36,
+  "reviewed": 36,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 8, "P6": 37, "P7": 30, "P8": 60},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "spendableBalanceOf(address), transferableBalance(address,uint256), onTransfer(address,address,uint256) (and the other SafeMath64 users)",
+      "lines": "the vesting loop body after `while idx < vestingsLengths[address(_holder)]`",
+      "decompiled": "_36 = mem[64]; mem[64] = mem[64] + 64; mem[_36] = 18; mem[_36 + 32] = 0x4d4154485f5355425f554e444552464c4f57...; if ... : mem[mem[64]] = 0x8c379a0...; mem[mem[64] + 36] = mem[_36]; _39 = mem[_36]; if 0 >= mem[_36]: revert ...; v = 32; while v < _39: ...; if not _39 % 32: revert ...; mem[floor32(_39) + mem[64] + 68] = ~(256**(-(_39 % 32) + 32) - 1) & ...; revert with Error(string reason), 32, mem[mem[64] + 36 len floor32(_39) + 64]",
+      "source": "Aragon SafeMath64.sub: require(_b <= _a, ERROR_SUB_UNDERFLOW) with string constant \"MATH_SUB_UNDERFLOW\" (solc 0.4.24)",
+      "issue": "The reason string is a constant just written to memory (length 18 and 'MATH_SUB_UNDERFLOW'), yet each check prints the whole copy-and-pad sequence with an unfolded length, a dead loop (`v = 32; while v < 18`) and two impossible branches instead of `require ..., 'MATH_SUB_UNDERFLOW'`.",
+      "rule": "Forward constant stores to later loads when the only stores in between are at `mem[64] + k` with mem[64] known to lie past the stored region; then fold the copy of a constant-length string (the loop runs a known count) into a string literal in the revert.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Functions are 20-200 lines (forward is the largest); all reviewed. Source loops: TokenManager._transferableBalance's vesting loop, shown as `while idx < vestingsLengths[address(_holder)]` in spendableBalanceOf, transferableBalance and onTransfer. Not counted: MiniMeToken.getValueAt's `while (max > min)`, listed as reached but executed in the token contract behind the external balanceOf/balanceOfAt calls, so not in this bytecode. The other 30 whiles are solc-0.4 word-copy loops for revert strings and for the EVM-script/forward byte arrays (P7). P6: 37 lines (the 0x08c379a0 Error selector and similar printed with 63 digits). No semantic error found.",
+  "summary": "Faithful, abort-free text whose one source loop is a clear while; it is bloated by solc-0.4 revert-string copy loops whose constant reasons are never folded into literals."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "c00244",
+  "abi_functions": 51,
+  "reviewed": 51,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 8, "P7": 1, "P8": 12, "P9": 146},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "convertToAssets, convertToShares, previewDeposit/Mint/Redeem/Withdraw, maxWithdraw, deposit, mint, redeem, withdraw, getXAmountByVestingDuration ... (OpenZeppelin Math.mulDiv in ERC4626 conversions)",
+      "lines": "454-457, 492-495 and 146 lines over 240 characters (20 over 1000)",
+      "decompiled": "_7 = -6 * ((totalSupply + 1) / (totalSupply + 1 & -totalSupply - 1)) * (2 ^ 3 * ((totalSupply + 1) / (totalSupply + 1 & -totalSupply - 1))) * ... / _8 = 4 * _7 - 6 * _7 * _7 * ((totalSupply + 1) / (...)) + 4 * _7 * _7 * _7 * (...) * (...) ...",
+      "source": "Math.mulDiv: twos = denominator & (0 - denominator); denominator /= twos; inverse = (3 * denominator) ^ 2; inverse *= 2 - denominator * inverse (6 times)",
+      "issue": "Known P9, here in a small contract where it is most of the text: the Newton steps of the modular inverse are merged pairwise into polynomials (4x - 6dx^2 + 4d^2x^3 - ...) and the reduced denominator (totalSupply + 1) / lsb is re-printed inside every term.",
+      "rule": "Name each SSA value the bytecode computes once (d' = d / twos; inv0; inv1 ...) instead of substituting it; never expand products of named sums.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loop: getUserRedeemsBalance for (191), while. userRedeems(address) copies the storage array of structs to memory and re-encodes it (298, 315; implicit, the first as a loop of field reads, the second a P7 copy). Transient-storage reentrancy guard (transient[0]) and Ownable2Step checks match. stor13 (userRedeems) is unnamed because its getter is unknown to the signature database. 51 ABI functions read.",
+  "summary": "A small, faithful text with its one loop found; its readability is dominated by the expanded OpenZeppelin mulDiv in every ERC4626 conversion."
+}

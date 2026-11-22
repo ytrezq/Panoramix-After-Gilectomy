@@ -1,0 +1,69 @@
+{
+  "id": "c00412",
+  "abi_functions": 50,
+  "reviewed": 50,
+  "not_reviewed": [],
+  "source_loops": 9,
+  "loops_shown": {"while": 9, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 33, "P3": 4, "P4": 35, "P6": 2, "P7": 30, "P8": 540, "P11": 5, "P16": 290},
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "updateAsset(address,(bool,bool,bool,(bytes20,bytes4,bytes)[],(bytes20,bytes4,bytes),bool,bool,uint32,uint48,uint256[]))",
+      "lines": "8016-8023, 9769",
+      "decompiled": "if 0 >= idx: if idx >= mem[_3024]: ...  # Decompilation aborted ... mem[_3024 + 32 * idx + 32] = sha3(...) / idx = idx + 1 / continue / ...  # Decompilation aborted, sorry",
+      "source": "OlympusPrice.v2.sol:590-612 _validateAssetPriceFeeds: for (uint256 i; i < len; ) { ... bytes32 hash = keccak256(abi.encode(...)); for (uint256 j; j < i; ) { if (hash == hashes[j]) revert PRICE_DuplicatePriceFeed(asset_, i); ... } hashes[i] = hash; ... }",
+      "issue": "In updateAsset the feed-validation loop is only printed for i = 0: from the second feed on (the inner duplicate check, hashes[i] = hash and everything after the loop on that path) the path is aborted, and the moving-average branch's tail (decoding of the observations, _validateMovingAverageStrategy, the final events) is aborted too. The same loops are complete in addAsset, validateAddAsset and validateUpdateAsset ('while s < idx:').",
+      "rule": "-",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "updateAsset, addAsset(address,bool,bool,uint32,uint48,uint256[],(bytes20,bytes4,bytes),(bytes20,bytes4,bytes)[]), validateAddAsset, validateUpdateAsset",
+      "lines": "7594-7660 (updateAsset), 5105-5170 (addAsset), 1564-1630, 3329-3400",
+      "decompiled": "def unknown87a07860(address _param1, array _param2): ... require cd[_param2 + 4] == bool(cd[_param2 + 4]) / mem[128] = cd[_param2 + 4] ... require cd[_param2 + cd[idx] + cd[_param2 + 100] + 36] == Mask(160, 96, cd[_param2 + cd[idx] + cd[_param2 + 100] + 36])",
+      "source": "struct UpdateAssetParams { bool updateFeeds; bool updateStrategy; bool updateMovingAverage; Component[] feeds; Component strategy; bool useMovingAverage; bool storeMovingAverage; uint32 movingAverageDuration; uint48 lastObservationTime; uint256[] observations; }",
+      "issue": "Tuple parameters are typed 'array' and decoded by hand: every member and nested dynamic member is raw calldata arithmetic (290 lines with cd[_param2 + ...]), and after decoding the members are read back as mem[128], mem[160], mem[448]... so the conditions (params_.updateFeeds...) are unreadable.",
+      "rule": "An ABI tuple parameter at offset o is decoded member by member at cd[4 + o + 32 k] (with dynamic members at cd[4 + o + cd[4 + o + 32 k]]): name them _param2.member_k (or after the ABI's names) and print the decoded memory copies as those names.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getAssets(), unknown9faa4570() (the submodules list)",
+      "lines": "288-316; 257-285",
+      "decompiled": "mem[160] = assets[0] / if 32 * assets.length + 160 > 192: mem[192] = assets[1] / idx = 192 / s = 1 / while 32 * assets.length + 160 > idx + 32: mem[idx + 32] = assets[s + 1] ... mem[32 * assets.length + 224] = Bytes(12, 0), mem[172 len 20] / idx = 1 / ... while idx < assets.length: mem[t] = Bytes(12, 0), mem[s + 12 len 20] ... / return Array(len=assets.length, data=Bytes(12, 0), mem[172 len 20], mem[32 * assets.length + 256 len 32 * max(1, assets.length) - 32])",
+      "source": "function getAssets() external view override returns (address[] memory) { return assets; }",
+      "issue": "Returning a storage address[] prints as two rotated loops (P3: two iterations of the storage-to-memory copy and one of the ABI copy are peeled) and a return whose data is split at the first element, instead of 'return assets'.",
+      "rule": "A loop mem[d + 32 i] = stor[sha3(s) + i] over i < stor[s] is the copy mem[d len 32 n] = stor[sha3(s) len n]; an ABI copy that only cleans addresses already clean is a copy; then the return is the array (Array(len=n, data=assets[all])).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getCurrentPrice, getPrice (both), getPriceIn (both), storeObservation(s), updateMovingAverage, execOnSubmodule",
+      "lines": "1003-1006, 1031 (getCurrentPrice); 353-359",
+      "decompiled": "mem[0] = mem[mem[32 * idx + ceil32(_4) + 192] len 20] << 96 / mem[32] = 2 / _172 = sha3(mem[0], 2) / if not stor2[concat(mem[0])]: ... static call address(stor[_172]) with: args mem[mem[64] len _213 + _216 - mem[64]]",
+      "source": "OlympusPrice.v2.sol:_getFeedPrices: (bool success, bytes memory data) = address(_getSubmoduleIfInstalled(feed.target)).staticcall(abi.encodeWithSelector(feed.selector, asset_, decimals, feed.params));",
+      "issue": "The submodule mapping read is a one-element concat key (P4, 35 lines) in the test and, once its slot is bound to _172, a raw stor[_172] as the call target (41 raw stor[_N] lines); the call's arguments are raw memory (P2).",
+      "rule": "Never bind a mapping slot sha3(k, s) itself: bind k and print stor[sha3(k, s)] as getSubmoduleForKeycode[k]; a key read from a memory word is that word, not concat(mem[0]).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "getCurrentPrice(), getPrice functions using ohm",
+      "lines": "912-925",
+      "decompiled": "mem[0] = 0 / mem[32] = 5 / if not uint8(stor5[0].field_0): revert with 0x3e3321eb, 0",
+      "source": "OlympusPricev1_2: _getCurrentPrice(address(ohm)) with ohm immutable",
+      "issue": "The immutable ohm reads as 0 in the undeployed runtime code, so the functions read _assetData[address(0)].",
+      "rule": "-",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Unoptimized build (noopt): many repeated sha3 scratch writes (mem[0]/mem[32], ~540 P8 lines) and re-reads. Source loops (each once): removeAsset for (402, 'while s < assets.length', exact even though the source caches len since nothing changes the length before the break), storeObservations for (2600, 2986), ensureValidSubKeycode for i < 20 (4 copies), _getFeedPrices for (e.g. 999), _getInclusivePrices for (1407), _updateAssetMovingAverage and _validateAssetMovingAverage for (while idx < uint16(.../observationFrequency), several copies), _validateAssetPriceFeeds outer and inner for (1723/1764, 5284/5325, 3763/3804; aborted in updateAsset). Implicit loops: ABI decoding of the Component[] and uint256[] params (with element validation), abi.decode of the stored feeds bytes into Component[], abi.encode copies of price arrays and the storage-array returns: about 30 (P7/P3). getPriceIn (both), getPrice (both), updateAsset, addAsset and validateUpdateAsset reviewed by structure (loops, calls, reverts, writes); the others line by line. Custom errors without a database name print as selectors (0x3e3321eb = PRICE_AssetNotApproved...).",
+  "summary": "Semantics match where read; all nine source loops appear as whiles, but updateAsset loses its multi-feed validation path to aborts, tuple parameters are decoded as raw calldata arithmetic, and storage-array returns and submodule calls are obscure."
+}

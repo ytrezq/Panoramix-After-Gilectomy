@@ -1,0 +1,25 @@
+{
+  "id": "c00263",
+  "abi_functions": 35,
+  "reviewed": 35,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P3": 1, "P6": 4, "P8": 50, "P11": 12},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "executeBatch(address[],uint256[],bytes[],bytes32,bytes32)",
+      "lines": "990-1060",
+      "decompiled": "call address(targets[0]) ... log CallExecuted(...) / s = _105; t = values[0]; u = address(targets[0]); ... c = targets[0] (12 variables) / idx = 0 / while idx + 1: if idx + 1 >= targets.length: (afterCall: timestamp[_93] = 1; stop) ... call address(cd[32 * idx + targets + 68]) ...",
+      "source": "TimelockController.sol:340-345 for (uint256 i = 0; i < targets.length; ++i) { _execute(targets[i], values[i], payloads[i]); emit CallExecuted(id, i, targets[i], values[i], payloads[i]); } _afterCall(id);",
+      "issue": "P3: the batch loop is rotated: call 0 and its event are printed before the loop, the header 'while idx + 1' is the increment's overflow test (always true), the bound and _afterCall sit inside the body, and 12 preamble variables are never read.",
+      "rule": "As in c00006: take the loop's ordinary exit test (i < targets.length) as its condition, not a check whose failure reverts; do not peel the first iteration; drop unread loop variables.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "OZ TimelockController 4.x (string reverts). Source loops in the runtime code (3): executeBatch :340 (finding), scheduleBatch :257, Strings.toHexString :64 ('while idx > 1', clear, in the onlyRole revert message of every role-gated function, with implied 'idx >= 42/66' bounds checks, P11). The constructor loops (:96, :102) are not in the runtime code. Implicit loops: calldata decodes with checks ('while idx < targets.length' / 'datas.length'), bytes[] encodings for hashOperationBatch / CallScheduled. unknown6ae00723 is GSTimelockController's own function (by structure). P2: the role revert messages and calls. No semantic error found.",
+  "summary": "Complete and faithful; the three runtime source loops are while loops, but executeBatch's loop is rotated around its first call with an overflow test as header and a dozen unread variables."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "c00061",
+  "abi_functions": 4,
+  "reviewed": 4,
+  "not_reviewed": [],
+  "source_loops": 12,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 1, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 17, "P7": 40, "P12": 3, "P14": 300},
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "constructTokenURI((uint256,address,address,string,string,uint8,uint8,bool,int24,int24,int24,int24,uint24,address))",
+      "lines": "3439-3454",
+      "decompiled": "mem[... + 496] = int8(_5895) / mem[... + 528] = mem[128] / ... mem[... + 1168 len 6] = 0 / ...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)",
+      "source": "NFTDescriptorEx.sol:79-106 string memory image = Base64.encode(bytes(generateSVGImage(params))); tokenUri = abi.encodePacked('data:application/json;base64,', Base64.encode(...)); return switchToHttpLink ? ... : tokenUri;",
+      "issue": "The function is cut right after the SVG parameters are built (overRange, tokenId): generateSVGImage with all of NFTSVG, both Base64.encode calls (whose Yul for loop is lost), the JSON assembly, the switchToHttpLink branch and the return are missing; name and description building are complete.",
+      "rule": "none (decompiler limit); the path is long because every string helper is inlined, so the limit is reached before the return.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "constructTokenURI (feeToPercentString, generateDecimalString, tickToDecimalString inlined)",
+      "lines": "149-212 and 55 lines with the same base",
+      "decompiled": "mem[ceil32(cd[params + cd[params + 100] + 4]) + ceil32(cd[params + cd[params + 132] + 4]) + 768] = 2 / ... while u < uint8(_384) + 1: assert u < mem[ceil32(cd[params + cd[params + 100] + 4]) + ceil32(cd[params + cd[params + 132] + 4]) + 896] ...",
+      "source": "NFTDescriptorEx.sol:403-424 DecimalStringParams memory params; params.zerosStartIndex = ...; params.bufferLength = ...",
+      "issue": "The fields of a memory struct (DecimalStringParams) and the string buffer are addressed with the full allocation expression 'ceil32(cd[params + cd[params + 100] + 4]) + ceil32(cd[params + cd[params + 132] + 4]) + k' on every access (P14), giving 87 lines over 240 characters in a function whose logic is short.",
+      "rule": "When a non-constant base b is used for several accesses mem[b + k], bind it once (_p = b) at its allocation and print mem[_p + k]; better, name each word of a fresh allocation never escaping to a call as a local variable.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Only 4 ABI functions (owner, setOwner, a switch/domain setter unknown65f2fb3a, constructTokenURI ~3,370 lines reviewed by structure). Source loops (12): HexStrings.toHexString / toHexStringNoPrefix ('while idx > 1', 3038...), escapeQuotes' two fors ('while uint8(s) < _n'), feeToPercentString's while (135, clear), fixedPointToDecimalString's while, generateDecimalString's for and while (192, 199), Strings.toString's two whiles (445, 515...), all whiles and repeated where inlined; Base64.encode's Yul for is in the aborted part. Implicit loops: string/bytes memory copies of abi.encodePacked (solc 0.7, no MCOPY) left as whiles (P7, many 'while idx < _n' copy loops). P12: feeToPercentString's loop repeats the step in both arms.",
+  "summary": "The string-building helpers and their loops are faithfully shown, but the main function aborts before the SVG/Base64 part and the return, and memory-struct fields are addressed with very long base expressions."
+}

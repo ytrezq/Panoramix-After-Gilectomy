@@ -1,0 +1,36 @@
+{
+  "id": "c00435",
+  "abi_functions": 20,
+  "reviewed": 20,
+  "not_reviewed": [],
+  "source_loops": 15,
+  "loops_shown": {"while": 15, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 29, "P3": 15, "P4": 16, "P6": 33, "P7": 40, "P11": 20},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "execute(bytes32[3],bytes,bytes32[],bytes32[],bytes32) (unknown5e7bb008 path) and manuallyExecute(...) (_executeSingleReport's message loop)",
+      "lines": "3328-3333 ... 3349-3352, 3741-3750; same at 4395",
+      "decompiled": "t = mem[mem[mem[mem[_362 + 32] + 32]] + 96] / u = mem[mem[mem[mem[_362 + 32] + 32]] + 96] / ... while 2 == 2 * (t % 128) / (t % 128) or not t % 128: ... if x + 1 >= _456: ...; continue loop1 ... x = x + 1; continue / revert with Panic(17)",
+      "source": "OffRamp.sol:421 for (uint256 i = 0; i < numMsgs; ++i) { ... getExecutionState(sourceChainSelector, message.header.sequenceNumber) ...}; getExecutionState: bitmap >> ((sequenceNumber % 128) * MESSAGE_EXECUTION_STATE_BIT_WIDTH)",
+      "issue": "The message loop's header is the overflow check of (sequenceNumber % 128) * 2 from the first statement of the body; it can never fail (t % 128 <= 127), and its exit leads only to a Panic(17) revert, while the real bound i < numMsgs is tested inside ('if x + 1 >= _456: continue loop1'). t and u hold the same value.",
+      "rule": "Fold overflow checks with value ranges: x % 128 <= 127, so 2 * (x % 128) cannot overflow and the check is true. Never take as while condition a test whose exit reaches only a revert; use the remaining exit test (x + 1 < _456). Merge loop variables that are assigned equal values on every edge.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "execute / manuallyExecute (MerkleMultiProof.merkleRoot), getAllSourceChainConfigs, commit",
+      "lines": "3161-3166, 160-200, 232",
+      "decompiled": "if _556 + _557 - 1: mem[_605 + 32 len 32 * _556 + 32 * _557 - 32] = call.data[calldata.size len 32 * _556 + 32 * _557 - 32]   /   while 32 * stor2[_param1].field_512 + 608 > idx + 32: ...   /   while idx - 1:",
+      "source": "MerkleMultiProof.sol:66 bytes32[] memory hashes = new bytes32[](totalHashes); OffRamp storage arrays copied to memory; new struct arrays",
+      "issue": "Zero-initialisation of new arrays prints as a copy from calldata at calldata.size (5 lines); storage arrays copied to memory and zero-initialised struct arrays print as rotated whiles with the first element before the loop (P3, 15).",
+      "rule": "CALLDATACOPY from offset >= calldata.size is a zero fill; a word-by-word storage-to-memory copy with consecutive slots is 'mem[a len 32n] = stor[s len n]' (a copy line, as the text already does for calldata).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Very long functions (execute ~1,220 lines, manuallyExecute ~1,200, commit ~690) reviewed by structure. Source loops (15), all whiles: MerkleMultiProof.merkleRoot (3166, readable), MultiOCR3Base _assignOracleRoles/_clearOracleRoles/_verifySignatures, _applySourceChainConfigUpdates, _batchExecute (loop1 at 2925, 3987), _executeSingleReport's two fors (the second rotated, see finding), _releaseOrMintTokens, commit's merkle-roots for, getAllSourceChainConfigs, manuallyExecute's three nested fors, setOCR3Configs. The other whiles are implicit: ABI decodings of nested calldata structures (Any2EVMRampMessage arrays with token arrays and bytes), re-encodings for the calls to the router/token pools, storage-to-memory copies (P3) and returns (P7). P4: 16 'concat(mem[...])' mapping keys. Immutables (RMN remote, nonce manager, token admin registry...) read as 0 (calls to 0x0).",
+  "summary": "Faithful and all fifteen source loops are present, but the core message loop is rotated around an always-true overflow check whose exit reverts, and the many implicit ABI loops over nested calldata make the execute paths very long."
+}

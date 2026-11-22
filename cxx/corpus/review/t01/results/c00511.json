@@ -1,0 +1,36 @@
+{
+  "id": "c00511",
+  "abi_functions": 10,
+  "reviewed": 10,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 10, "P3": 1, "P4": 10, "P6": 14, "P7": 40, "P11": 10},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "fallback",
+      "lines": "114, 121",
+      "decompiled": "delegate 0x0 with: gas gas_remaining args call.data[0 len calldata.size] ; delegate 0x0.mem[0 len 4] with: ...",
+      "source": "AutomationRegistry2_3 fallback: _fallback() delegates to i_automationRegistryLogicA (immutable)",
+      "issue": "The delegatecall target is a solc immutable, zero in the pre-deployment runtime code; the second form also prints the selector as `mem[0 len 4]` (calldata copied to memory) instead of `call.func_hash`.",
+      "rule": "Immutable: none. A selector read from memory that was just filled by `mem[0 len calldata.size] = call.data[0 len calldata.size]` can be printed as the calldata selector.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "transmit(bytes32[3],bytes,bytes32[],bytes32[],bytes32)",
+      "lines": "1612-1627",
+      "decompiled": "_21 = mem[64]; mem[mem[64]] = 0; mem[64] = _21 + 32; mem[_21 + 32] = sha3(sha3(_param2[all]), call.data[4 len 96]); mem[_21 + 64] = uint8(byte(idx, _param5) + 27); ... signer2 = ecrecover(mem[mem[64] len _21 - mem[64] + 160]) ; mem[_23] = bool(uint8(stor12[concat(mem[0])].field_0)); mem[_23 + 32] = uint8(stor[_25].field_8)",
+      "source": "AutomationRegistry2_3._verifyReportSignature: signerAddress = ecrecover(h, uint8(rawVs[i]) + 27, rs[i], ss[i]); signer = s_signers[signerAddress];",
+      "issue": "mem[64] was just set to `_21 + 32`, so the ecrecover input is exactly the four words written at `_21 + 32` (h, v, r, s), but the text leaves it as raw memory with an unfolded length (P2 mechanism); the same signer struct is then read once as `stor12[concat(mem[0])]` (P4) and once as raw `stor[_25]`.",
+      "rule": "Substitute the value just stored to mem[64] into later reads of mem[64] and fold the range, so precompile calls show their arguments; print every access to `sha3(k, 12)` as `stor12[k]`.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "setConfig and setConfigTypeSafe (unknown0870d3a1) and transmit (each 700-1100 lines) reviewed by structure; the small functions fully. Source loops, all whiles: setConfigTypeSafe's countdown removal (`while idx: if idx - 1 >= stor9.length`) and registrars loop, _setBillingConfig x2, _updateTransmitters x3, _verifyReportSignature (`while idx < _param3.length`), _handleReport x2, _getTriggerType (`for (idx = 4; idx < 15)` as `while True: if u >= 15`). Implicit: address[]/OnchainConfig calldata decodes with validation, memory-to-storage copies of the signer/transmitter lists (`stor13[s] = mem[idx + 12 len 20]`), abi.encode copies and checked-exp helpers (P7); one struct-array allocation `while idx - 1` (P3). P11: bounds checks implied by the loop condition. Only 10 ABI functions are in this contract (the rest of the registry ABI is served by the logic contracts via the fallback). No semantic error found.",
+  "summary": "Faithful, abort-free text with all 11 source loops shown as whiles; the main readability issues are raw-memory precompile/call arguments from an unsubstituted free-memory pointer and inconsistent mapping naming (`stor12[concat(mem[0])]` vs `stor[_25]`)."
+}

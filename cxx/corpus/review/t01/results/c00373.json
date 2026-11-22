@@ -1,0 +1,13 @@
+{
+  "id": "c00373",
+  "abi_functions": 13,
+  "reviewed": 13,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [],
+  "notes": "OpenZeppelin 5 ERC20 + Ownable test token. No loops. Every function read and matched: the custom errors (raw selectors: OwnableUnauthorizedAccount 0x118cdaa7, ERC20InvalidSender/Receiver/Approver/Spender, ERC20InsufficientBalance/Allowance), the checked totalSupply add and the unchecked balance updates of _update, the infinite-allowance test printed as '< 2^256 - 1', name/symbol with the storage-bytes encoding check (Panic 34).",
+  "summary": "Clean, faithful and readable text of a small ERC20 with no loops and nothing to simplify."
+}

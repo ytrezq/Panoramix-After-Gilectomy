@@ -1,0 +1,70 @@
+{
+ "id": "c00173",
+ "abi_functions": 24,
+ "reviewed": 24,
+ "not_reviewed": [],
+ "source_loops": 4,
+ "loops_shown": {
+  "while": 4,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 108,
+  "P6": 112,
+  "P7": 12,
+  "P11": 30,
+  "P18": 17
+ },
+ "findings": [
+  {
+   "kind": "loop",
+   "severity": "medium",
+   "function": "swapExactETHForTokensSupportingFeeOnTransferTokens, swapExactTokensForTokensSupportingFeeOnTransferTokens",
+   "lines": "742-773; 1005-1036",
+   "decompiled": "s = 0 / while True: / if s >= mem[317] - 1: / <balanceOf(to) call, ds-math-sub-underflow check, amountOutMin check, stop or revert> / assert s < mem[317] / ...",
+   "source": "UniswapV2Router02.sol:323 _swapSupportingFeeOnTransferTokens: for (i; i < path.length - 1; i++) {...}; then require(IERC20(path[path.length - 1]).balanceOf(to).sub(balanceBefore) >= amountOutMin)",
+   "issue": "The loop is printed as 'while True' with its exit test first and the whole rest of the function (final balance check and the INSUFFICIENT_OUTPUT_AMOUNT revert) inside the exit branch; the third copy (swapExactTokensForETHSupportingFeeOnTransferTokens) is a normal 'while s < _126 - 1'.",
+   "rule": "A 'while True' whose first statement is 'if c: <tail>' (tail ends in stop/return/revert) is 'while not c: <body>' followed by <tail>.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "all swap functions, addLiquidity(ETH), removeLiquidity* (after the first symbolic allocation)",
+   "lines": "e.g. 745-768, 776-784; 625-634 (addLiquidity)",
+   "decompiled": "static call address(cd[path + 32 * path.length + 4]) with: args mem[mem[64] len _54 - mem[64] + 36]  |  mem[_63 + 68] = 0x64732d6d6174682d7375622d756e646572666c6f770000... / revert with memory from mem[64] len _63 - mem[64] + 100  |  while idx >= 32: mem[t] = mem[s] ...",
+   "source": "IERC20(path[path.length - 1]).balanceOf(to); SafeMath 'ds-math-sub-underflow'; TransferHelper.safeTransferFrom's token.call(abi.encodeWithSelector(0x23b872dd, from, to, value))",
+   "issue": "Once mem[64] is symbolic, calls lose their names (balanceOf, the pair's swap with new bytes(0)), revert reasons are raw memory (108 lines), and one safeTransferFrom keeps the solc 0.6 word-copy loop.",
+   "rule": "Same free-memory-pointer aliasing rule as c00409 ('_63 - mem[64]' is 0 after '_63 = mem[64]'); then the revert is 'revert with ds-math-sub-underflow' and the call resolves.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "getAmountsIn/Out and every swap (path loops)",
+   "lines": "e.g. 774-793",
+   "decompiled": "assert s < mem[317] / _52 = mem[32 * s + 349] / assert s + 1 < mem[317] / _56 = mem[32 * s + 381] / if mem[32 * s + 361 len 20] == mem[32 * s + 393 len 20]: ...",
+   "source": "(address input, address output) = (path[i], path[i + 1]); UniswapV2Library.sortTokens",
+   "issue": "path[i] and path[i + 1], already loaded into _52/_56, are re-read as 20-byte memory slices; the second bounds assert 'assert s + 1 < len' is implied by the first one and the loop test.",
+   "rule": "After v = mem[p], read mem[p + 12 len 20] as address(v). Inside 'while i < n - 1' (wrapping subtraction), once 'assert i < n' holds n >= 1, so the test does not wrap and 'assert i + 1 < n' is implied (the first assert is not: it fires for n = 0).",
+   "verified": "reading only"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "WETH(), factory(), every pairFor",
+   "lines": "1, 3, 145",
+   "decompiled": "const WETH = 0 / const factory = 0 / address(sha3(Bytes(21, 0xff0000...), sha3(...), 0xe18a34eb...))",
+   "source": "address public immutable override factory; address public immutable override WETH",
+   "issue": "solc immutables read as 0 (the CREATE2 pair address uses factory 0).",
+   "rule": "none (input artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "24 ABI functions plus the receive/fallback reviewed (Uniswap V2 Router02, solc 0.6.12). The 9 swap variants and getAmountsIn/Out share UniswapV2Library.getAmountsIn/Out and _swap / _swapSupportingFeeOnTransferTokens; one of each read in full, the rest by structure ('same as swapExactTokensForTokens'). Loops: 4 explicit (getAmountsIn's downward 'while idx', getAmountsOut, _swap, _swapSupportingFeeOnTransferTokens), all whiles (two copies of the last one rotated as 'while True'). Implicit: 12 copies (return arrays, the pair-swap bytes, one memcpy; P7). P11 counts the implied second 'assert s + 1 < len' of each path loop (the first assert is needed: it fires when path is empty and len - 1 wraps). No semantic error found (checked sortTokens/pairFor, getAmountOut/In formulas with SafeMath, the fee-on-transfer balance logic, the WETH deposit/withdraw paths).",
+ "summary": "Faithful, all 4 loops present; the fee-on-transfer loop is printed as 'while True' wrapping the function's tail, and after the first allocation calls and revert reasons become raw memory."
+}

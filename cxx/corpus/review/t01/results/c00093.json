@@ -1,0 +1,47 @@
+{
+  "id": "c00093",
+  "abi_functions": 71,
+  "reviewed": 71,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 30, "P6": 124, "P7": 17, "P8": 30, "P9": 150, "P18": 61},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getPositionAmounts, withdraw, getTotalAmounts, deposit, rebalance (LiquidityAmounts / FullMath.mulDiv inlined)",
+      "lines": "1627, 1653, 2799, 3092, 3381, 3844, 5901, 5919, 5930, 5959, 6301 (172 lines over 400 characters, up to 1,779)",
+      "decompiled": "_401 = -79228162514264337593543950336 * _305 - 0x1000000000000000000000000 * _305 * (-(address(-_369 + mem[_311]) & -address(-_369 + mem[_311])) / (address(-_369 + mem[_311]) & -address(-_369 + mem[_311]))) + ...",
+      "source": "FullMath.mulDiv(amount, FixedPoint96.Q96, sqrtRatioBX96 - sqrtRatioAX96) in LiquidityAmounts.getLiquidityForAmount0/1 and getAmountsForLiquidity",
+      "issue": "P9: the 512-bit mulDiv is expanded and its products distributed into 1,000-1,800 character lines, and the same constant 2**96 is printed in decimal and in hex within one expression.",
+      "rule": "Known P9 rule (recognize the mulDiv computation on its exact semantics); independently, print one constant in one radix throughout a function (2**96 or 0x1000000000000000000000000).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "uniswapV3MintCallback, uniswapV3SwapCallback, withdraw, rebalance (SafeERC20.safeTransfer)",
+      "lines": "576-581, 586-587, 615, 694-700",
+      "decompiled": "mem[176 len 16] = uint128(caller >> 32) / mem[164 len 12] = 0 / mem[160 len 4] = 2835717307 / ... mem[292 len 64] = Bytes(16, 0xa9059cbb000000000000000000000000), Bytes(20, caller), Bytes(28, amount0 >> 32) / mem[356] = amount0 << 224 / call token0.transfer(address recipient, uint256 amount) with: args caller, amount0",
+      "source": "SafeERC20.sol safeTransfer: _callOptionalReturn(token, abi.encodeWithSelector(token.transfer.selector, to, value))",
+      "issue": "The encodeWithSelector buffer and its copy stay as dead stores although the call line already shows transfer(caller, amount0) (P8); they are split into odd slices, and the selector 0xa9059cbb prints in decimal (13 'len 4] = <decimal>' lines).",
+      "rule": "Drop stores whose bytes are only read by a call whose arguments are already decoded; print a constant stored into a 4-byte slice in hex.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getTwap(), and its inlined copies in rebalance and checkCanRebalance users",
+      "lines": "496-507, 1095, 4851",
+      "decompiled": "mem[260] = 2 / idx = 0 / s = 292 / t = 160 / while idx < 2: mem[s] = Bytes(28, 0), mem[t + 28 len 4]; idx = idx + 1; s = s + 32; t = t + 32",
+      "source": "AlphaProVault.sol getTwap: uint32[] memory secondsAgo = new uint32[](2); secondsAgo[0] = _twapDuration; secondsAgo[1] = 0; pool.observe(secondsAgo)",
+      "issue": "The ABI encoding of a 2-element uint32 array stays a loop with a constant trip count, and the cleanup of each element prints as a byte concatenation instead of uint32(...).",
+      "rule": "Unroll a loop with a small constant trip count when its body has no control flow (here 2 stores: mem[292] = uint32(twapDuration), mem[324] = 0); Bytes(28, 0), mem[t + 28 len 4] == uint32(mem[t]).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No explicit loop in the source (AlphaProVault, LiquidityAmounts, FullMath, TickMath, PositionKey, SafeERC20 as compiled here). The 23 whiles are implicit: 3 encodings of uint32[2] for observe (P7), 6 ABI decodings of the returned int56[] / uint160[] with per-element checks, 14 SafeERC20/Address.functionCall memory copies (the 'while idx >= 32' copy of the call data and the 'while idx < n' copy of the revert message, P7, same shapes as c00600). Checked by disassembly: the 22 bytes 'mem[mem[64] + 110 len 22]' after 'SafeERC20: ERC20 operation did not succeed' are right, because solc 0.7 copies the 42-byte literal with CODECOPY of exactly 42 bytes and does not zero the padding. Long functions (rebalance ~2,270 lines, deposit ~1,350, withdraw ~880, getTotalAmounts ~900) reviewed by structure: checkCanRebalance's requires ('PE', 'TM', 'TP', 'PB'), the rebalanceDelegate check, positions/burn/collect/mint calls and the Snapshot event follow the source. P18: return-data range checks as 'require mem[a] == mem[a + 16 len 16]' (61 lines).",
+  "summary": "Faithful and loop-free in the source; readability suffers from expanded mulDiv arithmetic (P9, lines up to 1,800 characters), SafeERC20 copy loops and dead call-buffer stores, plus raw memory slices for decoded return data."
+}

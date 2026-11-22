@@ -1,0 +1,96 @@
+{
+  "id": "c00576",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {
+    "while": 5,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 411,
+    "P6": 140,
+    "P7": 21,
+    "P8": 700,
+    "P9": 8,
+    "P11": 30,
+    "P14": 408,
+    "P15": 57,
+    "P18": 0
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "doHardWork, withdrawToVault, withdrawAllToVault, emergencyExit, receiveFlashLoan",
+      "lines": "e.g. 1369-1376, 4964-4972 ('Unable to withdraw...'), 5070-5078, 8797-8805 ('Action blocked...')",
+      "decompiled": "mem[mem[64]] = 0x8c379a000...; mem[_312 + 4] = 32; mem[_312 + 36] = 42; mem[_312 + 68] = 0x5361666545524332303a204552433230206f7065726174696f6e20646964206e; mem[_312 + 100] = 0x6f74207375636365656400...; revert with memory from mem[64] len _312 - mem[64] + 132",
+      "source": "AaveFoldStrategy.sol:229 require(..., \"Unable to withdraw the entire amountUnderlying\"); BaseUpgradeableStrategy.sol:33; SafeERC20 messages",
+      "issue": "127 Error(string) reverts built at a free-memory pointer the decompiler doesn't resolve are printed as raw memory with the message as hex words, while the same reverts at a known pointer print as \"revert with 'text'\".",
+      "rule": "A revert of [p, p + 68 + ceil32(n)) where mem[p] = 0x08c379a0 << 224, mem[p + 4] = 32, mem[p + 36] = n and the next words are constants is \"revert with '<those n bytes>'\", whatever p is.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "withdrawToVault, doHardWork, withdrawAllToVault, emergencyExit (inlined _accrueFee, _depositWithFlashloan, _redeemWithFlashloan)",
+      "lines": "4730-4734, 9097-9100",
+      "decompiled": "_107 = SafeMath.div(-1 * _23 * _69 - _23 * _91 - _23 * mem[_100] + _29 * _69 + _29 * _91 + _29 * mem[_100] - _69 * storedBalance - _91 * storedBalance - mem[_100] * storedBalance, _41) / (_3489 * borrowTargetFactorNumerator - _3493 * borrowTargetFactorNumerator) / (stor4E92 - borrowTargetFactorNumerator)",
+      "source": "AaveFoldStrategy.sol:121-122 fee = (currentBalance() - storedBalance()).mul(totalFeeNumerator()).div(feeDenominator()); :473 balance.mul(_borrowNum).div(_denom.sub(_borrowNum))",
+      "issue": "P9: a product of two sums is distributed into 9 terms (and into the overflow check's quotient), so a 2-factor mulDiv becomes unreadable.",
+      "rule": "Don't distribute a product over sums; keep (a - b) * (c + d + e) factored, as the bytecode computes it.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "initialize(address,address,address,address,address,address)",
+      "lines": "598-657",
+      "decompiled": "def initialize(address _owner, address _originConvexBooster, address _convexRewardFactory, ...): ... storA170 = _originConvexBooster; storEFD7 = _convexRewardFactory",
+      "source": "BaseUpgradeableStrategy.sol:40 initialize(address _storage, address _underlying, address _vault, address _rewardPool, address _rewardToken, address _strategist)",
+      "issue": "The parameter names come from an unrelated contract with the same selector, so the underlying is called _originConvexBooster and the vault _convexRewardFactory.",
+      "rule": "Take parameter names from the database only when the function's name and all parameter types come from one entry and names are not contradicted (or print _paramN).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "doHardWork, withdrawToVault, emergencyExit",
+      "lines": "9099-9111, 1620-1628",
+      "decompiled": "s = (...) / (...); t = storA170; u = borrowTargetFactorNumerator; v = stor4E92; w = _3493; x = _3489; y = storA170; z = ...; a = (same as s); b = borrowTargetFactorNumerator; c = stor4E92 / while w < s:",
+      "source": "AaveFoldStrategy.sol:475 while (borrowed < borrowTarget)",
+      "issue": "Loop preambles introduce 12 loop variables for 2 loop-carried values (borrowed, supplied): duplicates (t = y, s = a, u = b, v = c) and invariants never reassigned in the body.",
+      "rule": "A loop variable never assigned in the body is its initial expression; merge variables with equal initial values and no assignment.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initializeStrategy, initialize (all four), initializeBaseStrategy",
+      "lines": "826-834, 925",
+      "decompiled": "_1 = stor0 / 256 or not uint8(stor0) ... else: _2 = stor0 / 256; stor0 = 257; _4 = not _2 / stor[sha3(4) + 1 len -sha3(4) + max(sha3(4) + 1, _41 + sha3(4)) - 1] = 0",
+      "source": "Initializable.initializer (_initializing at slot 0 byte 1); AaveFoldStrategyMainnet_USDS.sol rewardTokens = [aToken]",
+      "issue": "The _initializing byte reads as stor0 / 256 (57 lines, P15) and the else-arm keeps _2 although it is 0 there; the clearing of the old array tail has a length that is just max(_41, 1) - 1.",
+      "rule": "Fold a value known from the enclosing branch condition; simplify -a + max(a + 1, b + a) - 1 to max(1, b) - 1; print a byte of a packed slot as its field.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "rewardTokens(), universalLiquidator(), scheduleUpgrade, totalFeeNumerator, every safeTransfer/safeApprove",
+      "lines": "349, 448, 551, 576, 686",
+      "decompiled": "return Bytes(12, 0), ext_call.return_data[12 len 20] / require ext_call.return_data[0] == ext_call.return_data[12 len 20] / mem[... len 4] = 2835717307",
+      "source": "address return values, address decoding checks, abi.encodeWithSelector(transfer.selector, ...)",
+      "issue": "Same as c00410: zero-extensions as byte-slice concatenations and address checks as slices (156 lines, beside the 'address(x)' form used elsewhere), selectors stored in decimal (47 lines).",
+      "rule": "As in c00410: 'Bytes(12, 0), x[12 len 20]' is address(x); a 4-byte store prints in hex.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Very long functions reviewed by structure: doHardWork (3000 lines), withdrawToVault, withdrawAllToVault, emergencyExit (control flow, calls, storage writes, events, reverts, loops). Source loops: _depositNoFlash while (6014, 9111), _redeemNoFlash while (1630 and 4092 as 'while u > 0' because the borrow target folds to 0 with _borrowTargetFactorNumerator = 0; 5229, 6538, 9587), _liquidateReward for (2902, 7924), _isAddressInList (516, 'while True' with breaks), getAddressArray (506, 536) - all while. Implicit loops (22): receiveFlashLoan IERC20[] decode with per-element address check (942), rewardTokens() encoding, claimAllRewards assets encoding (2846, 7868), and 9 flashLoan(tokens, amounts) encodings as pairs of whiles (3872/3884 ... 10099/10111) - P7 21; where the free pointer is known (2039, 4926) the flashLoan call is printed by name instead. The early 'return' of withdrawToVault correctly runs the updateSupplyInTheEnd tail (4841-4850). currentBalance calls the debt token before the aToken (bytecode order) and subtracts correctly. The fallback 'require calldata.size < 4; require not calldata.size' keeps an implied check (receive only). Event names ProfitLogInReward / PlatformFeeLogInReward / StrategistFeeLogInReward are unknown to the database and their data print as raw memory (counted with P2). P14: 408 'x = mem[_N]' reads of return values. No semantic error found.",
+  "summary": "Faithful and complete (no aborts), all source loops shown as while, but the four big entry points are long and obscure: calls with raw-memory arguments (P2), Error(string) reverts as raw memory with hex messages, distributed mulDiv fee arithmetic, and flashLoan array encodings left as while loops."
+}

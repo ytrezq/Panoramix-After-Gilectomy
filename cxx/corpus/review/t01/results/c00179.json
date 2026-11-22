@@ -1,0 +1,38 @@
+{
+  "id": "c00179",
+  "abi_functions": 48,
+  "reviewed": 48,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {
+    "while": 1,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 20,
+    "P6": 15,
+    "P7": 4,
+    "P11": 22,
+    "P15": 6,
+    "P18": 4
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "sellAsset, buyAsset, sellAssetWithSig, buyAssetWithSig, backWithGho, backWithUnderlying, seize, burnAfterSeize, rescueTokens, distributeFeesToTreasury",
+      "lines": "e.g. sellAsset: the INVALID_AMOUNT, EXOGENOUS_ASSET_EXPOSURE_TOO_HIGH, SafeCast and GPv2 reverts; stor56 = (mem[_16] << 128) + (stor56 >> 128 << 128) | uint128(stor56)",
+      "decompiled": "mem[_16 + ceil32(return_data.size)] = 0x8c379a000...0 / mem[.. + 4] = 32 / mem[.. + 36] = 14 / mem[.. + 68] = 0x494e56414c49445f414d4f554e54.. / revert with memory from mem[64] len _16 + ceil32(return_data.size) - mem[64] + 100  |  if stor56 >> 128 > -mem[_16 + 16 len 16] + 0xffffffffffffffffffffffffffffffff: revert with Panic(17) / stor56 = (mem[_16] << 128) + (stor56 >> 128 << 128) | uint128(stor56)",
+      "source": "Gsm.sol _sellAsset: require(assetAmount > 0, 'INVALID_AMOUNT'); require(_currentExposure + assetAmount <= _exposureCap, 'EXOGENOUS_ASSET_EXPOSURE_TOO_HIGH'); _currentExposure += uint128(assetAmount)",
+      "issue": "Every require message after the first return-data-sized allocation is printed as raw memory stores with the text in hex (free-memory-pointer self-alias), and the packed (exposureCap, currentExposure) slot is updated by whole-slot arithmetic with the added amount read as a 16-byte memory slice instead of uint128(_17).",
+      "rule": "With mem[64] >= 0x80 the Error(string) data folds to revert with 'INVALID_AMOUNT'; a store 'slot = (v << 128) + (slot >> 128 << 128) | uint128(slot)' is the field store field_128 = field_128 + v (after the overflow check); mem[p + 16 len 16] with mem[p] = x is uint128(x).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 48 ABI functions and the fallback reviewed; no semantic error found. buy/sell (and the WithSig variants with EIP-712 digest, nonce and SignatureChecker: ecrecover or ERC-1271 call with the signature copied, P7), backWith*, seize / burnAfterSeize, rescueTokens and the fee functions were reviewed by structure (frozen / seized checks, price and fee strategy calls, exposure cap, accrued fees with SafeCast, GPv2SafeERC20 transferFrom with its three messages, GHO mint/burn/transfer, events). The only source loop is OZ Strings.toHexString (in _checkRole's message), inlined twice per role-checked function: readable whiles (with the dominated buffer bounds check, P11). PRICE_STRATEGY, GHO_TOKEN, UNDERLYING_ASSET are immutables (calls to 0x0): corpus artifact.",
+  "summary": "Faithful; the swap logic is complete but its require messages are raw-memory reverts with hex text and the packed exposure slot is updated by whole-slot arithmetic."
+}

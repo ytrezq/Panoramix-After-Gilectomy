@@ -1,0 +1,91 @@
+{
+  "id": "c00221",
+  "abi_functions": 31,
+  "reviewed": 31,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 4, "P4": 10, "P6": 2, "P7": 5, "P8": 50, "P11": 3, "P12": 10, "P13": 1, "P14": 12, "P15": 4, "P18": 8},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "name(bytes32), symbol(bytes32), ilkData, info, file(bytes32,bytes32,string), put, add, remove, removeAuth",
+      "lines": "252-257, 237-242, 215-231, 376-404, 784-812, 322-331",
+      "decompiled": "if stor[sha3(node, 4) + 4].length:\n    if 31 >= stor[sha3(node, 4) + 4].length:\n        mem[160] = 256 * class[node].field_1032\n...\nmem[0] = sha3(mem[0], 4) + 4\nstor[sha3(mem[0]) len (_name.length + 31) / 32] = ...",
+      "source": "IlkRegistry.sol:119 mapping (bytes32 => Ilk) public ilkData; Ilk.name (slot +4), Ilk.symbol (slot +5); :370 return ilkData[ilk].name; :250 ilkData[ilk].name = data",
+      "issue": "The string members name/symbol are printed as raw stor[sha3(ilk, 4) + 4] / + 5 (and their data as stor[sha3(sha3(ilk, 4) + 4)]), while the same words are class[ilk].field_1024 / field_1032 / field_1280 elsewhere, so one member has two spellings. In add and put the slot is also carried in mem[0] (sha3(mem[0]) for the name, sha3(_8 + 5) for the symbol).",
+      "rule": "A slot sha3(k, B) + i, with B a mapping-of-struct base and i inside the struct, is member i of B[k] whatever the access (.length, data at sha3(slot)); forward mem[0] = e into a later sha3(mem[0]) when mem[0] is not written in between.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "ilkData(bytes32), info(bytes32)",
+      "lines": "406-458, 460-543",
+      "decompiled": "mem[... + 416] = 288\nmem[... + 480] = stor[sha3(_param1, 4) + 4].length\n...\nwhile idx < _30:\n    mem[_28 + idx + 32] = mem[idx + ceil32(stor[sha3(_param1, 4) + 4].length) + 192]\n...\nreturn memory\n  from ceil32(...) + ceil32(...) + 192\n   len _28 + _30 - ceil32(...) - ceil32(...) - 160",
+      "source": "IlkRegistry.sol:119 public ilkData getter (7 words + 2 strings); :302-323 info returns (name, symbol, class, dec, gem, pip, join, xlip)",
+      "issue": "A return of static words and two strings is left as raw 'return memory' after 40-50 lines of hand-encoded heads, offsets and tails (the second string copied by a P7 while); the one-string getters name()/symbol() are printed as return Array(len=..., data=...). info also duplicates the symbol load in both arms of 'if not name.length' (P12, 10 lines).",
+      "rule": "Recognize a returned region made of a head (static words, and offsets equal to the distance to each tail) followed by length-prefixed, zero-padded tails as an ABI tuple and print its members; merge equal arm tails.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "add(address), list(uint256,uint256)",
+      "lines": "729-737, 744-779; 178-203",
+      "decompiled": "_95 = mem[64]\nmem[mem[64]] = 0x8c379a0...\n...\nrevert with memory from mem[64] len _95 - mem[64] + 100\n...\nmem[64] = -32 * start + 32 * end + 192\n...\n_10 = mem[128]\nreturn memory from mem[64] len 32 * _10 - 32 * start + 32 * end - mem[64] + 256",
+      "source": "IlkRegistry.sol:187 require(ilks.length < uint96(-1), \"IlkRegistry/too-many-ilks\"); :286-292 bytes32[] memory _ilks = new bytes32[](end - start + 1); ... return _ilks",
+      "issue": "_95 is mem[64] read one line earlier with no write in between, yet _95 - mem[64] is not folded, so the revert is not shown as 'IlkRegistry/too-many-ilks'; list's return is raw memory although mem[64] and mem[128] (= end - start + 1) were set at lines 179-180. The same unresolved pointer makes the gem()/dec()/symbol() calls P2 and the Ilk struct's members slices (uint96(...field_0) = mem[_92 + 20 len 12]).",
+      "rule": "Two reads of mem[64] with no write to it in between are equal (and a read after mem[64] = e is e); with that, e - mem[64] folds and the Error(string) and return-array recognizers apply. Same root as c00178 and c00228.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "remove(bytes32), removeAuth(bytes32)",
+      "lines": "318-321, 278-281",
+      "decompiled": "class[ilk].field_0 = 0\nuint168(class[ilk].field_256) = 0\nclass[ilk].field_512 = 0\naddress(class[ilk].field_768) = 0",
+      "source": "IlkRegistry.sol:270 delete ilkData[ilk]",
+      "issue": "The whole-slot clears of slot 0 (pos + join) and slot 2 (class + pip) print as writes to their first member, which reads as clearing pos and class only (P15).",
+      "rule": "Print a whole-word write of a slot that holds several members as one write per member (field_0 = 0, field_96 = 0) or as the slot itself.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "add, put, file(bytes32,bytes32,string), remove, removeAuth",
+      "lines": "786-798, 378-390, 219-231, 322-326",
+      "decompiled": "_7 = uint1(stor[_5])\n_8 = stor[_5]\n...\n_11 = ((256 * (not _7) - 1 & _8) / 2 + 31) / 32 + sha3(_5)\nstor[_12 len -_12 + max(_11, _12)] = 0",
+      "source": "IlkRegistry.sol:250 ilkData[ilk].name = data (storage string overwrite); :270 delete ilkData[ilk]",
+      "issue": "The old string length and the clearing of its stale tail slots are spelled out arithmetically, although the text reads the same storage word as .length everywhere else.",
+      "rule": "(w & (256 * (1 - (w & 1)) - 1)) / 2 is the byte length of the storage string whose length word is w: print it as the old value's .length, and stor[S len -S + max(S + n, S)] as stor[S len n] when S + n cannot wrap.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "add (bytes32ToStr), list(uint256,uint256)",
+      "lines": "626, 676, 182",
+      "decompiled": "mem[160] = cd[calldata.size]\nmem[160 len -32 * start + 32 * end + 32] = call.data[calldata.size len -32 * start + 32 * end + 32]",
+      "source": "IlkRegistry.sol:430 new bytes(32); :286 new bytes32[](end - start + 1)",
+      "issue": "The zero-fill of a new memory array (calldatacopy from calldatasize) prints as a calldata read.",
+      "rule": "Calldata at offsets >= calldata.size reads as zero bytes: cd[calldata.size] is 0 and call.data[calldata.size len n] is Bytes(n, 0).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "add(address), update(bytes32), vat()",
+      "lines": "1, 555-560, 641, 696, 149",
+      "decompiled": "if address(ext_call.return_data[0]):\n    revert with 'IlkRegistry/invalid-join-adapter-vat'\nrequire ext_code.size(0)\nstatic call 0x0.wards(address) ...\nstatic call 0x0.name(address _token) ...",
+      "source": "IlkRegistry.sol:100 VatLike public immutable vat; GemInfo public immutable gemInfo",
+      "issue": "solc immutables vat and gemInfo read as 0. Because both are address 0, the extcodesize checks of the try calls gemInfo.name/symbol (present in the bytecode at 0xfc1) are rightly dropped as implied by the vat.wards check. Not a decompiler error.",
+      "rule": "None (bytecode before deployment).",
+      "verified": "pancxx disasm (extcodesize before the name() staticcall at 0xfc1-0xfcd)"
+    }
+  ],
+  "notes": "All 31 ABI functions present and reviewed; no semantic error found. Source loops: bytes32ToStr's for (inlined twice in add, both whiles; the second keeps 'assert idx < mem[_38]' although mem[_38] = 32, P11) and list(uint256,uint256)'s for (while; its two asserts are implied by start <= end < length, P11). The 5 other whiles are ABI copies (P7: add's two string decodes, ilkData, info, list's return). bytes32ToStr's loop writes byte(i, w) to mem[p + i] for i < 32, i.e. mem[p len 32] = w, which a copy rule could show. add line 621 'revert with Error(string reason), 32, 36, ..., mem[232 len 28]' is exact: solc 0.6.12 codecopies the 36-byte message, so the padding is the dog.ilks return data left in memory. put's name copy keeps its zero padding as mem[_name.length + 448 len ...] while the symbol's prints Bytes(..., 0). list(): max(192, 32 * n + 160) under 'if n' is 32 * n + 160. Storage: 'class' names the Ilk mapping after the getter of one member (P13). Event parameter names come from the database (File(bytes32 name, bytes32 nftID_, ...)).",
+  "summary": "Faithful text with both source loops as while; the struct's string members print as raw stor[sha3(ilk, 4) + 4], the two-string getters end in raw 'return memory', and an unresolved free pointer hides one revert message, one array return, four calls (P2) and the struct written by add."
+}

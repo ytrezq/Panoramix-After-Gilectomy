@@ -1,0 +1,38 @@
+{
+ "id": "c00424",
+ "abi_functions": 56,
+ "reviewed": 56,
+ "not_reviewed": [],
+ "source_loops": 11,
+ "loops_shown": {
+  "while": 11,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 2,
+  "P6": 16,
+  "P7": 26,
+  "P8": 60,
+  "P9": 30,
+  "P14": 120
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "getRandomnessFromProofExternal(...), fulfillRandomWords(...)",
+   "lines": "1308, 1321, 1378, 1487-1566",
+   "decompiled": "while idx < 2: ...; while s >= 0xffff...fffefffffc2f: ...; while addmod(mulmod(_179, mulmod(_179, _179, -4294968273), -4294968273), 7, -4294968273) != mulmod(_176, _176, -4294968273):",
+   "source": "VRF.sol:205 while (x_ >= FIELD_SIZE); :250 while (!_isOnCurve(rv)); uint256[2] memory copies",
+   "issue": "The secp256k1 field prime is printed as hex in comparisons but as the negative number -4294968273 in the 43 mulmod/addmod lines, and each uint256[2] copy is a 2-iteration while (12 of them) instead of two assignments or a copy line.",
+   "rule": "Print one constant in one form throughout a function (prefer the form that appears in comparisons); unroll or print as a copy line a loop whose trip count is a small constant and whose body is a word copy.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Chainlink VRFCoordinatorV2_5 test helper (solc 0.8.19). Source loops, all shown as whiles: VRF._fieldHash `while x >= FIELD_SIZE` and hashToCurve `while !isOnCurve` (in fulfillRandomWords and getRandomnessFromProofExternal), fulfillRandomWords numWords expansion, deregisterProvingKey, pendingRequestExists (also inlined in cancelSubscription and migrate), removeConsumer, _isTargetRegistered (isTargetRegisteredExternal, registerMigratableCoordinator, migrate), deregisterMigratableCoordinator, migrate's consumer loop, SubscriptionAPI getActiveSubscriptionIds and _deleteSubscription's consumer loop. Other whiles: uint256[2] copies and consumer-array storage-to-memory copies and ABI encodes (P7). Elliptic-curve arithmetic in the VRF verification is inlined and long (P9). fulfillRandomWords (622 lines) reviewed by structure.",
+ "summary": "Faithful VRF coordinator text with all eleven source loops shown as readable whiles; the noise is long inlined curve arithmetic, a field prime printed two ways, and tiny fixed-size copy loops."
+}

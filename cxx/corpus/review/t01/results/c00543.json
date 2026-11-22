@@ -1,0 +1,25 @@
+{
+  "id": "c00543",
+  "abi_functions": 57,
+  "reviewed": 57,
+  "not_reviewed": [],
+  "source_loops": 6,
+  "loops_shown": {"while": 6, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P6": 2, "P7": 10, "P8": 80},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "injectDependenciesBatch(string[]), addContracts(string[],address[]) and the single-name getters / setters (getContract, hasContract, injectDependencies, upgradeContract, ...)",
+      "lines": "856-869, 891-892; 991-1040",
+      "decompiled": "_19 = mem[64] / while idx < _20: mem[_19 + idx] = mem[_17 + idx + 32] ... / mem[_19 + _20] = 0 / mem[_19 + _20] = 1 / _24 = sha3(mem[mem[64] len _19 + _20 - mem[64] + 32]) / if not address(stor[sha3(mem[mem[64] len _19 + _20 - mem[64] + 32])]): revert ... 'ContractsRegistry: this mapping doesn't exist' / call address(stor[_24]) with: args mem[...]",
+      "source": "AbstractContractsRegistry: require(_contracts[name] != address(0), \"ContractsRegistry: this mapping doesn't exist\"); IAbstractDependant(_contracts[name]).setDependencies(address(this), data)",
+      "issue": "A mapping with string keys (mapping(string => address) _contracts at slot 1) is printed as a raw keccak over a memory copy of the string followed by the slot number, with a dead write before it, and the require message stays raw memory; the setDependencies call keeps raw arguments.",
+      "rule": "If mem[p len n] holds a copy of string s and mem[p + n] = k (a constant slot number), then stor[sha3(mem[p len n + 32])] is the mapping access stork[s]; fold '_19 - mem[64]' as for P2 so the range resolves.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "DeXe ContractsRegistry with MultiOwnable and SphereX protection (57 functions). All were reviewed: the registry functions (add / remove / upgrade contracts, injectDependencies(Batch)), the ownership functions (addOwners / removeOwners / renounceOwnership), the SphereX operator functions and the getters. Source loops: ContractsRegistry.sol:59 addContracts and :66 injectDependenciesBatch ('while True' with 'if s >= len: stop'), SetHelper.sol:22 add and :45 remove (in addOwners / removeOwners / renounceOwnership), SphereXProxyBase.sol:38 addProtectedFuncSigs and :49 removeProtectedFuncSigs (0x4a33ca01 / 0xa3eb8545); all shown. The other whiles are string copies, calldata decodes and event encodes (P7).",
+  "summary": "Faithful and complete with all six loops shown; string-keyed mapping accesses print as raw keccak over memory, and one call keeps raw arguments."
+}

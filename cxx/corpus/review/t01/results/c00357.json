@@ -1,0 +1,48 @@
+{
+ "id": "c00357",
+ "abi_functions": 18,
+ "reviewed": [
+  "all 18 ABI functions (decimals, getters, name/symbol, approve, unwoof x3, transfer, transferFrom, woof x3, permit)"
+ ],
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P5": 6,
+  "P8": 40,
+  "P14": 5
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "transfer, transferFrom, woof() / woof(amount) / woof(amount, receiver) (_transfer, _mint)",
+   "lines": "124-137, 162-175, 214-227, 294-307, 347-360",
+   "decompiled": "mem[480] = this.address\nmem[512] = 0\nmem[448] = 0\nmem[288] = 0\nwhile True:\n    if recipient == mem[32 * mem[288] + 480]:\n        mem[448] = 1\n        break\n    _4 = mem[288]\n    mem[288] = mem[288] + 1\n    if _4 + 1 != 2:\n        continue\n    break\nrequire not mem[448]",
+   "source": "assert not receiver in [self, ZERO_ADDRESS]",
+   "issue": "Vyper's two-element list membership test is printed as a 'while True' loop with its counter and result flag in fixed memory words, five times, instead of the condition it computes.",
+   "rule": "Unroll a loop whose trip count is a constant and whose data are constant memory words, then fold the flag: here 'require recipient != this.address and recipient != 0'.",
+   "verified": "by reading: the list is written as mem[480] = this.address, mem[512] = 0 and the counter stops at 2"
+  },
+  {
+   "kind": "naming",
+   "severity": "low",
+   "function": "permit; woof x3; def storage",
+   "lines": "9, 252; 190, 270, 323",
+   "decompiled": "nonces is mapping of struct of 1 slot at storage 3 ... copied = identity(mem[416 len 64], Bytes(1, nonces[owner].field_248)) # precompiled; static call 0xbc529c00c6401aef6d220be8c6ea1667f6ad93e.balanceOf(...)",
+   "source": "nonces: public(HashMap[address, uint256]); YFI: constant(address) = 0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e",
+   "issue": "An unused identity copy (slice(signature, 64, 1)) reads one byte of the memory word holding the nonce, which makes nonces a 'struct' with a field_248; the YFI address is printed with 39 hex digits in the static calls and with 40 in the calls.",
+   "rule": "Do not derive storage field structure from bytes forwarded into an unused precompile copy; print address constants with 40 hex digits.",
+   "verified": "by reading: the copy result 'copied' is never used"
+  }
+ ],
+ "notes": "Vyper 0.2.12 contract without source loops; the five text whiles are the compiler's loops for 'not receiver in [self, ZERO_ADDRESS]' (implicit). min() defaults (MAX_UINT256, msg.sender) are folded correctly in the overloads; YFI transfer/transferFrom return checks, checked arithmetic, permit's expiry/owner checks, digest, signature slicing and nonce increment match the source.",
+ "summary": "All 18 functions reviewed; no source loops and the semantics match. The receiver check 'not in [self, ZERO_ADDRESS]' is printed five times as a memory-counter 'while True' loop instead of two comparisons, and an unused identity copy turns nonces into a struct."
+}

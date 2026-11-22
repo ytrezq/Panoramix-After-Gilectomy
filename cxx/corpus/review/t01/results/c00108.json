@@ -1,0 +1,73 @@
+{
+  "id": "c00108",
+  "abi_functions": 55,
+  "reviewed": 55,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {
+    "while": 4,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 387,
+    "P6": 154,
+    "P7": 21,
+    "P8": 4,
+    "P9": 40,
+    "P10": 30,
+    "P11": 10,
+    "P15": 60
+  },
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "withdrawToVault, withdrawAllToVault, emergencyExit, doHardWork (_redeemNoFlash inlined)",
+      "lines": "5202-5211 (withdrawToVault), 6503 (withdrawToVault), 9390 (doHardWork)",
+      "decompiled": "s = mem[_201] / t = _198 / while t > (_135 * _160 + _160 * _168 - _160 * _173 - _160 * amount) / (-_160 + _191): ... if t - (_135 * _160 + ...) / (-_160 + _191) > t: revert with Panic(17) ... _434 = min(SafeMath.sub(s, t * stor4E92 / collateralFactorNumerator), -_135 + t + amount - (_135 * _160 + ...) / (-_160 + _191))",
+      "source": "VenusFoldStrategy.sol:489-517 newBorrowTarget = (supplied.sub(borrowed)).sub(amount).mul(_borrowNum).div(_denom.sub(_borrowNum)); while (borrowed > newBorrowTarget) { requiredCollateral = ...; toRepay = borrowed.sub(newBorrowTarget); toRedeem = Math.min(supplied.sub(requiredCollateral), amount.add(toRepay)); ... }",
+      "issue": "The loop condition 'borrowed > newBorrowTarget' is printed with newBorrowTarget expanded and distributed ((supplied - borrowed - (amount - balance)) * B as four products) and the same expansion is repeated four times in the body, so neither the bound nor 'toRepay' can be recognised. The value is loop-invariant and computed once before the loop in the bytecode.",
+      "rule": "Bind a loop-invariant value used in the loop condition (or used more than once) to a named variable before the loop instead of substituting its expression; do not distribute a product over a sum when printing ((a - b - c) * k stays factored).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "receiveFlashLoan, emergencyExit, withdrawAllToVault, withdrawToVault, doHardWork (_redeem inlined, 13 copies)",
+      "lines": "1742-1764 (emergencyExit), 1198-1220 (receiveFlashLoan), 1794-1816, 1877-1895",
+      "decompiled": "if SafeMath.mul(_99, 10**18) >= ext_call.return_data[0]: mem[X] = 0x852a12e3...; mem[X + 4] = _99 / else: mem[X] = 0xdb006a75...; mem[X + 4] = 1 / call address(_145) with: args mem[X len 36]",
+      "source": "VenusFoldStrategy.sol:328-333 if (amountUnderlying.mul(1e18) < exchange) { CTokenInterface(_cToken).redeem(1); return; } CTokenInterface(_cToken).redeemUnderlying(amountUnderlying);",
+      "issue": "The compiler shares one CALL between the two source calls, with the selector and argument stored in each arm; the text keeps the shared call and prints it with raw memory arguments, so neither redeem(1) nor redeemUnderlying(amount) is visible although the buffer address X is known. This is a P2 instance with a cause other than the free-memory pointer.",
+      "rule": "When the input memory of a call is written differently in the arms of the branch that dominates it (constant selectors), duplicate the call into each arm (tail duplication) and resolve each arm's arguments: 'if c: call redeemUnderlying(_99) else: call redeem(1)'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "initializeStrategy(address,address)",
+      "lines": "886-900",
+      "decompiled": "_48 = mem[64] / mem[64] = mem[64] + 32 / mem[_48] = 0xc1eb...6d52 / rewardTokens.length = 1 / mem[0] = 1 / s = 0 / idx = _48 / while _48 + 32 > idx: rewardTokens[s] = mem[idx + 12 len 20]; s = s + 1; idx = idx + 32 / s = s + sha3(1) / stor[s len -s + max(s, _49 + sha3(1))] = 0",
+      "source": "VenusFoldStrategyMainnet_ETH_core.sol:30 rewardTokens = [xvs];",
+      "issue": "The copy of a one-element memory array literal to storage stays a loop whose trip count is 1 (idx starts at _48 and the test is _48 + 32 > idx), with the element read back from memory; the same source line in c00578 prints 'rewardTokens[0] = 0x2da1...'. The loop counter s is then reused for the clearing range.",
+      "rule": "A loop 'i = a; while a + c > i: body(i); i = i + c' with c > 0 and no other exit runs once: print body(a) (here rewardTokens[0] = 0xc1eb...6d52 after folding mem[_48]); do not reuse a loop variable's name for an unrelated value.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "investedUnderlyingBalance (and the same in c00578)",
+      "lines": "279-281",
+      "decompiled": "if ext_call.return_data[0] - pendingFee + storedBalance > SafeMath.add(ext_call.return_data[0], storedBalance): revert with Panic(17) / return ext_call.return_data[0] - pendingFee + storedBalance",
+      "source": "VenusFoldStrategy.sol:292 return balance.add(storedBalance()).sub(pendingFee());",
+      "issue": "The checked subtraction of the checked sum is printed as an explicit test on a reassociated expression instead of SafeMath.sub(SafeMath.add(b, s), f).",
+      "rule": "Recognise 'if (x - y) > x: revert Panic(17)' followed by uses of x - y as SafeMath.sub(x, y) before reassociating x - y with the terms of x.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Same base code as c00578 (Harvest BaseUpgradeableStrategy with a fold strategy, Venus instead of Aave): the getters, setters, initializers (nested initializer modifiers on the uint16 'stor0', P15), salvage/SafeERC20, scheduleUpgrade, totalFeeNumerator, the restricted/updateSupplyInTheEnd modifiers and _accrueFee print the same way and were checked again; the P2 root cause (aliasing of the free-memory pointer) and the distributed fee/borrow-target products of c00578's findings apply here too (387 P2 lines). Venus-specific code checked: currentBalance (balanceOfUnderlying/borrowBalanceCurrent, no extcodesize check, as solc omits it for calls that return data), addRewardToken (push), _claimReward (getRewardDistributors decoded with per-element address check, then the claim loop; the claim call 0xca37271b lost to P2), _supply caps logic, _redeem (see finding), enterMarkets in initializeBaseStrategy/initializeStrategy (its uint256[] return decoded into memory by a copy loop, P7). doHardWork, withdrawAllToVault, withdrawToVault, emergencyExit and receiveFlashLoan reviewed by structure. No semantic error found. Loops: 4 source loops (_claimReward for, _depositNoFlash while, _liquidateReward for, _redeemNoFlash while), all whiles in every copy; the 35 text whiles also hold 21 implicit memory-array copies (flashLoan tokens/amounts, enterMarkets decode, getRewardDistributors decode), receiveFlashLoan's calldata decode loop and initializeStrategy's one-iteration literal copy (finding).",
+  "summary": "Faithful on every path checked and all loops present, but as in c00578 the free-memory aliasing leaves 387 call lines as raw memory, the borrow-target arithmetic is distributed into long polynomials (here even in a loop condition), and a call shared by two source calls (redeem/redeemUnderlying) is printed with raw arguments."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "c00243",
+  "abi_functions": 33,
+  "reviewed": 33,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 3, "P2": 1, "P3": 3, "P6": 2, "P7": 3, "P8": 60, "P11": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "validateProof, rotateSigners, approveMessages (inlined ECDSA.recover)",
+      "lines": "573, 778, 1062",
+      "decompiled": "mem[mem[64]] = 0x9ee87f0000000000000000000000000000000000000000000000000000000 * 3600 / revert with memory from mem[64] len _59 - mem[64] + 4",
+      "source": "ECDSA.recover: if (signer == address(0)) revert InvalidSignature();",
+      "issue": "P1 also hits a 4-byte error selector word: 0x8baa579f << 224 (InvalidSignature()) is printed as a constant times 3600, so the revert's error is unrecognisable. The header's regular expression does not count these 3 lines.",
+      "rule": "Never factor a constant by a time unit when it is stored as the first word of a revert/return buffer or when its low 28 bytes are zero (a selector word); print such words as 0xSELECTOR << 224 or as the error.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "validateProof, rotateSigners, approveMessages (inlined BaseWeightedMultisig._validateSignatures)",
+      "lines": "577-590, 782-795, 1066-1079",
+      "decompiled": "if u >= len: _68 = 0 else: ...; _68 = signer != address(cd[64 * u + ...]) / v = u / while _68: if SafeMath.inc(v) >= len: _68 = 0 else: ...; _68 = signer != address(cd[64 * v + ... + 100]); v = SafeMath.inc(v); continue",
+      "source": "BaseWeightedMultisig.sol:207 for (; signerIndex < signersLength && recoveredSigner != signers[signerIndex].signer; ++signerIndex) {}",
+      "issue": "P3: the empty-body search loop is rotated into a flag: its short-circuit condition is computed before the loop and again at the end of the body (reading element v + 1 through the '+ 100' offset), so the loop reads as 'while _68'.",
+      "rule": "When a loop's only body is the evaluation of its own condition for the next index, print the condition in the header: 'while v < len and signer != signers[v].signer: v = v + 1'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (5): AxelarAmplifierGateway._setup :75 (setup, 'while True' 382), BaseAmplifierGateway._approveMessages :167 (1099), BaseWeightedMultisig._validateSignatures :203 ('while True' 523/728/1012) and nested :207 (finding 2), _validateSigners :265 (395, 836) - all while. Implicit loops: calldata struct-array decodes with checks, signer array copies to memory (P7, 3), offset tables. Precompile ecrecover prints as 'signer2 = ecrecover(...)'. The epoch check 'stor[_6] == epoch' and RedundantSignaturesProvided ('if not s - len + 1') are faithful. No semantic error found.",
+  "summary": "Complete and faithful; all five source loops are while loops, but the empty-body signer search is a flag-driven rotated loop, and P1 turns the InvalidSignature selector into 'constant * 3600'."
+}

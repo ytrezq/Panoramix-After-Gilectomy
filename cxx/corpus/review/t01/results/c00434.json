@@ -1,0 +1,47 @@
+{
+  "id": "c00434",
+  "abi_functions": 42,
+  "reviewed": 42,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 14, "P3": 12, "P4": 2, "P6": 2, "P7": 37, "P12": 1},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "every ABI function except isUnlocked (unknownd2c725e0); _fallback",
+      "lines": "e.g. 149-150 (getPoolTokens); 270, 279 (fallback)",
+      "decompiled": "if this.address: revert with 0x9fd25b36  |  delegate 0x0 with: args call.data[0 len calldata.size]",
+      "source": "VaultExtension: modifier onlyVaultDelegateCall { if (address(this) != address(_vault)) revert NotVaultDelegateCall(); } with IVault immutable _vault; fallback -> _delegate(_vaultAdmin) (immutable)",
+      "issue": "The immutables _vault and _vaultAdmin read as 0, so every guarded function reverts at once (this.address is never 0) and the fallback delegates to address 0; all 12 source loops (getPoolTokenInfo, getPoolTokenRates, removeLiquidityRecovery x3, BasePoolMath.computeProportionalAmountsOut, PoolConfigLib x2, PoolDataLib x2, _initialize, _registerPool) are dead and not counted. They are still printed, as readable whiles (e.g. 'while idx < poolTokens[_pool].length').",
+      "rule": "-",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getPoolTokens, getPoolTokenInfo, getPoolTokenRates, getCurrentLiveBalances, getBptRate, getPoolData, initialize, removeLiquidityRecovery",
+      "lines": "158-176 (getPoolTokens)",
+      "decompiled": "mem[160] = poolTokens[_pool][0] / idx = 160 / s = 0 / while 32 * poolTokens[_pool].length + 160 > idx + 32: mem[idx + 32] = poolTokens[_pool][s + 1] ... / while idx < poolTokens[_pool].length: mem[t] = Bytes(12, 0), mem[s + 12 len 20] ...",
+      "source": "IERC20[] memory tokens = _poolTokens[pool]; ... return tokens;",
+      "issue": "Every copy of the pool's token array from storage is a rotated loop (P3, first element peeled, condition on byte addresses) and every ABI return of an address array a cleaning copy loop (P7), although both are plain copies.",
+      "rule": "mem[d + 32 i] = stor[sha3(k) + i] for i < len is one copy line; a loop storing address(mem[s + 32 i]) where the source words are already addresses is a copy.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "_fallback",
+      "lines": "265-284",
+      "decompiled": "if calldata.size < 4: if not calldata.size: revert with 0xf2238896 / if call.value: revert ... / delegate 0x0 with: args call.data[0 len calldata.size] ... / if call.value: revert ... / mem[0 len calldata.size] = call.data[0 len calldata.size] / delegate 0x0.mem[0 len 4] with: args mem[4 len calldata.size - 4]",
+      "source": "receive() { revert CannotReceiveEth(); } fallback() { if (msg.value > 0) revert CannotReceiveEth(); _fallback(); } (Proxy._delegate: calldatacopy(0, 0, calldatasize()); delegatecall(...))",
+      "issue": "The same delegatecall is printed twice (P12), once with call.data args and once with a 'selector' read from the memory just copied from calldata (mem[0 len 4]) and args mem[4 len ...].",
+      "rule": "Memory just copied from calldata is calldata (mem[0 len n] = call.data[0 len n]); then the two arms are identical apart from the receive test and merge.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All functions but isUnlocked (a transient-storage read) are guarded by onlyVaultDelegateCall, which always reverts here because the _vault immutable reads as 0, so the bodies (and their loops) are dead in this bytecode; the review of the bodies therefore checked structure only: the 12 source loops are present as whiles with readable conditions, BasePoolMath.computeProportionalAmountsOut's loop included (the pack does not list that library function). Implicit loops: storage-array copies (rotated, P3), new uint256[] initialisation ('while idx - 1'), ABI decoding of the TokenConfig[] and uint256[] params, and ABI copies of returned arrays (P7).",
+  "summary": "Almost everything is dead code because the delegate-call guard compares against an immutable that reads as 0; the dead bodies still show all source loops as readable whiles, with the usual rotated storage copies and cleaning copy loops."
+}

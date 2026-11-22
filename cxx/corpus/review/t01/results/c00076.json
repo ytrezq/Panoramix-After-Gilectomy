@@ -1,0 +1,25 @@
+{
+  "id": "c00076",
+  "abi_functions": 55,
+  "reviewed": 55,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 6, "P3": 1, "P6": 4, "P7": 1, "P8": 40},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "inboundNonce(address,uint32,bytes32) (unknowna0dd43fc), lzReceive/clear paths (unknownd70b8902)",
+      "lines": "unknowna0dd43fc +5-10",
+      "decompiled": "_11 = sha3(uint64(stor1[_param1][_param2][_param3] + 1), sha3(_param3, sha3(_param2, sha3(_param1, 2)))) / s = stor1[_param1][_param2][_param3] / while stor[_11]: _11 = sha3(uint64(s + 2), sha3(_param3, sha3(_param2, sha3(_param1, 2)))); s = s + 1",
+      "source": "MessagingChannel.sol:59 while (_hasPayloadHash(_receiver, _srcEid, _sender, nonceCursor + 1)) { ++nonceCursor; }",
+      "issue": "The loop condition is a slot variable computed before the loop for nonceCursor + 1 and recomputed at the end of the body for s + 2, and the nested-mapping read is a raw stor[sha3(...)] although the same mapping prints as stor2[_param4][_param1][_param2][_param3] in unknownc9a54a99.",
+      "rule": "Substitute a loop-carried value defined as f(induction variable) into the test (while stor2[a][b][c][uint64(s + 1)]); recognize nested mapping hashes inside loops as in straight-line code.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: inboundNonce's while (_hasPayloadHash) (2 inlinings, while stor[_N]) and _clearPayload/skip's for (i = currentNonce + 1; i <= _nonce) (while uint64(s) <= _param3 in 2 functions); both present. Implicit: ABI decoding of a calldata array (while idx < cd[_param3 + 4]) and a storage-to-memory copy with its encode loop (P3, P7). Nonce packing prints as (x << 192) + 0x1000000000000000000000000000000000000000000000000 >> 192 for uint64(x + 1). Immutables (eid, lzToken/nativeErc20 for the Alt endpoint) read as 0 (artifact, not separately reported).",
+  "summary": "Small faithful text with both loops present; the inbound-nonce loop reads through a precomputed slot variable instead of the mapping access."
+}

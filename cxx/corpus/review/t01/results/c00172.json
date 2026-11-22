@@ -1,0 +1,25 @@
+{
+  "id": "c00172",
+  "abi_functions": 43,
+  "reviewed": 43,
+  "not_reviewed": [],
+  "source_loops": 14,
+  "loops_shown": {"while": 14, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 9, "P2": 6, "P3": 2, "P4": 24, "P6": 34, "P7": 45, "P8": 150, "P11": 25},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "removeSenders, approveSenders (unknown7670d1d8, unknown90f7af54), the receiver/forwarder adapter updates (unknownfe46a413, unknowna2711ff4, unknown9d0cb9d4, unknown0a234b15, unknowne3a95a5a) and the initializer (unknown700e50a8): 8 loops",
+      "lines": "359-379 (removeSenders); 424; 523; 596; 764; 867; 1035; 2775",
+      "decompiled": "if 0 >= cd[_param1 + 4]: stop / _20 = mem[160] / ... / s = 0 / while address(_20): ... stor4[concat(Bytes(12, 0), mem[32 * s + 172 len 20])] = 0 / log ... / if s + 1 >= cd[_param1 + 4]: stop / _20 = mem[32 * s + 192] ... / s = s + 1 / (after the loop) revert with Error(string), '36'",
+      "source": "CrossChainForwarder.sol:429-433 for (uint256 i = 0; i < senders.length; i++) { require(senders[i] != address(0), Errors.INVALID_SENDER); _approvedSenders[senders[i]] = newState; emit SenderUpdated(senders[i], newState); } (and the similar loops at CrossChainReceiver.sol:249, :269, :292, CrossChainForwarder.sol:323, :394)",
+      "issue": "The loop header is the body's require (senders[i] != address(0), or the flag of a similar check: 'while _36', 'while address(_27)'), whose failure leaves the loop to the revert printed after it, while the source condition i < length is printed as 'if s + 1 >= len: stop' at the bottom and its first test peeled before the loop. 'while address(_20)' reads as a loop over a linked list, not over the array.",
+      "rule": "Choose as the loop header the test whose exit edge reaches the normal continuation, not one whose exit reaches only a revert: 'while C_revert: B; if i + 1 >= N: exit; i = i + 1' is 'while i < N: require C_revert; B; i = i + 1' (same rule as in c00050).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (14, all whiles): retryTransaction's three (loop1 at 1984 with the uniqueness loop and, inside its exit branch, the registered-adapter search with a break), _bridgeTransaction's (2060 and copies), _disableBridgeAdapters' three nested, _enableBridgeAdapters' two, _updateSenders (rotated, see the finding), _updateConfirmations, _updateMessagesValidityTimestamp, _updateReceiverBridgeAdapters' two. Implicit whiles: ABI decodings of the calldata struct arrays (with 'require cd[idx] == address(cd[idx])'), EnumerableSet/array copies, copies of the Error(string) codes ('36', '21', '8' are Errors.* string constants allocated in memory at every iteration, P8), the rotated allocation of new ChainIdBridgeConfig[](n) ('while idx - 1', 1973, P3) and storage-array copies ('while idx < stor7[_param1].length'). The two initializers (663 and 783 lines) were reviewed by structure; removeSenders, retryTransaction's loops and the small getters by reading. P1: Errors.* string words factored by 3600 (e.g. 0x38...* 3600 at 2006). P4: 24 mapping keys as concat(Bytes(12, 0), mem[a + 12 len 20]).",
+  "summary": "Faithful text in which all 14 source loops are found, but eight of them are rotated around their require check (the while condition is the check whose failure reverts), and error-code strings and struct-array decodings add many compiler loops and dead memory writes."
+}

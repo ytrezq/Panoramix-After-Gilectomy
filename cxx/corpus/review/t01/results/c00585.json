@@ -1,0 +1,58 @@
+{
+  "id": "c00585",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 411, "P6": 140, "P7": 21, "P8": 800, "P9": 20, "P11": 10, "P12": 150, "P15": 12, "P18": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "doHardWork, withdrawToVault, withdrawAllToVault, emergencyExit, receiveFlashLoan (402 call lines, 78 reverts, 6 logs)",
+      "lines": "e.g. 1633-1658, 1660-1663, 2495, 3773",
+      "decompiled": "_205 = mem[64]\nmem[mem[64]] = 0x7535d246...\nstatic call address(stor8CDE) with: args mem[mem[64] len _205 - mem[64] + 4]\n...\n_208 = mem[64] / mem[64] = ceil32(return_data.size) + mem[64] / mem[_208 + ceil32(return_data.size)] = 0x69328dec... / call address(_210) with: args mem[mem[64] len _208 + ceil32(return_data.size) - mem[64] + 100]",
+      "source": "AaveFoldStrategy.sol:349-350 IPool(IAToken(aToken()).POOL()).withdraw(underlying(), amountUnderlying, address(this)); the balanceOf/approve/repay/supply/borrow calls, ProfitsNotCollected and the fee logs",
+      "issue": "This is the P2 mechanism seen in full: every raw call, revert and log follows either '_N = mem[64]' or 'mem[64] = E(_N)' (E built from a named base) with no other write to mem[64] in between, so the buffer starts at a known base and 'len _N - mem[64] + 4' is 4. Because the name and the read of mem[64] are not unified, POOL(), withdraw(...), balanceOf(this), approve, repay, the flashLoan call's array arguments (P7 whiles) and all event data stay raw. A script over the text finds this precondition for all 528 such lines here (1016 of 1032 in c00217).",
+      "rule": "Treat mem[64] as a tracked value: after '_N = mem[64]' it equals _N, after 'mem[64] = E' it equals E (with the old mem[64] replaced by its alias), until the next write; substitute before decoding call buffers, Error(string) reverts and log data, which then sit at constant offsets from a named base.",
+      "verified": "reading only (script over the text: 528/528 lines have the alias or symbolic write before them)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "doHardWork, emergencyExit, withdrawAllToVault, withdrawToVault (_accrueFee)",
+      "lines": "1525-1527 and the 7 other copies",
+      "decompiled": "if _16 + _15 + rd != (-1 * _6 * _16 - _6 * _15 - _6 * rd + _17 * _16 + _17 * _15 + _17 * rd - _16 * storedBalance - _15 * storedBalance - rd * storedBalance) / (-_6 + _17 - storedBalance) and -_6 + _17 - storedBalance: revert Panic(17)\n_59 = SafeMath.div(<the same 9-term sum>, _18)",
+      "source": "AaveFoldStrategy.sol:121-122 balanceIncrease = currentBalance().sub(storedBalance()); fee = balanceIncrease.mul(totalFeeNumerator()).div(feeDenominator())",
+      "issue": "The product of two named sums (balanceIncrease = aBal - debt - stored, totalFee = three numerators) is distributed into 9 terms, printed twice; the checked-mul test then reads as a polynomial divided by a sum (P9).",
+      "rule": "Do not distribute a product of sums; name each factor (they are SSA values already) and print the checked mul as SafeMath.mul(b, t).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "isRewardToken(address); receiveFlashLoan",
+      "lines": "515-525; 988-992, 1132, 1146",
+      "decompiled": "s = 0 / while True: if s >= stor4541: _20 = 0; break / if mem[32 * s + 172 len 20] != _token: s = s + 1; continue / _20 = 1; break  |  _13 = mem[32 * _param1.length + 192] ... if -mem[32 * _param1.length + 192] - mem[32 * _param1.length + 32 * _amounts.length + 224]:",
+      "source": "BaseUpgradeableStrategyStorage.sol:119-124 for (i < _list.length) if (_list[i] == _searchValue) return true; AaveFoldStrategy.sol:457 toRepay = amounts[0].add(feeAmounts[0]), _redeem's 'if (amountUnderlying == 0) return'",
+      "issue": "The search loop's exit test becomes the first statement of 'while True'; amounts[0] and feeAmounts[0] are read back as slices of their memory copies instead of the calldata elements; 'x != 0' for x = a + f is printed as '-a - f'.",
+      "rule": "A 'while True' whose body starts with 'if c: ...; break' is 'while not c'; after 'mem[A len 32n] = call.data[B len 32n]' and a check 0 < n, mem[A] is cd[B] (_amounts[0]); -z is nonzero exactly when z is.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "salvage, receiveFlashLoan, the SafeERC20 blocks of the four big functions",
+      "lines": "675, 1023, 1691 ...",
+      "decompiled": "mem[ceil32(return_data.size) + 160 len 4] = 2835717307  |  mem[_245 + 32 len 4] = 157198259",
+      "source": "SafeERC20.safeTransfer/safeApprove: abi.encodeWithSelector(token.transfer.selector, ...) / approve.selector",
+      "issue": "The 4-byte selector word is printed in decimal (0xa9059cbb, 0x095ea7b3), while the next line shows the same bytes as Bytes(4, 0xa9059cbb).",
+      "rule": "Print a value written into a 'len 4' memory slice in hex.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 62 ABI functions reviewed; the 5 long ones (doHardWork 3000 lines, withdrawToVault 2600, withdrawAllToVault 2400, emergencyExit 770, receiveFlashLoan 450) by structure: calls, storage writes, loops, events, reverts. Checked against the source: emergencyExit (isGovernance, _accrueFee with currentBalance twice, _redeemMaximumWithFlashloan with fee = pendingFee + 1 clamp, _redeemWithFlashloan with target 0, _redeemNoFlash loop 'while u > 0', flash branch setting stor3_8 = makingFlashWithdrawal around flashLoan, pausedInvesting = 1, storedBalance, updateSupplyInTheEnd), receiveFlashLoan (caller check, the two flag checks, deposit vs withdrawal branch, repay min(amounts[0], borrowed), redeem toRepay, safeTransfer), salvage, scheduleUpgrade, finalizeUpgrade, getters: no semantic error found. Raw topics for ProfitLogInReward/StrategistFeeLogInReward/PlatformFeeLogInReward (not in the signature DB) are normal. Loops: 5 explicit, all whiles: _depositNoFlash ('while w < s', 2 copies), _liquidateReward over rewardTokens (2), _redeemNoFlash ('while u > 0' when the target is 0, 'while v > s', 5), _isAddressInList ('while True' form, see finding 3), getAddressArray (2). Implicit: receiveFlashLoan's address[] decode (readable); 21 memory-to-memory array encodes as whiles (flashLoan tokens/amounts, claimAllRewards assets, rewardTokens() return), P7. P8 is massive in the long functions (selector and argument writes before calls that are printed with names, return-data copies, mem[64] updates, keccak scratch mem[0] = 4 / mem[32] = 5). def storage merges _initialized/_initializing into uint16 stor0 (P15). The 'currentBalance' calls read debtToken's balance before aToken's, as the bytecode does. No execution run: nothing doubtful on a reachable path.",
+  "summary": "Faithful, and the small functions are clean, but the long strategy functions are dominated by memory noise: 411 calls lose their names and arguments and 78 reverts and the fee logs stay raw because a named read of mem[64] is not unified with later reads, and the fee arithmetic is distributed into 9-term polynomials."
+}

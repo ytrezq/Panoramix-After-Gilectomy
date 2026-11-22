@@ -1,0 +1,33 @@
+{
+ "id": "c00363",
+ "abi_functions": 15,
+ "reviewed": 15,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P14": 2
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "createNewDeployment(address,uint256,uint256,address)",
+   "lines": "137-158",
+   "decompiled": "mem[192] = stor4 ... call mem[204 len 20].deploy(...) ... require ext_call.return_data[0] == ext_call.return_data[12 len 20] ... return address(_1), address(_3), Bytes(12, 0), ext_call.return_data[12 len 20]",
+   "source": "YBSRegistry.sol:87-101 Factories memory _factories = factories; ... utils = _factories.utilities.deploy(ybs, distributor); return (ybs, distributor, utils)",
+   "issue": "The third factory is read back from the memory copy of the struct (`mem[204 len 20]` instead of stor4), the address check and the returned `utils` are printed as slices (`ext_call.return_data[12 len 20]`, `Bytes(12, 0), ...`) although the same checks on the first call print `address(ext_call.return_data[0])`.",
+   "rule": "Forward a constant-address memory store to later reads (mem[192] = stor4, so mem[204 len 20] is address(stor4)); print `x[12 len 20]` of a word as `address(x)` and merge `Bytes(12, 0), addr` into one address word.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Yearn YBSRegistry (solc 0.8.38). No loop (the tokens.push is a single storage append). All functions checked line by line: ownership transfer/accept, approved deployers, factory and deployment setters with their events, createNewDeployment (authorization, uniqueness, three factory deploy calls, struct store, tokens.push, numTokens++ checked, event, return). Faithful.",
+ "summary": "Small, faithful text; only cosmetic slice/memory forms around the three-factory deployment."
+}

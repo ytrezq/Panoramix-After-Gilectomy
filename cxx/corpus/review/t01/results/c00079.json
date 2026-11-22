@@ -1,0 +1,74 @@
+{
+ "id": "c00079",
+ "abi_functions": 37,
+ "reviewed": 37,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P1": 30,
+  "P2": 255,
+  "P6": 4,
+  "P8": 150,
+  "P9": 40,
+  "P11": 20,
+  "P12": 30,
+  "P15": 3,
+  "P18": 60
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "deposit, withdraw, redeemUnderlying, borrow, repay, liquidate, handleExternalLiquidation, setTwyneLiqLTV, skim, rebalance, canLiquidate, canRebalance, maxBorrow, maxRelease, checkVaultStatus, collateralForBorrower (206 lines)",
+   "lines": "5091, 5103 and 204 more",
+   "decompiled": "transient[3] = -(stor1 ^ (mem[_387] < stor1) * (stor1 ^ mem[_387])) + stor1",
+   "source": "OpenZeppelin Math.min/max via Math.ternary(condition, a, b) = b ^ ((a ^ b) * toUint(condition)) (CollateralVaultBase / AaveV3CollateralVault min/max of assets, LTVs and balances)",
+   "issue": "Every branchless min/max is printed as the raw xor-multiply, so 'stor1 - min(x, stor1)' reads as nested xors and products.",
+   "rule": "b ^ ((a ^ b) * c) with c in {0, 1} is 'c ? a : b'; with c = (a < b) it is min(a, b), with c = (a > b) max(a, b).",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "deposit, withdraw, redeemUnderlying, borrow, repay, setTwyneLiqLTV, skim, rebalance",
+   "lines": "1815-1847, 2387-2419, 3009-3041, 3622-3654, 4847-4879, 5519-5551, 6228-6260",
+   "decompiled": "if not transient[8]: transient[8] = 1 / static call stor4.unknown10fc6137(?) ... static call stor59.balanceOf(...) / if not transient[8]: (15 lines re-reading the liquidation params) else: _104 = transient[5] ...",
+   "source": "CollateralVaultBase.createVaultSnapshot (snapshot flag in transient storage) followed by _liqParams, which re-tests the flag",
+   "issue": "A transient-storage test right after the same path stored 1 there is kept, with its dead arm (a second unknown10fc6137 call and three range checks), in 8 functions.",
+   "rule": "TLOAD (and SLOAD) of a slot this contract stored on the same path reads the stored value when only STATICCALLs, pure computation or reverts lie in between (a static context cannot TSTORE/SSTORE, so no reentrant write is possible); fold the test and drop the dead arm.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "most functions (145 lines)",
+   "lines": "4870-4872, 4815-4816",
+   "decompiled": "require ext_call.return_data[0] == ext_call.return_data[30 len 2] / transient[5] = ext_call.return_data[30 len 2]",
+   "source": "VaultManager liquidation params returned as uint16 (abi.decode of a uint16 return value)",
+   "issue": "The ABI range check of a returned uint16 and its use are printed as byte slices of the return data.",
+   "rule": "return_data[o + 32 - n len n] is uint(8n)(return_data[o]); after 'require x == uint(8n)(x)' it is x.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "every function (EVC, Aave data provider, address provider, incentives controller, targetVault)",
+   "lines": "4793-4806, 4904, 167",
+   "decompiled": "if caller: call 0x0.unknown1f8b5215(?) with: value call.value wei ... / static call 0x0.getReserveConfigurationData(address asset) / call 0x0.claimAllRewards(...)",
+   "source": "EVCUtil evc, aaveAddressProvider, aaveDataProvider, INCENTIVES_CONTROLLER, targetVault are immutables",
+   "issue": "solc immutables read as 0 in pre-deployment code: the EVC check becomes 'if caller:' and external calls go to address 0. Not a decompiler error.",
+   "rule": "none (corpus artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "No explicit loop in the source of the 37 ABI functions or of what they reach (checked in the pack and in AaveV3CollateralVault.sol / CollateralVaultBase.sol). The text's only while (claimRewards, 160) is the implicit calldata-to-memory encoding of the address[] for abi.encodeCall, readable, and the call is decoded as claimAllRewards(address[], address). Big functions (handleExternalLiquidation ~900 lines, liquidate ~820, setTwyneLiqLTV ~750, repay ~730, deposit ~700, redeemUnderlying ~650, withdraw ~660, borrow ~640, checkVaultStatus ~640, skim ~600) reviewed by structure: modifiers (callThroughEVC as 'if caller:' with the return of the EVC result from offset 64, onlyBorrowerAndNotExtLiquidated, whenNotPaused, nonReentrant on stor9B77, transient snapshot), external calls, storage writes and events; deposit followed in detail (permit2 transfer, totalAssetsDepositedOrReserved += assets, _handleExcessCredit, requireAccountAndVaultStatusCheck, T_Deposit). No semantic error found. P2: 255 calls print without a function name (intermediateVault, asset, permit2 paths) where the selector sits at an unknown free-memory offset. P1: the selector 0x35ea6a75 (getReserveData) is printed as 0x3d5815.. * 3600 (28 lines) and the Initializable slot as 0x111f.. * 3600. P9: the Aave health/LTV arithmetic with 10**6 scaling is long but mostly kept factored. P15: the Initializable slot is split as uint8/uint56/uint8.",
+ "summary": "Faithful, loop-free contract text whose readability suffers from the branchless min/max printed as xor-multiply (206 lines), 255 calls without names, return-value range checks as byte slices, and a re-test of a transient flag just set to 1 kept in 8 functions."
+}

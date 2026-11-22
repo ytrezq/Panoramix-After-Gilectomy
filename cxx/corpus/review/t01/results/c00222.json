@@ -1,0 +1,25 @@
+{
+  "id": "c00222",
+  "abi_functions": 32,
+  "reviewed": 32,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P3": 1, "P6": 42, "P8": 60, "P11": 20, "P12": 40},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "every onlyAuthorized function (setTargetFunctionRole, setRoleAdmin, setRoleGuardian, setGrantDelay, setTargetAdminDelay, setTargetClosed, updateAuthority, labelRole, grantRole, revokeRole)",
+      "lines": "the _getAdminRestrictions dispatch in each (330 lines with call.func_hash)",
+      "decompiled": "_14 = 0x853551b8... == call.func_hash or 0x30cae187... == call.func_hash ... or 0x8d6122d000...00 == call.func_hash",
+      "source": "AccessManager._checkAuthorized -> _canCallSelf -> _getAdminRestrictions(msg.data)",
+      "issue": "Same as c00247: msg.sig is known in each dispatched function but its comparisons are not folded (330 lines).",
+      "rule": "As in c00247.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Same contract as c00247 (OZ AccessManager, here inherited by ParallelAccessManager, solc 0.8.28): same 32 ABI functions and the same decompiled shapes; reviewed against c00247 ('same as c00247' for all functions). Source loops: Multicall :32 and setTargetFunctionRole :380 - both while. Nested-mapping slots printed raw in 63 lines (c00542 / c00247 finding). No semantic error found.",
+  "summary": "Same as c00247: complete and faithful, both source loops as while loops, readability limited by the unfolded msg.sig dispatch in authorized functions."
+}

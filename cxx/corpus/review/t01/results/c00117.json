@@ -1,0 +1,36 @@
+{
+  "id": "c00117",
+  "abi_functions": 78,
+  "reviewed": 78,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P3": 1, "P7": 2, "P8": 40, "P11": 2, "P14": 1},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "ADDRESSES_PROVIDER(), RESERVE_INTEREST_RATE_STRATEGY() and every function calling the addresses provider (34 calls)",
+      "lines": "e.g. 252, 540",
+      "decompiled": "const ADDRESSES_PROVIDER = 0  |  const unknown1b8feb0e = 0  |  static call 0x0.getPriceOracle()",
+      "source": "Pool.sol IPoolAddressesProvider public immutable ADDRESSES_PROVIDER; address public immutable RESERVE_INTEREST_RATE_STRATEGY",
+      "issue": "solc immutables are zero in this pre-deployment bytecode, so the provider calls target 0x0.",
+      "rule": "None (solc immutable placeholder).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "multicall(bytes[]), UMBRELLA()",
+      "lines": "1057, 1078-1080, 1103-1107, 1115-1120; UMBRELLA getter",
+      "decompiled": "mem[128] = 0 ... _33 = mem[128] / mem[_31 + ... + 32 len mem[128]] = mem[160 len mem[128]]  |  mem[mem[64]] = 0xd6bda275...; revert with memory from mem[64] len _44 - mem[64] + 4  |  const unknown71459c15 = 0x554d4252454c4c41000000000000000000000000000000000000000000000000",
+      "source": "Multicall.sol:27-33 context = new bytes(0) (msg.sender == _msgSender()); bytes.concat(data[i], context); Address.functionDelegateCall -> revert Errors.FailedCall() / AddressEmptyCode(target); bytes32 public constant UMBRELLA = 'UMBRELLA'",
+      "issue": "The decompiler correctly folds the context to new bytes(0) but keeps reading its length from memory, so an empty copy remains in the loop body; the custom errors FailedCall() and AddressEmptyCode(address) stay raw memory reverts; a bytes32 string constant prints in hex.",
+      "rule": "A memory word written once with a constant (mem[128] = 0) and not written again can be read as that constant, which removes zero-length copies; decode reverts built at mem[64] as for P2; print a bytes32 constant made of printable bytes followed by zeros as a string.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Aave v3 L2Pool: nearly all logic is in linked libraries reached by delegatecall (34 sites: SupplyLogic 0x11a8258d..., BorrowLogic 0x11e4d6a0..., etc.); the text shows them with their storage-pointer arguments (slots 52-56, sha3(user, 53)) and the L2 packed-argument decoding (uint16(args), uint128(args >> 16), uint16(args >> 144), the Panic(33) enum check), all correct. All 78 functions were reviewed (the delegatecall wrappers and getters in full). Source loops in this bytecode: Pool.sol:534 getReservesList ('while idx < stor59_64' with the dropped-reserve counter, correct) and Multicall.sol:32 ('while idx < data.length'). The other loops of the pack (FlashLoanLogic :77/:103, GenericLogic :86, LiquidationLogic :646, PoolLogic :46/:112, ValidationLogic :216/:217/:475) belong to external library functions and are not in this bytecode. Implicit loops: mintToTreasury / flashLoan argument encodes (522, 1248), the results zeroing of multicall (1065, rotated: P3), the bytes[] / address[] result encodes (897, 1129: P7). P11: the results[i] and reservesList bounds checks implied by the loop tests.",
+  "summary": "A clean, faithful text: a thin pool that delegatecalls its libraries, with both of its own loops shown; only the immutables (artifact) and a few raw-memory reverts in multicall stand out."
+}

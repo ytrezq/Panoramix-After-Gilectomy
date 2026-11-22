@@ -1,0 +1,36 @@
+{
+  "id": "c00019",
+  "abi_functions": 112,
+  "reviewed": 112,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 4, "P3": 1, "P4": 4, "P6": 13, "P7": 14, "P8": 35, "P10": 26},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "batchSetAtomData, batchSetTripleData, batchSetUserBalances, multicall (and the createAtoms/createTriples/deposit/redeem batch wrappers)",
+      "lines": "1905-1912, 1957 (batchSetAtomData); 1004-1012 (batchSetTripleData); 2039-2073 (batchSetUserBalances); 1262-1267 (multicall)",
+      "decompiled": "_25 = mem[64] / mem[mem[64] + 32] = 0xc50959b2... / mem[_25 + 64] = _24 / _26 = mem[64] / mem[mem[64]] = _25 - mem[64] + 64 / mem[64] = _25 + 96 / _28 = sha3(mem[_26 + 32 len mem[_26]])  |  log 0xf717428d...: mem[mem[64] len _52 + ceil32(return_data.size) - mem[64] + 192], indexed this.address, ...",
+      "source": "MultiVaultCore._calculateAtomId: keccak256(abi.encodePacked(ATOM_SALT, keccak256(data))); _calculateTripleId: keccak256(abi.encodePacked(TRIPLE_SALT, s, p, o)); emit Deposited(...) / AtomCreated(...)",
+      "issue": "The atom and triple ids are printed as hashes of raw memory (the salt and the arguments written just before are not seen as the hash input), and the Deposited/AtomCreated event data are a single raw memory range, because the stores through mem[mem[64]] and the reads through _25/_52 are not recognised as the same addresses; elsewhere the counter-triple id prints well as sha3(0xe7cb..., _13).",
+      "rule": "Canonicalise _v = mem[64] and mem[64] (and mem[64] after 'mem[64] = e' with no aliasing store in between) to one value; then 'mem[_v] = n' with n the distance to the last written word makes sha3(mem[_v + 32 len mem[_v]]) the sha3 of those words, and log data mem[_v len k] the list of the stored words.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "batchSetTripleData, batchSetUserBalances, batchSetVaultTotals (_getVaultType)",
+      "lines": "1000-1003, 1993-1996; 906-910, 2062-2066",
+      "decompiled": "s = 0 / while True: if s >= cd[_param2 + 4]: stop / ...  |  if not _12: _19 = not stor25[term] or 2 / _21 = _19 else: _21 = 0",
+      "source": "MultiVaultMigrationMode.sol:122 for (uint256 i = 0; i < length;) {...} (the last statement of the function); MultiVaultCore._getVaultType: isAtom ? ATOM : (isCounterTriple ? COUNTER_TRIPLE : TRIPLE)",
+      "issue": "Two for-loops that end their function are printed as 'while True' with the bound test and a 'stop' inside, and the vault type is chosen with a Python 'or' on a negated flag ('not stor25[t] or 2' meaning 'stor25[t] ? 2 : 1').",
+      "rule": "A loop whose first statement is 'if i >= n: stop' (or return) and which is followed by the function's end is 'while i < n: ...' followed by stop; 'not c or k' with k non-zero is 'c ? k : 1' and prints as a conditional.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 112 ABI functions reviewed: most are getters or thin wrappers delegating to the linked external library MultiVaultLib (0x11b7..., 34 delegatecalls), whose loops (createAtoms/createTriples/_validateAtomUris/_validatePayment/depositBatch/redeemBatch) live in the library's bytecode and are not counted. The 7 source loops of this bytecode are readable whiles: batchSetAtomData, batchSetTripleData ('while True'), batchSetVaultTotals, batchSetUserBalances' outer ('while True') and inner loops, and multicall's two loops (MultiVault.sol:577, :588). The pack also lists StringsUpgradeable.toString as reached from unpause, but the bytecode uses custom errors and has no such loop. Implicit: 14 copy loops of ABI-encoded arrays (P7), multicall's rotated bytes[] zero-initialisation (P3), readable encode loops for the library calls. Checked exactly: MIGRATOR_ROLE checks, length checks and custom errors, the _atoms bytes storage write (short/long encodings, cleanup), the counter-triple id, the nested balanceOf write stor[sha3(user, sha3(curve, sha3(term, 27)) + 2)] (struct member after a mapping, raw: same as c00290), multicall's transient _inMulticall/_virtualMsgValue, the nonReentrant ERC-7201 slot (stor9B77). Initializable's uint64 _initialized is split into uint8 + uint56 writes (as in c00143). P1: the selector 0x218e250d printed as 0x262dad...0 * 3600 (2 lines).",
+  "summary": "Faithful and its 7 loops are readable; the main obscurity is the free-memory-pointer aliasing problem that leaves atom/triple id hashes and event data as raw memory, plus 'while True' loops and a few Python-style conditional values."
+}

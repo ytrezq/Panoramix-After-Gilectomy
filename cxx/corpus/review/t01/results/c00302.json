@@ -1,0 +1,25 @@
+{
+  "id": "c00302",
+  "abi_functions": 17,
+  "reviewed": 17,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P6": 7, "P7": 3, "P8": 15},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "canPerform(address,bytes32,uint256[]) and the authP checks of transfer",
+      "lines": "196-237",
+      "decompiled": "mem[64] = 32 * _params.length + 160 ... if not _1: mem[32 * _params.length + 160] = 0; return memory from mem[64] len 32 * _params.length - mem[64] + 192  |  while s < mem[128]: mem[s + 32 * _params.length + 324] = mem[s + 160]; s = s + 32 ... call kernel with: args mem[mem[64] len _14 - mem[64]]  |  _22 = mem[64]; mem[mem[64]] = bool(_20); return memory from mem[64] len _22 - mem[64] + 32",
+      "source": "AragonApp.sol:42-57 if (!hasInitialized()) return false; ... return linkedKernel.hasPermission(_sender, address(this), _role, ConversionHelpers.dangerouslyCastUintArrayToBytes(_params))",
+      "issue": "mem[64] is assigned a known expression and only the region from 160 up is written before it is read again, yet the returns are 'return memory from mem[64] len 32 * _params.length - mem[64] + 192' (i.e. return 0) and 'len _22 - mem[64] + 32' (i.e. return bool(_20)); the bytes copy into the hasPermission buffer is a while (P7), so the kernel call loses its name and arguments (P2).",
+      "rule": "A store to [160, 160 + n) (n below 2**64) does not alias mem[64]: keep mem[64] equal to its last assignment and fold 'x - mem[64]' accordingly (here to 32, giving 'return 0' / 'return bool(_20)'); copy loops over bytes become copy lines.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "solc 0.4.24 Aragon app; all 17 functions compared line by line: the unstructured-storage getters (kernel, appId, initializationBlock, isDepositable), initialize/onlyInit, deposit with ETH/ERC20 paths and VaultDeposit, transfer with authP (TRANSFER_ROLE param array built in memory) and the ETH/ERC20 transfer paths, transferToVault / allowRecoverability, getEVMScriptExecutor. No source loops; the three whiles are bytes copies (P7).",
+  "summary": "Small, complete and faithful; the free-memory pointer is not folded even right after it is assigned, so canPerform's returns and its kernel call read as raw memory."
+}

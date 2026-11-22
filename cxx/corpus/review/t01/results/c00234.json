@@ -1,0 +1,47 @@
+{
+  "id": "c00234",
+  "abi_functions": 32,
+  "reviewed": 32,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 2, "P4": 19, "P6": 2, "P7": 16, "P16": 116},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "softFreeze, hardFreeze, unfreeze, reinforceFreeze, reinforceUnfreeze, executeEmergencyUpgrade and others using the immutables",
+      "lines": "e.g. 273-298 (reinforceUnfreeze)",
+      "decompiled": "while s < mem[ceil32(_3) + 128]: ... require ext_code.size(0) / call 0x0.unknown51d218f7(?) with: args _20 ... call 0x0.unpause() with: ...",
+      "source": "_freeze()/_unfreeze(): uint256[] memory zkChainIds = BRIDGE_HUB.getAllZKChainChainIDs(); for (uint256 i = 0; i < len; ++i) { try CHAIN_TYPE_MANAGER.freezeChain(zkChainIds[i]) {} catch {} } ... (BRIDGE_HUB, CHAIN_TYPE_MANAGER, EMERGENCY_UPGRADE_BOARD... are immutable)",
+      "issue": "The immutables read as 0: getAllZKChainChainIDs() on address 0 returns nothing and fails ABI decoding, so the _freeze/_unfreeze loops are dead and not counted (they are printed as whiles, with the try/catch calls correctly ignoring failure), and executeEmergencyUpgrade's board check compares with 0.",
+      "rule": "-",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "execute(((address,uint256,bytes)[],address,bytes32)), executeEmergencyUpgrade, startUpgrade",
+      "lines": "765-800 (execute's _execute loop)",
+      "decompiled": "while idx < cd[_param1 + cd[_param1 + 4] + 4]: ... call address(cd[_param1 + cd[_param1 + 4] + cd[32 * idx + _param1 + cd[_param1 + 4] + 36] + 36]) with: value cd[_param1 + cd[_param1 + 4] + cd[32 * idx + _param1 + cd[_param1 + 4] + 36] + 68] wei ...",
+      "source": "ProtocolUpgradeHandler.sol:342 for (uint256 i = 0; i < _calls.length; ++i) { if (_calls[i].data.length > 0) require(_calls[i].target.code.length > 0, ...); (bool success, bytes memory returnData) = _calls[i].target.call{value: _calls[i].value}(_calls[i].data); ... }",
+      "issue": "The loop is found, but the proposal tuple is typed 'array' and every member (calls, target, value, data) is nested raw calldata arithmetic (P16, 116 lines), several lines over 240 characters.",
+      "rule": "Type the tuple parameter and print _proposal.calls[idx].target / .value / .data.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize",
+      "lines": "130-131",
+      "decompiled": "_1 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64",
+      "source": "OpenZeppelin Initializable (ERC-7201 slot 0xf0c57e16...)",
+      "issue": "Same as c00467: the Initializable slot is factored by 3600 (P1).",
+      "rule": "Never factor a storage slot constant.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: _execute's for (alive in execute; dead in executeEmergencyUpgrade behind the immutable board check), _freeze's and _unfreeze's fors (dead: immutables), so 1 counted. The other whiles are implicit: abi.decode of the uint256[] chain ids (copy loop) and abi.encode of the proposal for its hash and the events (P7). The 'try ... catch {}' calls are rendered without a success check, which is right. 3 * 24 * 3600 (3 days) is left as a product, which reads well. All functions reviewed line by line.",
+  "summary": "Faithful; the one live source loop is a while whose body is unreadable raw calldata arithmetic over the proposal tuple, and the immutables (0) make the freeze/unfreeze loops dead."
+}

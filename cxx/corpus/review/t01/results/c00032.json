@@ -1,0 +1,58 @@
+{
+  "id": "c00032",
+  "abi_functions": 84,
+  "reviewed": 84,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 9, "P3": 6, "P6": 16, "P7": 19, "P8": 40, "P11": 15, "P13": 0, "P14": 10},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "quoteGasPayment, unenrollRemoteRouter, unenrollRemoteRouters, quoteTransferRemote, transferRemote, rebalance (every path reverting with 'No router enrolled for domain: ' + domain)",
+      "lines": "911-919 (quoteGasPayment); 1011, 1856, 2044, 2358, 2688",
+      "decompiled": "mem[_13 + 342 len 1] = byte(_param1 % 10, 0x3031..66) / s = _13 + 343 / t = _param1 / while t / 10: mem[s - 2 len 1] = byte(t / 10 % 10, 0x3031..66); s = s - 1; t = t / 10",
+      "source": "Strings.sol:28 while (true) { ptr--; mstore8(ptr, byte(mod(value, 10), HEX_DIGITS)); value /= 10; if (value == 0) break; }",
+      "issue": "The do-while of Strings.toString is rotated (P3): its first iteration is printed before the loop, the loop tests the next value (t / 10) and the body writes digit t / 10 % 10 at s - 2, so each statement is offset by one iteration from the source.",
+      "rule": "Recognise 'body; if c: goto body' as one loop with the test at its end (do-while) instead of peeling one iteration: 'while True: mem[s - 1] = digit(t); s = s - 1; t = t / 10; if not t: break'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unenrollRemoteRouters(uint32[]), removeBridge(uint32,address), unenrollRemoteRouter(uint32), rebalance",
+      "lines": "1783-1800, 2870-2880; 1036, 2875",
+      "decompiled": "s = 0 / while True: if s >= cd[_param1 + 4]: stop; ...  |  while True: if s < mem[_26]: ... if not stor[sha3(_param2, sha3(Bytes(28, 0), mem[_26 + 32 * s + 60 len 4], 204) + 1)]: s = s + 1; continue / break  |  stor[sha3(stor[s + sha3(sha3(_param1, 204))], sha3(_param1, 204) + 1)] = 0",
+      "source": "Router.sol:85 for (uint256 i = 0; i < length; i += 1) {...}; MovableCollateralRouter.sol:213 delete set._indexes[set._values[i]]; EnumerableSet.contains(allowed.bridges[domain], bridge)",
+      "issue": "Source for loops whose exit ends the function are printed as 'while True' with the test inside, and the _indexes member of an EnumerableSet stored in a mapping (slot sha3(domain, 204) + 1) stays raw sha3 arithmetic while its _values member is named stor204[domain].",
+      "rule": "'while True: if c: stop/break; B' is 'while not c: B' followed by the exit; sha3(k2, sha3(k1, s) + j) is member j's mapping of the struct value s[k1] and prints as stor204[k1].field_{256j}[k2].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "quoteGasPayment, transferRemote, quoteTransferRemote, handle and every mailbox call",
+      "lines": "880-882 and the other 'call 0x0' lines",
+      "decompiled": "static call 0x0.unknown81d2ea95(?) with: args _param1, _5, 160, 192, hook, 0, 86, ...",
+      "source": "MailboxClient immutable mailbox (and localDomain)",
+      "issue": "solc immutables read as 0 before deployment, so the mailbox is 0x0.",
+      "rule": "none (build artifact)",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "quoteTransferRemoteTo(uint32,bytes32,uint256,bytes32), quoteTransferRemote(uint32,bytes32,uint256)",
+      "lines": "1324-1345, 1415-1417, 887-891",
+      "decompiled": "mem[128] = 3 ... s = 160; idx = 3 / while idx - 1: _9 = mem[64]; mem[64] = mem[64] + 64; mem[_9] = 0; mem[_9 + 32] = 0; mem[s + 32] = _9; s = s + 32; idx = idx - 1 ... if 2 >= mem[128]: revert with Panic(50)  |  if _param1 < 100 * 10**6:",
+      "source": "Quote[] memory quotes = new Quote[](3); quotes[2] = ...; Math.log10 in Strings.toString",
+      "issue": "The allocation of a constant-size array of structs is a count-down loop 'while idx - 1' over a constant, the bound check of quotes[2] against the constant length 3 written above is kept, and 10**8 prints as '100 * 10**6'.",
+      "rule": "Unroll loops with a constant trip count (2 here); forward the constant length to fold the Panic(50) check; print m * 10**k with the largest k (10**8).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small functions (getters, ERC20/ERC4626 previews, setters, enroll/unenroll, handle) compared line by line; transferRemote, transferRemoteTo, quoteTransferRemote(To), rebalance, removeBridge, withdraw/redeem/mint/deposit by structure. Source loops (11): setDestinationGas (495), enrollRemoteRouters (581), unenrollRemoteRouters (1783, while True), enrollCrossCollateralRouters (796), unenrollCrossCollateralRouters (1928), getCrossCollateralDomains (548), EnumerableMapExtended.keys and uint32Keys (674, 685 in domains()), MovableCollateralRouter._clear (1034 in unenrollRemoteRouter), Quotes.extract (2713, 2769 in rebalance), Strings.toString (6 rotated copies). Implicit loops: abi.decode of Quote[] returns, abi.encode of returned uint32[]/Quote[]/address[], struct allocations (P7, 19). Math.log10 is inlined with only the comparisons a uint32 can reach (a good simplification). No semantic problem found.",
+  "summary": "Faithful and complete with all source loops shown as whiles; minor problems: Strings.toString's do-while is rotated by one iteration, several for loops are 'while True' with the test inside, EnumerableSet index slots stay raw sha3, and immutables are 0."
+}

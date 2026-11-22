@@ -1,0 +1,25 @@
+{
+  "id": "c00513",
+  "abi_functions": 15,
+  "reviewed": 15,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 6, "P3": 4, "P7": 40, "P8": 120, "P12": 2, "P18": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "checkUpkeep(uint256), checkUpkeep(uint256,bytes) 0x71791aa0 (inlined _getTriggerType)",
+      "lines": "1305-1513 (checkUpkeep); 2211-2420 (0x71791aa0)",
+      "decompiled": "s = 4 / while True: if s >= 15: ... (97 lines: config and upkeep copies, early returns, latestRoundData) ... _85 = uint8(_param1 >> 128) ... break / if not byte(s, _param1): s = s + 1; continue / ... (the same 106 lines with _85 = 0) ... break / if not _93: ...",
+      "source": "KeeperRegistryBase2_1.sol:588-598 _getTriggerType: for (idx = 4; idx < 15; idx++) if (rawID[idx] != empty) return Trigger.CONDITION; return Trigger(uint8(rawID[15])); then KeeperRegistryLogicA2_1.checkUpkeep continues once",
+      "issue": "The two returns of the inlined _getTriggerType each get their own copy of the next ~100 lines of checkUpkeep, nested inside the loop (the normal exit inside 'if s >= 15', the early return after the 'byte(s, _param1)' test), before a join with phis at line 1514; the loop itself is correct but the function is twice as long as needed and the loop's extent is hidden.",
+      "rule": "Do not specialise the code after a loop for each of its exits when they differ only in a value (here triggerType = uint8(_param1 >> 128) or 0): place the join right after the loop with a phi of that value, then print the loop as 'while s < 15: if byte(s, id): break; s = s + 1'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Chainlink KeeperRegistryLogicA2_1 (15 functions). migrateUpkeeps (440 lines), checkUpkeep (2 overloads, about 570 each) and receiveUpkeeps were reviewed by structure (ownership / admin checks, the s_upkeep and trigger-config storage, the transcoder and the destination registry calls, the abi.encode / decode of the upkeep arrays, the gas-price feed calls to 0x0, which is the solc immutable artifact for the link/native feeds), the other functions in full. Source loops in this bytecode: KeeperRegistryLogicA2_1.sol:351 migrateUpkeeps ('while idx < ids.length'), :410 receiveUpkeeps ('while s < _199'), KeeperRegistryBase2_1.sol:419 _createID ('while idx < 15', in registerUpkeep and 0x28f32f38), :591 _getTriggerType (rotated into 'while True' in both checkUpkeep overloads). OVM_GasPriceOracle.getL1GasUsed's loop runs in the external oracle. The other ~56 whiles are abi.encode / decode copies of the upkeep arrays and bytes (P7) and the rotated zeroing of new arrays in migrateUpkeeps (845-888, P3). 'revert with OnlySimulatedBackend()' for the tx.origin check is correctly decoded. P18: the config and upkeep structs copied to memory and returned as slices.",
+  "summary": "Faithful and complete with all four loops shown; the main readability problem is checkUpkeep's code after the trigger-type loop printed twice, once per exit of the loop."
+}

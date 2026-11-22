@@ -1,0 +1,36 @@
+{
+  "id": "c00166",
+  "abi_functions": 40,
+  "reviewed": 40,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P10": 20, "P12": 12, "P17": 70},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "def SafeMath (mul) and its users: lockETHAndDraw, openLock*AndDraw, draw paths (_getDrawDart)",
+      "lines": "SafeMath block; 671-680",
+      "decompiled": "def mul(a, b): if a * b / a != b: revert with 'mul-overflow' / if SafeMath.mul(_3, SafeMath.div(SafeMath.mul(1000000000 * 10**18, wad) - ext_call.return_data[0], _3)) < SafeMath.mul(1000000000 * 10**18, wad)",
+      "source": "DssProxyActions.sol:120 mul(x, y): require(y == 0 || (z = x * y) / y == x, 'mul-overflow'); RAY = 10 ** 27",
+      "issue": "The helper is printed without the zero short-circuit, so read alone it reverts for a = 0, b != 0 (EVM 0 / 0 = 0); it is exact only because every call site has a nonzero first argument (RAY, or rate after a checked division by rate). RAY prints as 1000000000 * 10**18 in about 70 places.",
+      "rule": "Print the guard in the helper (if a and a * b / a != b) unless every use proves a != 0; fold constant products to one power of ten (10**27).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "wipeAll, safeWipe, wipe, wipeAllAndFree*, wipeAndFree*",
+      "lines": "2336-2473",
+      "decompiled": "if not _7: ... ilks/urns/dai, mul, sub, transferFrom/approve/join, frob ... else: ... the same sequence with usr = address(_2) ...",
+      "source": "DssProxyActions.wipeAll: if (own == address(this) || cdpCan(...) == 1) { daiJoin_join(daiJoin, urn, _getWipeAllWad(vat, urn, urn, ilk)); frob(...) } else { ... address(this) ... VatLike(vat).frob(...) }",
+      "issue": "Both arms repeat about 65 identical lines (the inlined _getWipeAllWad and daiJoin_join) that differ only in the usr address and the final frob (P12).",
+      "rule": "Hoist the common sequence of the two arms behind a phi of the differing value (usr = urn or this), keeping only the differing final call in the branches.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loops in the source or the text, no storage. All 40 functions checked by structure against the source (manager/vat/jug calls, daiJoin_join, frob, toInt 'int-overflow', 'sub-overflow'); wipeAll checked in detail (faithful). The CarefulMath-style error pairs are printed with phi variables (_14/_15 for mul) (P10).",
+  "summary": "A faithful, loop-free text; readability suffers from duplicated arms in the wipe functions, RAY unfolded, and a mul helper printed without its zero guard."
+}

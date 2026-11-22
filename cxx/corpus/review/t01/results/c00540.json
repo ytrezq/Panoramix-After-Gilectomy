@@ -1,0 +1,25 @@
+{
+  "id": "c00540",
+  "abi_functions": 106,
+  "reviewed": 106,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 1, "P2": 4, "P3": 1, "P6": 7, "P7": 6, "P8": 30, "P11": 3, "P15": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "multicall(bytes[],uint256[])",
+      "lines": "1119-1131, 1145, 1169, 1175",
+      "decompiled": "if cd[_param2 + 4] != cd[_param1 + 4]: revert with 0x479ca369 / ... while idx < cd[_param1 + 4]: if idx >= cd[_param2 + 4]: revert with Panic(50) ... / transient[0] = Mask(248, 8, transient[0]) | 1",
+      "source": "MultiVault.sol:573-589 if (data.length != values.length) revert MultiVault_ArraysNotSameLength(); for (i < length) total += values[i]; ... _inMulticall = true",
+      "issue": "After the equal-length check, the values[i] and results[i] bound checks inside both loops are implied by the loop test (idx < data.length) but are kept (P11); the transient bool _inMulticall is written as whole-word arithmetic on transient[0] instead of a named 8-bit field.",
+      "rule": "A dominating 'require a == b' lets 'i < a' imply 'i < b', so 'if i >= b: revert Panic(50)' is dead; split transient slots into fields as storage slots are (Mask(248, 8, t) | 1 is 'uint8(t) = 1').",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "MultiVault keeps its own logic small and delegatecalls the MultiVaultLib library for creation, deposits and redemptions; the text shows these wrappers with their re-encoded array arguments (4 P2 lines: the encoded arrays of createAtoms / depositBatch / redeemBatch / createTriples), the pause and re-entrance checks (stor9B77 == 2), and the _msgValue choice from transient storage ('if uint8(transient[0]): transient[1] else call.value'), all correct. All 106 functions were reviewed; the getters and setters in full. Source loops in this bytecode: MultiVault.sol:577 and :588 (multicall, both shown as while; the second delegatecalls data[i] with the value in transient[1]). The other loops of the pack (MultiVaultLib._createAtoms :562, _createTriples :691, _emitAtomContexts :583, _validateAtomUris :598/:602, _validatePayment :1433, depositBatch :300, redeemBatch :352, StringsUpgradeable.toString :28) belong to the external library. Implicit whiles: calldata array decodes and re-encodes for the library calls (1045, 1084, 1097, 1227, 1266, 1279, 1351, 1364, ...), the results zeroing (1138, rotated: P3) and the bytes[] result encode (1182). The storage block names almost nothing (stor0..stor38); not a finding.",
+  "summary": "A clean, faithful text of a thin vault that delegatecalls its library; its only loops (multicall) are shown well, with a few implied bound checks kept."
+}

@@ -1,0 +1,42 @@
+{
+  "id": "c00330",
+  "abi_functions": 22,
+  "reviewed": 22,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {
+    "while": 2,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "void()",
+      "lines": "120-124",
+      "decompiled": "stor4 = 0\nstor4_128 = 0\nread = stor4\nread = stor4\nstor3_128 = stor4_128",
+      "source": "osm.sol:123 cur = nxt = Feed(0, 0);",
+      "issue": "The bytecode makes two stores to slot 3 (cur.val, then the whole slot with cur.has); splitting the second whole-slot store into fields re-prints 'read = stor4', a field rewritten with the value it already holds. The values just stored (0) are also not forwarded.",
+      "rule": "When a whole-slot store is split into field stores, omit fields whose new value equals their current value; forward a field's last stored value to later reads of it in the same path (read = 0, stor3_128 = 0).",
+      "verified": "disassembly: void() sstores at 0xea0 (slot 4), 0xec0 (slot 4), 0xeda (slot 3), 0xeef (slot 3), 0xef4 (slot 1)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "kiss(address[]), diss(address[])",
+      "lines": "146, 160, 162",
+      "decompiled": "while idx < a.length:\n    if not address(cd[32 * idx + a + 36]):\n        revert with 'OSM/no-contract-0'\n    bud[address(cd[32 * idx + a + 36])] = 1",
+      "source": "osm.sol:166-170 for(uint i = 0; i < a.length; i++) { require(a[i] != address(0), ...); bud[a[i]] = 1; }",
+      "issue": "Elements of a dynamic calldata array print as raw calldata arithmetic although the text already names the array (a, a.length). Corpus-wide 11170 lines in 171 texts contain cd[32 * idx + X + 36].",
+      "rule": "Print cd[32 * i + p + 36], where p is a decoded dynamic-array parameter whose bounds were checked, as p[i] (P16 extended to dynamic calldata arrays).",
+      "verified": "reading only (grep of dec/*.txt)"
+    }
+  ],
+  "notes": "Both source loops (kiss/diss of address[]) are readable while loops. The pack maps kiss(address[])/diss(address[]) to the single-address sources and marks kiss(address)/diss(address) as not found; the real sources are osm.sol:157-175, compared as such. LibNote's anonymous log4 prints as 'log call.func_hash: 32, 224, call.data[0 len 224], indexed caller, indexed <cd[4]>, indexed cd[36]' after the body, as in the source; for the array overloads 'indexed a' is the offset word cd[4] - consistent with the text's convention. prev()'s require(hop != 0) is folded with the modulo into a helper SafeMath.mod (exact). pass() keeps add()'s unmessaged require. peek ok is a bool decoded without validation (ABI decoder v1) - 'if ext_call.return_data[32]' is exact. No storage layout in the build (solc 0.5.10); the text's slots match the source order (cur at 3, nxt at 4, bud at 5).",
+  "summary": "Faithful, compact text; only cosmetic issues: a field rewritten with its own value in void(), and calldata array elements printed as raw calldata arithmetic."
+}

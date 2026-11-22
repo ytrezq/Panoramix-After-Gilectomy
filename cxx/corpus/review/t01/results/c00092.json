@@ -1,0 +1,48 @@
+{
+ "id": "c00092",
+ "abi_functions": 1,
+ "reviewed": 1,
+ "not_reviewed": [],
+ "source_loops": 11,
+ "loops_shown": {
+  "while": 10,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 1,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P6": 17,
+  "P7": 31,
+  "P8": 100,
+  "P14": 200,
+  "P18": 50
+ },
+ "findings": [
+  {
+   "kind": "coverage",
+   "severity": "medium",
+   "function": "constructTokenURI((uint256,address,address,string,string,uint8,uint8,bool,int24,int24,int24,int24,uint24,address))",
+   "lines": "3377-3407",
+   "decompiled": "else (of 'if mem[541 len 3]'): ... while idx: ... byte(s % 16, 0x3031..) ... mem[... + 1232 len 6] = 0 / ...  # Decompilation aborted",
+   "source": "NFTDescriptor.sol:60-82 image = Base64.encode(bytes(generateSVGImage(params))); return string(abi.encodePacked('data:application/json;base64,', Base64.encode(bytes(abi.encodePacked('{\"name\":\"', name, ...)))))",
+   "issue": "The text stops while generateSVGImage builds the 6-digit colour strings: the rest of the SVG (NFTSVG.generateSVG), both Base64.encode calls with their Yul loop, the JSON assembly and the return are lost; the function has no return statement in the text.",
+   "rule": "Decompiler limit on this single 3400-line function; turning the word-wise string copies (P7) into copy lines and naming the memory locals (P14) would shrink the state it carries.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "loop",
+   "severity": "low",
+   "function": "constructTokenURI (inlined fixedPointToDecimalString / generateDecimalString)",
+   "lines": "129-140, 452-463, 716-727",
+   "decompiled": "while s < uint8(_2704) + 1: ... / while _2879: ... _2879 = ...",
+   "source": "NFTDescriptor.sol:219 for (zerosCursor = params.zerosStartIndex; zerosCursor < params.zerosEndIndex.add(1); zerosCursor++) and :223 while (params.sigfigs > 0) { ... }",
+   "issue": "The sigfigs loop is printed as 'while _N:' with a loop-carried condition variable instead of its condition, as in c00040.",
+   "rule": "Re-materialise a loop-carried boolean whose entry and back-edge values are the same side-effect-free function of the loop variables as the header condition.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "A library with a single public function (constructTokenURI, 3400 lines) reviewed by structure. 11 source loops: Base64.encode Yul:36 (lost in the aborted tail), HexStrings.toHexString:13 ('while idx > 1', 5 places), toHexStringNoPrefix:23 ('while idx:'), escapeQuotes:88 and :96 ('while uint8(s) < _N', uint8 counters as in the source), NFTDescriptor :320 and :368 ('while temp != 0' digit counts, 'while t:' / 'while uint24(u):'), :219 and :223 (second finding), Strings.toString:21 and :28. The 31 'while idx < _N' are legacy word-wise string copies for abi.encodePacked (P7). Memory locals of the params struct are read as mem[448], mem[541 len 3] etc. (P14/P18). No semantic error seen in the part that was decompiled.",
+ "summary": "The decompiled part is faithful and its loops are present, but the single function aborts before the SVG assembly, both Base64 encodings and the return, so the text never shows what the token URI is."
+}

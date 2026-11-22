@@ -1,0 +1,31 @@
+{
+ "id": "c00394",
+ "abi_functions": 3,
+ "reviewed": 3,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {},
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "subtract()",
+   "lines": "23",
+   "decompiled": "if counter <= 0: revert with 'COUNTER_TOO_LOW'",
+   "source": "Counter.sol:18 require(counter > 0, ERROR_TOO_LOW)",
+   "issue": "An unsigned comparison with 0 is printed as '<= 0'.",
+   "rule": "For unsigned x, 'x <= 0' is 'not x' (and 'x > 0' is 'x').",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Tiny counter, all three functions exact: add() uses the checked increment (SafeMath.inc), subtract() drops the checked decrement's underflow test because counter > 0 was just required (correct), and both events carry the new value. Event names are raw topics (not in the signature database).",
+ "summary": "Exact and minimal; only an unsigned '<= 0' could be 'not counter'."
+}

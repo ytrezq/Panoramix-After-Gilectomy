@@ -1,0 +1,69 @@
+{
+  "id": "c00057",
+  "abi_functions": 58,
+  "reviewed": 58,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {"while": 8, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 17, "P3": 4, "P4": 5, "P6": 6, "P7": 33, "P8": 60, "P11": 25, "P12": 4, "P14": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "requestRelayEntry(address), reportRelayEntryTimeout(uint32[]), reportUnauthorizedSigning(bytes,uint64,uint32[])",
+      "lines": "923, 934, 939, 961 (requestRelayEntry); 1948, 1953, 1957, 1963, 1994-2003, 2183-2194; 1638, 1647, 1652, 1659",
+      "decompiled": "if stor134 <= Mask(64, 64 * (s % 4), stor[s / 4 + sha3(133)]) >> 64 * (s % 4):  |  stor[idx / 4 + sha3(133)] = 256**(8 * (idx % 4)) * (Mask(64, 64 * (SafeMath.add(1, idx) % 4), stor[SafeMath.add(1, idx) / 4 + sha3(133)]) >> 64 * (SafeMath.add(1, idx) % 4)) | ~(18446744073709551615 * 256**(8 * (idx % 4))) & stor[idx / 4 + sha3(133)]  |  1638: stor[s / 4 + sha3(133)] = stor[s / 4 + sha3(133)] & ~(uint64(-1) << 64 * (s % 4)) | uint64(groupId) << 64 * (s % 4)",
+      "source": "Groups.sol:134 self.expiredGroupOffset > self.activeTerminatedGroups[i]; :143 self.activeTerminatedGroups[j] = self.activeTerminatedGroups[j + 1]; :177-179 activeTerminatedGroups[i] = activeTerminatedGroups[i - 1]; activeTerminatedGroups[i] = groupId; :296",
+      "issue": "Elements of the uint64[] storage array activeTerminatedGroups (four per slot) are printed as raw slot arithmetic on stor[i / 4 + sha3(133)], and def storage calls it 'array of fixed array of uint64'. The same source write (= groupId) is rendered in two different shapes (1638 vs 1948), and the element copy of line 143 is a 250-character line.",
+      "rule": "For a dynamic array at slot p whose elements are n bytes (k = 32 / n per slot), Mask(8n, 8n*(i % k), stor[i / k + sha3(p)]) >> 8n*(i % k) is p[i], and 'stor[i/k + sha3(p)] = (v << 8n*(i % k)) | stor[..] & ~(mask << 8n*(i % k))' (in either of the two printed shapes) is p[i] = v; type slot p as an array of uintN.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "def storage, requestRelayEntry, reportRelayEntryTimeout, submitRelayEntry",
+      "lines": "45 (def storage), 89-90, 978, 981, 1905, 1921",
+      "decompiled": "isRelayRequestInProgress is uint64 at storage 136 offset 64  |  isRelayRequestInProgress = uint64(_58 + 1)  |  log RelayEntryTimeoutSlashed(...): ..., indexed isRelayRequestInProgress",
+      "source": "Relay.Data.currentRequestID (uint64); RandomBeacon.sol:1341 isRelayRequestInProgress() returns relay.isRequestInProgress() == (currentRequestID != 0)",
+      "issue": "The uint64 request id is named after a getter that returns bool(it), so the request id written by requestRelayEntry and the indexed requestId of the RelayEntry* events read as a boolean.",
+      "rule": "Name a slot after a getter only when the getter returns the slot's value unchanged (or narrowed to the slot's own width); bool(x) of a wider field is a different value.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "requestRelayEntry(address), reportRelayEntryTimeout(uint32[])",
+      "lines": "908-920, 1966-1984, 2115-2133",
+      "decompiled": "if stor134 >= stor132.length: _13 = 0 else: _13 = SafeMath.add(stor131[stor132[stor134]].field_256, stor135) < block.number / while _13: ... stor134 = uint64(stor134 + 1); if stor134 >= stor132.length: _13 = 0 else: _13 = SafeMath.add(..) < block.number; continue",
+      "source": "Groups.sol:114 while (self.expiredGroupOffset < self.groupsRegistry.length && groupLifetimeOf(self, self.groupsRegistry[self.expiredGroupOffset]) < block.number) self.expiredGroupOffset++;",
+      "issue": "The loop condition is computed into a flag before the loop and recomputed at the end of the body (P3-like), so the while tests a variable instead of its condition.",
+      "rule": "'c = E; while c: B; c = E' with E free of side effects is 'while E: B'; a short-circuit 'a and b' computed as 'if not a: c = 0 else: c = b' is 'a and b'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "reportUnauthorizedSigning(bytes,uint64,uint32[]), reportRelayEntryTimeout(uint32[])",
+      "lines": "1633-1662, 1943-1965; 926-933, 1945, 1954, 1960",
+      "decompiled": "while True: if s <= 0: ..p[s] = groupId; mem[..468] = 0xf7f9a8fa..; mem[..472] = 32; mem[..504] = groupMembers.length; _87 = ..; break / ... / p[s] = groupId; mem[..468] = 0xf7f9a8fa..; ...; _87 = ..; break  |  while idx < stor133.length - 1: if SafeMath.add(1, idx) >= stor133.length: revert with Panic(50); if idx >= stor133.length: revert with Panic(50)",
+      "source": "Groups.sol:172-179 for (i = len - 1; i > 0 && atg[i - 1] > groupId; i--) atg[i] = atg[i - 1]; atg[i] = groupId;",
+      "issue": "terminateGroup's for loop is a 'while True' whose two exits each repeat the statement after the loop and the next call's buffer setup (P12); bounds checks implied by the loop condition are kept (P11), and unsigned 's <= 0' stands for s == 0.",
+      "rule": "Statements common to every exit of a loop belong after it; inside 'while i < n - 1', i + 1 < n and i < n hold; for unsigned s, s <= 0 is s == 0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "reportRelayEntryTimeout(uint32[])",
+      "lines": "1928-1932",
+      "decompiled": "mem[mem[64] + 36] = 33 / mem[mem[64] + 68] = 0x47726f757020686173206265656e20616c7265616479207465726d696e617465 / revert with mem[mem[64] len 100], 0x6400000000000000000000000000000000000000000000000000000000000000",
+      "source": "Groups.sol:160 require(!isGroupTerminated(self, groupId), 'Group has been already terminated')",
+      "issue": "A 33-byte revert reason is split between a memory range and a trailing word instead of 'revert with 'Group has been already terminated'' (rare: 1 line here, a few in other contracts).",
+      "rule": "An Error(string) buffer 0x08c379a0, 32, n, data whose words are all known prints as the string, whether its last word comes from memory or from a constant.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "BLS, BeaconDkg (approveResult, challengeResult, submitResult), BeaconInactivity.verifyClaim are external library functions (delegatecall) and BeaconDkgValidator / SortitionPool / SortitionTree / Branch / RNG / Rewards live in other contracts, so the loops the pack lists for AltBn128, ModUtils, BeaconDkg, BeaconDkgValidator, BeaconInactivity, Branch, RNG, SortitionPool, SortitionTree and Rewards are not in this bytecode and are not counted. The 8 loops that are: Groups.expireOldGroups (3: 912/922/929 in requestRelayEntry, again in reportRelayEntryTimeout), Groups.shiftByTerminatedGroups (960, 2183), Groups.terminateGroup (1633, 1943), and RandomBeacon's three stakingProviders loops (1855, 1712, 2432); all are whiles with correct bodies (expireOldGroups' inner for and pop, shiftByTerminatedGroups' increment). The other 33 whiles are ABI copies (uint32[] calldata to memory for the membersHash, address[] decodes and encodes): P7. reviewed: small functions line by line; submitRelayEntry, reportRelayEntryTimeout, reportUnauthorizedSigning, approveDkgResult, notifyOperatorInactivity, requestRelayEntry by structure (calls, try/catch events, storage writes, loops). No semantic problem found.",
+  "summary": "Complete and faithful, with every in-bytecode source loop shown as a while; the main readability problem is the packed uint64[] activeTerminatedGroups, whose element reads and writes are raw slot arithmetic in two different shapes, plus a request id named after a boolean getter."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "c00572",
+  "abi_functions": 60,
+  "reviewed": 60,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 4, "P7": 18},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "setNewVersionUpgrade, setUpgradeDiamondCut, upgradeChainFromVersion, executeUpgrade, createNewChain and the other functions forwarding a Diamond.DiamondCutData (8 'while True' loops)",
+      "lines": "491-535, 570, 795, 952, 1215, 1406, 1562, 2010",
+      "decompiled": "while True: if s >= cd[_param2 + cd[_param2 + 4] + 4]: require cd[_param2 + 36] == address(...) ... call address(_2) with: args mem[mem[64] len ...] ... stop / mem[u] = v - ceil32(_1) - 292 / (encode FacetCut s and its selectors) ...",
+      "source": "Diamond.DiamondCutData calldata _diamondCut passed on (abi.encode of FacetCut[] facetCuts with bytes4[] selectors, initAddress, initCalldata)",
+      "issue": "The ABI encoding loop over facetCuts prints as 'while True' whose exit branch, at the top of the body, contains the rest of the function (encoding of initAddress/initCalldata, the external call and 'stop'), so the loop bound and the code after the loop are hard to see.",
+      "rule": "If a 'while True' body starts with 'if c: E' where E never falls through (ends in stop/return/revert), restructure as 'while not c: <rest of body>' followed by E (same rule as c00442's while True).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "same functions",
+      "lines": "526-527 and 12 more",
+      "decompiled": "require cd[x] == Mask(32, 224, cd[x]) / mem[w] = Mask(32, 224, cd[x])",
+      "source": "bytes4[] selectors validation and encoding",
+      "issue": "bytes4 validation and cleanup print as Mask(32, 224, ...) rather than a bytes4 form.",
+      "rule": "Mask(32, 224, x) is the left-aligned 4-byte value: print bytes4(x) (or Mask(32, 224, x) == x as 'x == bytes4(x)').",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No explicit loop in the source of this contract and the internal functions it reaches. All 37 whiles are implicit ABI loops: decoding and re-encoding of DiamondCutData (nested FacetCut[] and bytes4[] arrays, P7) and of other calldata arrays forwarded to the bridgehub/diamond proxies; the bytes members are copy lines. Owner/admin checks, protocol-version storage, upgrade-cut hashes and events match the source by reading.",
+  "summary": "Faithful; there are no source loops, and the many implicit ABI loops for diamond cuts are correct but often printed as 'while True' with the rest of the function inside the exit branch."
+}

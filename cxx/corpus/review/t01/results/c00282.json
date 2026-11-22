@@ -1,0 +1,36 @@
+{
+  "id": "c00282",
+  "abi_functions": 10,
+  "reviewed": 10,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P6": 1, "P7": 2, "P8": 30, "P14": 8, "P18": 4},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "partiallyLiquidate(address,address,uint256,uint256,address,(address,bytes)[]); the immutable getters",
+      "lines": "248-249",
+      "decompiled": "require mem[_84 + _85 + 416] == mem[_84 + _85 + 428 len 20] / revert with 0x234b893b",
+      "source": "_validateLiquidation: if (!_isLiquidatable(_calcDebtAndCollateral(...), minHealthFactor)) revert CreditAccountNotLiquidatableException();  _isLiquidatable: cdd.twvUSD < cdd.totalDebtUSD * healthFactor / PERCENTAGE_FACTOR  (minHealthFactor immutable)",
+      "issue": "minHealthFactor reads as 0, so twvUSD < 0 is always false and the function always reverts with CreditAccountNotLiquidatableException after decoding calcDebtAndCollateral; the decompiler folds the test and correctly drops the dead transfer, liquidation and health-factor code.",
+      "rule": "-",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "partiallyLiquidate",
+      "lines": "35-53, 96-117, 197-202",
+      "decompiled": "mem[128] = 0 ... mem[288] = 0 / ... mem[128] = address(ext_call.return_data[0]) ... mem[... + 352 len 4] = 2813775246 / static call _param2.mem[ceil32(_1) + ceil32(_3) + ceil32(_4) + ceil32(return_data.size) + 356 len 4] with: gas 10000 ... static call mem[140 len 20].unknown0d334ca6(?) with: args _param1, 3",
+      "source": "LiquidationVars memory vars = _initVars(creditAccount, token) (creditManager, creditFacade, underlying, receivedToken, feeLiquidation...); OptionalCall.staticCallOptionalSafe(token, abi.encodeCall(IPhantomToken.getPhantomTokenInfo, ()), 10_000); ICreditManagerV3(vars.creditManager).calcDebtAndCollateral(creditAccount, DEBT_COLLATERAL)",
+      "issue": "The LiquidationVars struct lives in fixed memory words read back as slices (mem[140 len 20] for vars.creditManager as a call target, mem[236 len 20], mem[204 len 20]) (P14/P18); the phantom-token probe prints its selector as a memory slice after storing it in decimal (2813775246 = 0xa7b6cd8e) (P2).",
+      "rule": "Name constant memory words used as fields of one allocation and print address(mem[128]) for mem[140 len 20]; forward the stored selector into the call (and print it in hex).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loop in the reached source. The two whiles are implicit: the ABI encoding of the PriceUpdate[] for updatePrices and the abi.decode of the CollateralDebtData address array (P7). The getters (contractType, version, the factors, treasury, serialize, requiredPermissions) are constants or immutables. All functions reviewed line by line.",
+  "summary": "Small and faithful: the immutable minHealthFactor (0) makes partiallyLiquidate always revert, which the decompiler folds correctly; the remaining text keeps its memory struct as raw slices and a selector read back from memory."
+}

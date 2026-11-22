@@ -1,0 +1,25 @@
+{
+  "id": "c00255",
+  "abi_functions": 25,
+  "reviewed": 25,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P7": 2, "P8": 120},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "commitValidatorCommittee()",
+      "lines": "215-254",
+      "decompiled": "s = 0 / while True: / if s >= stor151.length: _14 = 0; break / ... / if _12: _14 = 1; break / s = s + 1 / continue / if not _14: revert with 0x2ca5de35",
+      "source": "ConsensusRegistry.sol:201-216 bool hasActiveLeader = false; for (uint256 i = 0; i < len; ++i) { ... if (active && !removed && leader) { hasActiveLeader = true; break; } } if (!hasActiveLeader) revert NoActiveLeader();",
+      "issue": "A for loop with a break is printed as 'while True' with the loop test as an inner 'if ...: _14 = 0; break', so the bound is not in the loop header.",
+      "rule": "For 'while True: if c: x = v; break; ...' initialise x = v before the loop when x is not otherwise assigned before that exit, and print 'while not c: ...'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "via-IR build. All 25 ABI functions compared, the committee getters (187 and 211 lines) by structure, the rest in full. No semantic error found (lastSnapshotCommit < validatorsCommit picks latest vs snapshot, the leader/active/removed tests, uint32 commit counters with Panic(17), owner-only checks and events match). Loops: commitValidatorCommittee's for with break (finding) and _getCommittee's for (inlined in getNextValidatorCommittee and getValidatorCommittee) are whiles. The other 4 whiles are implicit: the new CommitteeValidator[](len) default-initialisation loops and the struct-array encodings (P7). P8: whole default ValidatorAttr structs are allocated and zero-filled in memory (with their real Panic(65) allocation checks) only to be overwritten.",
+  "summary": "Clean, faithful via-IR text; the only loop issue is a for-with-break printed as 'while True', and the memory copies of struct defaults are verbose."
+}

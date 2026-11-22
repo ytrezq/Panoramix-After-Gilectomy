@@ -1,0 +1,36 @@
+{
+  "id": "c00453",
+  "abi_functions": 27,
+  "reviewed": 27,
+  "not_reviewed": [],
+  "source_loops": 10,
+  "loops_shown": {"while": 10, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 1, "P2": 12, "P3": 3, "P4": 21, "P6": 8, "P7": 25, "P9": 6, "P11": 8, "P15": 20},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "setRateLimiterConfig((bool,uint128,uint128)) (0xc92b2832)",
+      "lines": "196-206",
+      "decompiled": "stor3 = min(_param2, uint128(stor3)) | stor3 & 0x123456789abcdf012345677789abcdf0000000000000000000000000000000 * 3600 | _param1 << 160",
+      "source": "RateLimiter._setTokenBucketConfig: s_bucket.tokens = uint128(_min(config.capacity, s_bucket.tokens)); s_bucket.isEnabled = config.isEnabled; s_bucket.capacity = config.capacity; s_bucket.rate = config.rate;",
+      "issue": "The field mask of the packed bucket slot, 0xffffffffffffffffffffff00ffffffff00000000000000000000000000000000 (keep lastUpdated, clear tokens and isEnabled), is factored as a pseudo-number times 3600 (P1), so this whole-slot write (P15) of tokens and isEnabled can't be read.",
+      "rule": "Never factor a constant used as an AND/OR mask (or whose hex form is runs of f and 0); better, split a masked whole-slot store into field stores (`uint128(stor3) = ...; stor3.field_160 = _param1`).",
+      "verified": "python: 0x123456789abcdf012345677789abcdf0...0 * 3600 = 0xffffffffffffffffffffff00ffffffff00000000000000000000000000000000"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setRateLimiterConfig, forwardFromRouter (rate-limit consume)",
+      "lines": "200-203",
+      "decompiled": "if uint32(stor3 >> 128) != block.timestamp: if stor4_128 != (block.timestamp * stor4_128 - uint32(stor3 >> 128) * stor4_128) / (block.timestamp - uint32(stor3 >> 128)) and uint32(stor3 >> 128) != block.timestamp: revert Panic(17); uint128(stor3) = min(SafeMath.add(uint128(stor3), block.timestamp * stor4_128 - uint32(stor3 >> 128) * stor4_128), stor4)",
+      "source": "RateLimiter._calculateRefill: _min(capacity, tokens + timeDiff * rate)",
+      "issue": "`timeDiff * rate` is distributed into two products (P9) both in the overflow check and in the refill, and the check repeats the dominating `lastUpdated != block.timestamp` condition (P11).",
+      "rule": "Keep products unexpanded; drop a conjunct already implied by the enclosing branch condition.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "forwardFromRouter (unknowndf0aa9e9) and setNops (unknown76f6ae76) reviewed by structure; the rest fully. Source loops, all whiles: getNops (`while idx < stor8.length`), payNops (`while True: if s >= t`), _setFeeTokenConfig, _setTokenTransferFeeConfig x2, _setNops' countdown removal (`while idx: if idx - 1 >= stor8.length`, 3 copies) and forward loop (one copy rotated: `while idx + 1 < cd[_param1 + 4]`, P3), _getTokenTransferCost (in getFee and forwardFromRouter), forwardFromRouter's two token loops. In _setNops the check `nop == i_linkToken || nop == address(0)` reads as `not mem[... len 20]` only, because the immutable i_linkToken is zero in the pre-deployment code (artifact). Implicit: calldata decodes, abi.encode copies, struct-array allocations (`while idx - 1`). P15: the packed bucket (stor3: tokens/lastUpdated/isEnabled) and config slots are read with shifts and masks. Custom errors print raw (database). No semantic error found.",
+  "summary": "Faithful, abort-free text with all 10 source loops shown as whiles; the worst readability problem is a packed-slot field mask printed as a constant times 3600 (P1), plus distributed rate-limiter arithmetic and an unsplit bucket slot."
+}

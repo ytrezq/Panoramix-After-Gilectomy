@@ -1,0 +1,36 @@
+{
+  "id": "c00374",
+  "abi_functions": 1,
+  "reviewed": 1,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P6": 4, "P7": 2, "P8": 6, "P11": 1},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "migrate(address,uint256,uint256,address,uint256) (TransferHelper.safeApprove/safeTransfer/safeTransferETH)",
+      "lines": "65-69, 122-166, 167-211",
+      "decompiled": "mem[228 len 64] = 0x95ea7b300000000000000000000000000000000000000000000000000000000, Bytes(4, 0), ext_call.return_data[32 len 28] / call address(token).approve(address spender, uint256 amount) with: args 0, ext_call.return_data[32 len 28], Bytes(4, uint32(ext_call.return_data[32]))  |  while idx >= 32: mem[t] = mem[s] ... call address(token) with: args mem[mem[64] len _30] ... mem[mem[64] + 68] = 0x5472616e7366657248656c7065723a20415050524f56455f4641494c45440000 / revert with memory from mem[64] len 100",
+      "source": "TransferHelper.safeApprove(token, address(router), amountTokenV1); ... safeApprove(token, address(router), 0); safeTransfer(token, msg.sender, amountTokenV1 - amountTokenV2); require(success && (data.length == 0 || abi.decode(data, (bool))), 'TransferHelper: APPROVE_FAILED');",
+      "issue": "With a constant pointer the first approve is named but its amount prints as two byte slices of one word; with a symbolic pointer the second approve and the transfer are unnamed raw-memory calls after a word-copy loop (P2, P7), and their failure reverts are 'revert with memory ... len 100' although selector, offset, length and the one message word were stored just before.",
+      "rule": "Adjacent slices x[a len 28], Bytes(4, uint32(x)) of one 32-byte value are x; forward stores relative to the symbolic pointer so that the call is named and the revert folds to 'revert with <message>' (as c00034).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "migrate",
+      "lines": "11-12, 94-95",
+      "decompiled": "require ext_code.size(0) / static call 0x0.getExchange(address _token) with: ...  |  call 0x0.addLiquidityETH(...) with: value _4 wei",
+      "source": "IUniswapV1Factory immutable factoryV1; IPancakeRouter01 immutable router;",
+      "issue": "The immutables read as 0, so migrate always reverts at the first extcodesize check.",
+      "rule": "-",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loop in the source (the pack could not extract migrate's source; read from PancakeMigrator.sol). The two whiles are the abi.encodeWithSelector call-data copies of the low-level token calls (P7). Checked against the source: getExchange, balanceOf, transferFrom with its TRANSFER_FROM_FAILED check, removeLiquidity(liq, 1, 1, uint(-1)), the approve, addLiquidityETH with value, and the two refund branches (unchecked subtraction as in 0.6), the ETH refund's stale revert padding being exact. The fallback 'require calldata.size < 4 / require not calldata.size' is the receive() with a redundant first test (P11).",
+  "summary": "A tiny, faithful text with no loop; the TransferHelper calls after the first lose their names and folded reverts to the symbolic free-memory pointer, and the immutables (0) make migrate always revert."
+}

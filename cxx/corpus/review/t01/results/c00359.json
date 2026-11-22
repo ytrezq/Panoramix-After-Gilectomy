@@ -1,0 +1,36 @@
+{
+  "id": "c00359",
+  "abi_functions": 13,
+  "reviewed": 13,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 4, "P7": 2, "P12": 2},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "freezeAllMarkets(bool), pauseAllMarkets(bool), freezeMarket, pauseMarket, pool(), poolConfigurator()",
+      "lines": "318-325, 343-349, 383-386",
+      "decompiled": "static call 0x0.getReservesList() with: ... require return_data.size >=′ 32 ... require ext_code.size(0) / call 0x0 with: args mem[mem[64] len _49 - mem[64] + 68]",
+      "source": "address public immutable pool; address public immutable poolConfigurator; freezeAllMarkets: address[] memory reserves = IPool(pool).getReservesList(); for (uint256 i = 0; i < reserves.length; i++) {...}",
+      "issue": "The immutables read as 0: getReservesList() on address 0 returns no data and the decoding reverts, so the two reserve loops (freezeAllMarkets, pauseAllMarkets) are dead and not counted; they are printed as 'while s < _46' with exact bodies.",
+      "rule": "-",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "freezeAllMarkets, pauseAllMarkets",
+      "lines": "380-391; 287-364",
+      "decompiled": "mem[mem[64]] = 0x96e957c4... / mem[_49 + 4] = address(_48) / mem[_49 + 36] = _param1 / ... call 0x0 with: args mem[mem[64] len _49 - mem[64] + 68] ... mem[mem[64]] = _param1 / log 0x5338...: mem[mem[64] len _51 - mem[64] + 32], indexed address(_48)  |  if this.address != caller: ... (getReservesList and its decoding) else: ... (the same at fixed addresses)",
+      "source": "IPoolConfigurator(poolConfigurator).setReserveFreeze(reserve, freeze); emit FreezeMarket(reserve, freeze);",
+      "issue": "With the free-memory pointer symbolic, the setReserveFreeze call and the event data stay raw memory although both words were stored on the previous lines (P2), and the reserve-list call and decoding are printed twice, once per arm of the auth check, only because the pointer differs (P12).",
+      "rule": "Resolve stores relative to the symbolic free-memory pointer (and name the call by its stored selector); join arms whose code differs only in where the free-memory pointer starts.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: the for over reserves in freezeAllMarkets and pauseAllMarkets, both dead because the pool immutable reads as 0 (not counted). The other whiles are the abi.decode copies of the returned address[] (with address validation, P7). The auth modifier (owner, wards, authority.canCall) and the single-market functions are exact. All functions reviewed line by line.",
+  "summary": "Small and faithful; the immutables (0) make both reserve loops dead, and the calls and events in them are left as raw memory at the symbolic pointer."
+}

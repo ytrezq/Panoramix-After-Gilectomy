@@ -1,0 +1,47 @@
+{
+  "id": "c00445",
+  "abi_functions": 87,
+  "reviewed": 87,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 8, "P6": 3, "P7": 40, "P8": 300, "P18": 60},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "every function with a role check (apply*Updates, setChainPause..., 30+ functions)",
+      "lines": "2214-2232 and 366 'mem[0] = / mem[32] =' lines",
+      "decompiled": "mem[0] = 0xf5b90f0c...3f19 / mem[0] = 0 / mem[0] = 0x82db5943...30f5 / mem[0] = 0 / mem[0] = 0x82db5943...30f5 / mem[32] = 0 / mem[0] = caller / mem[32] = sha3(0x82db..., 0) / if not hasRole[0x82db...][caller]:",
+      "source": "PoolConfigManager.sol:881-885 _checkTokenRoles: if (!hasRole(CONFIG_ROLE, msg.sender)) _checkRoleOr(TOKEN_MANAGER_ROLE, typeRole)",
+      "issue": "Each role check carries 8 scratch-memory stores; the hashes they feed are already printed as hasRole[role][caller], and four of them are overwritten by the very next store to mem[0] with no read in between, so they are dead even without alias analysis (P8, about 300 lines).",
+      "rule": "A store to mem[a] (width w) is dead when the next access to [a, a + w) on every path is a store covering it, with no read of that range, call, sha3, log, return or revert in between; and stores whose only reader is a sha3 already printed with its arguments are dead.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getFeeBatch, getTokenTransferFeeConfigBatch, getLaneVerificationBatch, getCurrentRateLimiterStateBatch and the other *Batch views",
+      "lines": "2556-2563, 2600-2604",
+      "decompiled": "require mem[idx + 32] == mem[idx + 60 len 4] / require mem[idx + 96] == mem[idx + 126 len 2] / mem[s + 32] = Bytes(28, 0), mem[_73 + 60 len 4]",
+      "source": "PoolConfigManager.sol:190 fees = i_feeStore.getFeeBatch(lanes, requestedFinalityConfig) (LaneFee with uint32/uint16 members)",
+      "issue": "The range checks of decoded return data and the cleanup in the return encoding print as memory slices (P18) instead of uint32(...)/uint16(...).",
+      "rule": "mem[a + 32 - k len k] == Mask(8k, 0, mem[a]): print 'require x == uint32(x)' and 'uint32(mem[a])'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "every function forwarding to a store",
+      "lines": "2240, 2265-2277, 2463",
+      "decompiled": "call 0x0 with: args call.data[0 len calldata.size] / static call 0x0.unknownd8eb845f(?) (3 times)",
+      "source": "PoolConfigManager.sol:852-858 i_connectionStore / i_feeStore / i_securityStore.checkLaneRecords(...)",
+      "issue": "The three store immutables read as 0, so _checkLane's three different targets print as the same 0x0 call three times (77 calls to 0x0).",
+      "rule": "none (pre-deployment bytecode)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (7, all whiles with readable bounds): the for loops of applyInlineConnectionConfigUpdates (2260), applySubsetTokenUpdates, getCurrentRateLimiterStateBatch, getFeeBatch (2570, with 'delete fees[i]' shown as a fresh zeroed struct, as solc does), getLaneVerificationBatch, getTokenConfigBatch, getTokenTransferFeeConfigBatch. The pack's reach lists include ConnectionPolicyStore/FeePolicyStore/SecurityPolicyStore and FinalityCodec code that runs in the external stores, not in this bytecode; their loops are not counted. The other 79 whiles are implicit ABI loops: calldata arrays re-encoded for the forwarded calls (with per-element checks), decoding of returned struct arrays, and encoding of returned struct arrays (nested ones as 'while True' with the return inside); bytes members are copy lines (MCOPY on cancun). P7 counts the memory-to-memory array encodings/decodings. Role checks, AccessControlUnauthorizedAccount reverts, Address.functionCall's AddressEmptyCode / FailedCall handling match the source.",
+  "summary": "Faithful; the seven source loops are clear whiles, but every role check drags dead scratch-memory stores and decoded structs show as memory slices."
+}

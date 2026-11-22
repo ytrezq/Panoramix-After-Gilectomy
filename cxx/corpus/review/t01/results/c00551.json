@@ -1,0 +1,47 @@
+{
+  "id": "c00551",
+  "abi_functions": 15,
+  "reviewed": 15,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 10, "P3": 4, "P7": 50, "P8": 30},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "checkUpkeep(uint256), checkUpkeep(uint256,bytes) (_getTriggerType)",
+      "lines": "1733-1838 (checkUpkeep(uint256)); 2320-2420",
+      "decompiled": "s = 4 / while True: if s >= 15: if uint8(_param1 >> 128) > 1: revert with Panic(33) ... (about 100 lines: the rest of the function for a non-legacy id) ... if not byte(s, _param1): s = s + 1 / continue / ... (the legacy CONDITION path)",
+      "source": "AutomationRegistryBase2_2.sol:605-611 for (uint256 idx = 4; idx < 15; idx++) { if (rawID[idx] != empty) return Trigger.CONDITION; } return Trigger(uint8(rawID[15]));",
+      "issue": "The search loop is a 'while True' whose exit branch (s >= 15) contains the whole rest of checkUpkeep for that case, so the loop never closes and its bound is an inner test; the two outcomes of the search (byte found / not found) are each followed by their own copy of the remaining code.",
+      "rule": "Close a loop at its exit: print 'while s < 15 and not byte(s, x): s = s + 1' (or a found flag) and the code after it once, with the trigger type as a value that depends on the exit taken.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "registerUpkeep (both) (_createID)",
+      "lines": "562-567 and the same block in unknown28f32f38",
+      "decompiled": "mem[... + 352] = sha3(ext_call.return_data[0], this.address, stor21_160) / idx = 4 / while idx < 15: mem[idx + ... + 352 len 1] = 0 / ... / _28 = (Mask(32, 224, sha3(...)) >> 136 | uint88(mem[... + 356 len 11])) < ...",
+      "source": "for (uint256 idx = 4; idx < 15; idx++) { idBytes[idx] = empty; } idBytes[15] = bytes1(uint8(triggerType)); return uint256(bytes32(idBytes));",
+      "issue": "The source loop is shown as a while (fine), but the id is then rebuilt by reading back the 11 bytes the loop just zeroed (uint88(mem[... len 11])) instead of using 0.",
+      "rule": "A loop with constant bounds storing a constant byte at a + idx is the fill mem[a + 4 len 11] = 0; a later read of exactly that range is the constant.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "checkUpkeep (both), checkCallback, executeCallback, simulatePerformUpkeep",
+      "lines": "1731-1732",
+      "decompiled": "if tx.origin: revert with OnlySimulatedBackend()",
+      "source": "_preventExecution(): if (tx.origin != i_allowedReadOnlyAddress) revert OnlySimulatedBackend();",
+      "issue": "The immutable i_allowedReadOnlyAddress reads as 0.",
+      "rule": "-",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (4): migrateUpkeeps' for ('while idx < ids.length'), receiveUpkeeps' for ('while s < _199', after the ABI decoding loops of the encoded upkeeps), _createID's byte loop ('while idx < 15', twice) and _getTriggerType's search ('while True', twice). The other ~58 whiles are implicit: new bytes[]/array initialisation ('while idx - 1', P3), ABI decoding of the encoded upkeep arrays in receiveUpkeeps, and bytes/array copies for abi.encode, the forwarder creation and the check/perform data (P7). checkUpkeep (both), migrateUpkeeps and receiveUpkeeps reviewed by structure; the others line by line.",
+  "summary": "Faithful with all four source loops as whiles; the trigger-type search loop swallows the rest of checkUpkeep in its exit branch, and the usual implicit copy loops and raw-memory calls remain."
+}

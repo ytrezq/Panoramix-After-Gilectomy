@@ -1,0 +1,80 @@
+{
+  "id": "c00178",
+  "abi_functions": 30,
+  "reviewed": 30,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 4, "P3": 7, "P6": 5, "P7": 3, "P8": 230, "P9": 40, "P11": 6, "P12": 56, "P18": 39},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getConfigAtId (unknown7a4b1789) and the 9 functions that inline it (getWindowStart, getWindowAtId, isInExitWindow, lockedLiquidity, previewRedeem, addShares, removeShares, processExit, setExitConfig)",
+      "lines": "179-185; also 199-205, 242-248, 270-276, 362-367, 511-517, 608-616, 742-748, 793-801, 922-928, 1081-1089, 1126-1134, 1205-1213, 1375-1381",
+      "decompiled": "_4 = sha3(stor2, 6)\ns = stor2\nwhile _param1 < uint64(stor[_4]):\n    _4 = sha3(SafeMath.dec(s), 6)\n    s = SafeMath.dec(s)",
+      "source": "MapleWithdrawalManager.sol:339 while (cycleId_ < cycleConfigs[configId_].initialCycleId) { --configId_; }",
+      "issue": "The slot hash is carried as a second loop variable, so the loop test reads raw stor[_4] instead of cycleConfigs[s].initialCycleId, and SafeMath.dec(s) is computed twice per iteration. The same loop in getCurrentConfig (stor6[s - 1].field_64) is printed as a mapping access, because no hash is carried there.",
+      "rule": "When a loop variable h is set to f(s) before the loop and to f(e) wherever s is set to e, h == f(s) is a loop invariant: replace h by f(s) (here stor6[s].field_0) and drop h; bind e once per iteration.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getWindowStart, getWindowAtId, getConfigAtId, isInExitWindow, lockedLiquidity, previewRedeem, addShares, removeShares, processExit, setExitConfig",
+      "lines": "206-217, 249-264, 186-195, 277-292, 368-383, 518-533, 629-638, 929-950, 1218-1237, 1382-1401, 1095-1116",
+      "decompiled": "if stor2: ... mem[288] = uint64(stor6[s].field_64) ... else: mem[288] = uint64(stor6[stor2].field_64) ...\nif mem[312 len 8] > _10 * _12 - _10 * _param1 - 1: revert with Panic(17)\nreturn -1 * _10 * _12 + _10 * _param1 + mem[312 len 8]",
+      "source": "MapleWithdrawalManager.sol:392 windowStart_ = config_.initialCycleTime + (cycleId_ - config_.initialCycleId) * config_.cycleDuration; :399 windowEnd_ = windowStart_ + config_.windowDuration",
+      "issue": "Both arms copy the struct into memory; the whole-word members get phi variables (_10, _12), but the members read back as sub-word slices stay raw (mem[312 len 8], mem[376 len 8], mem[mem[64] + 56 len 8]; 39 lines), so initialCycleTime and windowDuration never appear as values and the mem[...] writes must stay.",
+      "rule": "A read mem[a len n] inside a word mem[w] (w <= a, a + n <= w + 32) that every predecessor arm wrote with v_i equals (v_i >> 8*(w + 32 - a - n)) mod 2^(8n): bind it as a phi like a whole-word read (here it is v_i itself, a uint64), then drop the dead writes.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "setExitConfig (unknown8a07bcb3), upgrade(uint256,bytes)",
+      "lines": "1163-1172; 475-486",
+      "decompiled": "_123 = mem[64]\nmem[64] = mem[64] + 128\nif _78 + 3 > 18446744073709551615:\n    mem[_123 + 128] = 0x8c379a0...\n    mem[_123 + 132] = 32 / mem[_123 + 164] = 18 / mem[_123 + 196] = 0x574d3a55494e5436345f434153545f4f4f42...\n    revert with memory from mem[64] len _123 - mem[64] + 228",
+      "source": "MapleWithdrawalManager.sol:461 require(input_ <= type(uint64).max, \"WM:UINT64_CAST_OOB\") (first _uint64 of setExitConfig); :115 require(mapleGlobals_.isValidScheduledCall(...), \"WM:U:INVALID_SCHED_CALL\")",
+      "issue": "mem[64] was set to _123 + 128 two lines above, so the revert reads 100 bytes at _123 + 128: Error('WM:UINT64_CAST_OOB'), which the text prints as such for the next three casts. In upgrade, mem[64] = _16 + ceil32(return_data.size) likewise makes the length 100 and the message 'WM:U:INVALID_SCHED_CALL'.",
+      "rule": "Forward the last write of mem[64] into later reads of mem[64] when no write to it intervenes, so that e - mem[64] folds to a constant; the Error(string) recognizer then applies.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "setExitConfig (onlyPoolDelegateOrProtocolAdmins: operationalAdmin()), upgrade (isValidScheduledCall)",
+      "lines": "1017-1028; 469-479",
+      "decompiled": "static call address(_4).unknown0b52d12d(?)\nmem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]\n_29 = mem[64]\nmem[64] = ceil32(return_data.size) + mem[64]\nrequire return_data.size >=′ 32\nrequire mem[_29] == mem[_29 + 12 len 20]\n_43 = caller == mem[_29 + 12 len 20]",
+      "source": "MapleWithdrawalManager.sol:86 msg.sender == IGlobalsLike(globals_).operationalAdmin(); :115 require(mapleGlobals_.isValidScheduledCall(msg.sender, address(this), \"WM:UPGRADE\", msg.data), ...)",
+      "issue": "After a join whose arms leave different free pointers, the call's return word is read back from memory as mem[_29] instead of ext_call.return_data[0], as it is for every call before the join. The following unscheduleCall is P2 for the same reason.",
+      "rule": "After mem[p len min(32, rds)] = ext_call.return_data[0 len min(32, rds)] and a dominating require return_data.size >= 32, a read of mem[p len 32] with the same p and no overlapping write since is ext_call.return_data[0], whatever p is.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "governor(), previewRedeem, processExit, setExitConfig, upgrade",
+      "lines": "158-159, 541, 1250, 988, 999, 1012-1013, 442, 455-456",
+      "decompiled": "require ext_call.return_data[0] == ext_call.return_data[12 len 20]\nreturn Bytes(12, 0), ext_call.return_data[12 len 20]",
+      "source": "MapleWithdrawalManager.sol:419 governor_ = IGlobalsLike(globals()).governor()",
+      "issue": "The address check of a return value is printed as a byte slice in 12 lines but as address(ext_call.return_data[0]) in asset() and globals(); governor() returns a 12-byte zero prefix and a slice instead of an address.",
+      "rule": "w[12 len 20] of a 32-byte word w is address(w); a 32-byte return Bytes(12, 0), w[12 len 20] is address(w).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "processExit (unknown9ee43bb6)",
+      "lines": "1352",
+      "decompiled": "_76 = _8 < (-1 * _50 * _4 + _50 * _7) / _10 or 2",
+      "source": "MapleWithdrawalManager.sol:267 exitCycleId_ = getCurrentCycleId() + (partialLiquidity_ ? 1 : 2)",
+      "issue": "Exact under the text's Python 'or' (a true comparison yields 1, else 2), but it reads as a boolean and hides the choice between 1 and 2 cycles.",
+      "rule": "Print 'c or k', with c a 0/1 comparison and k a constant other than 0 and 1, as (1 if c else k).",
+      "verified": "reading only (printer: Op::LOR is python's or, src/output/exp.cpp:1604)"
+    }
+  ],
+  "notes": "All 30 ABI functions present and reviewed; no semantic error found. Loops: getConfigAtId's while (14 inlined copies), getCurrentConfig's while (7 copies, all rotated with the test hoisted before the loop, P3; getCurrentConfig/getCurrentCycleId peel the first test and end with an unreachable Panic(17)) and setExitConfig's for (while, with its checked i++ correctly dropped); the 3 other whiles are ERC20Helper._call's bytes copies (P7). 25 whiles = 14 + 7 + 1 + 3, none spurious. P11: 'if not s: revert Panic(17)' inside the rotated loops (3), the unreachable Panic after 'while idx:' (2), removeShares' '_22 < _param1' after require shares_ <= lockedShares_ (1). P12: 14 'if stor2: s = stor2; while...; tail(s) else: tail(stor2)' pairs; hoisting s = stor2 above the if makes the tails equal. P9: products distributed over differences (cycleDuration*(cycleId - initialCycleId), shares*(totalAssets - unrealizedLosses)). P8: ~230 dead lines (mapping-key writes to mem[0]/mem[32], struct zero-inits, selector and return-data copies before named calls). SafeMath.add2 specialized to b = 2: same as c00217. uint64(...) masks after the _uint64 range checks (setExitConfig 1179-1183, logs 768/950/1401) are redundant. Events print as raw topics (names not in the database). Dropped extcodesize checks between consecutive static calls to the same target are exact.",
+  "summary": "Faithful and complete text (all loops shown as while) but heavy: struct members read back as memory slices, products distributed, slot hashes carried as loop variables and ~230 dead memory writes; two revert messages and two call return values are left in memory at a symbolic free pointer."
+}

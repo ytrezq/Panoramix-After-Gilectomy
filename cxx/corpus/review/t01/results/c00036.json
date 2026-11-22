@@ -1,0 +1,25 @@
+{
+  "id": "c00036",
+  "abi_functions": 50,
+  "reviewed": 50,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 12, "P6": 14, "P7": 5, "P14": 20},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "skim(address,address), and the other functions using ERC20Helper.transfer / transferFrom / approve (noopt build)",
+      "lines": "1352-1363, 1760, 1948, 2273",
+      "decompiled": "mem[b + 128] = 68 / mem[b + 160 len 4] = 2835717307 / idx = 0 / while idx < 68: mem[idx + b + 228] = mem[idx + b + 160]; idx = idx + 32 / call token_ with: args mem[b + 228 len 68]",
+      "source": "ERC20Helper._call(token_, abi.encodeWithSelector(IERC20Like.transfer.selector, to_, amount_)) -> token_.call(data_)",
+      "issue": "Without the optimizer, copying the 68- or 100-byte call data into the call buffer is a word loop with a constant bound; it stays a while (P7, 4 loops), so the call keeps raw memory arguments and the selector 0xa9059cbb prints in decimal.",
+      "rule": "A loop 'i = 0; while i < n: mem[d + i] = mem[s + i]; i = i + 32' with constant n and d >= s + n or disjoint ranges is 'mem[d len ceil32(n)] = mem[s len ceil32(n)]'; then the call buffer resolves to transfer(destination_, amount) as for constant buffers. Print a 4-byte constant stored into a 4-byte slice in hex.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Unoptimized solc 0.8.7 build. Source loop (1): acceptNewTerms' for over calls_ (2532, delegatecall to the refinancer with the 'ML:ANT:FAILED' check), a readable while. Implicit loops: ABI encodings of the bytes[] calldata argument into memory for the refinance-commitment hash and the events (proposeNewTerms 1457/1484, rejectNewTerms 1572/1607, acceptNewTerms 2389/2568), bytes copies are copy lines. Their per-element check 'require calls_ + 36 <=′ calldata.size - len' tests the array base rather than the element: this matches solc's calldataAccessFunction (sgt(baseRef, ...)), while acceptNewTerms' other decoding (2535) uses the tail-access form with the element address; not a decompiler error. getPaymentBreakdown and the interest arithmetic match. P14: the noopt build keeps many temporaries in memory at ceil32(_1) + ... + k offsets.",
+  "summary": "Faithful and readable for an unoptimized build; the single source loop is a clear while, the main defect being constant-length word-copy loops for call buffers that keep ERC20 calls in raw memory."
+}

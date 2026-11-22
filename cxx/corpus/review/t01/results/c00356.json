@@ -1,0 +1,25 @@
+{
+  "id": "c00356",
+  "abi_functions": 6,
+  "reviewed": 6,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "mint(address,address,uint256)",
+      "lines": "43-48, 75-83",
+      "decompiled": "if wallet: ... mem[ceil32(_1) + 128] = 0xb880b00b..; mem[..+132] = 0; mem[..+164] = wallet; mem[..+196] = buyer; _7 = create.new_address; _9 = ceil32(_1) + 228 / else: ... mem[ceil32(return_data.size) + 128] = 0x95991276..; mem[..+132] = buyer; mem[..+164] = ext_call.return_data[0]; _7 = 0; _9 = .. + 196 / require ext_code.size(_7) / call _7 with: args mem[mem[64] len _9 - mem[64]]",
+      "source": "Faucet.sol:66 proxy.gulp(makerFaucet, TokenLike(token), to);  and :58 psm.sellGem(to, gem.balanceOf(address(this)));",
+      "issue": "The compiler merged the identical call epilogues of two different calls (proxy.gulp in the maker-faucet branch, psm.sellGem in the dai branch); the text keeps one shared call site with phi variables for the target and buffer end, so neither call shows its function or arguments although both buffers are fully known in their branch.",
+      "rule": "When a join block performs a call whose target, selector or buffer differ by predecessor (phis), duplicate the (small) join block into the predecessors before decoding calls; each copy then decodes as gulp(0, wallet, buyer) and sellGem(buyer, balance).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "SparkLend testnet Faucet, no source loops. All 6 functions reviewed. dai, sDai, gem, psm and makerFaucet are immutables reading 0 (artifact): 'token == dai' becomes 'if not wallet', the sDai branch (same test) is unreachable and absent, and the calls go to 0x0. The GulpProxy creation code is printed inline as Bytes(668, 0x6080..) (correct).",
+  "summary": "Small and faithful, but two different external calls share one merged call site in the text, so both lose their names and arguments."
+}

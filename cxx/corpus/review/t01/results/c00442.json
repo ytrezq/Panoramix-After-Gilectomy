@@ -1,0 +1,36 @@
+{
+  "id": "c00442",
+  "abi_functions": 53,
+  "reviewed": 53,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 7, "P3": 1, "P6": 30, "P9": 30, "P11": 6},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "addLocalData (unknownf8f43ff6) and the other function inlining _findStartingAndDisputedOutputs (1109)",
+      "lines": "875-1042, 1109-",
+      "decompiled": "while True: _10 = (uint128(claimData[u + 4].field_0) >> ...) / if byte(0x7c4acdd0... * (_10 >> 28 | ...) >> 251, 0x9010a0d1...) ...: ...; u = 5 * uint32(claimData[u].field_0); continue / if uint127(claimData[s + 4].field_1) != ... (rest of the function) ... stop",
+      "source": "FaultDisputeGame.sol:1242 while ((currentDepth = claim.position.depth()) > SPLIT_DEPTH) { ... claim = claimData[claim.parentIndex]; } (then the code after the loop)",
+      "issue": "The loop prints as 'while True' whose body is 'if depth > SPLIT_DEPTH: ...; continue' followed by the whole rest of the function ending in 'stop', so the loop condition and the end of the loop are not visible.",
+      "rule": "If a 'while True' body starts with 'if c: B; continue' (B not exiting) and the code after that if never reaches 'continue', restructure as 'while c: B' followed by that code.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "every function using LibPosition (depth, traceIndex, traceAncestor): move/attack/defend, step, addLocalData, resolveClaim, getRequiredBond",
+      "lines": "869-870, 877-878, 896-897 and 56 lines over 400 characters",
+      "decompiled": "_2 = (uint128(claimData[5 * _param2 + 4].field_0) >> (32 * (4294967295 < ...) | 64 * (... > 18446744073709551615)) ... / if byte(0x7c4acdd0... * (_2 >> 28 | _2 >> 24 | ... | _2) >> 251, 0x9010a0d15021d0b0e10121619031e080c141c0f111807131b17061a05041f...)",
+      "source": "LibPosition.depth: assembly msb via a de Bruijn lookup (depth_ := ... ); traceAncestor, rightIndex",
+      "issue": "The branch-free msb/log2 of LibPosition is expanded inline and recomputed in each condition (the same 400+ character expression appears several times per function, P9).",
+      "rule": "Bind a pure expression used more than once to a name at its first use; an msb computed as 'byte(K * (x | x >> 1 | ... ) >> 251, T)' on the de Bruijn constants is exactly log2 for x != 0 and can be printed as a named helper only when proven equal on all inputs.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (4), all whiles: resolveClaim's for over subgames (493, bound min(checkpoint + max, length)), RLPReader.readList's while (684, after a rotated zero-init of the RLPItem array, P3 at 672), _findTraceAncestor's while (899, 924, 1085, 1133, 1158: readable conditions comparing positions), _findStartingAndDisputedOutputs' while (875, 1109, 'while True' form, see finding). Clones-with-immutable-args reads print as 'cd[calldata.size - (cd[calldata.size - 2] >> 240) + k] >> 96', faithful. Bonds, clocks (Duration/Timestamp packing), claim struct storage (claimData[...].field_N) and events match by reading.",
+  "summary": "Faithful, with all four loops present; readability suffers from the inlined de Bruijn msb arithmetic of LibPosition and from one loop printed as 'while True' containing the rest of the function."
+}

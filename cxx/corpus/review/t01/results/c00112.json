@@ -1,0 +1,31 @@
+{
+  "id": "c00112",
+  "abi_functions": 1,
+  "reviewed": 1,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "clone((address,...,(address,address,uint8,uint64,uint64,uint64,uint128)[]))",
+      "lines": "31-57",
+      "decompiled": "require cd[config + 644] <′ calldata.size - config - 35\nrequire cd[config + cd[config + 644] + 4] <= 18446744073709551615 ...\nwhile idx < cd[config + cd[config + 644] + 4]: ...\n... uint104(cd[config + 612]), 672, cd[config + cd[config + 644] + 4], mem[22392 len 224 * cd[config + cd[config + 644] + 4]]",
+      "source": "CometFactoryWithExtendedAssetList.sol:8-9 clone(Configuration calldata config) { return address(new CometWithExtendedAssetList(config)); }",
+      "issue": "The fields of the calldata struct print as cd[config + 4 + 32k], and the nested array's length as cd[config + cd[config + 644] + 4] four times, where a field or length name would do.",
+      "rule": "For a decoded calldata struct parameter, print the word at config + 4 + 32k as a field (config.field_k, or the ABI component), a dynamic member's offset as its own name, and its length word as name.length.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loops in the source. The one while is the ABI encoder's implicit loop that validates and copies each AssetConfig (7 fields, 224 bytes) from calldata into the constructor arguments at mem[22392] - readable, body and step clear; not counted in patterns. All 20 static field validations, the dynamic-array bounds checks, the CREATE of the 21528-byte CometWithExtendedAssetList creation code with abi.encode(config) (offset 32, 20 fields, 672, length, elements) and the failure revert are correct. The created contract's code is not reviewed (another contract).",
+  "summary": "Small, faithful text: the factory's ABI validation, the encoding loop for the asset list and the CREATE are all shown correctly; only the calldata struct fields lack names."
+}

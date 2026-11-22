@@ -1,0 +1,36 @@
+{
+  "id": "c00010",
+  "abi_functions": 52,
+  "reviewed": 52,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P4": 3, "P6": 6, "P8": 30},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "getRollupExitRoot() (unknowna2967d99) and its inlined copies in unknown1489ed10/unknown6c766877, unknown8fd88cc2",
+      "lines": "528, 1398, 1611, 679",
+      "decompiled": "while s - 1: ... / while s - _param2:",
+      "source": "AgglayerManager.sol:1529 while (currentNodes != 1) { ... } :1058 while (currentBatch != targetBatch) { ... }",
+      "issue": "The loops are found, but their inequality conditions print as subtractions used as truth values.",
+      "rule": "A difference a - b (or xor) used only as a branch condition is a != b.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getRollupExitRoot() and copies",
+      "lines": "531-535, 1401-1405, 1614-1618",
+      "decompiled": "if 32 * (s % 2) + 16 * Mask(251, 1, s) + mem[64] + 32 > 18446744073709551615 or ... / mem[_17 + 32 len 32 * (s % 2) + 16 * Mask(251, 1, s)] = call.data[calldata.size len ...]",
+      "source": "AgglayerManager.sol:1530-1531 uint256 nextIterationNodes = currentNodes / 2 + currentNodes % 2; bytes32[] memory nextTmpTree = new bytes32[](nextIterationNodes);",
+      "issue": "The array byte size 32 * nextIterationNodes is printed as 32 * (s % 2) + 16 * Mask(251, 1, s), although s % 2 + s / 2 is already named one line above.",
+      "rule": "16 * Mask(w, 1, s) with 16 * 2^(w+1) = 2^256 is 32 * (s / 2) modulo 2^256; refactor 32 * a + 32 * b as 32 * (a + b) when a + b is an expression already printed.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 52 ABI functions reviewed (getters, role management, setters read; the rollup functions (onSequenceBatches/verify..., 139-230 lines) by structure). The 5 source loops are whiles: getRollupExitRoot's leaf loop ('while idx < stor128'), level loop ('while s - 1') with its nested pair loop ('while idx < s % 2 + s / 2') and the remaining-levels loop ('while idx < u'), inlined three times, and the batch-fee loop 'while s - _param2' (unknown8fd88cc2). Keccak scratch writes mem[0]/mem[32] stay in the loop bodies (P8). Custom errors print as selectors (normal).",
+  "summary": "Faithful and readable: all loops are clear whiles; only inequality conditions printed as subtractions and an obscure array-size expression remain."
+}

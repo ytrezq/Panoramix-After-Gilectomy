@@ -1,0 +1,73 @@
+{
+  "id": "c00073",
+  "abi_functions": 94,
+  "reviewed": 94,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {
+    "while": 4,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 50,
+    "P3": 5,
+    "P6": 10,
+    "P7": 9,
+    "P8": 291,
+    "P9": 26,
+    "P11": 12,
+    "P18": 9
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getClaimableBondShares, getBondSummary*, pullAndSplitFeeRewards, claimRewardsStETH / WstETH / UnstETH, getClaimableRewardsAndBondShares... (26 lines)",
+      "lines": "552; 3081, 3086, 3087, 3120",
+      "decompiled": "return _5 * (_5 - _14 <= _5) - _14 * (_5 - _14 <= _5)  |  _259 = _241 and bool(_249 * (_249 - _258 <= _249) - _258 * (_249 - _258 <= _249))  |  _263 = min(_249 * (_249 - _258 <= _249) - _258 * (_249 - _258 <= _249), storAC55_ac5584dc[_param1])",
+      "source": "Accounting.sol:524 Math.saturatingSub(currentShares, requiredShares) (OZ trySub: c = a - b; success = c <= a; result = c * toUint(success))",
+      "issue": "The saturating subtraction c * (c <= a) is printed with the product distributed over c = a - b, so the comparison is repeated and the expression (used up to four times per function) reads as an arithmetic puzzle instead of 'a - b if b <= a else 0'.",
+      "rule": "Do not distribute a product over a sum when that duplicates a factor; with wrapping arithmetic 'a - b <= a' is 'b <= a'; x * bool(c) prints as 'x if c else 0' (or a saturating-sub helper).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getFeeSplits (unknowna2373f62), getFeeSplitTransfers (unknown731ebc57), updateFeeSplits (unknowndae7b6e3), and _pullAndSplitFeeRewards in pullAndSplitFeeRewards / claimRewards* (14 lines)",
+      "lines": "566-567, 970-971, 1680-1692, 3119-3120",
+      "decompiled": "mem[_4] = address(storAC55[_param1][2 * idx]) / mem[_4 + 32] = storAC55[_param1][2 * idx + 1]  |  while 2 * _32 > idx: address(storAC55[_param1][idx]) = 0; storAC55[_param1][idx + 1] = 0; idx = idx + 2  (vs getCurveInfo 717-719: stor8F22_8f22e270[_param1][idx].field_0 / .field_256 / .field_512)",
+      "source": "FeeSplits.sol: FeeSplit[] feeSplits (struct { address recipient; uint256 share; }, 2 slots); delete $.feeSplits[nodeOperatorId]; dst.push(feeSplits[i])",
+      "issue": "Elements of an array of 2-slot structs are printed as a flat word array indexed by 2*i and 2*i + 1, while the 3-slot BondCurveInterval array of the same contract is printed with struct fields; the reader must infer the element size.",
+      "rule": "When every access to a dynamic storage array is at index k*i + j with constant k > 1 and 0 <= j < k, the element is a k-slot struct: print arr[i].field_(256*j).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getFeeSplitTransfers, pullAndSplitFeeRewards, claimRewards* (struct-array allocation), updateFeeSplits / chargeFee / claim* events, getFeeSplits and other array returns",
+      "lines": "948-964, 3097-3113; 1695-1709; 585-587",
+      "decompiled": "mem[160] = 32 * storAC55[_param1].length + 160 / s = 160 / idx = storAC55[_param1].length / while idx - 1: _2 = mem[64]; mem[64] = mem[64] + 64; mem[_2] = 0; mem[_2 + 32] = 0; mem[s + 32] = _2 ...  |  log 0xb83fba81...: mem[mem[64] len _45 + 64 * cd[_param2 + 4] - mem[64] + 64], indexed _param1",
+      "source": "transfers = new SplitTransfer[](splits.length); emit FeeSplitsSet(nodeOperatorId, feeSplits)",
+      "issue": "The zero-initialisation of a new struct array is a rotated count-down loop with its first element peeled (P3); event data written at mem[mem[64]] is printed as raw memory because of the free-memory-pointer self-alias (4 logs, 9 'return memory').",
+      "rule": "Recognise the do-while 'allocate zeroed element; store pointer; i = i - 1; if i != 0: loop' as one loop of n iterations (or as 'new Struct[](n)'); mem[64] >= 0x80 makes a store at mem[mem[64]] leave mem[64] unchanged, so the log data becomes the stored words.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "BURNER, FEE_DISTRIBUTOR, LIDO, LIDO_LOCATOR, MODULE, WITHDRAWAL_QUEUE, WSTETH and every call to them; onlyModule; updateFeeSplits' stETH recipient check",
+      "lines": "e.g. 883-884, 1621, 1659-1668, 3142, 3162",
+      "decompiled": "if caller: revert with 0x7e493420 / static call 0x0.unknownb055e15c(?) / call 0x0.transferShares(..) / require ext_code.size(0)",
+      "source": "immutable MODULE, LIDO, WSTETH, WITHDRAWAL_QUEUE, FEE_DISTRIBUTOR, LIDO_LOCATOR...; FeeSplits._validateFeeSplits: if (fs.recipient == stETH) revert InvalidSplitRecipient()",
+      "issue": "solc immutables read as 0: every external dependency is 0x0, onlyModule is 'if caller: revert', and the InvalidSplitRecipient check disappears because recipient == address(0) has already reverted. Not a decompiler error.",
+      "rule": "None (corpus artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 94 ABI functions and the fallback reviewed; no semantic error found. Small getters and setters read directly; the deposit / claim / penalize / settle / compensate functions (170-490 lines) by structure (call order, BondCore share accounting with SafeMath subs, BondLock checks, events). The BondCurvesLib functions are external (delegatecall to the library: addBondCurve, updateBondCurve, getBondAmountByKeysCount, getKeysCountByBondAmount...), so BondCurvesLib._check / _addIntervals and the binary-search loops run in the library, not in this bytecode; the pack's reach list also names MetaRegistry._storeExternalOperators, which this contract does not contain. Source loops in this bytecode: _validateFeeSplits, _updateFeeSplits (with the 'delete' clearing loop, implicit), getFeeSplitTransfers (also inlined in _pullAndSplitFeeRewards) and _pullAndSplitFeeRewards' transfer loop: all readable whiles. Implicit: ABI copies of the calldata BondCurveIntervalInput[] for the delegatecall and the event (P7), storage-to-memory struct-array copies, the zeroed struct-array allocation (P3, 5 copies). getCurveInfo's two checks (InvalidBondCurveId on curveId > length - 1 unchecked, then Panic(50)) are both needed (length 0). P11: bounds checks of transfers[i] under i < transfers.length.",
+  "summary": "Faithful on every path checked; the main readability problems are OZ's saturatingSub printed as a distributed boolean product (26 lines), 2-slot struct arrays shown as flat word arrays, and the usual memory issues (keccak scratch stores, event data and returns as raw memory)."
+}

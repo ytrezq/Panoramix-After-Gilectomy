@@ -1,0 +1,58 @@
+{
+  "id": "c00001",
+  "abi_functions": 40,
+  "reviewed": 40,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 51, "P4": 26, "P6": 32, "P7": 14, "P8": 150, "P9": 75, "P11": 10, "P15": 320, "P17": 109, "P18": 82},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "fund(address) and the other paths that call _addPaymentToList (unknown1cd8d07b, unknownfc1aa82f, claim)",
+      "lines": "1052-1059 (also 2371, 2946, 4435)",
+      "decompiled": "_346 = uint24(stor1 >> 24) and mem[_305 + 122 len 6] >= uint48(stor13[uint24(stor1 >> 24)].field_48); s = uint24(stor1 >> 24); t = 0; while _346: _346 = uint24(stor13[s].field_24) and mem[_305 + 122 len 6] >= uint48(stor13[uint24(stor13[s].field_24)].field_48); t = s; s = uint24(stor13[s].field_24)",
+      "source": "LoanManager.sol:879-882 while (next_ != 0 && paymentDueDate_ >= sortedPayments[next_].paymentDueDate) { current_ = next_; next_ = sortedPayments[current_].next; }",
+      "issue": "The loop is correct but its condition is held in a flag computed one iteration ahead (once before the loop for the head, then at the top of the body for the successor), so the test is written twice and never appears in the `while` line.",
+      "rule": "When a loop's only exit test is a flag assigned just before the back-edge from an expression of the next value of the induction variable (and before the loop from its initial value), substitute it back: `while s and mem[...] >= uint48(stor13[s].field_48): t = s; s = uint24(stor13[s].field_24)`.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "fund(address), claim, triggerDefault, finishCollateralLiquidation and other call-heavy functions",
+      "lines": "2041-2079 (23 lines with five or more ceil32 terms)",
+      "decompiled": "mem[ceil32(_1) + ceil32(_2) + ceil32(_3) + ceil32(_4) + ceil32(_6) + ceil32(_7) + ceil32(_8) + ceil32(_10) + ceil32(return_data.size) + 128] = 0x895326f0...",
+      "source": "LoanManager.sol fund(): a sequence of external getter calls (isInstanceOf, borrower, isBorrower, paymentsRemaining, ...)",
+      "issue": "In this unoptimized build every call bumps the free-memory pointer by `ceil32(return_data.size)`, and the text spells the whole symbolic sum in each address, so the lines grow with each call and the selector stores (dead, since the calls are named) dominate the function (P8).",
+      "rule": "Bind each new value of mem[64] to a temporary when it is assigned (`_p9 = _p8 + ceil32(return_data.size)`) and print addresses relative to the latest one; drop scratch stores whose only reader is a call already printed with its decoded arguments.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "PRECISION() and every accrual computation (109 lines)",
+      "lines": "119, 2479",
+      "decompiled": "const PRECISION = 1000000000000 * 10**18 ; _78 = (min(block.timestamp, uint48(stor1 >> 96)) * issuanceRate - uint48(stor1 >> 48) * issuanceRate) / (1000000000000 * 10**18)",
+      "source": "LoanManager.sol: uint256 public constant PRECISION = 1e30; ... (domainEnd - domainStart) * issuanceRate / PRECISION",
+      "issue": "1e30 is printed as the product `1000000000000 * 10**18`, and the checked product `(end - start) * issuanceRate` is distributed into two products (P9), hiding both the constant and the formula.",
+      "rule": "Print a constant equal to 10**k as `10**k` (never as a product of a decimal and a power of ten); don't distribute a product over a difference.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown18058610 (getExpectedAmount)",
+      "lines": "506-528",
+      "decompiled": "if ext_call.return_data[31 len 1] >= 78 and ext_call.return_data[31 len 1] >= 32: s = 10; ... while u > 1: ... _13 = s * t; _14 = s * t else: _13 = 10**uint8(ext_call.return_data[0]); _14 = 10**uint8(...)",
+      "source": "LoanManager.sol getExpectedAmount: 10 ** IERC20Like(asset).decimals() (checked exponentiation helper)",
+      "issue": "`x >= 78 and x >= 32` is just `x >= 78`; the same power is kept in two variables (_13/_14, then _16/_17); the exponentiation-by-squaring helper is an implicit loop (counted in P7).",
+      "rule": "Drop a conjunct implied by another (x >= 78 implies x >= 32); merge SSA variables assigned the same expression in every arm.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "claim, triggerDefault, finishCollateralLiquidation (unknown9e5df6c2), fund, removeLoanImpairment, impairLoan and acceptNewTerms/rejectNewTerms (300-900 lines each, no optimizer) reviewed by structure; the rest fully. Source loops: _advanceGlobalPaymentAccounting's `while (block.timestamp > domainEnd_)` shown as `while True: if block.timestamp <= w: ... break` (8 copies, readable), _addPaymentToList (4 copies, see finding). Implicit loops: 10 word-by-word memory copies of bytes for abi.encode, 2 bytes[] calldata encodings, 2 checked-exp helpers (P7). P15: slots 1 and 2 (paymentCounter/paymentWithEarliestDueDate/domainStart/domainEnd/accountedInterest and principalOut/unrealizedLosses) stay one uint256 each and are read as `uint24(stor1 >> 24)` but written as `uint24(stor1.field_24)` (320 lines). P11: `if issuanceRate: if issuanceRate and ...`. P18: memory struct fields read as `mem[_305 + 122 len 6]`. Address-cleaning checks print in two styles (`== address(x)` and `== x[12 len 20]`). Events print as raw topics (database). No semantic error found.",
+  "summary": "Faithful, abort-free text of an unoptimized build with both source loops shown, but noisy: unsplit packed slots, ever-growing symbolic free-pointer sums, 1e30 printed as a product, distributed accrual arithmetic, and one loop whose condition hides in a flag."
+}

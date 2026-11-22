@@ -1,0 +1,36 @@
+{
+  "id": "c00291",
+  "abi_functions": 24,
+  "reviewed": 24,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P6": 1, "P7": 12, "P15": 3},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "outboundTransfer(address,address,uint256,uint256,uint256,bytes), outboundTransferCustomRefund(...)",
+      "lines": "288-294, 314-320, 341-347, 357-363, 378-384, 396-402 (and the same six in the second function)",
+      "decompiled": "idx = 0 / while idx < _9: mem[idx + ceil32(_data.length) + 192] = mem[_7 + idx + 192]; idx = idx + 32 / mem[_9 + ceil32(_data.length) + 192] = 0",
+      "source": "abi.decode(_data, (uint256, bytes)) / getOutboundCalldata(...) abi.encodeWithSelector(finalizeInboundTransfer..., abi.encode(\"\", data)) / Inbox.createRetryableTicket(..., data) and the TxToL2 event data (implicit bytes copies, shanghai: no mcopy)",
+      "issue": "Each of the 12 bytes copies of the two functions is printed as a word loop (P7); together they are most of the function bodies, while the source has no loop.",
+      "rule": "c00600 shape A: 'idx = 0; while idx < n: mem[d + idx] = mem[s + idx]; idx += 32' followed by 'mem[d + n] = 0' is the copy 'mem[d len n] = mem[s len n]' plus a zero pad word.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize() (OpenZeppelin Initializable v5)",
+      "lines": "107-108",
+      "decompiled": "_1 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64",
+      "source": "InitializableStorage at 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00",
+      "issue": "The two P1 lines: the Initializable slot printed as a multiple of 3600 (see c00525).",
+      "rule": "Never factor a slot by a time unit.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No explicit loop in the source. Checked: isOpen check, l1ToL2Token registration, escrow transferFrom, router-forwarded sender decoding (_data with from + inner data), the retryable ticket call with value/gas parameters, TxToL2 and DepositInitiated events, return abi.encode(seqNum) printed as 'return 32, 32, ext_call.return_data[0]', finalizeInboundTransfer's counterpart check via the bridge's active outbox. All 24 ABI functions read.",
+  "summary": "A small faithful text; its bodies are dominated by twelve word-wise bytes copies shown as loops, and the Initializable slot prints as a multiple of 3600."
+}

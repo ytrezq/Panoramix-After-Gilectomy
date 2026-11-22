@@ -1,0 +1,47 @@
+{
+  "id": "c00569",
+  "abi_functions": 65,
+  "reviewed": 65,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 8, "P2": 27, "P4": 12, "P6": 37, "P7": 46, "P8": 487, "P10": 4},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "submitSignature, executeAffirmation, relayTokens, fallback, fixAssetsAboveLimits, setHomeFee/setForeignFee, initialize, rewardableInitialize and two unknown setters (46 loops)",
+      "lines": "1920-1974, 1994-2003 (submitSignature); 361, 399, 465, 570-591",
+      "decompiled": "s = _23 + 32 / t = _24 + _25 + 32 / idx = mem[_23] / while idx >= 32: mem[t] = mem[s] / s = s + 32 / t = t + 32 / idx = idx - 32 / mem[_24 + _25 + floor32(max(31, _47)) + 32] = 256**(-_47 + floor32(max(31, _47)) + 32) - 1 & mem[...] | mem[_23 + floor32(max(31, _47)) + 32] & ~(256**(...) - 1)",
+      "source": "Message.hashMessage: keccak256(abi.encodePacked(prefix, msgLength, message)); EternalStorage keys keccak256(abi.encodePacked(\"messagesSigned\", hashMsg)) and abi.encode(...) of the events",
+      "issue": "Every abi.encodePacked of a bytes/string argument is printed as solc 0.4's word-copy loop followed by a masked merge of the last partial word, so building one hash input takes ~15 lines per argument and the hashes are then raw 'sha3(mem[mem[64] len ...])' (41 lines).",
+      "rule": "The pair 'while n >= 32: mem[t] = mem[s]; t += 32; s += 32; n -= 32' followed by 'mem[t] = mem[t] & (256**(32-n) - 1) | mem[s] & ~(256**(32-n) - 1)' (the partial last word) copies exactly n0 bytes: print mem[t0 len n0] = mem[s0 len n0]; with the copies folded, the packed buffer and its sha3 become sha3(prefix, '104', message).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "numMessagesSigned, totalSpentPerDay, totalExecutedPerDay, numAffirmationsSigned, affirmationsSigned, messagesSigned, message, withinLimit, withinExecutionLimit, maxAvailablePerTx, relayTokens, fallback, fixAssetsAboveLimits, executeAffirmation (56 lines)",
+      "lines": "48, 54, 66, 75, 78, 90, 93, 236, 1011, 1038, 1326, 2380",
+      "decompiled": "stor0[sha3(_day >> 128 | 0x746f74616c5370656e7450657244617900000000000000000000000000000000, Bytes(16, uint128(_day)))]  |  stor0[sha3('totalSpentPerDay', Bytes(16, x >> 128), Bytes(16, uint128(x)))]  |  stor0[sha3('totalExecutedPerDay', block.timestamp / (24 * 3600))]  |  stor0[sha3('numMessagesSigned', Bytes(15, _message >> 136), Bytes(17, uint136(_message)))]",
+      "source": "EternalStorage: uintStorage[keccak256(abi.encodePacked(\"totalSpentPerDay\", _day))], boolStorage[keccak256(abi.encodePacked(\"messagesSigned\", _message))], ...",
+      "issue": "The same packed key ('name', value) is printed in three forms: the value OR-ed into the word holding the name ('_day >> 128 | 0x746f74...'), the value split into two byte slices, or (rarely) cleanly as sha3('totalExecutedPerDay', day); the key names, which carry the meaning of these eternal-storage slots, are often visible only as hex.",
+      "rule": "Normalise a sha3 input to the sequence of its stored fields: a word 'v >> 8k | S' (S a (32-k)-byte string in the high bytes) followed by 'Bytes(k, uint(8k)(v))' is the string S followed by the full word v; adjacent slices Bytes(a, v >> 8b), Bytes(b, uint(8b)(v)) are v. Then print sha3('totalSpentPerDay', _day).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "fixAssetsAboveLimits (unknownf1da7b0f), submitSignature, executeAffirmation; getFeeManagerMode",
+      "lines": "993, 2043-2044; 222-223",
+      "decompiled": "require -57896044618658097711785492504343953926634992332820282019728792003956564819968 * stor0[sha3(...)].field_255 != 0x8000000000000000000000000000000000000000000000000000000000000000  |  _3 = return_data.size == 32 and callcode.return_code and ext_call.return_data[0 len 4] << 224 | 0x5bee7817f04c960f525ee3e2f2516078c38c68a3149787976ee837e5 / return Mask(32, 224, _3)",
+      "source": "BasicHomeBridge/HomeOverdrawManagement: require(!isAlreadyProcessed(signed)) with isAlreadyProcessed(n) = n & 2**255 == 2**255; RewardableBridge.getFeeManagerMode: callcode(..., 0, 4); mode := mload(0)",
+      "issue": "The processed-flag test is printed as a product with -2^255 of the bit 255 field instead of 'not (signed >> 255)', and getFeeManagerMode ORs stale scratch-memory bytes (the low 28 bytes of mem[0]) into the result although the final Mask(32, 224, ...) removes them.",
+      "rule": "For b = x >> 255 (0 or 1), -2^255 * b is 2^255 * b, so '-2^255 * b != 2^255' is 'b == 0'; Mask(32, 224, (y << 224) | c) with c < 2^224 is y << 224 (bits below the mask are dropped before printing).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 65 ABI functions reviewed: getters and setters line by line, submitSignature/executeAffirmation/relayTokens/fallback/fixAssetsAboveLimits by structure. The bridge sources reached here have no loop that this bytecode can execute: Message.uintToString's two while loops (Message.sol:148, :154) are present in the bytecode (0x529e, 0x52ed) but only behind 'if isAMBMessage' (0x4a0c), and the only caller, submitSignature, passes false, so the decompiler's pruning is exact; the fee-distribution and validator-list loops live in the delegatecalled fee manager and the validator contract. All 46 whiles are solc 0.4.24 copy loops of abi.encodePacked/abi.encode arguments (P7, see finding). Checked exactly: onlyOwner / onlyIfUpgradeabilityOwner / onlyRelevantSender, the limit setters and their conditions, callcode-based fee getters (Python 'and' returning the value: exact), setBlockRewardContract's two probes, the signature checks (v in {27, 28}, s bound, recovered == caller; the recovered address is read back as mem[mem[64] - 20 len 20] rather than the named 'signer'). P8: the packed key buffers written to memory beside the already-symbolic sha3 keys (487 lines).",
+  "summary": "Faithful and loop-free at the source level, but heavy: every packed hash input is built by solc 0.4 copy loops with masked tails, and the eternal-storage keys are printed in three inconsistent forms, often hiding the key name in hex."
+}

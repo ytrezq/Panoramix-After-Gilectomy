@@ -1,0 +1,102 @@
+{
+  "id": "c00577",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 411, "P6": 140, "P7": 22, "P8": 180, "P9": 8, "P10": 19, "P11": 25, "P15": 38},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "doHardWork() (also withdrawToVault, withdrawAllToVault, emergencyExit via _accrueFee)",
+      "lines": "7259, 7352-7357",
+      "decompiled": "if _62 + _81 + mem[_94] != (-1 * _23 * _62 - _23 * _81 - _23 * mem[_94] + _29 * _62 + _29 * _81 + _29 * mem[_94] - _62 * storedBalance - _81 * storedBalance - mem[_94] * storedBalance) / (-_23 + _29 - storedBalance) and ...: revert Panic(17); _131 = SafeMath.div(-1 * _23 * _62 - ..., _42)",
+      "source": "AaveFoldStrategy.sol:120-122 if (currentBalance() > storedBalance()) { balanceIncrease = currentBalance().sub(storedBalance()); fee = balanceIncrease.mul(totalFeeNumerator()).div(feeDenominator()); }",
+      "issue": "P9: the checked product (aBal - debt - storedBalance) * (strategist + platform + profitSharing) is distributed into 9 terms, both in the overflow check and in the value, so the fee formula can't be read. The preceding `-_23 + mem[_27] - storedBalance > SafeMath.sub(mem[_27], _23)` underflow check is implied by the dominating `SafeMath.sub(...) > storedBalance` test (P11).",
+      "rule": "Don't distribute a multiplication over a sum (keep `a * (b + c + d)`); when printing, factor common terms back. Drop a subtraction underflow check `a - b > a` dominated by `a > b`.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "withdrawToVault(uint256) (also doHardWork, withdrawAllToVault)",
+      "lines": "5219-5229",
+      "decompiled": "s = (_118 * _143 + _143 * _148 - _143 * _155 - _143 * amount) / (-_143 + stor4E92); t = storA170; ... x = storA170; y = (same expression as s); z = storA170; a = storA170; while v > s:",
+      "source": "AaveFoldStrategy.sol:493-497 newBorrowTarget = newBalance.mul(_borrowNum).div(_denom.sub(_borrowNum)); while (borrowed > newBorrowTarget)",
+      "issue": "The borrow target is distributed into four products, the same value is computed twice (s and y), and four loop variables (t, x, z, a) all hold the same snapshot of storA170 (underlying) that the loop never changes.",
+      "rule": "Keep products unexpanded; merge loop-carried variables that are initialized with the same value and never reassigned in the loop into one name (or the expression itself).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "doHardWork() (and the other harvest paths)",
+      "lines": "7518, 7545, 7549 (24 `log 0x...` lines)",
+      "decompiled": "log 0x1072be0ffac0739a43e2bbe8b9b7dd277f79e5eed4fc2bac67005b3f09118a7d: mem[mem[64] len _314 + ceil32(return_data.size) - mem[64] + 96], indexed address(...)",
+      "source": "emit ProfitLogInReward(rewardToken, profitAmount, feeAmount, block.timestamp) and the other *LogInReward events",
+      "issue": "The event data is raw memory addressed from the free-memory pointer, the same mechanism as P2 for calls, so the three uint256 fields can't be seen; the length `_314 + ceil32(return_data.size) - mem[64] + 96` is a constant 96 once mem[64] is substituted.",
+      "rule": "Resolve LOG data the same way as call arguments: when mem[64] has a known symbolic value at the log, substitute it and split the data into 32-byte words.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize(), initialize(address), initialize(address,...x6), initializeBaseStrategy, initializeStrategy",
+      "lines": "176-188, 826-927",
+      "decompiled": "if stor0 / 256: _4 = 0 else: _2 = stor0 / 256; stor0 = 257; _4 = not _2 ... if _4: uint8(stor0.field_8) = 0",
+      "source": "Initializable.initializer: bool isTopLevelCall = !_initializing; if (isTopLevelCall) { _initializing = true; _initialized = true; } ... _initializing = false",
+      "issue": "In the else arm `stor0 / 256` is known to be 0, so `_4 = not _2` is 1 (P10); slot 0 holds two bools (_initialized, _initializing) but `def storage` has one uint16 `stor0` written as 257 (P15).",
+      "rule": "Substitute a branch condition's known value inside each arm and merge `if c: v = 0 else: v = 1` into `v = not c`; split a slot into fields when the code only reads and writes it per byte.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initializeStrategy(address,address)",
+      "lines": "922-925",
+      "decompiled": "_41 = rewardTokens.length; rewardTokens.length = 1; rewardTokens[0] = 0x2da1...; stor[sha3(4) + 1 len -sha3(4) + max(sha3(4) + 1, _41 + sha3(4)) - 1] = 0",
+      "source": "ZerolendFoldStrategyMainnet_USDC.sol:30 rewardTokens = [zero];",
+      "issue": "The clearing of the old tail is shown with a length that is `max(1, _41) - 1` after translation; as written it is hard to see that elements 1.._41-1 are deleted.",
+      "rule": "Simplify `max(a + x, a + y) - a` to `max(x, y)`, and show the clear as `rewardTokens[1 len max(_41, 1) - 1] = 0`.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "receiveFlashLoan(address[],uint256[],uint256[],bytes)",
+      "lines": "1131",
+      "decompiled": "if -mem[32 * _param1.length + 192] - mem[32 * _param1.length + 32 * _amounts.length + 224]:",
+      "source": "AaveFoldStrategy.sol:345-348 _redeem(toRepay): if (amountUnderlying == 0) return; with toRepay = amounts[0].add(feeAmounts[0])",
+      "issue": "`-a - b` used as a truth value is just `a + b != 0` (toRepay), which the text already computed for the overflow check.",
+      "rule": "In a boolean context, `-x` is nonzero iff `x` is: rewrite `-a - b` as `a + b`.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "isRewardToken(address), rewardTokens()",
+      "lines": "503-514, 533-544",
+      "decompiled": "mem[160 len 32 * stor4541] = call.data[calldata.size len 32 * stor4541]; _9 = stor4541; while s < _9: ... if s >= stor4541: revert Panic(50) ... _9 = stor4541",
+      "source": "BaseUpgradeableStrategyStorage.sol:282 for (uint i = 0; i < values.length; i++) values[i] = getAddress(...)",
+      "issue": "A CALLDATACOPY from offset CALLDATASIZE is the zero-fill of a new memory array and should print as zeros; the loop bound is a loop variable reassigned to the same invariant value every iteration; the bounds check `s >= stor4541` is implied by the loop condition (P11).",
+      "rule": "CALLDATACOPY whose source offset is >= CALLDATASIZE writes zeros (like CODECOPY from CODESIZE, already printed as Bytes(n, 0)); a loop-carried variable whose every assignment is the same loop-invariant expression is that expression.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "initialize(address,address,address,address,address,address)",
+      "lines": "598",
+      "decompiled": "def initialize(address _owner, address _originConvexBooster, address _convexRewardFactory, address _virtualBalanceWrapperFactory, address _rewardCrvToken, address _rewardCvxToken)",
+      "source": "BaseUpgradeableStrategy.sol:40 initialize(address _storage, address _underlying, address _vault, address _rewardPool, address _rewardToken, address _strategist)",
+      "issue": "Parameter names from the signature database belong to an unrelated contract (Convex) and mislead: `_originConvexBooster` is stored as the underlying, `_convexRewardFactory` as the vault.",
+      "rule": "Take parameter names from the database only when the signature is unambiguous (one known source); otherwise print `_param1`... as for unknown functions.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "doHardWork (7178-10179, ~3000 lines), withdrawToVault (4555-7177), withdrawAllToVault (2152-4554) and emergencyExit (1378-2151) reviewed by structure (control flow, loops, calls, storage writes, events, reverts); the 58 other functions fully. Loops: getAddressArray (506, 536), _isAddressInList (516, `while True` with breaks), _liquidateReward (2902, 7924), _redeemNoFlash (`while v > s`, and `while u > 0` where _borrowNum = 0 was propagated in the exit paths), _depositNoFlash (`while w < s`). The 22 other whiles are implicit ABI loops: address[] encoding `mem[t] = Bytes(12, 0), mem[s + 12 len 20]` (counted P7) and the address[] decoding in receiveFlashLoan. P2: all SafeERC20 second calls and most controller()/feeDenominator()/numerator getters in the harvest paths lose their name and args; P8: the 'SafeERC20: low-level call failed' string and decimal selectors (`len 4] = 157198259` = approve) written to memory and never read by the text. currentBalance() calls debtToken before aToken: checked in the disassembly (slot 0x29e4 read first at 0x2929), faithful. The fallback `require calldata.size < 4; require not calldata.size` keeps an implied check. Events print as raw topic0 because the database lacks them (normal).",
+  "summary": "Faithful text with all 5 source loops shown as readable whiles, but long and noisy: 411 P2 lines (SafeERC20 and getter calls without names), event data as raw memory, distributed fee/borrow-target arithmetic, and repeated initializer boilerplate with unfolded known conditions."
+}

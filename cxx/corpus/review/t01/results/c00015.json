@@ -1,0 +1,36 @@
+{
+  "id": "c00015",
+  "abi_functions": 166,
+  "reviewed": 166,
+  "not_reviewed": [],
+  "source_loops": 23,
+  "loops_shown": {"while": 23, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P6": 1, "P7": 55, "P8": 40},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "swapExactPtForSy, swapExactSyForPt, swapExactSyForYt, swapExactYtForSy (selectors 0x3346d3a3, 0x80c4d566, 0x2a50917c, 0x7b8b4b95)",
+      "lines": "2407-2497 (and the 3 other copies)",
+      "decompiled": "s = 0; t = 0 / while True: require cd[_param3 + 68] <′ ..; ... / if s >= cd[_param3 + cd[_param3 + 68] + 4]: u = 0; v = t / while True: ... (second loop) ... return memory ... break / ... s = s + 1; continue / ... / revert with memory (after the outer loop)",
+      "source": "PendleRouterDecoderAndSanitizer.sol:216 for (i < limit.normalFills.length) {..}  :230 for (i < limit.flashFills.length) {..}  then return addressesFound; both revert LimitOrderYtMismatch",
+      "issue": "Two sequential source loops are printed nested: the flashFills loop, the encoding of the result and the return are inside the exit branch of the normalFills 'while True', and the two mismatch reverts share one revert after the outer loop reached by break. The loops are complete but the structure does not match the program's.",
+      "rule": "When an exit branch of a 'while True' body never continues the loop (it returns, breaks or reverts), emit it after the loop: 'while not c: body' followed by that branch's code; reached-by-break tails merge after the loop only when they are the same code.",
+      "verified": "reading only (control structure traced by indentation: while at 2409/2416, return at 2473, breaks at 2434/2476/2490, revert at 2497)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "uniswapV3Swap, flashLoan, exitPool, joinPool, lockOffers, claim, queueWithdrawals, redeemDueInterestAndRewards, completeQueuedWithdrawals, exactInput, ccipSend and the 117 functions returning abi.encodePacked(..) (55 loops)",
+      "lines": "1044-1070, 1103, 1428, 1478 ...",
+      "decompiled": "t = 0 / while t < _3: mem[_2 + t + 32] = mem[s + t + 32]; t = t + 32 / mem[_2 + _3 + 32] = 0 / mem[_2 + _3 + 32] = cd[32 * idx + pools + 36] << 96",
+      "source": "UniswapV3DecoderAndSanitizer / OneInch: addressesFound = abi.encodePacked(addressesFound, address(uint160(pools[i])));",
+      "issue": "Every abi.encodePacked(bytes, ..) and every bytes return is a word-copy while loop (55 of the 85 whiles), with a dead zero word just before the appended value.",
+      "rule": "As c00600's shape A: 'while t < n: mem[d + t] = mem[a + t]; t += 32' followed by 'mem[d + n] = 0' is 'mem[d len n] = mem[a len n]' plus padding; a store fully overwritten before any read is dead.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Decoder-and-sanitizer contract: 166 small functions that check calldata and return abi.encodePacked(addresses...). Reviewed all functions with loops in detail and sampled the straight-line ones (approve, deposit*, withdraw*, borrow/repay/supply variants, bridge*, operate*, swapCompact): they decode calldata, apply the source's reverts (custom errors such as 0x82cc44c9 NoBytes) and return 'Array(len=40, data=Bytes(20, _param1), Bytes(20, _param2))'-style packed bytes, matching the source. Source loops: 23, all whiles: ccipSend (2958), claim (1631), both completeQueuedWithdrawals with their nested fors (2187/2220/2244, 2299/2332/2356), exactInput's hop loop (1772, bound printed as 'cd[..] / 23'), exitPool (1473), joinPool (1523), fill (1688), flashLoan (1423), lockOffers (1563), queueWithdrawals' nested fors (1833/1840), redeemDueInterestAndRewards' 3 fors (1907, 1926, 1945), send's 'while (cursor < opts.length)' (3108), uniswapV3Swap (1044), _sanitizeLimitOrderData's 2 fors (nested in the text, finding 1). The 62 other whiles are implicit: 55 memory-to-memory copies (P7, finding 2), calldata decodes with validation, and ccipSend's copy of a calldata struct array 'while idx < ..: mem[s] = cd[idx]' (could be a copy line). No storage (empty layout).",
+  "summary": "Faithful text with all 23 source loops present; readability is hurt by 55 encodePacked copy loops and by the Pendle limit-order sanitizer, whose two sequential loops and return are printed nested inside the first loop's exit branch."
+}

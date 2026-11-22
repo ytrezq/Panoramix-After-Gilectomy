@@ -1,0 +1,102 @@
+{
+  "id": "c00470",
+  "abi_functions": 47,
+  "reviewed": 47,
+  "not_reviewed": [],
+  "source_loops": 6,
+  "loops_shown": {"while": 6, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 7, "P2": 86, "P3": 6, "P6": 19, "P7": 9, "P8": 40, "P9": 20, "P10": 14, "P11": 30, "P14": 0, "P18": 265},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "DEPLOYER_CONTRACT(), FACTORY(), LIQUIDITY(), LIQUIDITY_RESOLVER() and every function using them",
+      "lines": "34-56 (pack), 38, 865, 885-887, 3498, 3594, 5089",
+      "decompiled": "const FACTORY = 0 / static call 0x0.unknown93656c17(?) / static call 0x0.unknowne72ef91b(?) / mem[_26 + 34] = 0",
+      "source": "variables.sol:12-16 immutable FACTORY, LIQUIDITY, LIQUIDITY_RESOLVER, DEPLOYER_CONTRACT",
+      "issue": "solc immutables read as 0: FACTORY.totalDexes() and LIQUIDITY_RESOLVER.getUser*Data() are calls to address 0, and addressCalc packs a zero deployer address.",
+      "rule": "none (pre-deployment bytecode)",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getAllDexAddresses(), getAllDexEntireDatas(), getDexPricesAndExchangePrices(address), getDexState(address), getUserSupplyDatas, getUserBorrowDatas, getUserBorrowSupplyDatas, getDexEntireDatas",
+      "lines": "884-892, 933-940, 760-776, 1840-1878, 3417-3421, 3496-3500, 3698-3822",
+      "decompiled": "_18 = mem[64] / mem[mem[64] + 32] = 0xd6 << 248 ... / _20 = mem[64] / mem[mem[64]] = _18 - mem[64] + 23 / mem[64] = _18 + 55   and   _40 = mem[64] / mem[mem[64]] = ... / return memory from mem[64] len _40 - mem[64] + 288",
+      "source": "addressCalcs.sol:20 data = abi.encodePacked(bytes1(0xd6), bytes1(0x94), deployedFrom_, uint8(nonce_)) (23 bytes); main.sol:452 return pex_ (9 words)",
+      "issue": "Besides the 86 P2 call lines, the same untracked free-memory pointer leaves lengths unfolded: the 23-byte encodePacked length prints as '_18 - mem[64] + 23', and returns of fixed-size structs as 'len _40 - mem[64] + 288' (= 288), because a store to mem[mem[64] + c] is not known to miss slot 64. Where the base is a constant (getDexEntireData, getDexConfigs) the same code prints names, 'mem[...] = 23' and sha3(Bytes(22, ..), Bytes(1, uint8(..))).",
+      "rule": "Every store to mem[64] in these functions is a constant >= 128 or mem[64] plus a non-wrapping amount, so mem[64] >= 128 holds throughout; a store at mem[64] + c (c >= 0) then cannot alias slot 64, so _x = mem[64] stays equal to mem[64] until the next store to slot 64, and '_x - mem[64]' folds to 0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getDexConfigs, getDexEntireData, getUserSupplyData, getUserBorrowData and the functions inlining them",
+      "lines": "1258-1266, 1285, 2559, 3397, 6073-6081 (402-409 of getDexEntireData)",
+      "decompiled": "Mask(17, 2, x) / 4 / Mask(20, 27, x) >> 27 / uint24(x >> 88) / Bytes(29, 0), ext_call.return_data[18 len 3] / Bytes(16, 0), ext_call.return_data[0 len 16] / uint56(x >> 9) << Mask(8, 1, x) / 2",
+      "source": "main.sol:778-784 configs_.fee = (dexVariables2_ >> 2) & X17; ... shiftingTime = (dexVariables2_ >> 88) & X24; :786 maxSupplyShares = raw >> 128; bigMathMinified.sol:107 shr/and/shl",
+      "issue": "One operation, extracting n bits at offset k, prints in five forms; the division form makes the BigNumber decode read as 'uint56(x >> 9) << Mask(8, 1, x) / 2', correct only through Python precedence (<< below /), where the exponent is uint8(x >> 1). 69 lines use the '/ 2**k' form and 222 the 'Mask(n, k, x) >> k' form.",
+      "rule": "Mask(n, k, x) / 2**k == Mask(n, k, x) >> k == Mask(n, 0, x >> k); print one form (uintN(x >> k) for any N) and turn a word built as 'Bytes(32 - m, 0), y[a len m]' from a 32-byte y back into the same shift-and-mask form.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getDexPricesAndExchangePrices(address) and its 3 inlined copies (getDexEntireData, getDexEntireDatas, getAllDexEntireDatas)",
+      "lines": "729-745, 6236-6251, 10609-10624, 13200-13215",
+      "decompiled": "if 31 > mem[_2] + 27: revert with Panic(17) / if mem[_2] + 27 < SafeMath.sub(mem[_2], 4): revert with 'slice_overflow' / if 4 > mem[_2]: revert with Panic(17) / ... s = _2 + (mem[_2] - 4) % 32 + 32 * (not (mem[_2] - 4) % 32) + 4",
+      "source": "main.sol:463 bytesSlice(lowLevelData_, 4, lowLevelData_.length - 4); bytesSliceAndConcat.sol:87 require(_length + 31 >= _length, 'slice_overflow')",
+      "issue": "After the first check passes, mem[_2] is in [4, 2**256 - 28], so the 'slice_overflow' revert and the third Panic can never fire (P11). The length is named _4 = mem[_2] but mem[_2] is still printed beside _4, and lengthmod '(mem[_2] - 4) % 32 + 32 * (not (mem[_2] - 4) % 32)' is recomputed four times.",
+      "rule": "Propagate the range a passed check gives: after 'if c > x + d: revert' with no wrap of x + d for x in range, x + d >= c; drop later checks that the range decides. Replace re-reads of a memory word by the name already given to it when no store can reach it in between.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "estimatePaybackPerfectInOneToken(address,uint256,uint256,uint256)",
+      "lines": "174-202",
+      "decompiled": "def updatenftgardenPercentage(uint256 _param1) payable: / require calldata.size - 4 >=′ 128 / require _param1 == address(_param1) / args cd[36], cd[68], cd[100], 1",
+      "source": "main.sol:367 function estimatePaybackPerfectInOneToken(address dex_, uint shares_, uint maxToken0_, uint maxToken1_)",
+      "issue": "The signature database's name for 0x9c1b0423 has one uint256 parameter, but the code checks 4 words of calldata and checks _param1 as an address, so three parameters show as raw cd[36], cd[68], cd[100].",
+      "rule": "Reject a database signature whose parameter count is below what the calldata-size check requires (calldata.size - 4 >= 32k), or whose declared type contradicts the decoding check (x == address(x) on a uint256); fall back to unknownXXXXXXXX with the observed parameters.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "the 14 estimate* functions",
+      "lines": "190-200, 219-229, 403-411, 432-447 and the same blocks in the others",
+      "decompiled": "if mem[_2] >= 36: _6 = mem[_2 + 32 len 4] << 224 == 0xe8d35d06 << 224 and mem[_2 + 36] / _7 = _6 / else: _7 = 0 / _8 = _7",
+      "source": "main.sol:402-421 _decodeLowLevelUint1x: if (errorSelector_ == targetErrorSelector_) value1_ := mload(add(lowLevelData_, 36))",
+      "issue": "The selector test shifts both sides by 224, the value is chosen with a Python 'and' instead of a conditional, and two SSA copies (_7 = _6, _8 = _7) stay. The call-buffer stores mem[128], mem[132], mem[164] (mem[196]) stay although the call line shows the arguments and every later read of those words is preceded by the return-data copy (P8, 40 lines).",
+      "rule": "x << k == c with x < 2**(256-k) and c a multiple of 2**k is x == c >> k; merge a phi of copies into its source; a store is dead when every read it reaches is covered by a later full overwrite on that path (the guard mem[_2] >= 36 bounds the reads inside the return-data copy of length return_data.size).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getAllDexAddresses(), getAllDexEntireDatas()",
+      "lines": "877, 9285",
+      "decompiled": "mem[ceil32(return_data.size) + 160 len 32 * ext_call.return_data[0]] = call.data[calldata.size len 32 * ext_call.return_data[0]]",
+      "source": "main.sol:41 dexes_ = new address[](totalDexes_)",
+      "issue": "The zero-initialisation of the new array prints as a copy from calldata at calldata.size.",
+      "rule": "CALLDATACOPY from an offset >= calldata.size writes zeros: print 'mem[a len n] = 0' (or drop it when the memory was never written).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getDexState, getDexEntireData, getDexEntireDatas, getAllDexEntireDatas",
+      "lines": "4975, 5323, 5917, 7524, 11917, 12214, 14508",
+      "decompiled": "mem[2 * 3600] = 0 / mem[s + 2 * 3600] = mem[_2619 + 160]",
+      "source": "struct field offsets 7200 and 14400 of DexEntireData in memory",
+      "issue": "P1's time-unit factoring also fires on small memory offsets (7200 = 2 * 3600), which the header's regular expression does not count.",
+      "rule": "Never factor a time unit out of a constant used as a memory offset (an operand of an address computation for mem[...]).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Very long functions (getAllDexEntireDatas 2,660 lines, getDexEntireDatas 2,330, getDexEntireData 1,860, getUserBorrowSupplyDatas 1,740, getDexSwapLimitsAndAvailability 970) reviewed by structure: calls, loops, returns, reverts. Source loops: bytesSlice's Yul for (while at 742, inlined again at 6251, 10624, 13215), getAllDexAddresses' for (879, again 9286), getDexEntireDatas' for (12568, again 9977), and the for of getUserSupplyDatas (3239), getUserBorrowDatas (4118), getUserBorrowSupplyDatas (8111): all whiles with readable conditions. Implicit loops: 6 rotated zero-init loops of new Struct[](n) printed as 'while idx - 1:' after a ~140-line first iteration (P3: 3096, 3974, 7680, 7967, 9667, 12258); 9 ABI encode/decode loops of struct or address arrays as whiles (P7: 823, 846, 953, 3698, 4575, 9016, 9143, 11665, 14256); one calldata decode of address[] with per-element checks (11940). P9: the unchecked 'maxWithdrawableLimit_ * (block.timestamp - T)' is distributed to 'block.timestamp * M - M * T' inside 700-1000 character lines (20 lines). P11 includes the loop bounds checks 'idx >= mem[128]' implied by the loop condition and SafeMath.sub after the matching '>' test. P18: returned structs are memory slices, and address checks on return data print as 'require mem[a] == mem[a + 12 len 20]' (176 lines). Semantics checked by reading on estimate*, getDexPricesAndExchangePrices (slice, decode), addressCalc branches, calcWithdrawalLimit/calcBorrowLimit (min, base/max limits): all match.",
+  "summary": "Semantically faithful and every source loop is a readable while, but the text is very long: unrotated zero-init loops, untracked free-memory pointer (86 raw-memory calls, unfolded lengths), memory-slice structs and five forms of bit-field extraction make the big resolver functions hard to read."
+}

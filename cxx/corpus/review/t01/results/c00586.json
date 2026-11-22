@@ -1,0 +1,62 @@
+{
+  "id": "c00586",
+  "abi_functions": 64,
+  "reviewed": 64,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {
+    "while": 5,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 411,
+    "P6": 140,
+    "P7": 21,
+    "P8": 600,
+    "P10": 10,
+    "P11": 30,
+    "P15": 96,
+    "P18": 35
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "doHardWork(), withdrawAllToVault(), withdrawToVault(uint256), emergencyExit(), receiveFlashLoan(...)",
+      "lines": "2495, 2522, 3214-3248, 3773, 7518, 8795 (logs); 1101-1106 (revert); 1031 vs 1085 (approve)",
+      "decompiled": "log 0x1072be0f...: mem[mem[64] len _264 + ceil32(return_data.size) - mem[64] + 96], indexed ...  |  log ProfitsNotCollected(bool sell, bool floor): mem[mem[64] len _1321 + ceil32(return_data.size) - mem[64] + 64]  |  revert with Error(string reason), 32, mem[mem[64] + 36 len _224 + 32], Bytes(-_224 + ceil32(_224), 0)  |  call address(storA170).approve(...) at 1031 but 'call address(_111) with: args mem[mem[64] len _209]' at 1085",
+      "source": "BaseUpgradeableStrategy.sol:118-137 emit ProfitLogInReward / PlatformFeeLogInReward / StrategistFeeLogInReward; AaveFoldStrategy.sol:263 emit ProfitsNotCollected(sell(), false); SafeERC20.safeApprove -> Address.functionCall(..., 'SafeERC20: low-level call failed')",
+      "issue": "Besides the 411 P2 call lines, the free-memory-pointer problem also leaves 20 event payloads and the Error(string) revert of Address._revert as raw memory, and makes the same safeApprove print decoded at one call site and raw at the next. The same three events print with decoded data on paths where the buffer base is known (2526, 2659: 'Bytes(64, 0), block.timestamp').",
+      "rule": "As for P2: fold '_x - mem[64]' to 0 when no store to mem[64] intervenes and read memory written at SSA-base + constant through later reads; this decodes log data and revert payloads as well as call arguments.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "initialize(), initialize(address), initialize(address,...x6), initializeBaseStrategy(...), initializeStrategy(address,address)",
+      "lines": "177-188, 459-493, 606-659, 729-820, 826-927",
+      "decompiled": "_1 = stor0 / 256 or not uint8(stor0) / if not _1: revert 'Initializable: contract is already initialized' / if stor0 / 256: _4 = 0 else: _2 = stor0 / 256; stor0 = 257; _4 = not _2 / _5 = stor0 / 256 or not uint8(stor0) / ... (6 times) ... if _8: uint8(stor0.field_8) = 0",
+      "source": "Initializable.sol initializer: require(_initializing || !_initialized); bool isTopLevelCall = !_initializing; ... _initializing = false (6 nested initializer modifiers in initializeStrategy)",
+      "issue": "Slot 0 holds two bools but is declared 'stor0 is uint16', so _initializing reads as 'stor0 / 256', the flags are written together as 'stor0 = 257' and reset as 'uint8(stor0.field_8) = 0' (P15). After the first check, stor0 / 256 is nonzero on both paths (tested true, or just written 257), yet each nested modifier repeats the test, the require and the isTopLevelCall computation, and '_4 = not _2' is not folded to 1 although _2 is the value just tested zero.",
+      "rule": "Propagate storage values known on every path into a join (after 'if s / 256: ... else: s = 257', s / 256 != 0 holds); then the repeated requires are dead, '_8 = 0', and 'if _8: ...' disappears. Split slot 0 into two uint8 fields at offsets 0 and 8, as is done for slot 3.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "salvage, receiveFlashLoan, withdraw*/doHardWork (SafeERC20 inlined), universalLiquidator()",
+      "lines": "686, 1023, 1077 (47 lines); 348-349; 533",
+      "decompiled": "mem[ceil32(return_data.size) + 160 len 4] = 2835717307  |  mem[_198 + 32 len 4] = 157198259  |  require ext_call.return_data[0] == ext_call.return_data[12 len 20] / return Bytes(12, 0), ext_call.return_data[12 len 20]  |  mem[160 len 32 * stor4541] = call.data[calldata.size len 32 * stor4541]",
+      "source": "abi.encodeWithSelector(token.transfer.selector / approve.selector, ...); IController(controller()).universalLiquidator(); new address[](length)",
+      "issue": "4-byte selector values written as 4-byte slices print in decimal (0xa9059cbb, 0x095ea7b3); an address return already range-checked prints as a byte concatenation while controller() prints 'address(ext_call.return_data[0])' for the same code; the zero-filling of a new array reads as a copy from the end of calldata.",
+      "rule": "Print a constant stored as a 4-byte slice in hex; after 'require x == x[12 len 20]', 'Bytes(12, 0), x[12 len 20]' is x (and the require is 'x == address(x)'); calldata read at offset >= calldata.size is zero, so 'call.data[calldata.size len n]' is n zero bytes.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "doHardWork (3,000 lines), withdrawToVault (2,620), withdrawAllToVault (2,400) and emergencyExit (770) were reviewed by structure: the restricted / onlyGovernance checks, the loops, the Aave calls (POOL(), withdraw 0x69328dec, repay, supply, borrow), the Balancer flashLoan 0x5c38449e with its encoded arrays, the reward liquidation and the event triples (4 copies in doHardWork = 2 call sites of _notifyProfitInRewardToken x its 2 branches); receiveFlashLoan and all small functions were reviewed in full and are correct. Source loops: AaveFoldStrategy.sol:268 (_liquidateReward, 2 inlined sites), :475 (_depositNoFlash, 2 sites, 'while w < s'), :497 (_redeemNoFlash, 5 sites, 'while u > 0' / 'while v > s'), BaseUpgradeableStrategyStorage.sol:119 (_isAddressInList, 'while True' with breaks) and :282 (getAddressArray, 2 sites). Implicit whiles: calldata decode (942), encodes of address[] / uint256[] for claimAllRewards and flashLoan (2846, 7868, 9 pairs such as 3872/3884: P7), rewardTokens() result encode (550). P11: Panic(50) checks implied by loop tests in getAddressArray, the SafeMath.sub check after 'total > fee' in investedUnderlyingBalance, repeated initializer checks. Naming (not a finding): the unstructured address slots stay storA170 / stor8CDE / storEFD7... although underlying(), aToken(), vault()... return them, and they are typed uint256 in def storage. Events print by topic hash (ProfitLogInReward etc. are overloaded, not in the signature database). Misleading parameter names from the signature database: initialize(address _owner, address _originConvexBooster, address _convexRewardFactory, address _virtualBalanceWrapperFactory, address _rewardCrvToken, address _rewardCvxToken) is initialize(_storage, _underlying, _vault, _rewardPool, _rewardToken, _strategist) (see the c00113 naming finding).",
+  "summary": "Faithful and complete (no aborts, all loops shown), but the big strategy functions are dominated by the free-memory-pointer problem: 411 P2 call lines plus raw event data and reverts; the nested initializers are bloated by an unsplit packed slot and unpropagated storage values."
+}

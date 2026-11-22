@@ -1,0 +1,25 @@
+{
+  "id": "c00530",
+  "abi_functions": 66,
+  "reviewed": 66,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P7": 2, "P8": 20, "P11": 5, "P12": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "verifyBatchesTrustedAggregator (unknown621dd411) and the other verify paths inlining _updateBatchFee",
+      "lines": "1361-1378",
+      "decompiled": "s = _param3 / while True: if uint64(s) == _59: _62 = 0; _63 = 0; break / if block.timestamp - stor111_8 < uint64(stor114[uint64(s)].field_256): s = uint64(stor114[uint64(s)].field_320); continue / ... _62 = uint64(-_59 + uint64(s)); _63 = uint64(-_59 + uint64(s)); break / if SafeMath.sub(uint64(-_59 + _param3), _63) >= _62: batchFee = SafeMath.div(10**18 * batchFee, 10**18 * stor111_72**min(12, -_62 - _63 + uint64(-_59 + _param3)) / ...",
+      "source": "PolygonZkEVM.sol:927-951 while (currentBatch != currentLastVerifiedBatch) { if (targetTimestamp < data.sequencedTimestamp) currentBatch = data.previousLastBatchSequenced; else { totalBatchesAboveTarget = currentBatch - currentLastVerifiedBatch; break; } } totalBatchesBelowTarget = newBatchesVerified - totalBatchesAboveTarget",
+      "issue": "The source while is printed as 'while True' with its condition as the first exit, and totalBatchesAboveTarget is carried as two variables _62 and _63 that are assigned the same value at every exit, so diffBatches reads '-_62 - _63 + newBatchesVerified'.",
+      "rule": "'while True: if c: (assign); break; B' is 'while not c: B' plus the exit; two variables assigned equal values on every path into a join are one variable.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "via-IR build. Small functions line by line; sequenceBatches, sequenceForceBatches, verifyBatches(TrustedAggregator), forceBatch, consolidatePendingState, overridePendingState by structure. Source loops (3): sequenceBatches' for (1466), sequenceForceBatches' for (954), _updateBatchFee's while (1362, as while True). Implicit: the string copies of networkName / version getters (443, 471). Calls to the immutable globalExitRootManager / bridge / POL token target 0x0 (artifact). No semantic problem found.",
+  "summary": "A clean, complete and faithful text; only _updateBatchFee's loop is printed as 'while True' with a duplicated loop-exit variable."
+}

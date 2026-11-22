@@ -1,0 +1,47 @@
+{
+  "id": "c00123",
+  "abi_functions": 102,
+  "reviewed": 102,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 7, "P3": 2, "P4": 5, "P6": 3, "P7": 6, "P8": 60, "P9": 30, "P14": 40, "P18": 10},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "checkSignatures(uint256,bytes32,bytes32,address,uint256[3][]) (_fillUnsignedValidators, inlined twice)",
+      "lines": "2627-2650, 2664-2680",
+      "decompiled": "if mem[160] >= mem[256]: _361 = 0 else: assert mem[160] < mem[mem[224]] / _361 = mem[32 * mem[160] + mem[224] + 44 len 20] != address(_195) / while _361: ... mem[128] = mem[128] + 1 / mem[160] = mem[160] + 1 / if mem[160] >= mem[256]: _361 = 0 else: ... _361 = ... / continue",
+      "source": "StakeManager.sol:692 while (context.validatorIndex < context.totalValidators && context.validators[context.validatorIndex] != signer) { context.unsignedValidators[context.numUnsignedValidators] = signerToValidator[context.validators[context.validatorIndex]]; context.numUnsignedValidators++; context.validatorIndex++; }",
+      "issue": "The loop condition is precomputed into a boolean before the loop and recomputed at the end of the body (rotated, P3), and the memory struct's fields (validatorIndex, totalValidators, validators, numUnsignedValidators, unsignedValidators) are raw mem[160], mem[256], mem[224], mem[128], mem[192] (P14/P18), so the loop reads as 'while _361'.",
+      "rule": "When a boolean is computed identically before the loop and at the end of its body and is only the loop test, inline it into the while condition (short-circuit 'a and b'); name constant memory words used only as fields of one allocation as that struct's members.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "insertSigners(address[])",
+      "lines": "657-680",
+      "decompiled": "mem[32 * _signers.length + 160] = 0 / mem[32 * _signers.length + 160] = 0x6d617469632e6e6574776f726b2e70726f78792e6f776e6572... / ... while 32 * _signers.length + 160 > idx: signers[s] = mem[idx + 12 len 20] ...",
+      "source": "function insertSigners(address[] memory _signers) public onlyOwner { signers = _signers; }",
+      "issue": "The memory-to-storage array assignment is a while (P7) with a condition on byte addresses, after a dead zero store (P8).",
+      "rule": "stor[sha3(s) + i] = address(mem[d + 32 i]) for i < n is one copy line stor[sha3(s) len n] = mem[d len 32 n] (cleaned); a store overwritten before any read is dead.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "forceUnstakePOL, forceUnstake, unstake, unstakePOL, restake, updateValidatorState and other reward paths",
+      "lines": "e.g. 2002-2005",
+      "decompiled": "if SafeMath.mul(rewardPerStake - validators[_param1].field_2816, validators[_param1].field_0) / (10000000 * 10**18): validators[_param1].field_256 = SafeMath.add(validators[_param1].field_256, (rewardPerStake * validators[_param1].field_0 - validators[_param1].field_2816 * ...",
+      "source": "StakeManager._increaseReward / _calculateReward: rewardPerStake.sub(validators[id].initialRewardPerStake).mul(stake).div(REWARD_PRECISION)",
+      "issue": "Distributed products (P9) and an unfolded constant 10000000 * 10**18 (= 10**25, REWARD_PRECISION) make the reward formula hard to recognise.",
+      "rule": "Do not distribute a product over the subtraction of named values; fold constant products.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (7): checkSignatures' for over sigs ('while idx < sigs.length'), reinitializeValidatorState's for ('while idx < NFTCounter'), Merkle.checkMembership in claimFee ('while s <= _10'), _fillUnsignedValidators' while (2 inlined copies, finding 1), _insertSigner's for and _removeSigner's for ('while idx:' in stakeFor, stakeForPOL, updateSigner, unstake*, forceUnstake*), _updateValidatorsRewards' for ('while idx < mem[128]'). Implicit: insertSigners' memory-to-storage copy and clearing loop, the storage-array copy of the validator set in checkSignatures, and an ABI copy (P7). checkSignatures (511 pack lines) read for its loops, calls and writes; the other functions sampled line by line (many are proxied getters/setters).",
+  "summary": "All seven source loops are found and read as loops; the main obscurities are the _fillUnsignedValidators loop rotated through a precomputed boolean with its context struct in raw memory, and distributed reward arithmetic."
+}

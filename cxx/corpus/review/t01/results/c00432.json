@@ -1,0 +1,47 @@
+{
+  "id": "c00432",
+  "abi_functions": 47,
+  "reviewed": 47,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 4, "P3": 3, "P6": 22, "P7": 9, "P8": 60, "P9": 27, "P11": 19},
+  "findings": [
+    {
+      "kind": "semantics",
+      "severity": "high",
+      "function": "calculatePaymentAmountNativeExternal (unknown67a88db0), calculatePaymentAmountLinkExternal (unknownc07d3658); also fulfillRandomWords (unknown301f42e9)",
+      "lines": "530-546, 670-689, 1729, 1787-1845",
+      "decompiled": "if -gas_remaining + _param1 + stor12_88 > SafeMath.add(stor12_88, _param1): revert Panic(17)\nif ext_call.return_data[0]: log L1GasFee(...)\n...\nreturn uint96((_3 * ext_call.return_data[0] - gas_remaining * _3 * _param2 + ...) / 100 + 10**12 * stor12_120)",
+      "source": "VRFCoordinatorV2_5.sol:549 baseFeeWei = weiPerUnitGas * (s_config.gasAfterPaymentCalculation + startGas - gasleft()); :576-578 (Link); _callWithExactGas 'let g := gas()'",
+      "issue": "The bytecode reads GAS once (pc 0x48c3, before the SLOAD of slot 12) and reuses it, but the text prints a bare gas_remaining in five lines of each payment function, after the L1GasFee log and in the return value, so read literally each one is a later, smaller gas reading. The same happens with the single 'g := gas()' of _callWithExactGas (1729) and the payment of fulfillRandomWords (1787-1845), which c00433's review did not mention.",
+      "rule": "GAS is not a pure expression: bind each GAS result to a variable where the instruction executes (as the text already does with '_3 = gas_remaining' at the entry of fulfillRandomWords) and use the variable at every later use.",
+      "verified": "disassembly (pancxx disasm): one GAS at 0x48c3 in the shared payment code; reading for the rest"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "fulfillRandomWords (BLOCKHASH_STORE)",
+      "lines": "-",
+      "decompiled": "const BLOCKHASH_STORE = 0 (and the blockhash-store fallback call to address 0)",
+      "source": "VRFCoordinatorV2_5.sol: BlockhashStoreInterface public immutable BLOCKHASH_STORE",
+      "issue": "solc immutable read as 0 in the pre-deployment runtime code, as in c00433.",
+      "rule": "None: normal for this corpus.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "calculatePaymentAmountNativeExternal, calculatePaymentAmountLinkExternal, getBlockhashExternal",
+      "lines": "532, 534, 544, 672-681, 676, 301",
+      "decompiled": "if -gas_remaining + _param1 + stor12_88 != (-1 * gas_remaining * _param2 + _param1 * _param2 + _param2 * stor12_88) / _param2 and _param2:\nif stor12_120 != 10**12 * stor12_120 / 10**12: revert Panic(17)\nif not _7: revert Panic(18)   (after 'if _7 <=′ 0: revert InvalidLinkWeiPrice')",
+      "source": "VRFCoordinatorV2_5.sol:549-559, 576-582 (checked products of a sum, 1e12 * uint32, division by weiPerUnitLink > 0); VRFCoordinatorV2_5_Arbitrum.sol:25 currentBlockNumber - blockNumber",
+      "issue": "The checked products are printed with the multiplier distributed over the sum (weiPerUnitGas * (gasAfter + startGas - gas)), and checks that cannot fail are kept: 10**12 * a uint32 field, division by a value already required > 0, and the uint64 subtraction overflow after 'blockNumber < current'.",
+      "rule": "Keep a product of a sum factored when the sum is itself a checked subterm; drop an overflow test whose operand ranges (a uint32 times 10**12, x - y with y < x) prove it false, and a zero-divisor test dominated by 'x >′ 0'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The text is identical (up to SSA numbering) to c00433's (VRFCoordinatorV2_5_Arbitrum) for the 43 shared functions: same as c00433 for them, including its loop map (11 source loops, all whiles) and its findings (rotated _isTargetRegistered search in migrate; the field prime printed as -4294968273). The 4 exposed helpers were reviewed in full against the source: getBlockNumberExternal (arbBlockNumber at 0x64), getBlockhashExternal (_getBlockhash: the >= / > 256 tests and arbBlockHash), calculatePaymentAmountNativeExternal and calculatePaymentAmountLinkExternal (_getFeedData staleness and fallback price, InvalidLinkWeiPrice, ARBGAS getCurrentTxL1GasFees at 0x6c, L1GasFee event, premium percentages with the uint8 '100 +' check, PaymentTooLarge for 1e27); all exact except the GAS printing above. The exposed functions have no loops. Pattern counts are c00433's plus the exposed functions (P9 +7, P11 +4).",
+  "summary": "Same text as c00433 plus four exposed helpers, which are exact apart from the GAS read printed as a bare gas_remaining in several lines (also in fulfillRandomWords' payment and exact-gas check); checked arithmetic is distributed and a few impossible checks remain."
+}

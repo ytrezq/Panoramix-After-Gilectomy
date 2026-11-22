@@ -1,0 +1,25 @@
+{
+  "id": "c00226",
+  "abi_functions": 10,
+  "reviewed": 10,
+  "not_reviewed": [],
+  "source_loops": 10,
+  "loops_shown": {"while": 10, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 15, "P3": 3, "P6": 34, "P8": 150, "P11": 20, "P14": 126},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "verifyICMMessage, registerValidatorSet, verifyMessage (inlined BLST._expandMsgXmd)",
+      "lines": "718-745, 1571-1600, 2520-2550",
+      "decompiled": "t = 2 / while uint8(t) <= 8: if uint8(t) - 2 > 255: revert with Panic(17) / if uint8(uint8(t) - 2) >= mem[_275 + _278 + _280 + _281 + 132]: revert with Panic(50) ...",
+      "source": "BLST.sol:634-637 for (uint8 i = 2; i <= ell; i++) { tmp = abi.encodePacked(b0 ^ b[i - 2], i, dstPrime); b[i - 1] = sha256(tmp); }",
+      "issue": "The loop is clear, but the checked i - 2 / i - 1 underflow tests are kept although 2 <= t <= 8 holds in the body (P11, 6 lines), and the memory array b is addressed by a 4-term base expression (126 such lines).",
+      "rule": "Use the loop's range (t starts at 2, increases, and the body runs only for t <= 8) to drop implied checks; bind repeated allocation bases to named temporaries.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (10): BLST._expandMsgXmd :634 ('while uint8(t) <= 8', ell folded to 8), MerkleProof.processMultiProof :319, TeleporterMessageV2Parsing.serializeAddresses Yul for :163 and serializeTeleporterReceipts Yul for :186 (sendMessage 153/172, verifyMessage 1965/1980), ValidatorSets.parseMerkleAttestation :188/:208/:221 (277, 322, 340 ...), verifyMerkleAttestation :89/:106/:115 (387, 550, 563 ...) - all while, inlined in each of verifyICMMessage, registerValidatorSet, verifyMessage. Implicit loops: calldata array decodes with checks, rotated zero-init of a struct array (P3, 3). Precompile calls print as sha256hash(...) / named results. registerValidatorSet / verifyICMMessage / verifyMessage (840-960 pack lines) reviewed by structure. No semantic error found.",
+  "summary": "Complete and faithful; all ten source loops (including Yul loops) are while loops, inlined three times. Readability suffers from long memory-base expressions, implied checks and raw-memory call arguments."
+}

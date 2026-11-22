@@ -1,0 +1,61 @@
+{
+  "id": "c00581",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {
+    "while": 5,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 411,
+    "P6": 140,
+    "P7": 9,
+    "P8": 60,
+    "P11": 30,
+    "P12": 10,
+    "P15": 95
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "doHardWork, withdrawToVault, withdrawAllToVault, emergencyExit, receiveFlashLoan (461 of the 513 calls of the text)",
+      "lines": "e.g. 7848-7860, 1610-1614, 3863-3899, 9002-9014",
+      "decompiled": "_1813 = mem[64] / mem[mem[64]] = 0x70a0823100000000000000000000000000000000000000000000000000000000 / mem[_1813 + 4] = this.address / static call address(stor8CDE) with: args mem[mem[64] len _1813 - mem[64] + 36] / ... _1816 = mem[_1815]",
+      "source": "AaveFoldStrategy.sol:255 IERC20(_aToken).balanceOf(address(this)) and every other external call after the first allocation",
+      "issue": "Once mem[64] is symbolic, the store of the selector at mem[mem[64]] is taken as possibly overwriting mem[64] itself, so the call's input offset is re-read and its length stays '_1813 - mem[64] + 36': the call loses its name and arguments (balanceOf(this), POOL(), approve, supply, withdraw, flashLoan...) and every returned value is read back as mem[_N]. In small functions where mem[64] is still the constant 0x80 the same calls are named (currentBalance, 304-318).",
+      "rule": "mem[64] is only ever assigned 0x80 plus non-negative sizes bounded by EVM limits (return data and calldata sizes are < 2^32 in any execution), so it is always >= 0x80 and a store at address mem[64] cannot overwrite mem[64]; with that invariant, mem[64] keeps its value across the store, '_1813 - mem[64]' folds to 0 and the call decodes as balanceOf(this.address).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "emergencyExit, withdrawAllToVault, withdrawToVault, doHardWork (the flashLoan calls)",
+      "lines": "2013-2041; 4926 and the 9 nameless flashLoan calls (e.g. 3863-3899)",
+      "decompiled": "mem[_82 + ceil32(return_data.size) + 32] = cd[calldata.size] / ... mem[_82 + ceil32(return_data.size) + 32] = address(storA170) / ... call 0xba12...c8.flashLoan(address recipient, address[] tokens, uint256[] amounts, bytes userData) with: args this.address, 128, 192, 256, 1, Bytes(12, 0), mem[_82 + ceil32(return_data.size) + 44 len 20], 1, _80, 32, 0",
+      "source": ":440-446 tokens = new address[](1); amounts = new uint256[](1); userData = abi.encode(0); tokens[0] = _underlying; amounts[0] = borrowDiff; IBVault(bVault).flashLoan(address(this), tokens, amounts, userData)",
+      "issue": "Even where the call is named, its three dynamic arguments are printed as the flat ABI words (offsets 128/192/256, lengths, elements), and the token is a memory slice of the word stored as address(storA170) eleven lines before; the zero-initialisation of the new arrays reads as cd[calldata.size].",
+      "rule": "Decode each offset word of the argument area as a dynamic argument (Array(len, data)) as is done for calldata-sourced arrays; a slice mem[b + k + 12 len 20] of a word stored at mem[b + k] (same base, no aliasing store between: other constant offsets of the same base) is that value; cd[calldata.size] (and call.data[calldata.size len n]) is zero.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "emergencyExit, withdrawAllToVault, initialize (3), many",
+      "lines": "1623-1629, 1939; 180-185, 462-476; e.g. 1023 (47 lines)",
+      "decompiled": "s = storA170 / ... w = storA170 / x = pendingFee + 1 / y = stor8CDE / while u > 0:  |  if -mem[_213] + pendingFee + 1:  |  if stor0 / 256: _4 = 0 else: _2 = stor0 / 256; stor0 = 257; _4 = not _2  |  mem[... + 288 len 4] = 157198259",
+      "source": "_redeemNoFlash locals; _redeemMaximumWithFlashloan: _redeem(supplied.sub(pendingFee().add(1))) (if amount == 0 return); OZ initializer modifier; abi.encodeWithSelector(approve)",
+      "issue": "Two loop-entry variables are never used (w, x); a nonzero test is printed on the negated amount; inside 'else' of 'if stor0 / 256' the value is kept as a variable (_4 = not _2 is 1); 4-byte selector stores are printed in decimal.",
+      "rule": "Drop assignments to variables that are never read; in a boolean context -x is x; inside the false arm of 'if e', e is 0; print a 4-byte store in hex.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 62 ABI functions and the fallback/receive reviewed; no semantic error found. The four big functions (doHardWork 3,002 lines, withdrawToVault 2,623, withdrawAllToVault 2,403, emergencyExit 774) and receiveFlashLoan (449) were reviewed by structure: control flow (restricted / onlyGovernance, sell() with the ProfitsNotCollected else-branch, fold(), borrow vs balancer balance, flash vs no-flash), the loops, the call order, the storage writes (pendingFee, storedBalance, makingFlash* set/cleared around flashLoan, pausedInvesting, suppliedInUnderlying / borrowedInUnderlying of updateSupplyInTheEnd in each arm), the checked arithmetic (including the div-by-zero check of factorDenominator - 0 and the dropped underflow check of supplied - borrowed after the loop, where borrowed is 0), and SafeERC20/Address error paths: all match. Source loops: _depositNoFlash (while w < s, 2 copies), _redeemNoFlash (while v > s, 3 copies; while u > 0 when the target is 0, 2 copies), _liquidateReward (2 copies), _isAddressInList and getAddressArray (isRewardToken, rewardTokens()): all readable whiles. Implicit: receiveFlashLoan's address[] decoding, the address[] encodings (claimAllRewards assets, flashLoan tokens, rewardTokens()) as masking whiles, and 9 uint256[] copies of flashLoan's amounts left as loops (P7). P15: slot 0 typed uint16 (two bools) and written 'stor0 = 257'. P11: bounds checks of constant indices 0/1 against the length just stored (22 lines) and of getAddressArray's index under its own bound. Immutables: none (bVault and harvestMSIG are constants, printed right).",
+  "summary": "Faithful on every path checked, but the big strategy functions are hard to read: a store at the free-memory pointer is assumed to overwrite the pointer, so 461 of 513 calls lose their names and arguments and their results are memory reads; flashLoan's arrays are flat ABI words."
+}

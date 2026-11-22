@@ -1,0 +1,25 @@
+{
+  "id": "c00269",
+  "abi_functions": 35,
+  "reviewed": 35,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 5, "P7": 2, "P9": 2, "P11": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "name(), symbol()",
+      "lines": "259-276, 287-304",
+      "decompiled": "mem[160] = 256 * stor3.field_8 / _3 = 32 * bool(_1) + 160 ... else: _3 = ceil32(_1) + 160 / if floor32(_3 - 97) + 128 > 18446744073709551615 ... / mem[64] = floor32(_3 - 97) + 128 / mem[floor32(_3 - 97) + 128] = 32 / while idx < _1: mem[idx + floor32(_3 - 97) + 192] = mem[idx + 160]",
+      "source": "ERC20.name() returns (string memory) { return _name; } (via-IR copy of the storage string, then ABI encoding)",
+      "issue": "In both arms _3 is 160 plus a multiple of 32, so floor32(_3 - 97) + 128 is just _3, but the rounding expression is printed in every address of the return encoding; the encoding itself is a while copy (P7).",
+      "rule": "Track 'x mod 32 = 0 and x >= c' through phis: then floor32(x - k) + m with 32 - 1 >= m - k > 0... folds (here floor32(x - 97) + 128 = x for x = 160 + 32k); a word copy loop of a known source is a copy line.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 35 ABI functions reviewed (via-IR build; ERC20, permit, roles, mint, cap/rate setters). The only source loop, OpenZeppelin Strings.toHexString, is a clear 'while idx > 1' in every onlyRole failure path (12 copies), each keeping the bounds check 'if idx >= 42/66' its counter makes impossible (P11). The name()/symbol() copy loops are the ABI encoding of the storage strings (P7). mint's rate check prints the checked product (block.timestamp - lastMint) * mintPerSecondCap distributed, with the overflow test dividing by SafeMath.sub2(block.timestamp, lastMint) (P9): exact.",
+  "summary": "Faithful and readable; the toHexString loops are clear whiles, and only small redundancies (an implied bounds check, a rounding expression that equals its operand, a distributed product) remain."
+}

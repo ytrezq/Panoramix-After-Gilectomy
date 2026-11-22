@@ -1,0 +1,58 @@
+{
+  "id": "c00487",
+  "abi_functions": 56,
+  "reviewed": 56,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 48, "P3": 1, "P4": 5, "P6": 7, "P7": 48, "P8": 392},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "queue, execute, cancel (timelock calls), propose, castVote* (event data), state/quorum paths after a call",
+      "lines": "queue: 6478-7160 (text 577-641 of the function: 'static call timelock with', 'call timelock with', 'log ProposalQueued(...): mem[mem[64] len 64]'); 484-486",
+      "decompiled": "static call timelock with: args mem[mem[64] len _232 + ceil32(return_data.size) - mem[64] + 36]  |  call timelock with: gas gas_remaining args mem[mem[64] len v - mem[64]]  |  mem[mem[64]] = _29 / mem[mem[64] + 32] = SafeMath.add(block.timestamp, _381) / log ProposalQueued(uint256 id, uint256 eta): mem[mem[64] len 64]",
+      "source": "GovernorTimelockControlUpgradeable.queue: _timelock.hashOperationBatch(...), _timelock.scheduleBatch(targets, values, calldatas, 0, descriptionHash, delay), emit ProposalQueued(proposalId, block.timestamp + delay); isOperationPending",
+      "issue": "The timelock calls that are the whole point of queue/execute/cancel (scheduleBatch, executeBatch, hashOperationBatch, isOperationPending, cancel) are printed without function or arguments, and even an event whose two words were stored on the previous lines is shown as raw memory.",
+      "rule": "Same root cause as c00409: stores at mload(0x40) + k (k >= 0) cannot overwrite slot 0x40 once the pointer is known to be >= 0x80 (RETURNDATASIZE and allocation sizes < 2^64), so they can be forwarded into the call input and the log data.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "hashProposal, propose, queue, execute, cancel, castVoteWithReason*",
+      "lines": "e.g. hashProposal 5393-5517 (text: 'while s < mem[128]: mem[u] = Bytes(12, 0), mem[t + 12 len 20]', 'while True: if s >= ...: ... return ...'); queue 597-641",
+      "decompiled": "while True: / if s >= mem[32 * targets.length + 32 * values.length + 192]: / mem[mem[64] + 128] = descriptionHash / ... / mem[v] = sha3(mem[mem[64] + 32 len mem[mem[64]]]) / return memory from v len 32 / mem[w] = ... / while idx < _27: mem[idx + v + 32] = mem[_26 + idx + 32] ...",
+      "source": "GovernorUpgradeable.hashProposal: keccak256(abi.encode(targets, values, calldatas, descriptionHash)); _timelock.scheduleBatch(targets, values, calldatas, ...)",
+      "issue": "The ABI encoding of address[], uint256[] and bytes[] is printed as 48 copy loops; the bytes[] encoder is rotated so that the rest of the function (the hash and return in hashProposal, the scheduleBatch call, the event and the return in queue) sits inside the loop's exit branch.",
+      "rule": "Known P7 for the element copies (mem[u + 32i] = uint160(mem[t + 32i]) for i < n is one cleaned copy); for a 'while True' whose first statement is 'if exit: <tail>; return', make 'not exit' the loop test and print the tail after the loop.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "quorum, state, castVote* (pre-DVP quorum); every getAtBlock copy",
+      "lines": "quorum (text 101-102 of the function); 310-319",
+      "decompiled": "if _74 != _73 and _72 > -1 / SafeMath.sub(_74, _73): revert Panic(17) / return (-1 * _72 * _73 + _72 * _74) / 10000  |  if SafeMath.add(t & s, (t ^ s) / 2) >= stor655.length: ... if uint32(stor655[SafeMath.add(t & s, (t ^ s) / 2)].field_0) <= _param1: ... _15 = SafeMath.add(1, (t & s) + (t ^ s) / 2)",
+      "source": "L2ArbitrumGovernor.sol:242 (getPastCirculatingSupply(b) * quorumNumerator(b)) / quorumDenominator(); CheckpointsUpgradeable.getAtBlock mid = MathUpgradeable.average(low, high)",
+      "issue": "numerator * (supply - excluded) is distributed into two products, and the subtraction appears only inside the overflow test; the binary-search midpoint is printed three times per iteration.",
+      "rule": "Keep a product over a difference factored (exact modulo 2^256 either way); bind a subexpression used more than once in a loop body to a temporary (mid).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "EXCLUDE_ADDRESS, quorum, getPastCirculatingSupply, getPastTotalDelegatedVotes, state, queue, execute",
+      "lines": "4; quorum 'args 674694, blockNumber'",
+      "decompiled": "const unknown5e12ebbd = 674694  |  static call token.getPastVotes(address account, uint256 blockNumber) with: args 674694, blockNumber",
+      "source": "address public constant EXCLUDE_ADDRESS = address(0xA4b86)",
+      "issue": "An address constant is printed in decimal, even where the signature database types the argument as an address.",
+      "rule": "Print a constant in hex when it is passed as, compared with or returned as an address-typed value (from the signature DB, a mask to 160 bits, or a CALL target).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "56 ABI functions (incl. 4 constants) plus the fallback reviewed. Long functions (castVote* 600-800 lines, propose, queue, execute, cancel, state) reviewed by structure; quorum, minimumQuorum/maximumQuorum/quorumNumerator(uint256), dvpQuorumStartBlock, propose's proposer-suffix loop, relay, the onlyGovernance setters read in full. Loops: 3 source loops in the bytecode, all readable whiles: CheckpointsUpgradeable.getAtBlock and Checkpoints.getAtBlock (binary search 'while s < t', inlined 67 times) and _isValidDescriptionForProposer's hex loop (propose, a 'while True' with the bound test first). GovernorUpgradeable._beforeExecute's loop and onlyGovernance's 'while (_governanceCall.popFront() != msgDataHash)' are guarded by '_executor() != address(this)', and L2ArbitrumGovernor._executor() returns address(this): the compiler removed both, so they are not counted (the setters show only 'if caller != this.address: revert'). TimelockController.scheduleBatch's loop runs in the timelock (external call), not counted. Implicit loops: 10 validating calldata decodes of address[]/bytes[] (readable), 48 encode/byte copies (P7), new string[](n) init rotated with its first iteration peeled (P3). Checked: evaluation order right-to-left in quorum (quorumNumerator, getPastVotes, getPastTotalSupply), the proposer-suffix parse (marker at len - 20, 40 hex digits, early 'return true' on a non-hex char), the clamp of the DVP quorum. No semantic error found. P8 is mostly mem[0]/mem[32] hashing scratch (e.g. 'mem[0] = 505' inside every binary search).",
+  "summary": "Faithful and mostly readable for state, voting and quorum logic (binary searches as clean whiles), but the timelock calls of queue/execute/cancel lose their names and arguments after the first symbolic free-memory pointer, and the ABI encoding of proposals is 48 copy loops, one rotated around the function's tail."
+}

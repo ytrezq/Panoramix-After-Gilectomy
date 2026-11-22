@@ -1,0 +1,22 @@
+{
+ "id": "c00560",
+ "abi_functions": 10,
+ "reviewed": 10,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P7": 13,
+  "P8": 20
+ },
+ "findings": [],
+ "notes": "Chainlink CronUpkeepFactory (solc 0.8.6). encodeCronJob and encodeCronString delegatecall the linked CronExternal library (0x11c85b86...), so the Cron.sol/strings/DateTime loops listed in the pack run in the library, not in this bytecode; the pack's 'Reaches' resolves through the library. The 13 whiles are implicit word-copy loops of the bytes returned by the library and of the re-encoded return value (`while idx < n: mem[d + idx] = mem[s + idx]; idx += 32` followed by a conditional zero of the tail word), P7. newCronUpkeep/newCronUpkeepWithJob (contract creation), ownership functions and setMaxJobs read correctly. The bytecode embeds the CronUpkeep creation code, hence its size versus the short text.",
+ "summary": "Small factory whose cron parsing is delegated to an external library; the text is faithful, with only implicit bytes-copy loops."
+}

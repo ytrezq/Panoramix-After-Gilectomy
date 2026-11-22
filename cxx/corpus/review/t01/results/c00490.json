@@ -1,0 +1,36 @@
+{
+  "id": "c00490",
+  "abi_functions": 47,
+  "reviewed": 47,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 19, "P3": 8, "P4": 3, "P6": 10, "P7": 31, "P8": 302, "P11": 10},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "hashProposal, execute, queue (ABI encoding of bytes[] calldatas)",
+      "lines": "721-733, 1633-1655, 2000-2030",
+      "decompiled": "while True: if s >= _167: mem[mem[64] + 132] = descriptionHash; call timelock with: value call.value wei .. args mem[..]; if timelock != this.address: if ..: stor4 = 0; return memory from mem[64] len 32 / mem[w] = .. (encode element s) .. continue",
+      "source": "Governor.execute -> _executeOperations -> _timelock.executeBatch{value: msg.value}(targets, values, calldatas, 0, salt); then _afterExecute and return proposalId",
+      "issue": "The tail of the function after the implicit encoding loop of calldatas (the timelock call, the governance-queue reset, the return) is printed inside the loop's exit branch, so the external call reads as if it happened inside a loop (as in c00015's limit-order loops).",
+      "rule": "An exit branch of 'while True' that never continues the loop is code after the loop: print 'while s < n: ..' and then that branch.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "quorum, state, castVote*, execute, queue, cancel (7 lines)",
+      "lines": "203",
+      "decompiled": "_10 = s and stor16[s - 1].field_32 / return _10",
+      "source": "Checkpoints.upperLookup: return pos == 0 ? 0 : _unsafeAccess(self._checkpoints, pos - 1)._value;",
+      "issue": "A conditional value is printed with Python's value-returning 'and' (as in c00003), which reads as a boolean.",
+      "rule": "Print 'a and b' used as a non-boolean value as 'b if a else 0'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small functions, setters (all onlyGovernance), quorum, state, propose's description check, relay reviewed in detail; propose, execute, queue, cancel, castVote* by structure. Source loops compiled here: 4, all whiles: Checkpoints._upperBinaryLookup ('while t < s' with mid = SafeMath.add(s & t, (s ^ t) / 2), in quorum/state/castVote*/execute/queue/cancel), Governor._beforeExecute's for (execute 1586), _isValidDescriptionForProposer's hex loop (propose 2439, while True with exits inside, matches incl. the 160-bit truncation through address(t)), and onlyGovernance's 'while (_governanceCall.popFront() != msgDataHash) {}' (7 setters/relay: first popFront printed before 'while _12 - sha3(call.data[0 len calldata.size])', P3, a natural rendering of a side-effecting condition). Not counted: Strings.toHexString (:64) and TimelockController.scheduleBatch (:257), listed in the pack's reach but they belong to the external TimelockController. Implicit loops: 31 memory-to-memory copies left as loops (P7: bytes elements and description in the encodings of hashProposal/propose/queue/execute/cancel and the EIP-712 signature digests of castVote*BySig), address[] calldata decodes with validation, address re-encodings, propose's rotated zero-init of new bytes[](n). receive: 'require calldata.size < 4; require not calldata.size' (P11) then 'if timelock != this.address: revert Governor: must send to executor' (correct). P8: 302 keccak scratch writes. 61 Panic(65) allocation checks.",
+  "summary": "Faithful OpenZeppelin governor whose 4 compiled source loops are all whiles; the main readability costs are 31 copy loops, 302 dead keccak-scratch writes, and function tails printed inside the exit branch of encoding loops."
+}

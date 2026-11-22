@@ -1,0 +1,38 @@
+{
+ "id": "c00192",
+ "abi_functions": 52,
+ "reviewed": 52,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P1": 2,
+  "P2": 2,
+  "P6": 1,
+  "P7": 3,
+  "P8": 20,
+  "P15": 2
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "initialize()",
+   "lines": "477-478",
+   "decompiled": "_1 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64",
+   "source": "OZ Initializable (ERC-7201 slot 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00): bool initialSetup = initialized == 0 && isTopLevelCall;",
+   "issue": "The ERC-7201 Initializable slot is printed factored by 3600 (P1) inside `stor[...]`, so this read of `_initialized` is not matched to the storage variable storF0C5 that names the same slot two words later; def storage also splits the uint64 `_initialized` into storF0C5 (uint8) and storF0C5_8 (uint56).",
+   "rule": "Never factor a storage-slot constant (or any 256-bit hash-like constant); resolve `stor[c]` to the named variable at slot c before printing; merge adjacent field splits when some access reads them together (here uint64(stor[c])).",
+   "verified": "python: 0x111f1c...7aa0 * 3600 == 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00"
+  }
+ ],
+ "notes": "Spark UsdcVault (solc 0.8.21, UUPS). No explicit loop in the reached source; the 3 whiles are implicit (a 196-byte copy and two signature-bytes copies in the ERC-1271 permit path, P7). ERC-4626/permit/upgrade paths read correctly.",
+ "summary": "Small loop-free vault with faithful text; one P1 factorisation hides an ERC-7201 storage slot and its variable name."
+}

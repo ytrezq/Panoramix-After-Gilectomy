@@ -1,0 +1,69 @@
+{
+  "id": "c00086",
+  "abi_functions": 58,
+  "reviewed": 58,
+  "not_reviewed": [],
+  "source_loops": 21,
+  "loops_shown": {"while": 21, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 91, "P3": 37, "P6": 98, "P7": 76, "P8": 121, "P11": 40, "P15": 8},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all functions that read the Well's immutable data (tokens, wellFunction, pumps, reserves...)",
+      "lines": "2056 lines, e.g. 1641-1690, 8619-8629",
+      "decompiled": "cd[calldata.size - (cd[calldata.size - 2] >> 240) + 20] ... cd[calldata.size - (cd[calldata.size - 2] >> 240) + SafeMath.mul(cd[calldata.size - (cd[calldata.size - 2] >> 240) + 20], 32) + ...]",
+      "source": "Clone._getImmutableArgsOffset / _getArgUint256 / ClonePlus._getArgIERC20Array: offset := sub(calldatasize(), shr(240, calldataload(sub(calldatasize(), 2))))",
+      "issue": "The immutable-args offset, a pure function of calldata, is re-expanded inside every calldata index, and the number of tokens `cd[off + 20]` inside every memory address; this one subexpression is on 2,056 of the 9,465 lines and makes most lines several hundred characters long.",
+      "rule": "Calldata never changes during a call, so a calldata-only expression used many times can be bound once to a named variable at the function entry (common-subexpression elimination over pure, state-independent expressions).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "shift(address,uint256,address) and every function using _getJ (15 copies)",
+      "lines": "8762-8780 (also 8864, 8908, 9050, 9143, 9186)",
+      "decompiled": "if 0 >= mem[128]: mem[mem[64]] = 0x672215de...; revert with memory from mem[64] len _502 - mem[64] + 4 ; _506 = mem[160]; s = 0; while -address(_506) + _param1: if s + 1 >= mem[128]: revert ... ; _506 = mem[32 * s + 192]; s = s + 1",
+      "source": "Well.sol:843-848 for (j; j < _tokens.length; ++j) { if (jToken == _tokens[j]) return j; } revert InvalidTokens();",
+      "issue": "The search loop is rotated (first test and element before the loop, P3), its condition `-address(_506) + _param1` is a disguised `_param1 != _tokens[s]`, and the InvalidTokens() revert is raw memory with length `_502 - mem[64] + 4` although `_502` was just copied from mem[64] (= 4).",
+      "rule": "Print a difference used as a truth value as `a != b`; un-rotate loops whose pre-header duplicates the body's first test; fold `x - mem[64]` to 0 when x is a copy of mem[64] with no store to slot 64 in between, which then lets the revert be decoded as `InvalidTokens()`.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getAddLiquidityOut(uint256[]) and the other view/write paths ending with a well-function call",
+      "lines": "1706-1737",
+      "decompiled": "static call cd[off + 52] >> 96 with: args mem[mem[64] len _52 + 32 * _53 + ceil32(_56) - mem[64] + 132] ... mem[64] = ceil32(return_data.size) + mem[64]; mem[_58 + ceil32(return_data.size)] = SafeMath.sub(mem[_58], totalSupply); return memory from mem[64] len _58 + ceil32(return_data.size) - mem[64] + 32",
+      "source": "Well.sol:498 lpAmountOut = _calcLpTokenSupply(wellFunction(), reserves) - totalSupply();",
+      "issue": "The calcLpTokenSupply(uint256[],bytes) call (0x14c15fc0) loses its name and arguments (P2), and the return is raw memory although mem[64] was just set to `_58 + ceil32(return_data.size)`, so the returned value is simply `SafeMath.sub(ext_call.return_data[0], totalSupply)`. 29 `return memory` and many `revert with memory` lines share this cause.",
+      "rule": "Track the value just stored to mem[64] and substitute it into later reads of mem[64] (until the next store), then fold `a - a`; apply it to return/revert/log ranges as well as call arguments.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "pumps() and every function that builds Call[] (22 copies)",
+      "lines": "605-614",
+      "decompiled": "mem[160] = 32 * N + 160; s = 160; idx = N; while idx - 1: _1 = mem[64]; mem[64] = mem[64] + 64; mem[_1] = 0; mem[_1 + 32] = 96; mem[s + 32] = _1; s = s + 32; idx = idx - 1",
+      "source": "Well.sol:119 _pumps = new Call[](_numberOfPumps);",
+      "issue": "The compiler's per-element allocation of a struct array is printed as a rotated count-down loop (first element before the loop, `while idx - 1`), an obscure form of an implicit loop (P3).",
+      "rule": "Un-rotate a loop whose pre-header repeats one body iteration, giving `idx = 0; while idx < N:`; a loop that only allocates zeroed structs and stores their pointers could print as one `new struct[N]` line.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "DOMAIN_SEPARATOR(), eip712Domain (unknown84b0196e), permit",
+      "lines": "390-391",
+      "decompiled": "mem[ceil32(_1) + 224 len floor32(-ceil32(_1) + max(ceil32(_1) + 224, _18 + ceil32(_1) + 192) - 193)] = stor[sha3(104) + 1 len (-ceil32(_1) + max(...) - 1...",
+      "source": "EIP712Upgradeable._EIP712Version(): copy of the long `_version` string",
+      "issue": "Under the dominating `_18 > 31`, the length `-c + max(c + 224, _18 + c + 192) - 193` is just `_18 - 1`, as in the first string's copy (`floor32(_2 - 1)`), but it is printed unsimplified.",
+      "rule": "Simplify `max(a + x, a + y)` to `a + max(x, y)`, then use the dominating range of `y` to resolve the max.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Functions over ~700 lines (the swap, add/remove liquidity, shift, sync families: 2406-9465) reviewed by structure (loops, calls, storage writes, events, reverts); the others fully. Source loops, all shown as while: getAddLiquidityOut/getRemoveLiquidityImbalancedIn/getShiftOut/getSyncOut/removeLiquidity/removeLiquidityImbalanced/shift/skim/sync token loops, init's nested duplicate check (`while True` with the epilogue in the exit branch + inner `while idx < N`), pumps() loop, LibBytes.readUint128 (`while idx <= N` with an unfolded `idx - 1 > idx` check, 18 copies), LibBytes.storeUint128 (`while s < mem[_518] / 2`), _addLiquidity x2, _getIJ (`while True` with breaks), _getJ (rotated, see finding), _setReserves, _updatePumps, _authorizeUpgrade. Implicit loops: 74 uint256[]/address[] memory-to-memory ABI encodings (P7), 22 struct-array allocations (P3), 2 address[] decodes with validation. Zero-fill copies from `call.data[calldata.size len ...]` immediately overwritten by the real copy (P8, 121 lines). Storage strings (init's name/symbol/EIP712 name and version) are shown as copy lines, correctly; the short version string '1' is written as three field writes (`uint8(stor104) = 2; uint240(stor104.field_8) = 0; stor104.field_248 = 49`, P15). Custom errors and events of the Well are mostly unnamed (database), e.g. `revert with Bytes(16, 0x213509ed...), mem[... len 20]` for DuplicateTokens(address), and 9 `log 0x...` with raw-memory data. No semantic error found.",
+  "summary": "Faithful and complete text (no aborts, all 21 source loops as whiles), but very hard to read: the Clone immutable-args offset is re-expanded on 2,056 lines, the free-memory pointer is not resolved for calls, returns and reverts, and implicit ABI/allocation loops appear as 98 obscure whiles."
+}

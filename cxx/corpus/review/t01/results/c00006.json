@@ -1,0 +1,36 @@
+{
+  "id": "c00006",
+  "abi_functions": 66,
+  "reviewed": 66,
+  "not_reviewed": [],
+  "source_loops": 10,
+  "loops_shown": {"while": 10, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 85, "P3": 1, "P6": 37, "P7": 5, "P8": 250, "P11": 40, "P14": 150},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "mint(address,uint256,address,bool)",
+      "lines": "3845-3940",
+      "decompiled": "b = _959; c = y; d = z; e = a / while d <= b + d: if c + 1 >= registeredAssets.length: ... return b + d / ... continue loop1 / revert with Panic(17)",
+      "source": "HoneyFactory_V0.sol:357-362 for (uint256 i = 0; i < registeredAssets.length; i++) { ...; honeyToMint += _mint(registeredAssets[i], amount, receiver, true); }",
+      "issue": "P3: the basket-mode loop is rotated; its printed condition is the overflow check of 'honeyToMint +=' (d <= b + d), the real bound i < registeredAssets.length is an early return inside the body, and the loop's normal exit is the Panic(17) after it.",
+      "rule": "Choose as loop condition the test that leads to the loop's ordinary exit (here the bound, whose exit returns), not a check whose failure reverts; keep 'require b + d >= d' inside the body.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "mint, redeem, liquidate, recapitalize (Solady SafeTransferLib)",
+      "lines": "e.g. 3898, 3914",
+      "decompiled": "if (not ext_code.size(_1019)) | return_data.size >= ext_call.success:",
+      "source": "SafeTransferLib.safeTransferFrom: if iszero(and(eq(mload(0x00), 1), success)) { if iszero(lt(or(iszero(extcodesize(token)), returndatasize()), success)) { revert } }",
+      "issue": "The bit-trick success test is printed literally; it means 'revert unless (code exists and returndata is empty) and the call succeeded'.",
+      "rule": "For booleans s and an integer r: 'not (or(not c, r) < s)' is 'not s or not c or r != 0'; print it as such.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "mint and redeem (1,200 and 1,000 pack lines) reviewed by structure. Source loops (10): isBasketModeEnabled :534, mint :357 (rotated, finding), redeem :393 and :412, setGlobalCap :203, withdrawAllFees :247, _getWeights :673 and :689, _isCappedGlobal :714, _lookupRegistrationIndex :293 ('while True' searches) - all while, inlined several times (_getWeights in 7 places). FixedPointMathLib.fullMulDiv's Yul 'for {} 1 {}' and the ERC4626 code belong to CollateralVault_V0, reached only by external calls (vaults[x].convertToAssets), so not counted. Implicit loops: the uint256[] return encodings of getWeights as word-copy whiles (P7, 'while s < mem[128]: mem[t] = mem[u]'), checked-exp loops 'while u > 1'. Many 'mem[0] = 3' dead writes before mapping reads (P8), implied Panic(50) checks of weights[i] (P11). No semantic error found.",
+  "summary": "Complete and faithful; all source loops are while loops, but mint's basket loop is rotated around an overflow check, and the inlined _getWeights loops and raw-memory call arguments make mint/redeem long and obscure."
+}

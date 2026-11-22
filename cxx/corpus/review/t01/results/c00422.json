@@ -1,0 +1,25 @@
+{
+  "id": "c00422",
+  "abi_functions": 43,
+  "reviewed": 43,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 7, "P3": 2, "P4": 7, "P6": 4, "P7": 2, "P8": 40, "P11": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getAssetPeriods()",
+      "lines": "601-608",
+      "decompiled": "_32 = sha3(mem[32 * s + 160], 6) / ... / mem[_33] = bool(uint8(stor6[concat(mem[32 * s + 160])].field_0)) / mem[_33 + 32] = uint8(stor[_32].field_8) / mem[_33 + 64] = address(stor[_32].field_16) / mem[_33 + 96] = address(stor[_32 + 1])",
+      "source": "DepositManager.sol:628 assetPeriods[i] = _assetPeriods[tokenIds[i]];",
+      "issue": "The four members of the same struct _assetPeriods[tokenIds[i]] are printed two ways: the first through the mapping (with the one-element concat key, P4), the other three through the raw slot variable _32 and _32 + 1.",
+      "rule": "A variable bound to sha3(k, S) where S is a mapping slot names the element: print stor[_32].field_8 as stor6[k].field_8 and stor[_32 + 1] as stor6[k].field_256, and the key mem[a] without concat.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Unoptimized build. Source loops (3, all whiles): setOperatorName's for (i < 3) over the name characters (541, with the a-z / 0-9 tests merged correctly: c >= 'a' then c > 'z' reverts, else c < '0' or c > '9' reverts), getAssetPeriods' for (596), rescue's for over the configured assets (651). Implicit whiles: the rotated storage-to-memory copy of the asset list (278, P3), the rotated allocation of new AssetPeriod[](n) ('while idx - 1', 583, P3), and two ABI encodings of the returned arrays (288, 617, P7). The other functions (deposit/withdraw/borrow paths of 111 to 242 lines, no loops) were reviewed by reading; faithful. P11: 'if s >= stor7.length' under 'while s < stor7.length'.",
+  "summary": "Faithful, readable text with its three source loops found; minor issues are rotated compiler copies and a struct read printed half through the mapping and half through raw slots."
+}

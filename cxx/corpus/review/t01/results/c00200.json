@@ -1,0 +1,25 @@
+{
+  "id": "c00200",
+  "abi_functions": 43,
+  "reviewed": 43,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P6": 3, "P7": 9, "P8": 30, "P11": 6},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getPools(uint256,uint256) (unknownbbe95837)",
+      "lines": "getPools +6-27",
+      "decompiled": "if -_param1 + min(_param2, SafeMath.sub(allPools.length, 1)) > min(_param2, SafeMath.sub(allPools.length, 1)): ... while idx <= min(_param2, SafeMath.sub(allPools.length, 1)): ... if s >= SafeMath.add(1, -_param1 + min(_param2, SafeMath.sub(allPools.length, 1))): revert with Panic(50)",
+      "source": "GammaPoolFactory.sol:176-189 uint256 lastIdx = allPools.length - 1; uint256 _end = lastIdx < end ? lastIdx : end; uint256 _size = _end - _start + 1; _pools = new address[](_size); for (i = _start; i <= _end;) _pools[k] = allPools[i];",
+      "issue": "_end and _size are re-expanded at every use (min(_param2, SafeMath.sub(allPools.length, 1)) appears 8 times, including the loop test), and the bounds check of _pools[k] against _size is kept although k = idx - _start stays below it (P11).",
+      "rule": "Bind a non-trivial pure expression used several times to a temporary (_end, _size); with k and i advancing together from 0 and _start, k < _size follows from i <= _end.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: getPools (while idx <= min(...)) and getDecimals (while s < _157 in createPool, unknownf4bff5f1); both present. Implicit loops in createPool: ABI decoding of the tokens array, address/uint8 cleaning encode loops and copies (P7, 9), one checked-exponentiation helper (while u > 1).",
+  "summary": "Faithful small factory text with both loops present; repeated inline min/sub expressions and a dominated bounds check are the only notable costs."
+}

@@ -1,0 +1,84 @@
+{
+  "id": "c00204",
+  "abi_functions": 60,
+  "reviewed": 60,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 2,
+    "P2": 87,
+    "P6": 83,
+    "P8": 687,
+    "P11": 20,
+    "P12": 10,
+    "P15": 4,
+    "P18": 94
+  },
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "forceRemoveAgreement (unknown7d462f37), reconcileProvider, afterCollection, cancelAgreement, reconcileAgreement, offerAgreement",
+      "lines": "10-12 (def storage); e.g. 1471-1513",
+      "decompiled": "stor1 is fixed array of uint256 at storage 1 / stor2 is fixed array of array of uint256 at storage 2 / stor3 is fixed array of mapping of uint256 at storage 3  ...  _6 = sha3(provider, sha3(_param1, 0x13814b..00) + 1) / if stor1[_6] < stor[_6]: ... if stor3[_6][_param2]: ... stor2[_6].length",
+      "source": "RecurringAgreementManager.sol:167-171 CollectorProviderData { sumMaxNextClaim; escrowSnap; EnumerableSet.Bytes32Set agreements } at $.collectors[collector].providers[provider] (ERC-7201 storage, nothing at slots 1-3)",
+      "issue": "Members 1, 2 and 3 of a struct at a computed slot _6 are printed as three invented state variables at slots 1, 2 and 3 indexed by the struct's base (stor1[_6] is stor[_6 + 1], escrowSnap; stor2[_6] the agreements array; stor3[_6][id] its index mapping), while member 0 stays stor[_6]. The text is exact byte-wise, but it declares storage the contract does not have and hides that these are fields of one struct.",
+      "rule": "stor[e + k] with e a keccak-derived slot (sha3(...)) and k a small constant is member k of the struct at e, never element e of an array at slot k; only print X[e] for a variable at slot k when e is a plain index (not a hash).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "afterCollection, cancelAgreement, reconcileAgreement, offerAgreement, reconcileProvider, forceRemoveAgreement, beforeCollection",
+      "lines": "e.g. 4680-4683, 5788-5793; 794-797 (87 P2 lines, 24 logs, 3 returns)",
+      "decompiled": "mem[_257 + ceil32(return_data.size)] = _388 / mem[_257 + ceil32(return_data.size) + 32] = _258 / log 0x09645923...: mem[mem[64] len _257 + ceil32(return_data.size) - mem[64] + 64], indexed _param2  |  _1317 = mem[64] / mem[mem[64]] = bool(_1316) / return memory from mem[64] len _1317 - mem[64] + 32  |  call 0x0 with: args mem[mem[64] len _122 + ceil32(return_data.size) - mem[64] + 100]",
+      "source": ":697 emit AgreementReconciled(agreementId, oldMaxClaim, newMaxClaim); returns (bool tracked); PAYMENTS_ESCROW.deposit / withdraw / adjustThaw / thaw; emit EscrowFunded / EscrowWithdrawn",
+      "issue": "Same root cause as the nameless calls of c00581: a store at an address equal to mem[64] is assumed to possibly overwrite mem[64], so the data of AgreementReconciled, EscrowFunded, EscrowWithdrawn..., the bool returned by reconcileAgreement / reconcileProvider and the arguments of the PAYMENTS_ESCROW calls are printed as raw memory although their words were stored one or two lines before.",
+      "rule": "mem[64] only ever holds 0x80 plus non-negative bounded sizes, so it is >= 0x80 and a store at address mem[64] cannot change mem[64]; then '_x - mem[64]' folds and the log data / return / call arguments become the stored words (_388, _258; bool(_1316); deposit(caller, provider, deficit)).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "most functions (631 lines with stor[sha3(..)])",
+      "lines": "e.g. 70, 106, 195-196, 594, 1449-1469, 281",
+      "decompiled": "return address(stor[sha3(_param2, sha3(_param1, 0x13814b...00))]), stor[sha3(_param2, sha3(_param1, 0x13814b...00)) + 1]  |  stor[sha3(_param2, sha3(_param1, 0x13814b...00) + 1) + 2]  |  if not hasRole[stor[sha3(role, 0x2dd7..800) + 1]][caller]",
+      "source": "$.collectors[collector].agreements[agreementId].provider / .maxNextClaim; $.collectors[c].providers[p].agreements.length(); AccessControl getRoleAdmin(role) = _roles[role].adminRole",
+      "issue": "def storage knows 'stor1381 is mapping of struct of 4 slots' (collectors) but its member 0 (a mapping of AgreementInfo) and member 1 (a mapping of CollectorProviderData) are raw sha3 arithmetic, as is the adminRole member of the role struct; together with 687 keccak-scratch stores (mem[0]/mem[32]) this makes every function several times longer than needed.",
+      "rule": "sha3(k2, sha3(k1, base) + j) + m is member m of mapping member j of stor_base[k1] indexed by k2: print stor1381[_param1].field_256[p].field_512 (or named fields); drop the scratch stores once the hash is folded into the access.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "getEscrowAccount(address,address) 0x5549bf39",
+      "lines": "171-181",
+      "decompiled": "def MoveEthToWallets(bool state): # not payable / require state == address(state) / require cd[36] == address(cd[36]) / static call 0x0.unknown7a8df28b(?) with: args this.address, state, cd[36]",
+      "source": "getEscrowAccount(address collector, address provider) returns (IPaymentsEscrow.EscrowAccount)",
+      "issue": "The signature database's entry for the selector has one bool parameter, but the code decodes two addresses: the first is named 'state' of type bool and the second is left as cd[36].",
+      "rule": "Accept a database signature only if its parameter count and types agree with the decoding checks the code performs (here two 'x == address(x)' checks on words 4 and 36); otherwise print unknown5549bf39(address _param1, address _param2).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "PAYMENTS_ESCROW(), and every GRAPH_TOKEN / PAYMENTS_ESCROW call",
+      "lines": "2; 175, 718-797, ...",
+      "decompiled": "const unknown18d620f8 = 0 / static call 0x0.unknown7a8df28b(?) / static call 0x0.balanceOf(address account) / call 0x0.approve(..) / require ext_code.size(0)",
+      "source": "IGraphToken public immutable GRAPH_TOKEN; IPaymentsEscrow public immutable PAYMENTS_ESCROW",
+      "issue": "solc immutables read as 0 before deployment, so the escrow and token calls target 0x0 and the deposit / withdraw / thaw paths always fail their extcodesize check. Not a decompiler error.",
+      "rule": "None (corpus artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 60 ABI functions and the fallback reviewed; no semantic error found. The six big functions (offerAgreement 1,352 lines, reconcileAgreement 1,285, cancelAgreement 1,232, afterCollection 1,212, forceRemoveAgreement 639, reconcileProvider 625) were reviewed by structure: the first four inline the same _reconcileAgreement (diffed: only the collector/agreementId operands and the preceding collector.offer / collector.cancel call differ); checked against the source: _getAgreementProvider's lazy registration with its four AgreementRejected reasons and AgreementAdded topics, getMaxNextClaim, _setAgreementMaxNextClaim's three checked 'x - old + new' updates and the AgreementReconciled condition, _ensureIncomingDistributionToCurrentBlock's try/catch (DistributeIssuanceFailed), _escrowMinMax's enum range checks (Panic(33)), thaw/withdraw/deposit branches, the return value. Small functions all match, including the packed uint8 setters, setEscrowBasis' whole-slot write (P15) and initialize's role admins and its single 40-bit store of the five config fields (uint40(..) = 215017881602 = 0x3210108002: 50, 16, 16, 128, Full). No loop in the source or in the reached code; the single while (getRoleMembers) is the ABI encoding of address[]. P1: initialize reads the Initializable slot as stor[0x111f..aa0 * 3600] (2 lines). P6 includes interface ids with leading zero bytes printed short (0xc6efba00.. for 0x00c6efba). P12: e.g. beforeCollection's balanceOf/approve tail in both arms of the distribution test (746-774).",
+  "summary": "Faithful on every path checked; readability suffers from the namespaced nested mappings of structs (raw sha3 for most accesses, plus three invented state variables stor1/stor2/stor3 for struct members), 687 keccak-scratch stores, and event data / return values / escrow calls printed as raw memory because of the free-memory-pointer aliasing assumption."
+}

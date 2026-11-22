@@ -1,0 +1,22 @@
+{
+ "id": "c00365",
+ "abi_functions": 15,
+ "reviewed": 15,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P8": 4,
+  "P14": 2
+ },
+ "findings": [],
+ "notes": "Maple ERC20 (solc 0.8.7). No loop. Checked line by line: permit (deadline, malleability, nonce post-increment, EIP-712 digest with keccak(name) and keccak(\"1\"), ecrecover through the precompile with the recovered address read back from memory as mem[718 len 20] — equal to the precompile output, or 0 when it returns nothing, which matches the source's check), transferFrom/decreaseAllowance (Approval emitted on allowance decrease, infinite allowance skipped), transfer, approve, increaseAllowance, DOMAIN_SEPARATOR (short/long storage string decoding). All faithful.",
+ "summary": "Small, faithful and readable ERC20 text; the only cosmetic point is the recovered signer read back from memory instead of being named."
+}

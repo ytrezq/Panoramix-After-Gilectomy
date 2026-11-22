@@ -1,0 +1,13 @@
+{
+  "id": "c00280",
+  "abi_functions": 15,
+  "reviewed": 15,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 20, "P6": 1},
+  "findings": [],
+  "notes": "All 15 functions reviewed (getters, quoteBridgeFee, quoteExactInput, bridgeTrust, swapAndBridgeWithERC20/ETH by structure). The only source loop, _validatePoolsExist's for over the path hops, is a clear while in both swap functions ('while idx < (cd[_param3 + 4] - 20) / 23', getPool(tokenA, tokenB, int24(cd[s + _param3 + 56] >>′ 232)) with the source's offsets; the signed shift equals the source's signextend(2, shr(232, ..))). Implicit loops: quoteExactInput's two return decodes (address[] and uint32[] with validation). P2: 20 lines, e.g. the transferFrom 'call _param1 with: args mem[_8 + 32 len mem[_8]]' whose selector is stored in decimal (599290589 = 0x23b872dd) at _8 + 32 just after '_8 = mem[64]; mem[_8] = 100'. No new problem.",
+  "summary": "A clean, faithful text whose single source loop is a readable while; only the known unknown-free-memory-pointer calls remain."
+}

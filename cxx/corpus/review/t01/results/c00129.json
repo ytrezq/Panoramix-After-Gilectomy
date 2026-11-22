@@ -1,0 +1,36 @@
+{
+  "id": "c00129",
+  "abi_functions": 55,
+  "reviewed": 55,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 41, "P3": 1, "P4": 18, "P6": 15, "P7": 16, "P8": 300, "P11": 2},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "CAKE(), WETH(), nonfungiblePositionManager(), FARM_BOOSTER checks and every call to these immutables (34 sites)",
+      "lines": "e.g. 1175, 1994",
+      "decompiled": "const CAKE = 0  |  const WETH = 0  |  const nonfungiblePositionManager = 0  |  if caller: ...",
+      "source": "MasterChefV3.sol immutables CAKE, WETH, nonfungiblePositionManager; require(msg.sender == address(nonfungiblePositionManager))",
+      "issue": "solc immutables are zero in this pre-deployment bytecode, so their calls target 0x0 and the position-manager check reads 'if caller'.",
+      "rule": "None (solc immutable placeholder).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "updatePools(uint256[]), set / add / upkeep (inlined massUpdatePools), upkeep 0x0ce5d4cc (SafeERC20.safeTransferFrom)",
+      "lines": "469-487 vs 513-518; 683-689",
+      "decompiled": "mem[_11 + ceil32(return_data.size)] = 0x214a6fe2...; mem[... + 4] = uint32(block.timestamp); call address(_12) with: args mem[mem[64] len _11 + ceil32(return_data.size) - mem[64] + 36]  vs  call address(...).unknown214a6fe2(?) with: args uint32(block.timestamp)  |  mem[176 len 16] = receiver >> 32 / mem[164 len 12] = 0 / mem[160 len 4] = 599290589 / mem[324 len 100] = Bytes(16, 0x23b872dd000000000000000000000000), Bytes(16, receiver >> 32), Bytes(4, uint32(receiver)), this.address, _param1",
+      "source": "MasterChefV3.sol:751-768 LMPool.accumulateReward(currentTime) in the loops; IERC20(CAKE).safeTransferFrom(receiver, address(this), _amount)",
+      "issue": "The accumulateReward call is decoded before the loop in set() but stays raw memory inside the loops (P2 root cause); the transferFrom call data is printed as word pieces that cut the address into 16 + 4 bytes and the selector in decimal.",
+      "rule": "As for P2 (fold '_x - mem[64]', read memory through base + constant); concatenate memory data by byte ranges so 'Bytes(16, s << 96), Bytes(16, a >> 32), Bytes(4, uint32(a))' prints 'Bytes(4, s), address(a)'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "harvest, withdraw, increaseLiquidity, decreaseLiquidity, add, collect and onERC721Received were reviewed by structure (position-manager calls, LM pool updates, reward computation, CAKE transfers, events); multicall, updatePools, set, the getters and setters in full. Source loops: Multicall.sol:9 ('while idx < data.length', with the revert-reason decode and re-encode of the source), MasterChefV3.sol:764 updatePools ('while idx < cd[_param1 + 4]'), :751 massUpdatePools ('while s <= poolLength', inlined in set, add and upkeep); all correct. The other 16 whiles are copies (multicall's result encode and revert-string copies, the abi.encode of position-manager calls in harvest / withdraw / increaseLiquidity / add: P7) and multicall's results zeroing (578, rotated: P3). P4: poolInfo / userPositionInfos read through 'concat(mem[N])' keys at some sites. P8: the PoolInfo memory copies in the loops are mostly dead (only allocPoint is read).",
+  "summary": "Faithful and complete with all three source loops shown; the usual free-memory-pointer problem leaves calls inside loops undecoded, and the immutables read as zero (artifact)."
+}

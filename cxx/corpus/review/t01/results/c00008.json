@@ -1,0 +1,25 @@
+{
+  "id": "c00008",
+  "abi_functions": 15,
+  "reviewed": 15,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P8": 15},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "_fallback (the initializer)",
+      "lines": "255-258",
+      "decompiled": "log Initialized(address collateralToken=cd[0], address borrowerNote=cd[32], address lenderNote=pool)",
+      "source": "IMaplePoolManagerInitializer.sol:6 event Initialized(address owner_, address asset_, address pool_); MaplePoolManagerInitializer.sol:91 emit Initialized(poolDelegate_, asset_, address(pool))",
+      "issue": "The event's field names come from an unrelated contract with the same topic (collateralToken / borrowerNote / lenderNote for poolDelegate / asset / pool), which misleads.",
+      "rule": "As in c00113: take field names from the database only when the entry is unambiguous for the topic (or prefer the build's ABI when present).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Unoptimised MaplePoolManagerInitializer (15 functions: storage getters, decodeArguments, encodeArguments 0xb628fee9 and the fallback initializer); all reviewed in full, no loops. The fallback decodes its arguments from calldata offset 0 (it is delegatecalled with raw arguments), sets the lock (stor0 = 1), checks the pool delegate and asset through mapleGlobals (via caller, the factory), validates initialSupply / migrationAdmin, creates the MaplePool from its embedded creation code (code.data[5747 len 23530] plus constructor arguments) and the PoolDelegateCover (code.data[29277 len 2349]), stores both and emits Initialized; all correct. The bytecode's size (31.6 KB) is mostly the embedded creation code, which the text correctly shows as code.data slices.",
+  "summary": "A clean, faithful, loop-free text; the only oddity is the event's misleading field names from the signature database."
+}

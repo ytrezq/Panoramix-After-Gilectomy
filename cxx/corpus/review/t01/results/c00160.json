@@ -1,0 +1,47 @@
+{
+  "id": "c00160",
+  "abi_functions": 57,
+  "reviewed": 57,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {
+    "while": 1,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P6": 4,
+    "P7": 3,
+    "P8": 15,
+    "P15": 6
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize, MAX_STABLE_RATE_BORROW_SIZE_PERCENT, borrow (both), flashLoan; def storage",
+      "lines": "18-19 (def storage); 76; 147-148; 631, 733, 1055, 1109",
+      "decompiled": "stor59 is uint16 at storage 59 / stor59_16 is uint48 at storage 59 offset 16  |  stor59 = 2500 / stor59_16 = 0  |  return uint64(stor[59])",
+      "source": "Pool.sol: uint64 internal _maxStableRateBorrowSizePercent (slot 59, offset 0), set to 0.25e4 in initialize; getter MAX_STABLE_RATE_BORROW_SIZE_PERCENT()",
+      "issue": "The only write of the uint64 field stores a constant that fits in 16 bits, and the decompiler splits it into a uint16 field and a uint48 zero field; every read is then a raw uint64(stor[59]), so neither the getter's name nor the field width appear.",
+      "rule": "Field boundaries come from the masks of the accesses (here a 64-bit read and a 64-bit masked write), not from the bit width of the constant written; one masked store of a value is one field write.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "initialize and every function that queries the addresses provider",
+      "lines": "145-146, 615-627",
+      "decompiled": "if sender: revert with '12'  |  static call 0x0.getPriceOracle()",
+      "source": "Pool.sol: IPoolAddressesProvider public immutable ADDRESSES_PROVIDER; require(provider == ADDRESSES_PROVIDER, Errors.INVALID_ADDRESSES_PROVIDER)",
+      "issue": "The immutable addresses provider reads as 0.",
+      "rule": "none (expected for this corpus)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against Pool.sol, L2Pool.sol and CalldataLogic. All logic libraries (SupplyLogic, BorrowLogic, LiquidationLogic, FlashLoanLogic, PoolLogic, EModeLogic, BridgeLogic) are external libraries reached by DELEGATECALL to linked addresses, so their code (and the loops the pack lists in FlashLoanLogic, GenericLogic, PoolLogic, ValidationLogic, UserConfiguration) is not part of this bytecode; the text shows each as one resolved delegatecall with its arguments (e.g. borrow(bytes32) at 629-631 with the CalldataLogic decoding inlined: uint128 amount, uint8 rate mode with its enum Panic(33), uint16 referral, type(uint128).max mapped to type(uint256).max). extcodesize checks appear only before delegatecalls to library functions that return nothing, as solc 0.8.10 emits them. All 57 ABI functions were read (the text has 1,144 lines). Loops: 1 source loop (getReservesList) shown as while; implicit: the address[] calldata decode of mintToTreasury and three ABI-encode loops (P7). The text is clean: no P2, no aborted path.",
+  "summary": "Clean and faithful: every Pool entry point is a readable resolved delegatecall to its logic library, and the one source loop is present; the only defects are a uint64 field split into two fields because of a constant store, and the immutable addresses provider reading as 0."
+}

@@ -1,0 +1,13 @@
+{
+  "id": "c00398",
+  "abi_functions": 3,
+  "reviewed": 3,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [],
+  "notes": "Counter: number(), setNumber(uint256) and increment() (checked ++ via the SafeMath.inc helper with Panic(17)) match the source exactly; the fallback reverts as the contract has none.",
+  "summary": "Exact and minimal; nothing to report."
+}

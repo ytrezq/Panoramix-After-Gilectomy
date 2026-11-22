@@ -1,0 +1,25 @@
+{
+  "id": "c00064",
+  "abi_functions": 40,
+  "reviewed": 40,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P3": 3, "P7": 5, "P8": 100, "P11": 3, "P18": 20},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getSwapIds(address,uint256,uint256), getSwapsPayFixed / getSwapsReceiveFixed (0x282ecbf0, 0xe9c12eb1), the swap-closing functions (38 lines)",
+      "lines": "521, 534 (and the _getPositions loops at 829, 959)",
+      "decompiled": "mem[_26] = Mask(32, 32 * (SafeMath.add(_param2, idx) % 8), stor[SafeMath.add(_param2, idx) / 8 + sha3(sha3(_param1, 264))]) >> 32 * (SafeMath.add(_param2, idx) % 8)",
+      "source": "AmmStorage.sol:232 ids[i] = AmmStorageTypes.IporSwapId(payFixedIdsRef[offset + i], 0), with payFixedIdsRef = _swapsPayFixed.ids[account] (uint32[] storage)",
+      "issue": "An element of a packed uint32[] storage array inside a mapping is printed as raw slot arithmetic with a mask and a shift, and the index expression is repeated three times; the length of the same array prints as stor264[_param1].length.",
+      "rule": "For a dynamic array of w-bit elements (k = 256 / w per slot) at slot p, 'Mask(w, w * (i % k), stor[i / k + sha3(p)]) >> w * (i % k)' is element i; with p = sha3(key, n) it is storn[key][i] (here stor264[_param1][_param2 + idx]).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "IPOR AmmStorage (40 functions): the swap-updating functions (open / close pay-fixed and receive-fixed swaps, balance and SOAP indicator updates) were reviewed by structure, the getters and the pause-guardian functions in full. Source loops: AmmStorage.sol:230 getSwapIds ('while idx != _6', both branches correct; the payFixed bound check is correctly dropped as implied by the branch test, the receiveFixed one kept), :461 _getPositions (in getSwapsPayFixed and getSwapsReceiveFixed), PauseManager.sol:34 addPauseGuardians and :54 removePauseGuardians ('while idx < cd[_param1 + 4]', writing stor1000003[guardian] = 1 / 0); all shown. Implicit whiles: the zeroing of the new result arrays (501, 804, 934: rotated, P3), the result encodes (549, 868, 998: P7) and the address[] copies hashed for the indexed event topics (291, 319). P11: ids[i] / derivatives[i] bound checks implied by the 'i != size' loop tests.",
+  "summary": "Faithful and complete with all four loops shown; packed uint32 storage-array elements print as raw slot arithmetic."
+}

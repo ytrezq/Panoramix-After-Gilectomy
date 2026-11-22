@@ -1,0 +1,36 @@
+{
+  "id": "c00322",
+  "abi_functions": 25,
+  "reviewed": 25,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P5": 3, "P9": 8, "P14": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "unclaimed(), locked(), revoke_unvested(), claim (3 variants), revoke_all (_total_vested_at / _unclaimed)",
+      "lines": "238-242, 274-278",
+      "decompiled": "if (block.timestamp < disabled_at) * (disabled_at ^ block.timestamp) ^ disabled_at >= SafeMath.add(start_time, cliff_length): require (((block.timestamp < disabled_at) * (disabled_at ^ block.timestamp) ^ disabled_at) * total_locked - start_time * total_locked) / SafeMath.sub(...) ... / mem[224] = (... < total_locked) * (total_locked ^ ...) ^ ...",
+      "source": "VestingEscrow.vy: _total_vested_at(min(block.timestamp, self.disabled_at)): if time < start + cliff: return 0; return min(locked * (time - start) / (end - start), locked)",
+      "issue": "Vyper's min() is printed as the branchless select (c < a) * (a ^ b) ^ a and re-printed inside every later expression, and locked * (time - start) is distributed with its overflow check (P9), so the vesting formula is hard to recognise.",
+      "rule": "a ^ ((c) * (a ^ b)) with c in {0, 1} is 'b if c else a' (min/max when c compares a and b); name it once; keep products of differences factored.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "aragon_vote(bytes), snapshot_set_delegate(bytes), delegate(bytes)",
+      "lines": "153-166, 185-198, 217-230",
+      "decompiled": "mem[1380] = 1093611809 / mem[1412] = 32 / mem[1444] = _param1.length / copied = identity(mem[256 len _param1.length]) # precompiled / mem[1476 len _param1.length] = mem[256 len _param1.length] / call factory.voting_adapter() (twice)",
+      "source": "raw_call(self.factory.voting_adapter(), _abi_encode(..., method_id=method_id(\"aragon_vote(bytes)\")), is_delegate_call=True)",
+      "issue": "The selector word is printed in decimal (1093611809 = 0x412f3121), the identity-precompile copy is shown next to its own copy line (P5), and the factory getter is called twice as in the source.",
+      "rule": "Print selector constants in hex; drop the unused 'copied = identity(...)' when the copy line is printed (P5).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Vyper 0.3.7 contract without loops; locals live at fixed memory (mem[192], mem[224], mem[320], mem[448]; P14). Checked: owner/manager authorisation via factory.owner()/manager(), revoke_unvested/revoke_all amounts and transfers with the optional-return check, claim variants (recipient check, amount min), initialize guards, recover_erc20/recover_ether, delegate calls through the voting adapter. All 25 ABI functions read; storage named after the getters (all as uint256 words).",
+  "summary": "A faithful text of a loop-free Vyper contract; the vesting arithmetic is obscured by branchless min() selects and distributed products, and selectors appear in decimal."
+}

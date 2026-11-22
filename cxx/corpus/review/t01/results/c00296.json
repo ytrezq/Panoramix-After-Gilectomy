@@ -1,0 +1,25 @@
+{
+  "id": "c00296",
+  "abi_functions": 25,
+  "reviewed": 25,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 2, "P6": 1, "P7": 3, "P8": 25},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "permit(address,address,uint256,uint256,uint8,bytes32,bytes32), permit(address,address,uint256,uint256,bytes)",
+      "lines": "322-341 (v, r, s version), 443-468 (bytes version)",
+      "decompiled": "mem[1031 len 65] = r, s, Bytes(1, v) / mem[899] = 196 / mem[931 len 4] = 371636862 / idx = 0 / while idx < 196: mem[idx + 1127] = mem[idx + 931]; idx = idx + 32 / static call owner with: args mem[1127 len 196]",
+      "source": "Usds.sol _isValidSignature: signer.staticcall(abi.encodeCall(IERC1271.isValidSignature, (digest, signature)))",
+      "issue": "The ERC-1271 fallback call copies its calldata through a while (constant bound 196 in the first permit, the signature length in the second) and writes the selector as a 4-byte integer piece, so the call prints as 'static call owner with: args mem[1127 len 196]' instead of isValidSignature(digest, signature).",
+      "rule": "A word-copy loop with a constant (or known) bound is a copy line; constant byte-range writes merge into the word they belong to; the buffer then decodes as a call with its selector and arguments.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "ERC-20 + permit token; all 25 functions compared line by line (transfer/transferFrom/approve with the Usds/* messages, mint/burn with wards and allowance, the two permit variants including the 65-byte ecrecover path and the ERC-1271 fallback, the domain separator built from constants, chainid and this.address). No source loops; the three whiles are implicit copies (P7). No semantic problem found.",
+  "summary": "Small, complete and faithful; only the ERC-1271 isValidSignature calls lose their name and arguments because their calldata is copied through a loop."
+}

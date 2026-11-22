@@ -1,0 +1,34 @@
+{
+ "id": "c00326",
+ "abi_functions": 20,
+ "reviewed": 20,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P6": 1,
+  "P7": 1
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "getRoleMembers(bytes32)",
+   "lines": "57-71",
+   "decompiled": "if roleMember[role].length: mem[160] = roleMember[role][0] / mem[192 len floor32(max(192, 32 * roleMember[role].length + 160) - 161)] = stor[sha3(sha3(role, 1)) + 1 len ...] ... while idx < roleMember[role].length: mem[s] = Bytes(12, 0), mem[t + 12 len 20]",
+   "source": "AccessControlEnumerable.getRoleMembers -> EnumerableSet.values(): return set._inner._values (storage bytes32[] to memory), then the address[] return encoding",
+   "issue": "The storage-to-memory copy keeps its peeled first element and a length 'floor32(max(192, 32 * n + 160) - 161)' that is 32 * (n - 1) under the enclosing 'if n', and the return encoding is a cleanup loop.",
+   "rule": "Under a dominating n >= 1, max(192, 32n + 160) is 32n + 160; merge a peeled first word with the following copy into one copy line 'mem[160 len 32n] = stor[base len n]' (as the via-IR text of c00516 prints).",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Small contract (20 ABI functions: AccessControlEnumerable plus the intent request/fulfil/cancel functions); all reviewed, no source loop, one implicit while (getRoleMembers' address[] encoding). Requests, cancels and the vault-config checks match the source; no semantic error found.",
+ "summary": "Clean and faithful; only the role-members copy keeps a peeled first element and an obscure length expression."
+}

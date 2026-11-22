@@ -1,0 +1,50 @@
+{
+  "id": "c00161",
+  "abi_functions": 73,
+  "reviewed": 73,
+  "not_reviewed": [],
+  "source_loops": 6,
+  "loops_shown": {
+    "while": 6,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 58,
+    "P3": 2,
+    "P6": 53,
+    "P7": 46,
+    "P8": 35,
+    "P10": 16,
+    "P18": 19
+  },
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "nativeToWant(), rewardToNative(), rewardToNative(uint256), harvest(), harvest(address), beforeDeposit(); def storage",
+      "lines": "490-499 (nativeToWant); def storage: stor1 is address[9] at storage 1, stor158, stor159, stor167, stor180 is array of uint256, stor181 is array of bytes; 326-346 (resetRewards)",
+      "decompiled": "mem[128] = address(stor158[0]) / mem[160] = stor159 / idx = 160 / s = 159 / while 416 > idx + 32: mem[idx + 32] = stor1[s] / ...  |  stor180[s + 9] = 0 / ... / stor180[s + 21] = 0 / s = s + 22",
+      "source": "StrategyConvexCRV.sol: CurveRoute public nativeToCvxCRV (slot 158: address[9] route, uint256[3][4] swapParams, minAmount); CurveRoute[] public rewards (22 slots each); RewardV3[] public rewardsV3; curveRouteToRoute(nativeToCvxCRV.route); resetRewards: delete rewards",
+      "issue": "The compiler's storage-to-memory copy of route counts slots, so slot s + 1 prints as element s of a fixed array 'stor1' at slot 1 (def storage declares 'stor1 is address[9] at storage 1', inside the __gap) instead of nativeToCvxCRV.route[i]; the struct at slot 158 is split into stor158 / stor159 / stor167, and rewards (22-slot structs) is an 'array of uint256' indexed by raw slot offsets (stor180[s + 9]).",
+      "rule": "An access stor[c + v] where v is a loop counter stepping by 1 from a constant slot is the array/struct member at slot c + v0 + i (i = v - v0), not element v of an array at slot c; a dynamic array whose accesses step by k slots is an array of k-slot structs (stor180[i].field_..).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "pathToRoute(bytes), rewardV3ToNative(), rewardV3ToNative(uint256), addRewardV3(bytes,uint256) (BytesLib.slice inside the pathToRoute loop)",
+      "lines": "1350-1360 (pathToRoute) and the 3 other copies",
+      "decompiled": "u = s + (mem[s] + 9) % 32 + 32 * (not (mem[s] + 9) % 32) + 23 / t = (mem[s] + 9) % 32 + 32 * (not (mem[s] + 9) % 32) + mem[64] / while t < _51 + _56 + (_51 + 9) % 32 + 32 * (not (_51 + 9) % 32) - 23: mem[t] = mem[u] / u = u + 32 / t = t + 32",
+      "source": "BytesLib.sol:228-280 slice: Yul 'for { let cc := add(add(add(_bytes, lengthmod), mul(0x20, iszero(lengthmod))), _start) } lt(mc, end) {...} { mstore(mc, mload(cc)) }' called by skipToken (_path.slice(23, len - 23))",
+      "issue": "The Yul copy loop of BytesLib.slice is printed as a word-copy while with the lengthmod arithmetic in its bounds, instead of 'mem[_56 + 32 len n] = mem[s + 55 len n]' with n = len - 23; the String/Error reverts of toAddress/toUint24/slice ('toAddress_outOfBounds', 'slice_overflow') are raw 'revert with memory' with the message as a hex word (58 lines).",
+      "rule": "A loop 'mem[t] = mem[u]; t += 32; u += 32' from t0 = d + r to end = d + r + n (with r = n % 32 or 32 when 0, and u0 = s + r) copies the n bytes after the first r: it is mem[d + 32 len n] = mem[s + 32 len n] when the bytes below d + r are overwritten later or are the length word; and an Error(string) revert built at mem[64] is decoded when the selector store and the revert read the same mem[64] value.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 73 ABI functions reviewed; harvest/harvest(address)/beforeDeposit (600-650 lines each) by structure, the rest line by line. The 6 source loops are whiles: _swapRewardsToNative's rewards and rewardsV3 loops (3 copies each), curveRouteToRoute's two loops (4 copies each; the first as 'while idx < 9: if route[idx]: idx += 1, continue / break'), pathToRoute (4 copies, bound (len - 20) / 23) and BytesLib.slice's Yul copy loop nested in it (see finding). The other 86 whiles are implicit: ~46 copy loops of fixed arrays address[9] / uint256[3][4] and of ABI encodings (P7), the storage-to-memory route copies, the 'delete rewards' / 'delete rewardsV3' storage-clearing loops (readable), 2 rotated memory zero-initialisations (P3), calldata decodes of address[9]. The immutables-like constants (want, native, crv, cvx, pools, router) are real constants here and print correctly. No semantic error found.",
+  "summary": "Faithful with all loops present, but storage naming is misleading (a bogus 'stor1 is address[9] at storage 1' from a slot-counting copy loop, struct arrays typed as uint256 arrays), BytesLib.slice's copy loop stays a while with unreadable bounds, and 58 Error reverts stay raw memory."
+}

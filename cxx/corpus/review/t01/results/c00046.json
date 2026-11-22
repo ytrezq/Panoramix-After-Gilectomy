@@ -1,0 +1,25 @@
+{
+  "id": "c00046",
+  "abi_functions": 57,
+  "reviewed": 57,
+  "not_reviewed": [],
+  "source_loops": 14,
+  "loops_shown": {"while": 14, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 24, "P3": 2, "P4": 4, "P6": 9, "P7": 9, "P8": 60, "P16": 69},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "requestExecutionLayerTriggeredWithdrawal((bytes,uint64)[]), requestConsolidation((bytes,bytes)[]), queueETHWithdrawal / completeQueuedETHWithdrawals variants (unknown3816f29d, unknowneea43aba): 69 lines",
+      "lines": "e.g. 2362-2372, 2422-2430 (requestConsolidation)",
+      "decompiled": "while idx < cd[_param1 + 4]: require cd[32 * idx + _param1 + 36] <′ calldata.size - _param1 - 99 / require cd[_param1 + cd[32 * idx + _param1 + 36] + 36] <′ ... / mem[_205 + 32 len cd[_param1 + cd[_param1 + cd[32 * idx + _param1 + 36] + 36] + cd[32 * idx + _param1 + 36] + 36]] = call.data[_param1 + cd[_param1 + cd[32 * idx + _param1 + 36] + 36] + cd[32 * idx + _param1 + 36] + 68 len ...]",
+      "source": "EtherFiNodesManager.sol:314-330 for (uint256 i = 1; i < requests.length; i++) { calculateValidatorPubkeyHash(requests[i].srcPubkey) ... } with requests a calldata array of structs with bytes members",
+      "issue": "Members of an element of a calldata array of dynamic structs are printed as nested offset arithmetic (requests[idx].srcPubkey's length is cd[_param1 + cd[_param1 + cd[32 * idx + _param1 + 36] + 36] + cd[32 * idx + _param1 + 36] + 36]), repeated in every validation and copy line of the loops, so the loops' bodies are hard to read although the loops themselves are found.",
+      "rule": "For a calldata array p of dynamic elements, cd[p + 36 + 32*i] is the element's offset o_i and the element starts at p + 36 + o_i; a member's offset is read at p + 36 + o_i + 32*k: print these as p[i] / p[i].field_k (and p[i].field_k.length, p[i].field_k[all] for bytes), as the text already does for top-level dynamic parameters.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (14, all whiles): forwardEigenPodCall (1437), forwardExternalCall (1612), linkLegacyValidatorIds (917), requestExecutionLayerTriggeredWithdrawal's three (from i = 1, twice, and the main one) plus _getTotalEthRequested's (1760, 1878, 1993, 2118), requestConsolidation's four plus _getTotalConsolidationGwei's (2204, 2362, 2422, 2466, 2631), _sumRestakingETHWithdrawals' nested pair (1275/1282). Each calldata-struct loop starts with the decoder's offset validations ('require cd[...] <′ calldata.size - ...'), which are real code. Implicit whiles: ABI encodings of bytes[]/struct arrays for the forwarded calls (P7), two rotated allocations of new bytes[](n) ('while idx - 1', P3), validated address/bool arrays. The two request functions (443 and 551 lines) were reviewed by structure (rate-limit consume, pod/target checks, fee read, payable call to the pod with value, events), the forwarders and the small admin functions by reading; faithful.",
+  "summary": "Faithful text in which all 14 source loops are found, but loop bodies over calldata arrays of structs are written with deeply nested raw calldata offsets, and forwarded calls lose their arguments (24 P2 lines)."
+}

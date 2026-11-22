@@ -1,0 +1,48 @@
+{
+  "id": "c00205",
+  "abi_functions": 56,
+  "reviewed": 56,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {
+    "while": 1,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 2,
+    "P2": 2,
+    "P6": 1,
+    "P7": 3,
+    "P17": 181
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "permit(address,address,uint256,uint256,uint8,bytes32,bytes32), permit(address,address,uint256,uint256,bytes) (SignatureChecker / ERC-1271 path)",
+      "lines": "1036-1045, 1762-1780",
+      "decompiled": "mem[931 len 4] = 371636862 / idx = 0 / while idx < 196: mem[idx + 1127] = mem[idx + 931]; idx = idx + 32 / static call owner with: args mem[1127 len 196]",
+      "source": "StUsds._isValidSignature: owner.staticcall(abi.encodeWithSelector(IERC1271.isValidSignature.selector, digest, signature))",
+      "issue": "The selector 0x1626ba7e prints in decimal, the 196-byte call buffer is copied by a word loop with a constant bound (P7), so the isValidSignature call keeps raw memory arguments.",
+      "rule": "As in c00036: a word-copy loop with constant bound n over disjoint ranges is 'mem[d len ceil32(n)] = mem[s len ceil32(n)]', after which the call decodes; print 4-byte constants stored into 4-byte slices in hex.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "totalAssets, convertToShares/Assets, deposit, mint, withdraw, redeem, drip and the other users of _rpow and RAY",
+      "lines": "252-268 and 181 lines with '1000000000 * 10**18'",
+      "decompiled": "_2 = 1000000000 * 10**18 / ... u = (SafeMath.mul(u, u) + 500000000 * 10**18) / (1000000000 * 10**18)",
+      "source": "StUsds.sol RAY = 10 ** 27; _rpow's half = RAY / 2",
+      "issue": "RAY and RAY / 2 print as products of a decimal and a power of ten.",
+      "rule": "Fold c * 10**k into a single power-of-ten form (10**27, 5 * 10**26).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loop (1): _rpow's Yul for (MakerDAO rpow), printed as a readable 'while t:' in each of its 22 inlined copies; its overflow checks are 'require' (revert without data) through the text's SafeMath.mul/mul2/add helpers, matching revert(0, 0) in the assembly, and x == 0 is handled before the loop as in the source. Implicit: three memory copy loops for the ERC-1271 call buffers (P7). ERC-4626 accounting, drip (chi/rho/ssr), caps, permit (ECDSA and ERC-1271) and the UUPS functions match by reading.",
+  "summary": "Faithful and compact; the single source loop (rpow) is a clear while, with only constant-bound copy loops for the ERC-1271 call and RAY printed as a product as cosmetic issues."
+}

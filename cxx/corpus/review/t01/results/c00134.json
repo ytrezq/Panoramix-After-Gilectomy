@@ -1,0 +1,47 @@
+{
+  "id": "c00134",
+  "abi_functions": 81,
+  "reviewed": 81,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 54, "P3": 14, "P4": 40, "P6": 31, "P7": 25, "P8": 120, "P11": 20, "P15": 2},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "getAssetsIn, getAccountLiquidity, getHypotheticalAccountLiquidity, liquidateBorrowAllowed, borrowAllowed, redeemAllowed, transferAllowed, exitMarket (11 copies of 'CToken[] memory assets = accountAssets[account]')",
+      "lines": "147-158 (getAssetsIn); 1925-1935 (exitMarket); 846, 1172, 1577, 2652, 2994, 4391",
+      "decompiled": "mem[128] = assetsIn[account].length / if assetsIn[account].length: mem[0] = sha3(account, 8) / mem[160] = assetsIn[account][0] / idx = 160 / s = 0 / while 32 * assetsIn[account].length + 160 > idx + 32: mem[idx + 32] = assetsIn[account][s + 1]; idx = idx + 32; s = s + 1",
+      "source": "Comptroller.sol getAssetsIn: CToken[] memory assetsIn = accountAssets[account]; getHypotheticalAccountLiquidityInternal :734; exitMarket :202",
+      "issue": "The copy of a storage address[] into memory is printed as a rotated loop (first element copied before it, P3) with the bound '32 * len + 160 > idx + 32', where the text elsewhere prints such copies as one line; the keccak scratch write mem[0] = sha3(account, 8) is kept (P8).",
+      "rule": "'mem[d] = a[0]; i = d; k = 0; while d + 32n > i + 32: mem[i + 32] = a[k + 1]; i += 32; k += 1' (guarded by n != 0) is the copy 'mem[d len 32n] = a[0 .. n)'; recognise the rotated do-while as one loop whose trip count is n.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "claimComp(address), claimComp(address,address[]), claimComp(address[],address[],bool,bool)",
+      "lines": "3720-3770 then 3775 (claimComp(address)); 4240; 5447",
+      "decompiled": "if 0 >= mem[_6]: ... continue / _586 = compSupplierIndex[address(_123)][concat(Bytes(12, 0), mem[_6 + 44 len 20])] / ... (first holder) ... / b = 0 / while b + 1 < _642: if b + 1 >= mem[_6]: revert with Panic(50) / ... mem[_6 + 32 * b + 76 len 20] ...",
+      "source": "Comptroller.sol:1358-1361 for (uint j = 0; j < holders.length; j++) distributeSupplierComp(address(cToken), holders[j]);",
+      "issue": "The supplier loop is rotated: holders[0] is handled before the loop (about 50 lines duplicated) and the loop runs on b + 1, while the borrower loop just above (3567) is printed normally.",
+      "rule": "Recognise 'if n == 0: skip; body(0); i = 0; while i + 1 < n: body(i + 1); i += 1' as 'i = 0; while i < n: body(i); i += 1' (the peeled body equals the loop body with i = 0).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "claimComp (3 variants), mintAllowed, redeemAllowed, borrowAllowed, repayBorrowAllowed, seizeAllowed, transferAllowed, _setCompSpeeds, fixBadAccruals",
+      "lines": "e.g. 3580-3582, 3600, 3767-3769",
+      "decompiled": "_510 = not _506 and _507 >= 1000000000000000000 * 10**18  |  if mem[_517] and 10**18 > -1 / mem[_517]: revert with Panic(17)  |  mem[32] = 17 / mem[32] = 19",
+      "source": "compInitialIndex = 1e36; mul_(Exp, uint) with solc 0.8 checked multiplication; nested mapping compBorrowerIndex[cToken][borrower]",
+      "issue": "1e36 is printed as 1000000000000000000 * 10**18 (151 lines); 108 checked multiplications use the shape 'x and y > -1 / x' instead of the SafeMath.mul helper; 49 scratch stores to mem[32] are immediately overwritten.",
+      "rule": "Print 10^k as 10**k; recognise 'if x != 0 and y > MAX / x: revert Panic(17)' as the overflow check of x * y (SafeMath.mul); a store overwritten before any read is dead.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Long functions reviewed by structure: claimComp (3 variants, 450-650 lines each), transferAllowed, borrowAllowed, redeemAllowed, _setCompSpeeds (300-550 lines); enterMarkets, exitMarket, getAssetsIn, _supportMarket, _setMarketBorrowCaps, fixBadAccruals, the getters and admin setters read in full. Source loops: _setCompSpeeds (2226), _setMarketBorrowCaps (559), claimComp's market loop (3444) and its three holder loops (3567, 3775 rotated, 3836), enterMarkets (787), exitMarket ('while True' with break, 1937), fixBadAccruals (729), _addMarketInternal (637), getHypotheticalAccountLiquidityInternal (854 etc.); all shown as loops. exitMarket's assert (Panic 1) and pop match. Implicit: 11 storage-to-memory copies of accountAssets (rotated, finding 1), 2 storage copies of allMarkets (503, 3432), encoding loops and calldata decoders (P7 ~25). P4: 40 'concat(Bytes(12, 0), mem[..])' keys of compSupplierIndex/compBorrowerIndex. P15/naming: _mintGuardianPaused and _borrowGuardianPaused (slot 10 bits 160/168) are not in def storage and read as uint8(stor[10].field_160/168).",
+  "summary": "A faithful text with correct storage naming; its weak points are storage-array copies printed as rotated loops, a rotated holder loop in claimComp, 1e36 printed as 10^18 * 10^18 and an unfolded overflow-check shape repeated over a hundred times."
+}

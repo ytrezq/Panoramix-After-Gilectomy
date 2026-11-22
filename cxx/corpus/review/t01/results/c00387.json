@@ -1,0 +1,19 @@
+{
+ "id": "c00387",
+ "abi_functions": 4,
+ "reviewed": 4,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {},
+ "findings": [],
+ "notes": "An opcode test contract (solc 0.5.1). test() starts with 'assembly { pop(address) return(2, byte(2,1)) }'; byte(2, 1) is 0, so the function returns empty data at once and everything after it (including the five Yul for loops at OpCodes.sol:39-42 and :89, one of which, 'for { let i := 6 } gt(i, 5) ...', would never end) is unreachable. The text 'def test(): stop' is exact (RETURN of 0 bytes and STOP are observably the same), and the unreachable loops are not counted. test_revert (unknown6d3d1416) is 'revert', test_stop 'stop', test_invalid 'invalid', the fallback 'revert': all exact.",
+ "summary": "Trivial and exact: the only function with code returns at its first statement, which the text shows as 'stop'."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "c00240",
+  "abi_functions": 29,
+  "reviewed": 29,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 2, "P7": 3, "P11": 12},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "name(), symbol()",
+      "lines": "253-254, 256-266",
+      "decompiled": "mem[0] = 204; mem[160 len ceil32(_1)] = stor[0x47197230e1e4b29fc0bd84d7d78966c0925452aff72a2a121538b102457e9ebe len (_1 + 31) / 32] ... while idx < _1: mem[idx + floor32(_3 - 97) + 192] = mem[idx + 160]",
+      "source": "ERC20Upgradeable.name(): return _name; (string at slot 204)",
+      "issue": "The via-IR optimizer folded keccak256(204), the data base of the `_name` string, into a constant, which the text prints as a bare 64-digit number (next to a dead `mem[0] = 204`) instead of `sha3(204)` / `name[...]`; the return copy is a word-by-word while (P7) and the allocation size `floor32(_3 - 97)` is opaque.",
+      "rule": "Recognise constants equal to keccak256(n) for small slot numbers n (a precomputed table) and print them as `sha3(n)`, which also lets the storage analysis name the array; print a memory-to-memory word copy as a copy line.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All functions are short (under 100 lines); all reviewed. Source loop: StringsUpgradeable.toHexString (`while idx > 1`), inlined twice per onlyRole function (mint, burn, grantRole, revokeRole, transferAllRoles) for the AccessControl revert message, as in c00506. Implicit: name/symbol return copies and the upgradeToAndCall bytes copy (P7). P11: the bounds checks `if idx >= 42/66: revert Panic(50)` inside `while idx > 1` loops starting at 41/65, and `require calldata.size - 4 >=′ 0` behind the dispatcher. No semantic error found.",
+  "summary": "Clean, faithful text; the only source loop (toHexString) is a clear while, with minor issues: a folded keccak slot constant printed as a raw number and redundant bounds checks."
+}

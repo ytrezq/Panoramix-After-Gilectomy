@@ -1,0 +1,25 @@
+{
+  "id": "c00239",
+  "abi_functions": 46,
+  "reviewed": 46,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P3": 1, "P4": 4, "P6": 1, "P7": 10, "P8": 30, "P16": 12},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "scheduleBatch, executeBatch, hashOperationBatch (12 lines)",
+      "lines": "854-858, 672, 919",
+      "decompiled": "while idx < targets.length: require cd[32 * idx + targets + 36] == address(cd[32 * idx + targets + 36]) / if address(cd[32 * idx + targets + 36]) == this.address: revert with 'Timelock/self-calls-disabled'",
+      "source": "Timelock.sol:97-99 for (uint256 i = 0; i < targets.length; ++i) { require(targets[i] != address(this), 'Timelock/self-calls-disabled'); }",
+      "issue": "Elements of the calldata array parameter targets are printed as raw offset arithmetic, although the text names the parameter and its length (targets.length).",
+      "rule": "cd[p + 36 + 32*i] for a calldata array parameter p of static elements is p[i] (and address(p[i]) after its range check).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (3, all whiles): Timelock.scheduleBatch's self-call check (854), TimelockController.scheduleBatch's CallScheduled loop (919/949 area), TimelockController.executeBatch's execute loop (672). Implicit whiles: validated ABI decodings and re-encodings of address[]/uint256[]/bytes[] for hashOperationBatch (362, 378 and copies), and this version's storage of the whole batch: copies of targets/values/payloads into the operation record (1058, 1097), clearing of old storage arrays in cancel/execute/schedule (446, 821, 1142, loops over the bytes[] slots with short/long encoding tests), and a rotated storage-to-memory copy in the batch getter (478, P3). All functions were reviewed by reading (the largest is scheduleBatch, 323 lines); faithful. Role checks print as hasRole[role][caller] with the role hash constant.",
+  "summary": "Faithful, readable text with all three source loops found; remaining whiles are ABI and storage copies of the batch arrays, and calldata array elements stay raw offsets."
+}

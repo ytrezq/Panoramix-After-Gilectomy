@@ -1,0 +1,36 @@
+{
+  "id": "c00472",
+  "abi_functions": 45,
+  "reviewed": 45,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 5, "P6": 1, "P7": 4, "P11": 13, "P17": 20},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "onJoinPool, onExitPool, onSwap, getInvariant, getActualSupply, disableRecoveryMode, updateProtocolFeePercentageCache...",
+      "lines": "551-564 (onExitPool); calls to 0x0 (15 lines)",
+      "decompiled": "if caller: revert with 'BAL#205' / if poolId: revert with 'BAL#500' / ... if not _5: _6 = block.timestamp > 0 or not stor7 / assert not _6 / revert with 'BAL#402'   |   static call 0x0 with: ... (getPoolTokens)",
+      "source": "BasePool: onlyVault(poolId) checks msg.sender == getVault() and poolId == getPoolId(); the vault, pool id, scaling factors, pause window and buffer period are immutables",
+      "issue": "solc immutables read as 0 in pre-deployment code: the vault checks become 'caller != 0' and 'poolId != 0', getPoolTokens targets 0x0, and the normal (non-recovery) join/exit paths fold into reverts (an assert and BAL#402), so their loops are dead here.",
+      "rule": "None needed (artifact of analysing pre-deployment runtime code).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "LogExpMath code (internal_0x4a33 = _ln, internal_0x4da6 = exp, and their inlined uses in getInvariant, getActualSupply, disableRecoveryMode, updateProtocolFeePercentageCache)",
+      "lines": "1768-1840, 1845-1963 (20 constants); 28 lines with 1e36",
+      "decompiled": "if _param2 /′ _param1 <′ 0x1600ef3172e58d2e933ec884fde10064c63b5372d805e203c0000000000000: ... _2 = _param2 /′ _param1 /′ 0x195e54c5dd42177f53a27172fa9ec630262827000000000   |   return 1000000000000000000 * 10**18 /′ _2",
+      "source": "LogExpMath.sol: a0 = 38877084059945950922200000000000000000000000000000000 (e^x0, 1e18-scaled), a1 = 6235149080811616882910000000, ... ONE_18 * ONE_18",
+      "issue": "The decimal constants of the exp/ln tables are printed in hex (P17), while their neighbours of the same table print in decimal (78962960182680695161 * 10**14), and 1e36 is 1000000000000000000 * 10**18.",
+      "rule": "Print a constant in decimal when its decimal form has far fewer significant digits than its hex form (here a0 = 388770840599459509222 * 10**32), and fold products of powers of ten.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The pack has no source for the inherited BasePool / BaseWeightedPool functions ('no source definition found in the AST'); they were checked against pkg/pool-utils and pkg/solidity-utils in the corpus. Source loops reachable in live code (3, all whiles): ScalingHelpers._upscaleArray (656, 880, 1217, 1489), WeightedMath._calculateInvariant (674, 899, 1235, 1507), BasePoolMath.computeProportionalAmountsOut in the recovery-mode exit (582). Loops of the normal join/exit/swap paths are dead because of the immutables and not counted. LogExpMath.exp and _ln, recursive in the source (exp(-x), _ln(1e36 / a)), are kept as recursive internal functions (internal_0x4da6, internal_0x4a33), which is faithful and readable. Implicit whiles: validated decodings of getPoolTokens' address[] (628...), copies of return data and a 36-byte constant copy as a loop (1409, see c00007's finding). P11: 'assert idx < mem[_13]' / 'assert s < balances.length' under loop tests on equal lengths (0.7 bounds checks are asserts). Same bytecode as one other contract of the corpus.",
+  "summary": "Faithful text with the three live source loops found and LogExpMath's recursion preserved; immutables make the normal pool paths dead, and the exp/ln tables mix hex and decimal constants."
+}

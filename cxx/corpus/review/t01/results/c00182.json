@@ -1,0 +1,47 @@
+{
+  "id": "c00182",
+  "abi_functions": 57,
+  "reviewed": 57,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 8, "P4": 10, "P6": 9, "P8": 102, "P9": 109, "P11": 20},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "convertToAssets/Shares, preview*, maxWithdraw, maxRedeem, deposit, mint, withdraw, redeem, cooldownAssets, cooldownShares",
+      "lines": "e.g. 1682-1694 (cooldownAssets)",
+      "decompiled": "if -1 * _3 * balanceOf[caller] + ext_call.return_data[0] * balanceOf[caller] + (mulmod(balanceOf[caller], SafeMath.add(1, -_3 + ext_call.return_data[0]), -1) ... / _5 = 2 * ((totalSupply + 1) / (totalSupply + 1 & ~(totalSupply + 1) + 1)) * ...",
+      "source": "OZ ERC4626._convertToAssets/_convertToShares: assets.mulDiv(totalSupply() + 10 ** _decimalsOffset(), totalAssets() + 1, rounding)",
+      "issue": "16 inlined Math.mulDiv calls are expanded into unreadable polynomials with the factor distributed (balance * (totalAssets + 1) printed as three products).",
+      "rule": "Known P9: recognize the mulDiv shape and print mulDiv(a, b, d); keep products over sums factored.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "grantRole, revokeRole, addToBlacklist, removeFromBlacklist, rescueTokens, redistributeLockedAmount, transferInRewards, setCooldownDuration, transferAdmin (onlyRole revert path)",
+      "lines": "e.g. 322-347",
+      "decompiled": "while idx > 1: / if idx >= 42: revert Panic(50) / mem[idx + 160 len 1] = byte(s % 16, 0x30313233...66) / idx = idx - 1 / s = s / 16  ... / while idx > 1: if idx >= 66: revert Panic(50); mem[idx + 256 len 1] = 48; idx = idx - 1",
+      "source": "AccessControl._checkRole: string(abi.encodePacked(\"AccessControl: account \", Strings.toHexString(account), \" is missing role \", Strings.toHexString(uint256(role), 32))); Strings.toHexString's for (i = 2 * length + 1; i > 1; --i)",
+      "issue": "The hex loops keep a bounds check that the start value and the decreasing counter already exclude; for a constant role the second loop only writes '0' bytes and could be a constant string.",
+      "rule": "With i starting at 2 * length + 1 and decreasing while i > 1, 'i >= 2 * length + 2' is false; a loop writing a constant byte to mem[p + i] over a constant range is a constant store (here the 64-char run of '0').",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "asset(), silo(), totalAssets and every ERC4626 path, unstake",
+      "lines": "196-199; 1669",
+      "decompiled": "static call 0x0.balanceOf(address account) ... / call 0x0.withdraw(address _token, uint256 _amount) with: args vault, _3",
+      "source": "ERC4626 _asset immutable; StakedUSDeV2 silo immutable",
+      "issue": "solc immutables read as 0 in the undeployed runtime code.",
+      "rule": "none (input artifact)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "57 ABI functions plus the fallback reviewed; ERC4626 deposit/mint/withdraw/redeem and cooldownAssets/Shares reviewed by structure (mulDiv blocks), the rest read in full (unstake's cooldown test and struct clear, getUnvestedAmount with VESTING_PERIOD 8 hours, blacklist roles, the totalAssets = balance - unvested checked subtraction). The only source loop is Strings.toHexString (AccessControl revert messages), inlined twice per onlyRole function (18 whiles), all readable. Parameter names come from the signature DB (e.g. unstake(address vault) for receiver: harmless). No semantic error found.",
+  "summary": "Faithful; the only loop (toHexString in role reverts) is clean, the main readability problem is the 16 expanded ERC4626 mulDiv blocks."
+}

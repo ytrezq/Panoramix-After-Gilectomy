@@ -1,0 +1,33 @@
+{
+ "id": "c00352",
+ "abi_functions": 7,
+ "reviewed": [
+  "all 7 ABI functions (psm, dai, gem, savingsToken, swapAndDeposit, withdrawAndSwap, redeemAndSwap)"
+ ],
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {},
+ "findings": [
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "all (immutables), redeemAndSwap, withdrawAndSwap",
+   "lines": "3-6; 24-39; 49-51",
+   "decompiled": "const psm = 0 ... call 0x0.redeem(...) ... if 10**18 <= ext_call.return_data[0] + 10**18: if _1 == 10**18 * _1 / 10**18: revert with Panic(18) ... revert with Panic(17); call 0x0.withdraw(...) with: args 0, this.address, caller",
+   "source": "GEM_CONVERSION_FACTOR, psm, dai, gem, savingsToken (immutables); amountOut = assets * 1e18 / (GEM_CONVERSION_FACTOR * (1e18 + psm.tout())); savingsToken.withdraw(amountOut18 + amountOut18 * psm.tout() / 1e18, ...)",
+   "issue": "solc immutables read as 0: every call goes to 0x0, redeemAndSwap always reverts (division by GEM_CONVERSION_FACTOR * ... = 0) and withdrawAndSwap withdraws 0.",
+   "rule": "Known artifact of immutables in runtime code; show them as named unknown constants rather than 0 so the conversion arithmetic survives.",
+   "verified": "source declares all five immutable"
+  }
+ ],
+ "notes": "No loops. Given the immutables read as 0, the remaining logic matches the source, including legacy evaluation order (psm.tout() is called before the checked assets * 1e18 in redeemAndSwap), the checked balance differences, the require messages and the ignored transferFrom result. swapAndDeposit returns the unchecked '-_1 + _2' after checking the same difference with SafeMath.sub, which is equivalent.",
+ "summary": "All 7 functions reviewed; no loops and no semantic differences beyond the immutables read as 0, which make redeemAndSwap always revert and withdrawAndSwap withdraw nothing in the text."
+}

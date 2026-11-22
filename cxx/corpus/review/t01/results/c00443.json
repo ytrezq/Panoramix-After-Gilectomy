@@ -1,0 +1,58 @@
+{
+  "id": "c00443",
+  "abi_functions": 153,
+  "reviewed": 153,
+  "not_reviewed": [],
+  "source_loops": 26,
+  "loops_shown": {"while": 26, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 23, "P6": 1, "P7": 63, "P8": 40, "P16": 592},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "swapExactPtForSy, swapExactSyForPt, swapExactSyForYt, swapExactYtForSy (unknown3346d3a3, unknown80c4d566, unknown2a50917c, unknown7b8b4b95) via _sanitizeLimitOrderData",
+      "lines": "e.g. unknown3346d3a3: the two 'while True:' (first ~ function line 18, second nested in its exit branch)",
+      "decompiled": "while True: (checks) / if s >= cd[_param3 + cd[_param3 + 68] + 4]: u = 0 / v = t / while True: ... if u < cd[_param3 + cd[_param3 + 100] + 4]: ... break / if not address(v): ... (the rest of the function, ending in a return)",
+      "source": "PendleRouterDecoderAndSanitizer.sol:216-242 for (i < limit.normalFills.length) {...}  for (i < limit.flashFills.length) {...}",
+      "issue": "Two sequential loops are printed as nested 'while True' loops: the second loop, and the whole rest of the function, sit inside the exit branch of the first; each loop's bound is an inner 'if', the normal end is a return inside the inner loop's body, and 'break' leads to the mismatch revert.",
+      "rule": "Close a loop at its exit edge: when the exit branch of loop 1 leads (without returning to loop 1's header) to the rest of the function, print it after the loop with the exit test as the while condition; a loop whose only non-revert exit is that test is 'while s < len'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "the 34 functions with tuple parameters (ccipSend, send, fill, exitPool, joinPool, the Pendle swaps, completeQueuedWithdrawals, cancelOffer/cancelAPOffer, queueWithdrawals...)",
+      "lines": "e.g. unknown3346d3a3 'require cd[_param3 + 4] == address(cd[_param3 + 4])' ... 'cd[_param3 + cd[_param3 + 100] + cd[_param3 + cd[_param3 + 100] + cd[32 * u + _param3 + cd[_param3 + 100] + 36] + 36] + cd[32 * u + ...] + 196]'",
+      "decompiled": "def unknown3346d3a3(address _param1, address _param2, array _param3) ... v = cd[_param3 + cd[_param3 + 100] + cd[_param3 + cd[_param3 + 100] + cd[32 * u + _param3 + cd[_param3 + 100] + 36] + 36] + cd[32 * u + _param3 + cd[_param3 + 100] + 36] + 196]",
+      "source": "limit.flashFills[i].order.YT (LimitOrderData calldata limit)",
+      "issue": "Tuple parameters are typed 'array' and every member access is nested raw calldata arithmetic (P16, 592 lines), some over 240 characters, so member names (limitRouter, normalFills, flashFills, order.YT) never appear; even a plain uint256[] element reads cd[32 * idx + pools + 36] although the text names pools and pools.length.",
+      "rule": "Type a tuple parameter from the ABI decoding pattern (or the database's signature) and print cd[o + 4 + 32 k] as _param.member_k, cd[a + 36 + 32 i] of an array param a as a[i], recursively for nested offsets.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "every function returning addressesFound (bytes) built with abi.encodePacked in a loop",
+      "lines": "e.g. 967-993 (uniswapV3Swap)",
+      "decompiled": "while t < _3: mem[_2 + t + 32] = mem[s + t + 32] ... / mem[_2 + _3 + 32] = 0 / mem[_2 + _3 + 32] = cd[32 * idx + pools + 36] << 96 ... / while idx < _4: mem[_1 + idx + 64] = mem[idx + s + 32] ... / return memory from mem[64] len _1 + ceil32(_4) - mem[64] + 64",
+      "source": "for (uint256 i; i < pools.length; ++i) { addressesFound = abi.encodePacked(addressesFound, uint160(pools[i])); }",
+      "issue": "Each accumulation copies the old bytes with a while (P7), writes a zero word immediately overwritten (P8), and the result is returned through another copy loop and 'return memory from ... len ...' rather than as the bytes value.",
+      "rule": "A word-by-word loop copying mem[s + 32 len mem[s]] is one copy line; a store fully overwritten before any read is dead; returning the ABI encoding of a memory bytes b is 'return b' (Array(len=mem[b], data=mem[b + 32 len mem[b]])).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "increaseLiquidity, decreaseLiquidity, collect and other UniswapV3/position-manager decoders",
+      "lines": "e.g. increaseLiquidity 'static call 0x0.ownerOf(uint256 tokenId)'",
+      "decompiled": "static call 0x0.ownerOf(uint256 tokenId) with: args params.tokenId",
+      "source": "immutable uniswapV3NonFungiblePositionManager",
+      "issue": "The immutable position manager reads as 0 (8 calls to address 0).",
+      "rule": "-",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "26 source loops, all shown as whiles: one per decoder that accumulates addresses (uniswapV3Swap, createAPOffer x2, cancelOffer, cancelAPOffer, flashLoan, exitPool, joinPool, claim, fill, exactInput ('while idx < path.length / 23'), ccipSend, send), queueWithdrawals (2 nested), completeQueuedWithdrawals x2 (3 each), redeemDueInterestAndRewards (3), and _sanitizeLimitOrderData's two loops (as nested 'while True', 4 inlined copies). The other ~63 whiles are implicit copies (P7): the encodePacked accumulator copy, the bytes return encoding, and one ABI decoding validation loop in ccipSend. Most of the 153 functions are loop-free decoders that return a packed address list; checked by sampling the text against the source (the patterns repeat).",
+  "summary": "All 26 source loops are found and the decoders' effects are right where read, but tuple parameters are raw nested calldata arithmetic, the two limit-order loops are printed nested, and every packed accumulation shows its implicit copy loops."
+}

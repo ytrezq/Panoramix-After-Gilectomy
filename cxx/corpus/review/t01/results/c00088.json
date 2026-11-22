@@ -1,0 +1,36 @@
+{
+  "id": "c00088",
+  "abi_functions": 28,
+  "reviewed": 28,
+  "not_reviewed": [],
+  "source_loops": 16,
+  "loops_shown": {"while": 16, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 109, "P3": 1, "P6": 3, "P7": 16, "P14": 100, "P18": 60},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "the 27 factory getters and deploy(...)",
+      "lines": "3-30 (const lines), 31 'call 0x0' lines, 2148-2240",
+      "decompiled": "const unknown5c98682c = 0 ... call 0x0 with: args mem[...]",
+      "source": "address public immutable SHARES_FACTORY, ..., CRE_WORKFLOW_CONSUMER_FACTORY (SharesDeployer)",
+      "issue": "The factory addresses are immutables and read as 0 in this bytecode (solc), so every deployProxy call targets 0x0; require(CRE_WORKFLOW_CONSUMER_FACTORY != address(0)) in __validateAutomations always fails, which makes the automation loops (SharesDeployer.sol:590/594 validation, 1250/1261 deployment) dead: the validation ones are absent, the deployment ones are still printed at 2148/2206.",
+      "rule": "None (input artifact); not counted in source_loops.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "deploy(...) (unknown8505cab9)",
+      "lines": "103-230, 389-500, 1080-1230",
+      "decompiled": "while idx < cd[_param1 + cd[_param1 + 452] + cd[_param1 + cd[_param1 + 452] + 516] + 4]: require cd[32 * idx + _param1 + cd[_param1 + 452] + cd[_param1 + cd[_param1 + 452] + 516] + 36] <′ calldata.size - ...",
+      "source": "SharesDeployer.sol:556-559 QueueDepositHandlerConfig[] calldata queueDepositHandlers = _cfg.components.queueDepositHandlers; for (uint256 i; i < queueDepositHandlers.length; i++) ...",
+      "issue": "The nested calldata struct DeployConfig is accessed through raw offset chains (cd[_param1 + cd[_param1 + 452] + cd[...] + 516]) in every loop condition and element access, so the loops over components.queueDepositHandlers, sharedAddressLists, admins ... cannot be told apart without decoding offsets by hand.",
+      "rule": "A calldata pointer p = base + cd[base + k] (with its ABI bound checks) is a dynamic member of the struct at base: name it once (_cfg_components = ...) and print cd[p + 4] as .length and cd[32 * i + p + 36] as [i].",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "28 ABI functions: 27 immutable factory getters (const 0) and deploy(DeployConfig) (2518 lines, reviewed by structure). The 20 source loops of SharesDeployer.sol minus the 4 automation loops dead by the immutable (artifact finding) are all whiles, identified by their calls: 5 validation loops at 103-218 (__validateSharedAddressListDefinitions and the four handler loops of __validate), shared address lists (389, 752), valuation assets (561, addAsset 0x298410e5) and asset rates (615), pre-mint sum and mint loops (658, 685), queue deposit handlers with the nested allowlist loop (1080/1217, setAsset 0xd0d552dd and addDepositControllerToInternalAllowlist 0x84db84b4), sync deposit (1383), sync redeem (1531), redeem queues (1663), admins (2331, addAdmin 0x70480275). ValuationHandler.sol:260 and AddressListBase.sol:86 are in the deployed components (external calls), not counted. Implicit loops: two validated calldata-to-memory address[] copies (433, 493), the rotated allocation of the automations array (2138, P3) and 14 ABI-encoding loops of the VaultDeployed event's Deployed struct ('mem[t] = Bytes(12, 0), mem[s + 12 len 20]', P7). Custom errors print as selectors (0x85cf8fd2 SharesDeployer__NominatedOwnerCannotBeZero ...).",
+  "summary": "All live loops are found as whiles; the text is hard to read because the nested calldata config is addressed by raw offset chains, most deployProxy calls lose their arguments (P2) and target 0x0 (immutables)."
+}

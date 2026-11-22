@@ -1,0 +1,69 @@
+{
+  "id": "c00090",
+  "abi_functions": 26,
+  "reviewed": 26,
+  "not_reviewed": [],
+  "source_loops": 12,
+  "loops_shown": {"while": 12, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 1,
+  "patterns": {"P2": 217, "P3": 6, "P4": 7, "P6": 21, "P7": 248, "P8": 94, "P12": 3, "P15": 1},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "enableRebalanceAndUpdateRecord(address[],uint96[],uint256[])",
+      "lines": "5747-6093 and 6795-7141 (while True ... break), 7163-7645 (loop1), 7437 (inner while)",
+      "decompiled": "while True: / if s >= _518: <setRedeemed, encode, emit ... about 345 lines> ... break  |  loop1: while True: <second half of _pullAndRedeem> ... while var25 + 1 < _1085: ... s = ...; t = ...; (25 assignments) var21 = var26 / continue loop1",
+      "source": "OffChainRebalance.sol:258-276 pullAndRedeemForUpdateWeights: for (uint256 i = 0; i < len; i++) { ... if (newWeights < oldWeight) { _pullAndRedeem(...); setSellTokenData(_token); } else if ... } setRedeemed(true); ...",
+      "issue": "One source loop is printed as four whiles: a 'while True' per totalSupply() branch whose exit code (everything after the loop) sits inside 'if s >= len:' and which breaks out on the first iteration needing _pullAndRedeem, then a labeled 'loop1: while True' entered in the middle of the body, with an inner rotated 'while var25 + 1 < _1085' that runs the cheap iterations and jumps back with 'continue loop1' after 25 phi assignments; the post-loop code is printed three times. The same loop is a plain 'while s < _516' in enableAndUpdatePrimaryTokens, enablePrimaryTokens and enableRebalance.",
+      "rule": "A natural loop has one header: the target of the back edge that dominates the body (here the 'i < len' test). Structure with that header as the while test, keep exit code after the loop, and never open a second loop level inside the body for the same back edge; labeled continue is only needed for genuinely nested source loops.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all functions that call a contract or a library (e.g. _externalSell, revertEnableRebalancing, enable*)",
+      "lines": "e.g. 430-434, 1754-1761, 1815-1819, 1861-1869, 1913-1933 (248 loops)",
+      "decompiled": "while idx < _93: mem[_92 + idx] = mem[_90 + idx + 32] ...  |  while idx < _168: mem[t] = Bytes(12, 0), mem[s + 12 len 20] ...  |  while idx < ...: require mem[idx] == mem[idx + 12 len 20] / mem[t] = mem[idx]",
+      "source": "TransferHelper.safeTransfer abi.encodeWithSelector(...) passed to call; index.updateTokenListAndRecords(oldTokens, oldWeight); abi.decode(returndata, (address[]))",
+      "issue": "248 of the 328 whiles are the compiler's ABI loops: the bytes copy of an encoded payload into the call buffer, the element-wise encode of address[]/uint96[] (copy with a mask) and the element-wise decode of address[] from return data (validate then copy). Each is 5-7 lines, and around them the calls stay raw memory (P2).",
+      "rule": "A loop 'i = 0; while i < n: mem[d + i] = mem[s + i]; i += 32' with disjoint ranges is the copy 'mem[d len n] = mem[s len n]'. A loop writing Mask(k, 0, mem[s + 32j]) to mem[d + 32j] is a copy of a k-bit-element array (print it as a copy of the array, with the element type); a loop 'require mem[p] == Mask(k, 0, mem[p]); mem[q] = mem[p]' is the same copy guarded by 'require all elements fit in k bits'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "enableAndUpdatePrimaryTokens(...), enableRebalanceAndUpdateRecord(...)",
+      "lines": "8411-9438 vs 9439-10898 (enableAndUpdatePrimaryTokens); 5524-6093 vs 6094-7141 (enableRebalanceAndUpdateRecord)",
+      "decompiled": "if mem[_305] <= 0: <updateTokenListAndRecords, pullAndRedeemForUpdateWeights loop, first _swap ...> else: while s < _299: <updateTokens loop> <the same code again>",
+      "source": "OffChainRebalance.sol:212-224 if (index.totalSupply() > 0) { for ... } then :225-226, :496-499, :479",
+      "issue": "Everything after the one-armed 'if (index.totalSupply() > 0) { loop }' (about 1,000 lines, including the weights loop with three inlined loops and the first _swap loop) is printed once in each arm instead of once after the join.",
+      "rule": "When both arms of a branch continue into the same code (same instructions, differing only in variables live at the join), print the join once after the if and bind the differing values with a phi in each arm.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "revertEnableRebalancing, revertEnableRebalancingByUser, externalRebalance, revertSell*, enable* (deleteState inlined)",
+      "lines": "1967-2020 (revertEnableRebalancing), same block in each deleteState copy",
+      "decompiled": "_230 = mem[64] / mem[mem[64]] = 0 / mem[64] = _230 + 32 / _231 = mem[_230] / if mem[_230] > 18446744073709551615: ... if _231 >= 32: ... stor268 = 2 * _231 + 1 / else: stor268 = 2 * _231 | ~(-1 >> 8 * _231) & _267",
+      "source": "OffChainRebalance.sol:624-625 updateTokenStateData = abi.encode(); updateWeightStateData = abi.encode();",
+      "issue": "Storing an empty bytes value is printed as the general 25-line bytes-store routine twice, because the length _231 = mem[_230] is not folded to the 0 written two lines earlier: the intervening write is to mem[64], which the decompiler cannot prove different from _230 (= the old mem[64]).",
+      "rule": "If every store to mem[64] writes a constant >= 0x80 or mem[64] plus a non-negative amount, then mem[64] >= 0x80 always, so mem[mem[64]] never aliases mem[64]; with that, forward the stored 0 and fold the dead branches (the store reduces to clearing the old long data and stor268 = 0).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "revertEnableRebalancing, revertEnableRebalancingByUser, revertSell* (storage arrays read into memory)",
+      "lines": "1709-1711, 1883-1907",
+      "decompiled": "mem[_141 + 32] = stor265[..][0] / mem[_141 + 64 len floor32(-_141 + max(_141 + 64, _141 + 32 * n + 32) - 33)] = stor[sha3(..) + 1 len ...]  |  mem[idx + 32] = uint96(stor262[t + (s + 23) / 32] / 256**(s - 12 * ((s + 23) / 32) - s * ((s + 23) / 32) + 12)) ... s = s - 12 * ((s + 23) / 32) - s * ((s + 23) / 32) + 12",
+      "source": "OffChainRebalance.sol:574 uint256[] memory amounts = redeemedAmounts[token]; :584 rebalanceData.oldTokens, rebalanceData.oldWeight (uint96[])",
+      "issue": "Storage-to-memory array copies peel element 0 and leave a length that, under 'if n:', is just 32 * (n - 1); the packed uint96[] copy is an opaque loop over byte offsets. 'def storage' also types stor262 as 'array of uint256' although every access is a packed uint96 element.",
+      "rule": "Inside 'if n:' (n >= 1), max(a + 64, a + 32n + 32) = a + 32n + 32; merge the peeled element with the rest into 'mem[p + 32 len 32n] = stor[x][0 len n]'. A loop stepping a byte offset by w and moving to the next slot when offset + w > 32 is the unpacking of a w-byte-element storage array: print it as a copy of that array and type the array with w-byte elements.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Very long functions reviewed by structure (enableAndUpdatePrimaryTokens 3,280 lines, enableRebalanceAndUpdateRecord 2,860, enablePrimaryTokens 1,325, enableRebalance 1,150): loops, calls, storage writes and events located; revertEnableRebalancing, _externalSell and the _pullAndRedeem loops checked line by line and correct (bounds Panic(50), SafeMath.sub on redeemed amounts, WETH deposit with value eth.balance(stor260), deleteState's deletes including the packed (n + 1) / 2 slots of oldWeight). revertEnableRebalancingByUser and revertSellByUser are the same as revertEnableRebalancing / revertSellTokens plus the 15-minute check. Source loops counted are only those in this bytecode: loops of external/public library functions (RebalanceLibrary.*, IndexSwapLibrary.checkPrimaryAndHandler) run in the library through DELEGATECALL and are not counted; the pack's reach lists wrongly put IndexSwapLibrary.getTokenAndVaultBalance under getSwapData and revertSell*. Source loop map: getTokenAndVaultBalance (8228, 5341, 2818, 3971, 1125), _externalRebalance (2217), _pullAndRedeem j/i (8925/8943 and copies), _pullAndRedeemForUpdateTokens (9441, 6096), _revertEnableRebalancing i/j (1701/1799, 1322/1420), _swap (401, 9302, 10808, 10948, 4818), deleteSellTokenData and deleteState (in every deleteState copy), pullAndRedeemForUpdateWeights (8634, 10140, 3024, 4175, and the split form above), setSellTokenData (9059 and copies). Events EXTERNAL_SELL etc. and errors InvalidExecution (0x29adbb29) stay raw hashes/selectors: names come from the signature database. P8 counts the dead 'mem[0] = <slot>' hash-scratch writes before mapping accesses; P12 counts the three duplicated continuations; P15 the uint96[] typed as uint256[].",
+  "summary": "Faithful and complete (every source loop is a while), but very long: three quarters of the whiles are ABI copy loops around raw-memory calls, continuations are duplicated into both arms of totalSupply() checks, and in enableRebalanceAndUpdateRecord the weights loop is split into four whiles with a labeled continue."
+}

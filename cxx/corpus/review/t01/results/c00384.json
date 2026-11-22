@@ -1,0 +1,36 @@
+{
+  "id": "c00384",
+  "abi_functions": 3,
+  "reviewed": 3,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P3": 1, "P7": 3},
+  "findings": [
+    {
+      "kind": "semantics",
+      "severity": "high",
+      "function": "multicall((address,uint256,bytes)[])",
+      "lines": "15, 75-109 (103)",
+      "decompiled": "def multicall(...): / _1 = gas_remaining / require calldata.size - 4 >=′ 32 ... while s < _67: ... call address(_71) with: gas _75 ... / mem[_100] = ext_call.success / mem[_100 + 32] = _1 - gas_remaining",
+      "source": "UniswapInterfaceMulticall.sol:30-36 for (...) { (address target, uint256 gasLimit, bytes memory callData) = ...; uint256 gasLeftBefore = gasleft(); (bool success, bytes memory ret) = target.call{gas: gasLimit}(callData); uint256 gasUsed = gasLeftBefore - gasleft(); returnData[i] = Result(success, gasUsed, ret); }",
+      "issue": "The GAS read that gives gasLeftBefore is executed inside the loop, right before each call (disassembly: GAS at 0x158 after the loads of calls[i], GAS at 0x1c1 after the call, then SUB), but the text hoists it to the first line of the function (_1 = gas_remaining, even before the calldata checks). The text therefore reports, for every call i, the gas used since the function entry instead of the gas used by call i.",
+      "rule": "GAS is not a pure expression: its value changes with every instruction, so a GAS read must never be hoisted, merged (CSE) or moved across other instructions, in particular out of a loop or across a call; bind each read to a fresh variable at its own position.",
+      "verified": "pancxx disasm (GAS opcodes only at 0x158 and 0x1c1, both in the loop body); the execution checks do not catch it because gas-dependent outputs are not compared"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "multicall((address,uint256,bytes)[])",
+      "lines": "54-72, 110-143",
+      "decompiled": "if mem[128]: ... mem[_10 + 32] = _10 + 32 * mem[128] + 32 / s = _10 + 32 / idx = mem[128] / while idx - 1: _22 = mem[64]; mem[64] = mem[64] + 96; mem[_22] = 0; ... / while True: if s >= _73: return memory from mem[64] len u - mem[64] ...",
+      "source": "returnData = new Result[](calls.length); return (blockNumber, returnData) (ABI encoding)",
+      "issue": "The allocation of the Result[] array of structs is a rotated loop (P3), and the return encoding is a 'while True' whose exit branch is the function's return with a length still containing mem[64].",
+      "rule": "Un-rotate 'if n: B; while n - 1: B' into 'while n: B'; print the exit branch of a 'while True' after the loop; fold mem[64] to the base it was last set from.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 3 ABI functions reviewed in full (getCurrentBlockTimestamp, getEthBalance, multicall). The source loop is 'while s < _67' (75); implicit loops: the validated abi.decode of Call[] (26), the rotated Result[] allocation (63, P3), the callData copy (83) and the ABI encoding of the results (119/133) (P7). The same treatment of GAS as a pure value is visible in c00465 (fulfillRandomWords' startGas printed as a bare gas_remaining in the payment formula).",
+  "summary": "Small and mostly readable, but the gasleft() taken before each call is hoisted out of the loop to the function entry, so the text computes a cumulative gasUsed where the bytecode computes per-call gas."
+}

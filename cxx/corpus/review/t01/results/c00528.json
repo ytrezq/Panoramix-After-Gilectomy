@@ -1,0 +1,47 @@
+{
+  "id": "c00528",
+  "abi_functions": 10,
+  "reviewed": 10,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 26, "P3": 1, "P4": 10, "P6": 14, "P7": 30, "P8": 169, "P11": 40, "P18": 20},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "setConfig, setConfigTypeSafe (s_signersList = signers; s_transmittersList = transmitters)",
+      "lines": "1281-1290, 1297-1306 (and the same in unknown0870d3a1)",
+      "decompiled": "s = 0 / idx = 160 / while 32 * mem[128] + 160 > idx: stor13[s] = mem[idx + 12 len 20]; s = s + 1; idx = idx + 32 / s = s + sha3(13) / _459 = s / stor[_459 len -_459 + max(_459, _436 + sha3(13))] = 0",
+      "source": "ZKSyncAutomationRegistryBase2_3._updateTransmitters: s_signersList = signers; s_transmittersList = transmitters (address[] memory -> storage)",
+      "issue": "The memory-to-storage array assignment is printed as a loop with a reversed test, and its counter is then reused as an absolute slot (s + sha3(13)) for the tail clearing.",
+      "rule": "A loop storing stor[a + i] = uint160(mem[b + 32i]) for i < n, with no other effect, is the copy 'stor13[0 len n] = mem[b len 32n]' (address-cleaned); print the tail clear as deleting elements n..old_length-1.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "transmit, setConfig, setConfigTypeSafe (after allocations and calls)",
+      "lines": "e.g. 1427-1436, 1937-1964, 2121-2137",
+      "decompiled": "while idx < _1000: mem[idx + mem[64] + 64] = mem[_880 + idx + 32] ...  |  call ... with: args mem[mem[64] len ...]  |  if s >= mem[mem[_26 + 64]]: revert Panic(50)",
+      "source": "abi.encode of report data, events with config arrays, the performUpkeep calls and LINK/billing token transfers",
+      "issue": "As in c00409: after the first symbolic allocation, call inputs and event data are raw memory and copies stay loops (about 30); the decoded report arrays are read through two levels of pointers with a bounds check before each access (58 Panic(50) tests, most implied by the loop test).",
+      "rule": "Free-memory-pointer non-aliasing (c00409) for stores through mload(0x40); drop 'if i >= mem[p]: panic' when the enclosing loop tests i against the same unchanged mem[p].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "transmit (_getTriggerType)",
+      "lines": "1850-1866",
+      "decompiled": "u = 4 / while True: / if u >= 15: <Trigger(rawID[15]) with Panic(33) check>; break / if not byte(u, mem[...]): u = u + 1; continue / <Trigger.CONDITION>; break",
+      "source": "ZKSyncAutomationRegistryBase2_3.sol:798 for (uint256 idx = 4; idx < 15; idx++) if (rawID[idx] != empty) return Trigger.CONDITION; return Trigger(uint8(rawID[15]));",
+      "issue": "A counted loop with an early exit is a 'while True' whose bound test sits inside next to the post-loop code.",
+      "rule": "'while True: if i >= N: <A>; break ...' is 'while i < N: ...' followed by <A> on the normal exit.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "10 ABI functions plus the fallback (delegates to the logic contracts) reviewed; transmit and setConfig/setConfigTypeSafe (same code, the latter without the onchainConfig bytes decode) reviewed by structure, the small getters/ownership functions read in full. Loops: 11 explicit, all whiles: in transmit the signature-verification loop, _handleReport's two loops and _getTriggerType's byte scan ('while True'); in setConfig the two _setBillingConfig loops, the three _updateTransmitters loops and the two registrar loops (the downward 'for (idx = length; idx > 0; idx--)' as 'while idx'). Implicit: validating decodes, the new array init (rotated, P3), two checked-exp helpers ('while x > 1', readable), two memory-to-storage address-array copies and about 30 encode copies (P7). P18: decoded report struct fields as memory slices. No semantic error found (checked _getTriggerType, the transmitter add/remove bookkeeping, the registrar set rebuild).",
+  "summary": "Faithful, all 11 loops present; readability suffers from raw memory after allocations, storage array assignments printed as loops with a reused counter, and many redundant bounds checks."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "c00247",
+  "abi_functions": 32,
+  "reviewed": 32,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P3": 1, "P6": 42, "P8": 60, "P11": 20, "P12": 40},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "every onlyAuthorized function (setTargetFunctionRole, setRoleAdmin, setRoleGuardian, setGrantDelay, setTargetAdminDelay, setTargetClosed, updateAuthority, labelRole, grantRole, revokeRole)",
+      "lines": "1586-1650 (setTargetFunctionRole) and similar",
+      "decompiled": "if calldata.size < 4: revert with 0xf07e038f, caller, 0 / _14 = 0x853551b8... == call.func_hash or 0x30cae187... == call.func_hash ... _31 = _28 or 0x8d6122d000...00 == call.func_hash",
+      "source": "AccessManager._checkAuthorized -> _canCallSelf(_msgSender(), _msgData()) -> _getAdminRestrictions(data) -> _checkSelector(data) (dispatch on msg.sig)",
+      "issue": "Inside each dispatched function the selector is known, yet the text keeps the whole msg.sig dispatch of _getAdminRestrictions (290 lines testing call.func_hash) and the 'calldata.size < 4' case, both of which fold to one branch.",
+      "rule": "In the body reached by the dispatcher's test calldata[0:4] == S (with calldata.size >= 4 on that path), call.func_hash is S and calldata.size < 4 is false; fold the comparisons and drop the dead branches.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setTargetFunctionRole, getTargetFunctionRole, canCall, execute, schedule",
+      "lines": "1593, and the execute path ('stor3 = sha3(mem[_179 + 32 len mem[_179]])')",
+      "decompiled": "uint64(stor[sha3(Mask(32, 224, cd[32 * idx + _param2 + 36]), sha3(_param1, 0))]) = _param3 / stor3 = sha3(mem[_179 + 32 len mem[_179]]) / 2 * Mask(250, 5, _data.length + 31)",
+      "source": "_targets[target].allowedRoles[selector] = roleId; _executionId = _hashExecutionId(target, selector); calldata copies",
+      "issue": "The mapping inside the target struct is a raw nested sha3 (as in c00542); the execution id hash reads raw memory where the same hash elsewhere prints as sha3(_target, selector); ceil32 prints as Mask(250, 5, x + 31).",
+      "rule": "As in c00542 for nested mappings; resolve sha3 of a memory region whose words are known; Mask(250, 5, x + 31) is ceil32(x) for x < 2^250.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "OZ AccessManager. Source loops (2): Multicall :32 (multicall: while with zero-init rotated as 'while idx - 1', P3, and the result encoding) and setTargetFunctionRole :371 ('while idx < cd[_param2 + 4]' 1591, inside the self-execution branch; the other branches revert with AccessManagerUnauthorizedAccount) - both while. P12: the admin-restriction dispatch is printed twice in each onlyAuthorized function (self-call branch and normal branch). P6: selectors with a leading zero digit (0x08d6122d) printed with 63 digits (42 lines). Event names (TargetFunctionRoleUpdated, OperationScheduled...) unknown to the database. No semantic error found.",
+  "summary": "Complete and faithful; both source loops are while loops. The main readability problem is the unfolded msg.sig dispatch of _getAdminRestrictions in every authorized function (290 lines), plus raw nested-mapping slots."
+}

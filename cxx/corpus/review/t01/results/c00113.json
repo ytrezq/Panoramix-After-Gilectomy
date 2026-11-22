@@ -1,0 +1,58 @@
+{
+  "id": "c00113",
+  "abi_functions": 95,
+  "reviewed": 95,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 30, "P3": 32, "P4": 49, "P7": 12, "P8": 400, "P9": 20, "P14": 900},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "maxWithdraw / maxRedeem (all 6), redeem / withdraw (all 6), process_report, update_debt (both), buy_debt, maxMint, maxDeposit",
+      "lines": "e.g. 1568-1626, 1674, 2222-2237",
+      "decompiled": "mem[1408] = (SafeMath.sub(mem[832], mem[1280]) < stor4[_105].field_512) * (stor4[_105].field_512 ^ SafeMath.sub(mem[832], mem[1280])) ^ stor4[_105].field_512  |  return (mem[2144] < stor18[concat(mem[1728])]) * (stor18[concat(mem[1728])] ^ mem[2144]) ^ stor18[concat(mem[1728])]",
+      "source": "VaultV3.vy:611 to_withdraw: uint256 = min(max_assets - have, current_debt); :594 min(IWithdrawHook(...).available_withdraw_limit(...), max_assets)",
+      "issue": "Vyper's branch-free min(a, b) is printed as its bit formula, and because the result is not named, the whole formula is repeated in every later use (up to 6 times per loop iteration in maxWithdraw), which makes the strategy loops unreadable.",
+      "rule": "(a < b) * (b ^ a) ^ b is min(a, b) for all 256-bit a, b (a < b gives b ^ a ^ b = a, else b); (a > b) * (b ^ a) ^ b is max(a, b), with the signed variants for <′ and >′. Name the result where it is first stored (mem[1408] = to_withdraw) and reuse the name.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "set_default_queue, revoke_strategy, force_revoke_strategy, maxWithdraw x3, maxRedeem x3, redeem x3, withdraw x3",
+      "lines": "896-928, 966-983, 1556-1652, 3933-4099",
+      "decompiled": "if stor5: mem[480] = stor6[0]; if stor6[0] != _param1: ... / idx = 0 / while idx + 1 != stor5: mem[480] = stor6[idx + 1]; if stor6[idx + 1] != mem[64]: ...   |   while True: ... if not mem[1408]: if s + 1 != mem[896]: s = s + 1; continue / break ... (3 more exits with the same test)",
+      "source": "VaultV3.vy:977 for _strategy in self.default_queue; :1395 for strategy in new_default_queue; :605 and :802 for strategy in _strategies (with continue / break)",
+      "issue": "All Vyper 'for x in DynArray' loops are rotated (P3): either the first iteration is printed before 'while idx + 1 != len', or the loop is 'while True' with the increment-and-test repeated at each continue point; the loop variable (strategy) stays a memory word (mem[480], mem[1344]) next to a second name for the same value (_param1 vs mem[64]). Semantics match, including the continue/break structure of _max_withdraw.",
+      "rule": "As in c00159: recognise 'body; i = i + 1; if i != n: goto body' as one loop 'while i < n' with the step at the end, and factor the common 'if s + 1 != n: s = s + 1; continue; break' tail of every path into the loop step.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "maxWithdraw(address), maxRedeem(address), redeem(uint256,address,address), withdraw(uint256,address,address)",
+      "lines": "1509, 1633-1652; 3864",
+      "decompiled": "mem[416 len 64] = owner, 0 ... _146 = mem[1440] and mem[448] <= 9999 ... require (mem[448] * mem[1280] + mem[448] * mem[1408]) / mem[448] == SafeMath.add(mem[1280], mem[1408]) or not mem[448]",
+      "source": "VaultV3.vy maxWithdraw(owner) -> _max_withdraw(owner, 0, []): if unrealised_loss > 0 and max_loss < MAX_BPS: if loss + unrealised_loss > (have + to_withdraw) * max_loss / MAX_BPS: break",
+      "issue": "The constant max_loss = 0 stored in a memory local is not propagated, so the loss test keeps its general form (with a distributed overflow check, P9) and the two tails after it are printed twice.",
+      "rule": "A memory word written once with a constant and never written again before its reads can be replaced by the constant (here mem[448] = 0: the test is 'mem[1440] > 0', the overflow check is dead, the bound is 0).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "initialize(address,string,string,address,uint256), withdraw(uint256,address,address), withdraw(uint256,address,address,uint256), redeem(uint256,address,address,uint256)",
+      "lines": "773, 4523, 4910, 4146",
+      "decompiled": "def initialize(address _owner, string _name, string _symbol, address _dividendToken, uint256 initialSupply)  |  def withdraw(uint256 shares, address to, address from)  |  def withdraw(uint256 _id, address _sender, address _cToken, uint256 _cTokenAmount)  |  def redeem(uint256 tokenId, address cToken, address token, uint256 amount)",
+      "source": "VaultV3.vy initialize(asset, name, symbol, role_manager, profit_max_unlock_time); withdraw(assets, receiver, owner[, max_loss]); redeem(shares, receiver, owner, max_loss)",
+      "issue": "Parameter names taken from another contract's signature with the same selector mislead: withdraw's first argument is called 'shares' although it is assets, max_loss is 'amount' or '_cTokenAmount', role_manager is '_dividendToken', profit_max_unlock_time is 'initialSupply'. The same happens in c00586 (initialize(address _owner, address _originConvexBooster, ...) for initialize(_storage, _underlying, _vault, ...)).",
+      "rule": "Take parameter names from the database only when the entry is unambiguous for that selector, or print _param1... (the function name can stay).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Vyper 0.3.10, no immutables (initialize-based), so no artifact. The deposit/mint/redeem/withdraw variants (about 400 lines each), process_report (310), update_debt (2 x 200), maxWithdraw/maxRedeem (6 x 180) were reviewed by structure and the maxWithdraw(address) strategy loop line by line against _max_withdraw (all 12 steps, continue and break match); the small functions were reviewed in full. Source loops: VaultV3.vy:605 (_max_withdraw, 6 inlined sites), :802 (_redeem, 6 sites), :977 (_revoke_strategy, 2 sites), :1395 (set_default_queue). Implicit loops: calldata decoding of DynArray arguments (900, 1865, 2441, 5310, 5702) and memory copies of the queue for the withdraw-hook call (1664, 1840, 2032, 2207, 2399, 2607, 3871, 4248, 4635, 5025, 5417, 5821: P7), all rotated like the source loops (P3 counts all 32). P4: balance_of[owner] and strategies[...] read with 'concat(mem[N])' keys next to the same mapping with a plain key (917 vs 925). P14: Vyper keeps all locals in memory and the text prints them as mem[N] (estimate). Selectors stored for Vyper calls print in decimal (mem[192] = 1889567281 for balanceOf); the DynArray storage copies carry an exact but obscure guard 'if 32 * n != -32' and length '(32 * n + 63) / 32 - 1' (= n). The storage block names few variables (stor18 = balance_of is right not to be named balanceOf since that getter subtracts unlocked shares for the vault itself).",
+  "summary": "Faithful and complete; the main readability problems are Vyper's branch-free min() printed as a repeated bit formula, rotated DynArray loops, locals kept as memory words, and misleading parameter names from the signature database."
+}

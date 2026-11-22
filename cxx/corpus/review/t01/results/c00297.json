@@ -1,0 +1,25 @@
+{
+  "id": "c00297",
+  "abi_functions": 22,
+  "reviewed": 22,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P18": 3},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "quit(uint256,address), enter(address,uint256), shift(uint256,uint256)",
+      "lines": "142-145, 162-165, 185-188",
+      "decompiled": "require ext_call.return_data[0] >=′ 0 / require ext_call.return_data[32] >=′ 0 / call vat.fork(bytes32 ilk, address src, address dst, int256 dink, int256 dart) with: args ilks[cdp], urns[cdp], address(dst), ext_call.return_data[0 len 64]",
+      "source": "DssCdpManager.sol quit: (uint ink, uint art) = VatLike(vat).urns(ilks[cdp], urns[cdp]); VatLike(vat).fork(ilks[cdp], urns[cdp], dst, toInt(ink), toInt(art));",
+      "issue": "The two int256 arguments dink and dart print as one 64-byte slice of the previous return data instead of two words.",
+      "rule": "When a call's signature is known, split argument slices on 32-byte word boundaries: ext_call.return_data[0 len 64] as two arguments is ext_call.return_data[0], ext_call.return_data[32].",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "solc 0.5.12, no loops in the source. All functions match the source by reading: cdpAllowed/urnAllowed checks, the vat calls (move, flux x2, frob, fork with toInt range checks), open (cdpi increment, CREATE of UrnHandler with the vat argument appended, linked-list insertion, NewCdp event), give (linked-list removal and insertion, counts). The mapping of structs list is printed as stor3 although its getter list(uint256) is decoded (a missed name, not a misleading one).",
+  "summary": "Excellent, faithful and readable text for a loop-free contract; only the fork arguments are printed as a 64-byte return-data slice."
+}

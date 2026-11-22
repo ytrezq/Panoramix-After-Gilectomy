@@ -1,0 +1,63 @@
+{
+  "id": "c00042",
+  "abi_functions": 86,
+  "reviewed": 86,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 76,
+    "P2": 179,
+    "P6": 23,
+    "P7": 51,
+    "P8": 300,
+    "P9": 100,
+    "P11": 3,
+    "P12": 400,
+    "P15": 48
+  },
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "epochEndDate() and every function reading slot 290 (startEpoch, initialize, stopEpoch, stopEpochWithDuration...)",
+      "lines": "144-145; 1499, 1635, 2813, 6095 (29 lines)",
+      "decompiled": "def render(uint256 _day, uint256 _month, uint256 _year, string _engraving, bool _isLight): # not payable / return render   |   _7 = block.timestamp < SafeMath.add(render, stor298)",
+      "source": "IdleCDOEpochVariant.sol:32 uint256 public epochEndDate (selector 0x75d1497b)",
+      "issue": "The getter's selector collides with a 5-parameter render(...) in the signature database, so a function that reads no calldata is printed with five phantom parameters, and the epoch end date is called 'render' in 29 lines.",
+      "rule": "Accept a database signature only if it agrees with the calldata the function reads (here none: no size check, no calldata load past the selector); otherwise print the function as unknownXXXXXXXX() and do not name storage after it.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "every SafeERC20 call path (startEpoch, stopEpoch, stopEpochWithDuration, deposits, requestWithdraw, initialize, getFundsFromBorrower, sendFundsToBorrower, finalizeDefault, writeOffDeposit...)",
+      "lines": "1539, 1759, 2629, 2636, 2716, 2767; 571 vs 575; 626 vs 630 (36 lines)",
+      "decompiled": "mem[_26 + 32 len 4] = 2835717307   |   mem[... + 224 len 10] = 379586895927435046568480   |   mem[ceil32(return_data.size) + 160 len 4] = 2835717307 / mem[ceil32(return_data.size) + 292 len 68] = Bytes(4, 0xa9059cbb), address(...), _param1",
+      "source": "SafeERC20Upgradeable.safeTransfer / safeTransferFrom / safeIncreaseAllowance: abi.encodeWithSelector(token.transfer.selector, ...); IdleCDOCreditVault._deployTranche(string('Pareto BB '), ...)",
+      "issue": "A constant stored into a slice shorter than a word prints in decimal: the selectors transfer, transferFrom, approve (0xa9059cbb, 0x23b872dd, 0x095ea7b3) and the string 'Pareto BB ', although the next copy line prints the same bytes as Bytes(4, 0xa9059cbb) or 'Pareto BB '. Where the call is not decoded (P2), this decimal is the only trace of which ERC20 function is called.",
+      "rule": "Print a constant written to mem[a len n] with n < 32 as Bytes(n, 0x...) (or as a string literal when its bytes are printable), the form already used in copy lines and concats.",
+      "verified": "reading only (2835717307 = 0xa9059cbb, 599290589 = 0x23b872dd, 157198259 = 0x095ea7b3, 379586895927435046568480 = 0x50617265746f20424220)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "startEpoch, stopEpoch, stopEpochWithDuration, depositAA, depositBB, depositDuringEpoch, requestWithdraw, initialize, finalizeDefault, writeOffDeposit, updateAccounting, getApr...",
+      "lines": "1530-1580 (startEpoch) vs 552-604 (sendFundsToBorrower); 2549-2617 vs 2624-2655 (initialize, the two _deployTranche calls)",
+      "decompiled": "_23 = mem[64] / mem[64] = ceil32(return_data.size) + mem[64] / ... / mem[mem[64]] = _23 + ceil32(return_data.size) - mem[64] + 68 / ... / while idx < _32: mem[_23 + idx + ceil32(return_data.size) + 164] = mem[_26 + idx + 32] ... / call token with: args mem[_23 + ceil32(return_data.size) + 164 len _32]",
+      "source": "IdleCDOCreditVault._transferUnderlyings -> IERC20Detailed(token).safeTransfer(_to, _amount); _deployTranche(... _concat(...))",
+      "issue": "The same safeTransfer prints as 'call token.transfer(address recipient, uint256 amount) with: args ...' where the buffer base is ceil32(return_data.size) + 128 (sendFundsToBorrower) and as a raw-memory call with a copy loop of its 68-byte calldata where the base is a loaded mem[64] (startEpoch and 50 other copies, 179 P2 lines); likewise the AA tranche's name and symbol are built with 6 copy loops and the BB tranche's with copy lines.",
+      "rule": "Same root cause as the known P2/P7: after 'b = mem[64]; mem[64] = b + k', fold mem[64] to b + k and treat b + c ranges as disjoint for distinct small c; then '_23 + ceil32(return_data.size) - mem[64] + 68' is 68, the copy loop is a copy of a 68-byte buffer and the call decodes as on the constant-base path.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No source loops (no for/while/do in the contract or what it reaches): the 52 while heads are 51 memory-to-memory copies (SafeERC20 call data, Error(string) of 'SafeERC20: low-level call failed', string concatenation in initialize) and the checked exponentiation helper of 10**decimals() (2677). stopEpoch (1727 lines) and stopEpochWithDuration (1837 lines) were reviewed by structure against _stopEpoch: checks, management fee accrual, prepareStopEpochWithApr0, onStopEpoch / try getFundsFromBorrower / catch _handleBorrowerDefault, fee transfers, mint of fee shares, setScaledApr, flags and AccrueInterest; the try body is printed in both arms of 'if not stor240' (6338-6525 vs 6583-6770, P12) and the same in stopEpochWithDuration. depositAA/depositBB/depositDuringEpoch/requestWithdraw were checked by outline; startEpoch, initialize, the setters, emergencyShutdown, restoreOperations, getFundsFromBorrower, sendFundsToBorrower, claim functions line by line. Points checked and right: getContractValue's operands evaluated right-first (legacy codegen order) as the bytecode does; the signed add int256(_calcInterest) + interestForOverUnderPerformance keeps only the positive-overflow check because the left operand is a quotient below 2^255; 10**decimals uses the checked exp helper (decimals() is declared uint256, so no range check); claimWithdrawRequest has no extcodesize check because a return value is expected (solc 0.8.10). P1 = 76 lines of 36500000 * 24 * 3600 for the literal 3153600000000. P9: management fee and NAV products distributed (block.timestamp * _208 * managementFee - _208 * latestHarvestBlock * managementFee). P11: 'decimals >= 78 and decimals >= 32' (2673), 'if not stor0_8: revert not initializing' right after 'if not stor0_8: stor0_8 = 1' (2486-2496). P15: slot 286 (three bools) is one uint24 (bool(uint16(stor286) / 256), uint16(stor286.field_8) = 257). Error Is0() prints as raw 'revert with 0x879d6504' (not in the database).",
+  "summary": "Faithful text with no source loops; the 52 whiles are library copies. Readability suffers from undecoded SafeERC20 calls (179 P2 lines with copy loops), selectors printed in decimal, distributed fee arithmetic, a duplicated 190-line try body in both stopEpoch variants, and a selector collision that renames epochEndDate 'render'."
+}

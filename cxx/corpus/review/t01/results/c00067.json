@@ -1,0 +1,77 @@
+{
+  "id": "c00067",
+  "abi_functions": 61,
+  "reviewed": 61,
+  "not_reviewed": [],
+  "source_loops": 23,
+  "loops_shown": {
+    "while": 23,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 0,
+    "P2": 22,
+    "P3": 2,
+    "P4": 3,
+    "P6": 56,
+    "P7": 3,
+    "P8": 60,
+    "P9": 40,
+    "P11": 10,
+    "P14": 100,
+    "P15": 30,
+    "P18": 212
+  },
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "setPoolFee(uint256)",
+      "lines": "829-926",
+      "decompiled": "s = _330 ... w = block.timestamp / (91 * 24 * 3600) / while s / 10**18 < 0x1000000000000000000000000: (body of tranche w) ... if SafeMath.inc(w) > block.timestamp / (91 * 24 * 3600) + 7: (store rewardsSharesSupply, poolFee, log PoolFeeChanged); stop / (loads of deposits[0][w + 1], tranches[w + 1], s = SafeMath.mul(...)) ... continue / revert 'SafeCast: value doesn't fit in 96 bits'",
+      "source": "StakingPool.sol:1258-1279 for (uint trancheId = fromTrancheId; trancheId <= toTrancheId; trancheId++) { Deposit memory feeDeposit = deposits[0][trancheId]; ... feeDeposit.pendingRewards += (newRewardPerRewardsShare * feeDeposit.rewardsShares / ONE_NXM).toUint96(); ... }",
+      "issue": "The while condition is the toUint96 guard of the first statement of the body (its false branch is the SafeCast revert printed after the loop), the real loop test 'trancheId <= toTrancheId' is an 'if ...: ... stop' inside the body that also holds the whole epilogue of the function, and the next iteration's loads and multiplication are printed at the end of the body before 'continue' (rotated).",
+      "rule": "Among the exits of a loop, take as the while condition the test on the induction variable whose exit continues normally, not a guard whose exit only reverts (keep that as 'if not c: revert' in the body); print the epilogue after the loop and keep the body in the order of one iteration instead of peeling the next iteration's head.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "burnStake, requestAllocation, requestDeallocation, setPoolFee, withdraw, depositTo, extendDeposit (x3), processExpirations (processExpirations' while, 10 copies)",
+      "lines": "1767-1863 (burnStake), 461, 652, 978, 1328, 2253, 2877, 3776, 4166, 4567",
+      "decompiled": "_259 = _1 < block.timestamp / (28 * 24 * 3600) or _2 < block.timestamp / (91 * 24 * 3600) ... while _259: ... (bucket arm) _259 = SafeMath.add(z, 1) < block.timestamp / (28 * 24 * 3600) or y < block.timestamp / (91 * 24 * 3600); ...; continue ... (tranche arm) _259 = z < block.timestamp / (28 * 24 * 3600) or y + 1 < block.timestamp / (91 * 24 * 3600); ...; continue",
+      "source": "StakingPool.sol:222 while (_firstActiveBucketId < currentBucketId || _firstActiveTrancheId < currentTrancheId) { ... }",
+      "issue": "The loop test is carried in a flag computed before the loop and re-computed at the end of each arm from the next values of the counters, so the condition reads as 'while _259' instead of the source's comparison of the loop variables.",
+      "rule": "When the flag tested by a while is assigned, on entry and on every back edge, the same expression of the loop variables (after the updates), substitute that expression into the while condition and drop the flag.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "burnStake, requestAllocation, requestDeallocation, setPoolFee, withdraw, depositTo, extendDeposit, processExpirations",
+      "lines": "1822-1833 (burnStake expiredTranches store), 868-874 and 877 (setPoolFee), 212 lines with 'mem[... len 12/16]'",
+      "decompiled": "mem[_344] = uint96(_345) / mem[_344 + 32] = uint96(x) / mem[_344 + 64] = uint128(v) / uint96(stor4[y].field_0) = mem[_343 + 20 len 12] / uint96(stor4[y].field_96) = mem[_343 + 52 len 12] / uint128(stor4[y].field_256) = mem[_343 + 80 len 16]  |  stor0 = uint128(stor0) | (x << 128) + (mem[v + 96] << 128)",
+      "source": "StakingPool.sol:267-271 expiredTranches[_firstActiveTrancheId] = ExpiredTranche(_accNxmPerRewardsShare.toUint96(), _activeStake.toUint96(), _stakeSharesSupply.toUint128()); :311 rewardsSharesSupply = _rewardsSharesSupply.toUint128();",
+      "issue": "Struct values built in memory and then stored are printed as stores of memory slices (the low 12 or 16 bytes of each word) although the words were just written with known values (P18), and the packed slots 0 and 2 stay uint256 in def storage, so rewardsSharesSupply is written as whole-slot arithmetic (P15).",
+      "rule": "Fold mem[a + 32 - n len n] through the word store mem[a] = v to uintN(v) (here uint96(_345), uint96(x), uint128(v)); split a slot into fields when every access to it is a masked field access ('stor0 >> 128', 'uint128(stor0)').",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "burnStake, requestAllocation, requestDeallocation, depositTo, extendDeposit, withdraw, coverContract(), tokenController(), stakingNFT(), stakingProducts(), masterContract(), nxm()",
+      "lines": "180, 1310, 1756 ('if caller: revert with 0xce576397'); 1904-1906 ('require ext_code.size(0)' / 'call 0x0.unknowne41060cd'); 38 calls to 0x0",
+      "decompiled": "if caller: revert with 0xce576397  |  require ext_code.size(0) / call 0x0.unknowne41060cd(?) with: args _335, uint40(stor2 >> 128)",
+      "source": "StakingPool.sol onlyCoverContract: if (msg.sender != coverContract) revert OnlyCoverContract(); tokenController.burnStakedNXM(amount, poolId); (immutables)",
+      "issue": "coverContract, tokenController, stakingNFT, stakingProducts, nxm and masterContract are immutables and read as 0 in this undeployed runtime code, so 'msg.sender != coverContract' prints 'if caller' and every token-controller or NFT call targets 0x0. Faithful to this bytecode.",
+      "rule": "",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed: the 26 constant/storage getters and small views in full; burnStake in detail (processExpirations(false) inlined: both arms of the bucket/tranche loop, the checked (id + 1) * duration products, SafeCast checks, the expiredTranches/tranches updates and events checked against the source; the 'y = y + 1' without check is exact since (y + 1) * TRANCHE_DURATION was checked just before; burn part, isHalted, getActiveAllocations, the backward deallocation loop with its 'if (i == 0) break', _updateExpiringCoverAmounts, _updateStoredAllocations); multicall (delegatecall loop, RevertedWithoutReason, bytes[] encoding) and setPoolFee in detail; requestAllocation, requestDeallocation, depositTo, extendDeposit, withdraw by structure. No semantic error found. Loops: 23 explicit source loops (burnStake's backward for, getActiveAllocations' two nested fors, getTrancheCapacities, multicall, processExpirations' while, setPoolFee, withdraw, Math.sqrt's while, Math.sum, _allocate x2, _getActiveAllocationsWithoutCover, _getExpiringCoverAmounts x2, _getStoredAllocations x2, _updateExpiringCoverAmounts x3, _updateStoredAllocations x3), all whiles in every inlined copy (e.g. burnStake's 14 whiles are exactly its 14 loops); implicit loops: 'new bytes[](n)' init in multicall rotated ('while idx - 1', P3), the bytes[] return encoding, withdraw's uint256[] calldata decode as an element loop (P7), getActiveAllocations' return copy. Other things: the SafeCast Error(string) reverts print as messages where mem[64] is known (139) and as raw memory elsewhere (76 'from mem[64]', the P2 root cause noted in c00578/c00005), with 0x8c379a0... in 63 digits (P6); dead keccak-scratch stores such as 'mem[0] = 0x95d2c6fc... / mem[0] = _322' around logs and 'mem[0] = w / mem[0] = 0xec81... / mem[0] = w' (P8); checked (id + 1) * 28 days printed distributed as '28 * 24 * 3600 * z + 28 * 24 * 3600' (P9).",
+  "summary": "Faithful, with every source loop present as a while; the text is long because each external function inlines processExpirations and the allocation helpers, setPoolFee's loop is printed with a SafeCast guard as its condition and its real test inside the body, struct stores go through memory slices, and the immutables make the access checks read 'if caller' and the token calls target 0x0."
+}

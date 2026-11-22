@@ -1,0 +1,77 @@
+{
+  "id": "c00005",
+  "abi_functions": 12,
+  "reviewed": 12,
+  "not_reviewed": [],
+  "source_loops": 19,
+  "loops_shown": {
+    "while": 19,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 49,
+    "P3": 9,
+    "P4": 44,
+    "P6": 30,
+    "P7": 53,
+    "P8": 104,
+    "P9": 30,
+    "P11": 40,
+    "P12": 6,
+    "P14": 200,
+    "P15": 20,
+    "P18": 60
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "swap, addLiquidity, removeLiquidity, erc4626BufferWrapOrUnwrap (custom errors and events)",
+      "lines": "1350-1356, 1359-1366 (swap TokenNotRegistered), 1954 (Swap event), 757 (Wrap event), 3974, 6137 (LiquidityAdded/Removed); 158 revert lines, 7 log lines",
+      "decompiled": "_474 = mem[64] / mem[mem[64]] = 0xddef98d7... / mem[_474 + 4] = address(_460) / revert with memory from mem[64] len _474 - mem[64] + 36  |  _1216 = mem[64] / mem[mem[64]] = _921 / ... / log 0x0874b2d5...: mem[mem[64] len _1216 - mem[64] + 128], indexed ...",
+      "source": "VaultCommon.sol _findTokenIndex: revert TokenNotRegistered(token); Vault.sol:emit Swap(pool, tokenIn, tokenOut, amountIn, amountOut, swapFeePercentage, totalSwapFees)",
+      "issue": "Custom errors and event data built at the free-memory pointer are printed as raw memory with lengths like '_474 - mem[64] + 36', although the text just bound _474 = mem[64]: the store mem[mem[64]] = selector might alias the pointer word itself, so the pointer is re-read. The 158 reverts and 7 events lose their arguments (the P2 regex counts only call arguments).",
+      "rule": "Same as the P2 root cause in c00578: track mem[64] >= 0x80 (every store to it is a constant >= 0x80 or a non-wrapping increment), so mem[mem[64] + k] (k >= 0) never aliases mem[64..95]; then _474 - mem[64] folds to 0 and the revert reads 'revert with TokenNotRegistered(address(_460))'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "swap, addLiquidity, removeLiquidity",
+      "lines": "1445, 1476 (swap: hooks contract), 1587, 1619, 1961, 2011; addLiquidity/removeLiquidity: _totalSupplyOf (e.g. _1491, _777, _1698); 71 'stor[_N]' lines; P4 keys at 1867, 1925, 1943",
+      "decompiled": "_573 = sha3(Bytes(12, 0), mem[172 len 20], 2) / call address(stor[_573]) with: ...  |  _1491 = sha3(Bytes(12, 0), mem[140 len 20], 17) ... stor[_1491]  |  stor5[concat(Bytes(12, 0), mem[172 len 20])][concat(mem[0])] = _1188 + (_1192 << 128)",
+      "source": "Vault.sol _hooksContracts[vaultSwapParams.pool].onBeforeSwap(...); _totalSupplyOf[pool]; _poolTokenBalances[pool][index] = PackedTokenBalance.toPackedBalance(...)",
+      "issue": "When the mapping key is a 20-byte slice of a memory word (the pool address inside the copied params struct), the slot is printed as a raw hash and the access as stor[_N]; when the slot is recognised, the key is a concat of memory slices instead of address(mem[160]) or the index value just stored in mem[0].",
+      "rule": "Bytes(12, 0) ++ mem[a + 12 len 20] is address(mem[a]) for word-aligned a, so sha3(Bytes(12, 0), mem[a + 12 len 20], k) is the slot of storK[address(mem[a])]; a key read from mem[0] right after 'mem[0] = v' is v (fold the keccak scratch store into the key).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "swap, erc4626BufferWrapOrUnwrap, addLiquidity, removeLiquidity (PackedTokenBalance updates)",
+      "lines": "677-680 (wrap), 691, 1321 (swap), 8 lines",
+      "decompiled": "if -340282366920938463463374607431768211456 * _18 + Mask(128, 128, _314) + (_316 << 128) > _17 - (_18 << 128) + _314 - _315 + (_316 << 128): revert with Panic(17) / stor11[_param3] = _17 - (_18 << 128) + _314 - _315 + (_316 << 128)",
+      "source": "Vault.sol:1309-1313 bufferBalances = PackedTokenBalance.toPackedBalance(bufferBalances.getBalanceRaw() + amountInUnderlying - vaultUnderlyingDeltaHint, bufferBalances.getBalanceDerived() + vaultWrappedDeltaHint - amountOutWrapped);",
+      "issue": "The packed (raw, derived) pair is written as whole-word arithmetic on the old word (P15), and its overflow check multiplies by -2^128 printed as a 39-digit decimal while the same term elsewhere on the line is '(_18 << 128)'.",
+      "rule": "Print c * x with c = -2^k as -(x << k) (and 2^k * x as x << k); after the BalanceOverflow checks prove each half < 2^128, print the packed store as (derived' << 128) + raw' with raw' and derived' named.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "fallback, getVaultExtension, all unlock-guarded functions, erc4626BufferWrapOrUnwrap",
+      "lines": "46-66, const unknownb9a8effa = 0, 89-116, 235-253",
+      "decompiled": "delegate 0x0 with: args call.data[0 len calldata.size]  |  if not transient[0]: revert with 0xc09ba736  |  transient[0] = SafeMath.add(1, transient[0])  |  transient[sha3(from, 0)]",
+      "source": "Vault.sol _vaultExtension (immutable), VaultStorage.sol:67-69 _IS_UNLOCKED_SLOT, _NON_ZERO_DELTA_COUNT_SLOT, _TOKEN_DELTAS_SLOT (immutable), _SESSION_ID_SLOT, _MINIMUM_WRAP_AMOUNT (immutable)",
+      "issue": "The immutables read as 0 (solc leaves zeros before deployment): the fallback delegates to address 0, the unlocked flag, the non-zero-delta counter and the session id are all transient[0] and the token deltas are transient[sha3(token, 0)], so unlock() always ends in BalanceNotSettled after setting the flag, and WrapAmountTooSmall checks fold away. The text is faithful to this bytecode.",
+      "rule": "",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed: the 8 small functions in full (transfer, transferFrom with the try/catch emitApproval whose failure is ignored, sendTo with SafeERC20 checked against OZ _safeTransfer, settle, unlock with Address.functionCall, getPoolTokenCountAndIndexOfToken, reentrancyGuardEntered, getVaultExtension) and the fallback/receive; erc4626BufferWrapOrUnwrap's wrap EXACT_OUT path in detail (asset check, previewMint/forceApprove/mint, query context via tx.origin, BalanceOverflow and packed balance write, _settleWrap reserve checks, _takeDebt/_supplyCredit); swap (995 lines), addLiquidity (2,080 lines) and removeLiquidity (2,165 lines) by structure (loops, hook calls, storage writes, events, reentrancy-guard sections: the second guard section comes from _loadPoolDataUpdatingBalancesAndYieldFees being nonReentrant). No semantic error found; the decrement of the delta counter without an underflow check is exact (the dominating 'if not transient[0]: revert' proves transient[0] >= 1, the slots being the same immutable 0). Loops: the pack lists 11 source loops, but the reached library code (not in the pack) adds 8: ScalingHelpers.copyToScaled18ApplyRateRoundDown/UpArray, InputHelpers.getSingleInputIndex, BasePoolMath.computeProportionalAmountsIn/Out, computeAddLiquidityUnbalanced (2 loops), computeRemoveLiquiditySingleTokenExactOut; all 19 are whiles (e.g. 2724 and 2808 are computeAddLiquidityUnbalanced's two loops, 2548/3271/4611... getSingleInputIndex). Of the 103 text whiles, 53 are plain memory-to-memory copies (ABI encodings for hook calls, events, decodes; P7), 4 storage-to-memory copies of _poolTokens and 3 struct-array allocations are rotated (P3, first element peeled, 'while idx - 1'), and swap's two _findTokenIndex loops are rotated with the empty case guarded before the loop (exact). Other things: 104 dead keccak-scratch stores ('mem[32] = 5 / mem[32] = 0 / mem[32] = 4 / mem[32] = 3' in a row, P8); the PoolData struct lives in memory and its fields are read as mem[mem[X + 416]] etc. (P14/P18); getSingleInputIndex/forceApprove print the mint call in both arms (P12); 'ext_call.success and ...' after the success branch is known (P11).",
+  "summary": "Faithful on every path checked; readability is poor in the three big functions, where PoolData and the swap/liquidity params live in memory (fields as nested mem[] reads), 53 memory copies stay loops, custom errors and events built at the free-memory pointer print as raw memory, and mappings keyed by an address read from memory print as stor[sha3(...)]; immutables read as 0 (delegate 0x0, all transient guard slots at 0)."
+}

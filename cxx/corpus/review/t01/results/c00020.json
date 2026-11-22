@@ -1,0 +1,47 @@
+{
+  "id": "c00020",
+  "abi_functions": 38,
+  "reviewed": 38,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 39, "P6": 31, "P9": 20, "P12": 7, "P15": 49},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all functions using rocketStorage, rocketTokenRETH, casperDeposit or the prefetched keys",
+      "lines": "120-123, 128, 142, 156-158 (84 'call 0x0' lines)",
+      "decompiled": "call 0x0 with: value call.value wei / static call 0x0.getBool(bytes32 key) / static call 0x0.getAddress(bytes32 id) with: args 0",
+      "source": "RocketMegapoolDelegate.sol:44-48 bytes32 immutable rocketDepositPoolKey ...; address payable immutable rocketTokenRETH; DepositInterface immutable casperDeposit; RocketMegapoolDelegateBase: rocketStorage (immutable)",
+      "issue": "The immutables read as 0 in this pre-deployment bytecode (solc): rocketStorage calls target 0x0, the rETH payment is a value call to 0x0 and the prefetched contract keys are 0.",
+      "rule": "None (input artifact).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getNodeAddress(), calculateRewards, claim, distribute, stake, ... (49 lines)",
+      "lines": "6-24 (def storage), 52, 231",
+      "decompiled": "def storage: ... validatorCount is uint32 at storage 3 offset 160 ... (no field at offset 0) / return address(stor[3]) / args address(stor[3]), uint64(lastDistributionTime)",
+      "source": "slot 3: address nodeAddress, uint32 numValidators, uint32 numInactiveValidators; function getNodeAddress() returns (address) { return nodeAddress; }",
+      "issue": "The address field of the packed slot 3 is not in def storage although getNodeAddress() returns it, so it prints as address(stor[3]) everywhere (P15).",
+      "rule": "When a slot is split into fields, give the low-offset field read as address(stor[s]) its own name (here after getNodeAddress, nodeAddress at storage 3).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown0e335206 (getValidatorPubkey) and the other functions reading pubkeys/prestakeSignatures (7 pairs)",
+      "lines": "184-195",
+      "decompiled": "if uint1(stor14[_param1]): _2 = stor14[_param1].field_1 else: _2 = uint7(stor14[_param1].field_1) / if uint1(stor14[_param1]) == (_2 < 32): revert with Panic(34) / (the same five lines again for _3)",
+      "source": "return pubkeys[_validatorId]; (copy of a storage bytes to memory)",
+      "issue": "The length decoding of the storage bytes and its Panic(34) encoding check are printed twice in a row with the same inputs (P12); the second is implied by the first.",
+      "rule": "Common-subexpression elimination over pure storage reads with no store in between: reuse _2 and drop the repeated check.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 38 ABI functions reviewed (getters read; calculateRewards, repayDebt, deprecate, getPendingRewards and the debt functions compared line by line; stake, claim, distribute, notify*/dissolve/exit functions (330-607 lines) by structure). The source has no loop and the text has no while. calculateRewards' unchecked share arithmetic is printed distributed (tokenID * _2 - tokenID * r / 10**18 * _2, P9), exact modulo 2^256. Custom events and many getters are unnamed (not in the signature database).",
+  "summary": "Faithful and fairly readable; besides the zero immutables, only the unnamed packed nodeAddress field and some duplicated storage-bytes decoding stand out."
+}

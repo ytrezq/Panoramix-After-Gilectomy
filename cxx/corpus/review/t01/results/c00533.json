@@ -1,0 +1,25 @@
+{
+  "id": "c00533",
+  "abi_functions": 276,
+  "reviewed": 276,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "all 275 bytes32 key getters",
+      "lines": "e.g. 774-775, 216-217",
+      "decompiled": "def unknowna89364dc() payable: return sha3(Array(len=36, data='ABOVE_OPTIMAL_USAGE_BORROWING_FACTOR'))",
+      "source": "Keys.sol:412 bytes32 public constant ABOVE_OPTIMAL_USAGE_BORROWING_FACTOR = keccak256(abi.encode(\"ABOVE_OPTIMAL_USAGE_BORROWING_FACTOR\"))",
+      "issue": "The getter is a keccak of a constant (abi.encode of a literal string: the head 0x20, the length and the padded bytes), yet each prints the hash expression instead of the 32-byte constant, and the notation 'sha3(Array(len, data))' does not show the 0x20 head word that is hashed (text_check confirms the meaning is right).",
+      "rule": "sha3 of constant memory is a constant: fold it to the 32-byte value (optionally keeping the preimage as a comment, e.g. # keccak256(abi.encode('...'))).",
+      "verified": "text_check run --per-selector 2: 555 calls same, 0 different; evmrun 0xa89364dc returns 0x0697a21a...266d"
+    }
+  ],
+  "notes": "A library of 276 public constants: 275 bytes32 keys computed as keccak256(abi.encode(literal)) and one string constant (USER_INITIATED_CANCEL); every ABI function is present (277 defs with the fallback, which reverts), all of the same 2-line shape, all checked against the source names and strings. 'payable' is right for a library (no callvalue check). No loops in the source or the text.",
+  "summary": "Trivial and fully faithful: every key getter is present; the only possible improvement is folding the constant keccak of each key name to its 32-byte value."
+}

@@ -1,0 +1,13 @@
+{
+  "id": "c00389",
+  "abi_functions": 4,
+  "reviewed": 4,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [],
+  "notes": "Opcode test contract. test() starts with `assembly { pop(address) return(2, byte(2,1)) }` (OpCodes.sol:26); byte(2,1) = 0, so it halts with empty output and everything after it (the five Yul for-loops at :29-32 and :74, the calls, callcode, delegatecall, log0-log4, selfdestruct) is dead. The optimized bytecode has no RETURN at all: the dispatcher sends 0xf8a8fd6d straight to the shared STOP at 0x55 (checked in the disassembly), and the dead loop code is left unreachable from 0x71 on. The text's `stop` is therefore exact, and the dead loops are not counted in source_loops. test_invalid = invalid, test_stop = stop, test_revert (unknown6d3d1416, not in the database) = revert; it is marked `payable` only because it always reverts (the callvalue check is global at 0x05). Fallback revert is correct.",
+  "summary": "Tiny test contract whose text (stop / invalid / revert) is exact; the source's large test() body is dead code after an early return and is correctly absent."
+}

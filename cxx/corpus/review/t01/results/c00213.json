@@ -1,0 +1,25 @@
+{
+  "id": "c00213",
+  "abi_functions": 30,
+  "reviewed": 30,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 4, "P6": 19, "P7": 6, "P8": 30, "P11": 4},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "getModulesPaginated(address,uint256), getModules()",
+      "lines": "getModulesPaginated +7-20",
+      "decompiled": "_11 = stor1[address(start)] and stor1[address(start)] != 1 / _12 = _11 and 0 < pageSize / s = stor1[address(start)] / t = 0 / while _12: assert t < pageSize ... _11 = stor1[s] and stor1[s] != 1 / _12 = _11 and t + 1 < pageSize / s = stor1[s] / t = t + 1",
+      "source": "GnosisSafe.sol:289 while (currentModule != address(0x0) && currentModule != SENTINEL_MODULES && moduleCount < pageSize) { array[moduleCount] = currentModule; currentModule = modules[currentModule]; moduleCount++; }",
+      "issue": "The loop test lives in a flag computed once before the loop and again at the end of the body from the next values, so the while condition is the bare variable _12; the bounds assert t < pageSize is implied by the test (P11). The zero fill of the new array is code.data[14182 len 32 * pageSize] (CODECOPY at the code size).",
+      "rule": "Substitute a flag defined as f(loop variables) before the loop and at the end of the body into the while condition; CODECOPY from an offset >= code size writes zeros.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The pack has no GnosisSafe source definitions (the AST mapping of this flattened file points to StateSender.sol:55), so the source was read directly from contracts/common/gnosis/GnosisSafe.sol (v1.1.1). Source loops: getModulesPaginated (also via getModules), setupOwners (setup, while s < _N), getOwners (while s != 1, SENTINEL_OWNERS), checkSignatures (execTransaction while s < y, isValidSignature while idx < threshold); all present. Implicit: return-array copies (P7). Fallback handler forwarding and execTransaction gas/refund logic checked by structure.",
+  "summary": "Faithful Gnosis Safe text with all four loops present; the paginated-module loop carries its condition in a flag variable, otherwise only minor known patterns."
+}

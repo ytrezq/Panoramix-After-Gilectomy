@@ -1,0 +1,25 @@
+{
+  "id": "c00331",
+  "abi_functions": 21,
+  "reviewed": 21,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P6": 1, "P7": 2, "P8": 15},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "permit(address,address,uint256,uint256,uint8,bytes32,bytes32), permit(address,address,uint256,uint256,bytes)",
+      "lines": "238-250, 374-381",
+      "decompiled": "mem[_7 + 386 len 4] = 371636862 / idx = 0 / while idx < 196: mem[_7 + idx + 582] = mem[_7 + idx + 386]; idx = idx + 32 / static call owner with: args mem[_7 + 582 len 196]",
+      "source": "SignatureChecker-style: IERC1271(signer).isValidSignature(digest, signature) via abi.encodeCall and staticcall",
+      "issue": "A copy of known constant length (196 bytes) stays a word loop, the selector 0x1626ba7e is written as the decimal 371636862, and the EIP-1271 staticcall loses its function name and arguments (P2, P7).",
+      "rule": "A word-copy loop with a constant trip count is a copy line mem[d len n] = mem[s len n]; print 4-byte selector constants in hex; with the buffer resolved, the call prints as isValidSignature(digest, signature).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loop in Sky.sol; both while loops are memory copies of the abi-encoded isValidSignature calldata (P7). ERC20/permit/rely/deny logic otherwise faithful and readable (ecrecover with v from the signature byte, nonces++, Approval events).",
+  "summary": "Small, faithful token text without loops; only the EIP-1271 fallback in permit is obscured by a constant-length copy loop and a raw-memory staticcall."
+}

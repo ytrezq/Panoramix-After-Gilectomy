@@ -1,0 +1,69 @@
+{
+  "id": "c00029",
+  "abi_functions": 26,
+  "reviewed": 26,
+  "not_reviewed": [],
+  "source_loops": 24,
+  "loops_shown": {"while": 24, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 43, "P4": 2, "P6": 3, "P7": 55, "P8": 516, "P11": 77, "P18": 40},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "flashLoan, batchSwap, queryBatchSwap, swap, joinPool, exitPool, manageUserBalance, managePoolBalance",
+      "lines": "1060-1062 (flashLoan); 1980 (authorizer); 2292; 2614, 3297; 1728-1941 (manageUserBalance SafeERC20)",
+      "decompiled": "require ext_code.size(recipient) / call recipient with: gas gas_remaining args mem[mem[64] len _82 + 32 * _86 + 32 * _92 + 32 * _98 + ceil32(_104) - mem[64] + 260]  |  static call authorizer with: ...  |  call address(_412) with: args mem[mem[64] len ...]",
+      "source": "FlashLoans.sol: recipient.receiveFlashLoan(tokens, amounts, feeAmounts, userData); Authentication: _getAuthorizer().canPerform(actionId, user, address(this)); SafeERC20 safeTransfer/safeTransferFrom",
+      "issue": "The flash-loan callback, the authorizer check, the SafeERC20 transfers and the pool hooks built in memory after an allocation lose their function and arguments (about 50 unnamed calls); their arguments are assembled by copy loops.",
+      "rule": "Same root cause as c00409: stores at mload(0x40) + k cannot alias slot 0x40 (pointer >= 0x80, sizes < 2^64), so forward them into the call input; the call then resolves to its selector and ABI words.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getPoolTokens, getPoolTokenInfo, joinPool, exitPool, swap, batchSwap, queryBatchSwap, register/deregisterTokens",
+      "lines": "e.g. getPoolTokens: 'mem[32 * s + 32 * stor1[poolId].field_0 + 192] = stor[sha3(s, sha3(poolId, 1) + 1) + 1]', 'address(stor[s + sha3(sha3(poolId, 8))])'; queryBatchSwap 1317 'while idx < stor[_319]'",
+      "decompiled": "stor[sha3(s, sha3(poolId, 1) + 1) + 1]  |  address(stor[s + sha3(sha3(poolId, 8))])  |  while idx < stor[_319]:",
+      "source": "EnumerableMap: map._entries[i]._value / ._key (struct at slot 1 + 1 of _generalPoolsBalances[poolId]); EnumerableSet: set._values[i]; map._length",
+      "issue": "231 storage accesses into the EnumerableMap/EnumerableSet structs of a mapping are printed as raw slot arithmetic (and the pool's token count as stor[_319]), though the decompiler already names stor1[poolId].field_0 and stor8[poolId].field_0 for the same structs.",
+      "rule": "stor[sha3(k, sha3(key, N) + j) + m] is a mapping-of-mapping/struct access: struct at mapping N[key], member j (a mapping) indexed by k, member m; stor[sha3(sha3(key, N)) + i] is element i of the dynamic array at N[key] (member 0); print them as such.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "flashLoan, queryBatchSwap, batchSwap, swap, joinPool, exitPool, manageUserBalance, managePoolBalance, getPoolTokens, register/deregisterTokens",
+      "lines": "e.g. 1043-1057 (flashLoan), 2636-2688 (exitPool), 1351-1363 (queryBatchSwap)",
+      "decompiled": "while idx < _98: mem[t] = mem[s]; idx = idx + 1; s = s + 32; t = t + 32  |  while idx < _104: mem[... + idx + 260] = mem[idx + ...]; idx = idx + 32 / if idx > _104: mem[...] = 0",
+      "source": "abi.encode of IERC20[]/uint256[]/bytes for events and external calls; Address.functionCall data copies",
+      "issue": "55 memory-to-memory copies (array encodes, bytes copies) remain while loops.",
+      "rule": "Known P7: a loop mem[t + 32i] = mem[s + 32i] (or with a uint160 cleanup) for i < n with no other effect is one copy line.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getPoolTokens, getPoolTokenInfo, joinPool, exitPool (totalsAndLastChangeBlock); getInternalBalance and token loops",
+      "lines": "getPoolTokens 'while s < _57' body; getInternalBalance 165-167",
+      "decompiled": "_59 = mem[_44 + 32 * s + 32] / mem[_45 + 32 * s + 32] = mem[_44 + 32 * s + 36 len 14] + mem[_44 + 32 * s + 50 len 14] / t = t - t * (t < _59 >> 224) + (t < _59 >> 224) * (_59 >> 224)  |  stor11[user][concat(Bytes(12, 0), mem[32 * s + 172 len 20])]",
+      "source": "BalanceAllocation.totalsAndLastChangeBlock: results[i] = total(balance) (cash + managed); lastChangeBlock_ = Math.max(lastChangeBlock_, lastChangeBlock(balance)); _internalTokenBalance[user][tokens[i]]",
+      "issue": "The two 112-bit halves of a word already held in _59 are re-read as 14-byte memory slices; Math.max's branch-free form a - (a - b) * (a < b) is distributed instead of shown as max; an address element is a two-part concat.",
+      "rule": "After w = mem[p], read mem[p + 18 len 14] as uint112(w) and mem[p + 4 len 14] as uint112(w >> 112); a - (a - b) * (a < b) is max(a, b); concat(Bytes(12, 0), mem[p + 12 len 20]) is address(mem[p]).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "WETH(), getProtocolFeesCollector(), every ETH path (batchSwap, swap, joinPool, exitPool, manageUserBalance)",
+      "lines": "953, 1822, 1905, 2031, 2614, 3297",
+      "decompiled": "call 0x0 with: ...  |  static call 0x0 with: ...",
+      "source": "AssetHelpers._weth immutable; ProtocolFeesCollector immutable",
+      "issue": "solc immutables read as 0 in the undeployed runtime code.",
+      "rule": "none (input artifact)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "26 ABI functions plus the fallback/receive reviewed. Long functions (batchSwap, queryBatchSwap, swap, joinPool, exitPool, manageUserBalance) reviewed by structure; getPoolTokens, getInternalBalance, registerTokens, deregisterTokens read in full. Loops: 24 explicit loops (each counted once): the loops of batchSwap, deregisterTokens, flashLoan (2), getInternalBalance, managePoolBalance, manageUserBalance, registerTokens, _translateToIERC20, totalsAndLastChangeBlock, the 4 register/deregister and 2 get-tokens loops of General/MinimalSwapInfo pools, _setGeneral/_setMinimalSwapInfoPoolBalances, _processJoin/_processExitPoolTransfers, _unsafeCastToInt256, _validateTokensAndGetBalances, _processGeneralPoolSwapRequest, _swapWithPools; all shown as readable whiles (39 inlined copies). The other 68 whiles are implicit: 13 validating calldata decodes (readable) and 55 memory copies (P7). P11: the 77 'assert s < length' bounds checks inside loops whose test is s < the same length. P4 header count kept (2); the 68 two-part concat keys are a separate shape (finding 4). No semantic error found (checked _getPoolSpecialization's 'value < 3' BAL#500 check, totalsAndLastChangeBlock, the two-token toBalance overflow BAL#526, the register/deregister flows).",
+  "summary": "All 24 loops are present and readable and the logic is faithful, but EnumerableMap/Set storage is raw slot arithmetic, 55 copies stay loops, and the flash-loan callback, authorizer and token-transfer calls lose their names after an allocation."
+}

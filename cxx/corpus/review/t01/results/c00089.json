@@ -1,0 +1,47 @@
+{
+  "id": "c00089",
+  "abi_functions": 55,
+  "reviewed": 55,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 11, "P3": 1, "P6": 15, "P7": 2, "P8": 20},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setup(bytes) (_addOperator), and the same in other role writes",
+      "lines": "1705-1716",
+      "decompiled": "_25 = mem[64] / mem[mem[64]] = 52 / ... _27 = sha3(mem[_25 + 32 len mem[_25]]) / ... stor[sha3(0xde9bdca3...26ab, Bytes(20, address(cd[params + 36])))] = stor[_27] | 2",
+      "source": "RolesBase._addRole: _setRoles(account, _getRoles(account) | (1 << role)) with slot keccak256(abi.encodePacked(ROLES_PREFIX, account))",
+      "issue": "The same slot is printed twice differently in one statement: the read through _27 (a hash of a buffer at the free-memory pointer) and the write through the resolved sha3(prefix, address); the second buffer is the same 52 bytes rebuilt at a constant offset from _24.",
+      "rule": "Resolve a sha3 over mem[b + 32 len mem[b]] once the length word and contents at base b + constant are known (same base reasoning as the P2 fix), so both accesses print as the same slot expression.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setFlowLimits, setTrustedChains-type operator functions (onlyRole)",
+      "lines": "478",
+      "decompiled": "if not 2 * uint1(stor[sha3(0xde9bdca3...26ab, Bytes(20, caller))].field_1): revert with 0xbb6c1639, caller, 1",
+      "source": "RolesBase.onlyRole(uint8(Roles.OPERATOR)): hasRole = roles & (1 << role) != 0",
+      "issue": "A bit test prints as 2 * uint1(x.field_1).",
+      "rule": "2**k * Mask(1, k, x) >> k == x & 2**k, and a test of it is a test of x & 2**k.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "setup(bytes)",
+      "lines": "1702-1704",
+      "decompiled": "_20 = not mem[128] or bool(sha3(mem[160 len mem[128]])) / if _20: revert with 0x08e1064e",
+      "source": "InterchainTokenService.sol:672 keccak256(bytes(chainName_)) != chainNameHash (immutable)",
+      "issue": "The immutable chainNameHash reads as 0, so the check compares the hash with 0; immutables for the gateway, token handler, factories also read as 0.",
+      "rule": "none (pre-deployment bytecode)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (3), all whiles: Multicall.multicall's for (369; the delegatecall arguments stay raw memory, P2), _setup's for over trustedChainNames (1745), setFlowLimits' for (483; CREATE3 address of the token manager recomputed in the body). Implicit: the rotated zero-init of 'new bytes[](n)' (361, P3), the abi.decode of string[] from calldata (1683), the bytes[] return encoding (410; bytes copies are MCOPY copy lines). Storage string writes (_setChainName, trusted chain names) print as copy lines with the Panic(34) encoding checks, as solc emits them. Custom errors print as raw selectors where the signature database lacks them.",
+  "summary": "Good, faithful text: the three source loops are clear whiles and string/bytes copies are copy lines; remaining issues are small (a slot printed two ways, bit tests as products, raw-memory delegatecall arguments)."
+}

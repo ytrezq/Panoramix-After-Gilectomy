@@ -1,0 +1,58 @@
+{
+  "id": "c00512",
+  "abi_functions": 44,
+  "reviewed": 44,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 1, "P2": 215, "P6": 43, "P7": 84, "P8": 300, "P17": 0, "P18": 300},
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "executeAction(bytes,bytes32[],uint8[],bytes32[])",
+      "lines": "6017, 6075, 6165, 6252, 6343, 6405, 6440, 6488, 6573, 6631, 6703, 6771, 6860, 6922, 6957, 9651",
+      "decompiled": "if ext_call.success: ...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)  (after the ETH send of withdrawTokens, after SafeERC20 'low-level call failed' setups, after the rmul of getRatio)",
+      "source": "McdBoostComposite.sol _boost: _dfsSell(...) (slippage check, SlippageHitError/ZeroTokensSwapped), approveToken + IJoin.join + frob, withdrawTokens(flAddr, daiAmount), getRatio(...) after; revert RatioNotLowerThanBefore / TargetRatioMiss; logData = abi.encode(...)",
+      "issue": "16 paths stop: the success continuations of the SafeERC20/ETH transfers inside the exchange and the post-boost ratio check. RatioNotLowerThanBefore (0x0c1c9c40), TargetRatioMiss (0xf2b69436), SlippageHitError (0x16437be0) and ZeroTokensSwapped (0x6a756fbe) appear nowhere in the text, so the safety checks of the boost are lost; ActionEvent is emitted only on the paths that avoid them.",
+      "rule": "Not a rewrite: the decompiler's path limit; sharing the continuation after a SafeERC20 call (a join point reached from many inlined call sites) instead of duplicating it per path would let these paths finish.",
+      "verified": "reading only (grep of the error selectors in the text)"
+    },
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "executeActionDirect(bytes)",
+      "lines": "3670, 4189, 4609, 4830, 4878, 4906, 4921",
+      "decompiled": "if mem[_6548 + 32] != _6521 * mem[_6548 + 32] / _6521 and _6521: revert with Panic(17) / ...  # Decompilation aborted",
+      "source": "McdBoostComposite.sol _boost (same as executeAction) then logger.logActionDirectEvent(\"McdBoostComposite\", logData)",
+      "issue": "7 paths stop, the same parts as in executeAction (ratio check after the boost, SafeERC20 approve/transfer continuations); logActionDirectEvent is reached only on one surviving path (3575).",
+      "rule": "As for executeAction.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getRatio(uint256,uint256) (and the inlined getRatio of executeAction*)",
+      "lines": "675-723",
+      "decompiled": "static call 0x35d1b3f3....  with: args mem[mem[64] len _34 + ceil32(return_data.size) - mem[64] + 68] ... mem[_41 + ceil32(return_data.size)] = ... / return memory from mem[64] len _41 + ceil32(return_data.size) - mem[64] + 32",
+      "source": "McdRatioHelper.sol:19-28 (uint256 collateral, uint256 debt) = getCdpInfo(_vaultId, ilk); if (debt == 0) return 0; return rdiv(wmul(collateral, price), debt) / (10 ** 18);",
+      "issue": "After the '_nextPrice == 0' if/else the free-memory pointer is a phi, so Vat.urns and Vat.ilks lose their names (P2) and the uint256 result is returned as a memory range whose length contains mem[64], instead of 'return 0' / 'return rdiv(...) / 10**18'.",
+      "rule": "Fold mem[64] after a join when each predecessor stored mem[64] = (its own base) + ceil32(return_data.size) and the reads use that base; 'mem[p] = v; return memory from p len 32' is 'return v'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getRatio, getPrice, getCdpInfo, internal_0x12dc (getChainlinkPriceInUSD), executeAction*",
+      "lines": "675, 717-720, 9658-9659, 9686-9687",
+      "decompiled": "SafeMath.add(SafeMath.mul(_39, mem[_41 + 32]), 500000000 * 10**18) / (1000000000 * 10**18) / return 100 * 10**6 / require mem[_7] == mem[_7 + 22 len 10]",
+      "source": "DSMath.rmul: add(mul(x, y), RAY / 2) / RAY; TokenPriceHelper: return 1e8; Chainlink latestRoundData returns uint80 roundId",
+      "issue": "RAY, RAY / 2, WAD / 2 and 1e8 print as products (1000000000 * 10**18, 500000000 * 10**18, 5 * 10**17, 100 * 10**6), and the uint80 range checks of the oracle answer print as slice comparisons.",
+      "rule": "Print a constant k * 10**n in its shortest normal form (10**27, 5 * 10**26, 10**8); x == x[22 len 10] of a word is x == uint80(x).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The pack's sources for McdBoostComposite's own functions (executeAction*, _boost, _drawDebt, parseCompositeParams) are taken from LlamaLendSelfLiquidateWithColl.sol (a source-unit mix-up of the pack); the review used the real contracts/actions/mcd/McdBoostComposite.sol. The only source loop the pack lists (TxSaverBytesTransientStorage.setBytesTransiently, for i < chunks) is not in this bytecode: getBytesTransiently is an external call on another contract, so source_loops = 0. The 88 whiles are all implicit: 84 memory-to-memory copies of bytes (abi.decode of the BoostParams/ExchangeData bytes members, encoding of call buffers, including a fixed 'while idx < 68' copy of overlapping ranges) counted as P7, and 4 validated ABI decodes (uint8[]/address[] with a require per element). The getters, the price/oracle helpers, getCdpInfo, getRatio, getUrnAndIlk, withdrawStuckFunds, calcGasCost read; executeAction (4729 lines) and executeActionDirect (2667) reviewed by structure. getChainlinkPriceInUSD's self-call is printed as the recursive internal_0x12dc (good). The 17 constant getters are the 'const' lines at the head of the text. Custom errors not in the signature database print as selectors (0xf1474319 TokenDecimalsUnsupportedError, normal). The memory zeroing of the BoostParams struct (2274-2297...) and decoded fields as memory slices (P8, P18) dominate the start of both execute functions.",
+  "summary": "The view helpers are exact and readable, but the two execute functions lose 23 paths (the post-swap and post-boost checks never appear) and are dominated by 84 memory-copy whiles, P2 calls and memory-slice struct fields."
+}

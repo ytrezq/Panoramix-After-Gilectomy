@@ -1,0 +1,25 @@
+{
+  "id": "c00186",
+  "abi_functions": 53,
+  "reviewed": 53,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 21, "P6": 14, "P8": 40, "P15": 10},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "buyAsset, sellAsset, buyAssetWithSig, sellAssetWithSig, the preview/getter functions",
+      "lines": "1173-1176, 1216-1219",
+      "decompiled": "static call 0x0.unknowna7b78c3c(?) with: gas gas_remaining args _ths, 1 ; static call 0x0.unknown5ded74a5(?) with: args _13, 0",
+      "source": "Gsm4626: PRICE_STRATEGY / UNDERLYING_ASSET / GHO_TOKEN are immutables",
+      "issue": "The price strategy, underlying vault and GHO token are solc immutables, zero in the pre-deployment runtime code, so their calls read as calls to 0x0.",
+      "rule": "None (pre-deployment artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No source loops and no whiles. The four 150-300 line functions (buyAsset, sellAsset and their WithSig variants, distributeFeesToTreasury-like c350de6c/aa443ac0) read in full for calls, storage writes, events and reverts; the rest fully. The text follows the source: frozen/seized checks, fee strategy calls guarded by `if stor57`, checked additions/subtractions (some reassociated, e.g. `_5 - _13 + _2 > _5 + _2`), exposure/accrued-fee updates, GHO mint/burn and asset transfers. Parameter names of database-known selectors come from other contracts (`buyAsset(uint256 _ths, address _referral)`, `getBuyFee(uint256 _tokenId)`), harmless. P2: calls to the price strategy and vault with raw-memory arguments; P8: selector stores before named calls. No semantic error found.",
+  "summary": "Clean, faithful text without loops; the only visible oddities are immutable call targets printed as 0x0 (pre-deployment artifact) and some raw-memory call arguments."
+}

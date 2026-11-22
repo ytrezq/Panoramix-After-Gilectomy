@@ -1,0 +1,47 @@
+{
+  "id": "c00256",
+  "abi_functions": 14,
+  "reviewed": 14,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P3": 3, "P4": 1, "P6": 9, "P7": 9, "P8": 50, "P10": 2, "P11": 4, "P14": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "setRoot(bytes32,uint32,(uint32,uint64,uint64,address,uint64,bool),bytes32[],(uint8,bytes32,bytes32)[]) (0x7cc38b28)",
+      "lines": "296-303, 314-347 and the custom-error reverts 350-362, 392-404",
+      "decompiled": "_65 = mem[64] / mem[mem[64]] = 0 / mem[64] = _65 + 32 / mem[_65 + 32] = sha3(Bytes(28, 0x19457468...), sha3(_param1, _param2)) / mem[_65 + 64] = uint8(v) ... / signer2 = ecrecover(mem[mem[64] len _65 - mem[64] + 160])",
+      "source": "ManyChainMultiSig.sol:222 address signerAddress = ECDSA.recover(signedHash, sig.v, sig.r, sig.s);",
+      "issue": "The ecrecover inputs are printed as raw memory although mem[64] was just set to _65 + 32 and the four words were written there (in other contracts the same precompile call prints as ecrecover(hash, v, r, s)); ECDSA's messages and the custom errors (SignersAddressesMustBeStrictlyIncreasing, InvalidSigner, ...) are raw-memory reverts.",
+      "rule": "Forward the last store to mem[64] (provably >= 128, so 'mem[mem[64]] = 0' cannot alias it) into the following reads; then the precompile input mem[_65 + 32 len 128] decodes to (hash, v, r, s) and the reverts to 'revert with sel' / Error(string).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "setConfig(address[],uint8[],uint8[32],uint8[32],bool) (0x846c67ef)",
+      "lines": "564-597",
+      "decompiled": "s = 0 / t = 4 / idx = 68 / while 1092 > idx: stor[t] = 256**s * uint8(cd[idx]) | ~(255 * 256**s) & stor[t]; t = t + (s + 1) / 32; s = s - (s + 1) / 32 - s * ((s + 1) / 32) + 1 ... / while u: stor[v] = ~(255 * 256**u) & stor[v] ... / stor[v len -v + max(5, v)] = 0",
+      "source": "ManyChainMultiSig.sol: s_config.groupQuorums = groupQuorums; s_config.groupParents = groupParents; (uint8[32] calldata to packed storage)",
+      "issue": "The two uint8[32] calldata-to-packed-storage copies stay as loops with the byte position updated as s - (s + 1) / 32 - s * ((s + 1) / 32) + 1 (that is (s + 1) % 32), followed by a tail-clearing loop and a clear line that never do anything, since 32 bytes fill exactly one slot.",
+      "rule": "Simplify s + 1 - ((s + 1) / 32) * (s + 1) to (s + 1) % 32; with a constant trip count (68..1092 step 32) the final s is 0 and t is 5, so 'while u' and the clear of [5, 5) are dead; print the packing loop as one copy 'stor4 = cd[68 len 1024] packed as uint8[32]'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setRoot (0x7cc38b28)",
+      "lines": "370-385",
+      "decompiled": "while uint8(_120) == stor4[uint8(u)]: ... if Mask(8, 8 * (u % 32), stor[uint8(u) / 32 + 5]) >> 8 * (u % 32) >= 32: ... mem[32 * uint8(stor[uint8(u) / 32 + 5] / 256**(u % 32)) + 320] = ... / u = Mask(8, 8 * (u % 32), stor[uint8(u) / 32 + 5]) >> 8 * (u % 32)",
+      "source": "ManyChainMultiSig.sol:233-246 while (true) { groupVoteCounts[group]++; if (groupVoteCounts[group] != s_config.groupQuorums[group]) break; if (group == 0) break; group = s_config.groupParents[group]; }",
+      "issue": "s_config.groupQuorums prints as the array stor4[u], but s_config.groupParents (the same packed uint8[32] layout one slot later) prints as raw slot arithmetic, in two different forms for the same element; the while(true) is rotated (first increment peeled, P3) with 'continue loop1' for the group == 0 break.",
+      "rule": "Recognise uint8(stor[b + i / 32] >> 8 * (i % 32)) (and the Mask/256** forms) as element i of a packed uint8 array at slot b, as is already done for slot 4.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 14 ABI functions compared in full (setRoot and setConfig carefully: the reversed j loop of setConfig, with i = 31 - j appearing as cd[-32 * idx + 2084], checks MalformedGroupTree/OutOfBoundsGroupQuorum/the disabled-group children exactly; the signature loop, the ancestor walk and the quorum checks of setRoot are exact). Loops: all 7 source loops are whiles: setConfig's four (signerGroups, the 32-group check, old-signer removal with pop and the final assert -> Panic(1), new signers), setRoot's signatures loop (labelled 'loop1') with the while(true) group walk (rotated, P3), and MerkleProof's proof loop (in setRoot and execute). The other 13 whiles are implicit: getConfig's Signer[] and two uint8[32] storage-to-memory copies (rotated, P3) and three encodings, the oldSigners copy, the four packing/clearing loops of the uint8[32] storage stores (finding), the execute data copy and the ConfigSet event copy (P7). P10/P11: the '||' of the group-tree test printed with nested two-armed ifs and the uint8 calldata validation repeated three times per element.",
+  "summary": "Faithful, including the subtle group-tree and quorum logic, with every source loop a while; readability suffers from raw-memory ecrecover/reverts, the packed uint8[32] stores as obscure loops, and groupParents shown as raw slot arithmetic."
+}

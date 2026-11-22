@@ -1,0 +1,36 @@
+{
+  "id": "c00137",
+  "abi_functions": 49,
+  "reviewed": 49,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 13, "P6": 81, "P7": 60, "P8": 80, "P11": 5},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getVoterState, getVoterStateMultipleAtVote, vote, attemptVoteFor, attemptVoteForMultiple, canVote, getVote (votes[voteId].voters[voter] and the vote's other inner mappings)",
+      "lines": "170-175 (getVoterStateMultipleAtVote) and 90 lines in all",
+      "decompiled": "mem[0] = address(cd[32 * idx + _param2 + 36]) / mem[32] = sha3(_param1, 2) + 6 / assert uint8(stor[sha3(address(cd[32 * idx + _param2 + 36]), sha3(_param1, 2) + 6)]) <= 4 / mem[32 * idx + 224] = uint8(stor[sha3(..., sha3(_param1, 2) + 6)])",
+      "source": "Voting.sol: struct Vote { ...; mapping (address => VoterState) voters; } mapping (uint256 => Vote) internal votes; votes[_voteId].voters[_voter]",
+      "issue": "The text knows 'stor2 is mapping of struct of 7 slots' but a mapping stored inside that struct is printed as raw stor[sha3(key, sha3(id, 2) + 6)] (90 times) with its scratch stores, instead of a mapping access.",
+      "rule": "stor[sha3(k, sha3(i, s) + o)] where slot s is a mapping of structs and o is within the struct is the mapping member at offset o: print stor_s[i].field_(256 o)[k] (and drop the keccak scratch stores).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "newVote (2 variants), forward, executeVote, attemptVoteFor(Multiple), vote, changeMinAcceptQuorumPct, changeSupportRequiredPct, and other functions with Aragon require messages after memory allocation (89 sites)",
+      "lines": "e.g. 954-970 (changeMinAcceptQuorumPct), 1307-1320 (newVote)",
+      "decompiled": "revert with memory from mem[64] len ...  |  mem[128] = 14 / mem[0] = 0x564f54494e475f4e4f5f564f5445.. / mem[0] = 0 / mem[160] = 0x564f54494e475f4e4f5f564f5445..",
+      "source": "require(..., ERROR_NO_VOTE) and the other string-constant requires of Voting / AragonApp (solc 0.4 stores the message in memory before the test)",
+      "issue": "89 Error(string) reverts whose message was copied from a memory string stay raw memory reverts; the early ones are decoded but leave the message's preparation (length, string word, a scratch store immediately cleared) as dead stores (P8).",
+      "rule": "As in c00561: a string literal stored in fresh memory and only read by an Error(string) revert is that literal; decode Error(string) layouts relative to any base; drop the dead preparation.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Long functions reviewed by structure: attemptVoteFor and attemptVoteForMultiple (~450 lines), executeVote, forward, newVote (2 variants); the getters, delegation functions, canExecute and the setters read. Source loops: _getVotingPowerMultipleAt (getVotingPowerMultiple 757, getVotingPowerMultipleAtVote 350), attemptVoteForMultiple (2654), getDelegatedVoters (462), getVoterStateMultipleAtVote (170); all while. MiniMeToken.getValueAt, listed as reached by the pack, is not in this bytecode (the token is called externally) and is not counted. Implicit: ~60 memory copy loops of solc 0.4 (bytes/string arguments and return arrays, EVM script handling in forward/newVote/executeVote) are P7; zero-filled arrays print as code.data[20894 len n] (codecopy past the code end). P11: 'assert idx < mem[_3]' implied by the loop bound (getDelegatedVoters 476). The SafeMath block mixes MATH_* and MATH64_* messages correctly for the uint256/uint64 helpers.",
+  "summary": "Faithful text with every source loop found, but mappings nested in the Vote struct print as raw keccak storage reads (90 lines), the many Aragon require messages stay raw memory reverts, and solc 0.4's memory copies remain loops."
+}

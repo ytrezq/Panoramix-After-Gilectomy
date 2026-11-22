@@ -1,0 +1,58 @@
+{
+  "id": "c00499",
+  "abi_functions": 36,
+  "reviewed": 36,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 5, "P3": 2, "P4": 6, "P7": 10, "P8": 30, "P9": 8, "P11": 5, "P12": 10, "P18": 10},
+  "findings": [
+    {
+      "kind": "semantics",
+      "severity": "high",
+      "function": "setKeepers(address[],address[])",
+      "lines": "727-729",
+      "decompiled": "log KeepersUpdated(\n      address[] keepers=Array(len=keepers.length, data=mem[224 len 32 * keepers.length], payees.length, mem[32 * keepers.length + 256 len 32 * payees.length]),\n      address[] payees=32 * keepers.length + 96)",
+      "source": "KeeperRegistry1_2.sol:499 emit KeepersUpdated(keepers, payees)",
+      "issue": "Same log-decoding error as c00122: the second dynamic array is printed as its offset (32 * keepers.length + 96) and the first Array swallows the payees' length and elements, so read literally the event's payees argument is a number.",
+      "rule": "Decode each dynamic event parameter at the offset given by its head word; never print a head word of a dynamic parameter as its value.",
+      "verified": "reading only (stores: mem[128] = 64, mem[160] = 32 * n + 96, keepers at 224, payees after)"
+    },
+    {
+      "kind": "semantics",
+      "severity": "high",
+      "function": "performUpkeep(uint256,bytes)",
+      "lines": "the exact-gas require and the payment lines after the performUpkeep call (see decompiled)",
+      "decompiled": "require gas_remaining - SafeMath.sub2(gas_remaining, 5000) / 64 - 5000 > mem[...]\ncall stor7[id].field_352.performUpkeep(bytes performData) ...\nif SafeMath.sub(_3, gas_remaining) > 0xff...ec77f: revert with Panic(17)\n... uint96(stor7[id].field_0) = uint96(SafeMath.sub(..., (10**18 * _3 * mem[...] - 10**18 * gas_remaining * mem[...] + ...)))\nlog UpkeepPerformed(uint96 payment=uint96((10**18 * _3 * mem[...] - 10**18 * gas_remaining * ...",
+      "source": "KeeperRegistry1_2.sol _performUpkeepWithParams: gasUsed = gasUsed - gasleft(); payment = _calculatePaymentAmount(gasUsed, params.adjustedGasWei, params.linkEth); _callWithExactGas's 'let g := gas()'",
+      "issue": "gasleft() after the call is read once, but the text prints a bare gas_remaining in every later line (overflow tests, two balance writes, the keeper balance write, the event), after SSTOREs, so read literally each is a new and smaller gas value; the exact-gas test likewise prints its single GAS read twice. The entry read is correctly bound as _3.",
+      "rule": "Bind each GAS result to a variable where it executes and use the variable afterwards (as done for _3).",
+      "verified": "reading only (same known GAS-binding issue as c00432, c00465)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "performUpkeep(uint256,bytes) (inlined _calculatePaymentAmount)",
+      "lines": "payment lines after the call",
+      "decompiled": "SafeMath.add((10**18 * _3 * mem[ceil32(_1) + ceil32(_2) + ceil32(performData.length) + 544] - 10**18 * gas_remaining * mem[...] + 8 * 10**13 * mem[...]) / ..., ...) (repeated in six lines)",
+      "source": "KeeperRegistry1_2.sol _calculatePaymentAmount: weiForGas = gasWei * (gasLimit + REGISTRY_GAS_OVERHEAD); premium = PPB_BASE + paymentPremiumPPB; total = ((weiForGas * 1e9 * premium) / linkEth) + uint256(flatFeeMicroLink) * 1e12",
+      "issue": "The payment is distributed over (gasUsed + 80000) and multiplied out by 10**18, then repeated in full in each overflow test, the two balance writes and the event, with params.adjustedGasWei as a memory slot (P18), so the formula cannot be recognised.",
+      "rule": "Keep a product of a sum factored, and bind an expression used several times (the payment) to one temporary.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "checkUpkeep, performUpkeep, getMaxPaymentForGas, onTokenTransfer, withdrawFunds, withdrawPayment, migrateUpkeeps",
+      "lines": "-",
+      "decompiled": "static call 0x0.latestRoundData() ...; static call 0x0 with: args mem[...]",
+      "source": "immutable LINK, LINK_ETH_FEED, FAST_GAS_FEED",
+      "issue": "solc immutables read as 0: the feeds and the LINK token are called at address 0.",
+      "rule": "None: normal for this corpus.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 36 ABI functions reviewed; checkUpkeep, performUpkeep, migrateUpkeeps and receiveUpkeeps by structure. Source loops (5, all whiles): getActiveUpkeepIDs, migrateUpkeeps, receiveUpkeeps, setKeepers' two loops. Implicit: two rotated memory-array zero-inits in migrateUpkeeps ('while idx - 1': P3), bytes copies for abi.encodeWithSelector(CHECK_SELECTOR, checkData), TargetCheckReverted and the decodes (P7), the abi.encode of ids/upkeeps/checkDatas, setKeepers' calldata-to-storage copy and the event encodes. P12: migrateUpkeeps' permission checks printed in two arms; EnumerableSet.remove's pop/delete in both arms. Keys like keeperInfo[concat(Bytes(12, 0), Bytes(20, caller))] (P4-like) and the short checkData as '256 * stor10[id].field_8' are exact but obscure. getActiveUpkeepIDs returns 'memory from mem[64] len 32 * _1 + 32 * _11 - mem[64] + 224' (free-pointer root cause of P2). No execution run.",
+  "summary": "Faithful control flow and storage effects, but the KeepersUpdated event's second array is decoded as its offset, performUpkeep prints the post-call gasleft() as a bare gas_remaining in its payment and balance writes, and the payment formula is distributed and repeated."
+}

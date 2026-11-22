@@ -1,0 +1,80 @@
+{
+  "id": "c00505",
+  "abi_functions": 68,
+  "reviewed": 68,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 30, "P6": 8, "P7": 4, "P8": 350, "P9": 28, "P11": 7, "P12": 70, "P14": 25, "P15": 4, "P18": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "borrow, deposit, payback, setCores (and the Deposit log / return of deposit)",
+      "lines": "1994-2000, 2335-2358, 2364-2371, 2385-2391, 2440-2446, 2464, 2466-2470, 2636-2642, 1401-1408",
+      "decompiled": "mem[_50 + ceil32(return_data.size)] = 0x8c379a0...; ... = 30; ... = 0x496e746572616374696f6e2f746f6f2d6d7563682d7265717565737465640000\nrevert with memory from mem[64] len _50 + ceil32(return_data.size) - mem[64] + 100",
+      "source": "InteractionV2.sol:238 require(dart >= 0, \"Interaction/too-much-requested\"); :216 'deposit-deflated'; FullMath FULLDIV_OVERFLOW; SafeERC20 messages; :224 emit Deposit(...); :225 return dink",
+      "issue": "Same root cause as P2, but on reverts, logs and returns: once mem[64] is 'ceil32(return_data.size) + _50' (or a phi after the optional-return-data branch), 'X - mem[64]' is not reduced, so Error(string) reverts print as hex words, the Deposit data as 'mem[mem[64] len ...]' and 'return _amount' as 'return memory from mem[64] len _109 - mem[64] + 32'. The same messages print decoded in functions where mem[64] stays constant (initialize, setCollateralType).",
+      "rule": "Canonicalise commutative sums before comparing addresses (p + k vs k + p) and prove that writes at mem[p], p = 128 + non-negative terms, cannot alias mem[64]; then 'p + k + c - mem[64]' is c and the Error(string) layout folds to 'revert with <text>'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "setCores(address,address,address,address)",
+      "lines": "1348-1353",
+      "decompiled": "call stor104.approve(address spender, uint256 amount) with:\n    args Bytes(28, stor105 >> 32), Bytes(4, uint32(stor105)), 0",
+      "source": "InteractionV2.sol:129 hay.safeApprove(address(hayJoin), 0);",
+      "issue": "The spender is stor105 (hayJoin), but abi.encodeWithSelector's unaligned writes leave it as two byte slices of the same word, so the reader must reassemble the address.",
+      "rule": "Adjacent slices that are consecutive pieces of one word concatenate back to it: Bytes(32-n, x >> 8n) ++ Bytes(n, x mod 2^(8n)) = x.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "buyFromAuction(address,uint256,uint256,uint256,address)",
+      "lines": "1102-1123",
+      "decompiled": "mem[ceil32(_1) + 256 len min(192, return_data.size)] = ext_call.return_data[0 len min(192, return_data.size)]\n...\nrequire mem[ceil32(_1) + 352] == mem[ceil32(_1) + 364 len 20]\ncall stor108.drop(address, address) with: args stor104, Bytes(12, 0), mem[ceil32(_1) + ceil32(return_data.size) + 364 len 20]",
+      "source": "InteractionV2.sol:585-588 address urn = ClipperLike(collateral.clip).sales(auctionId).usr; dropRewards(address(hay), urn); emit Liquidation(urn, ...)",
+      "issue": "The liquidated address 'urn' is ext_call.return_data[96] of sales(), but it is shown as a 20-byte slice of a memory copy of a memory copy; the decode checks also show as slice comparisons.",
+      "rule": "After a dominating 'require return_data.size >= n', min(n, return_data.size) is n, so a read of mem[base + k] (k + 32 <= n) after the copy to base is ext_call.return_data[k]; 'x == mem[a + 12 len 20]' with x = mem[a] is 'x == address(x)'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "drip, borrow, deposit, payback, withdraw, startAuction (inlined _setCollateralDuty)",
+      "lines": "737-749, 1944-1950, 2276-2282, 2562-2568, 1685-1691, 1534-1540",
+      "decompiled": "mem[ceil32(_2) + ceil32(return_data.size) + 288] = collaterals[member].field_256\n...call jug.drip(...)\ncall jug.file(...) with: args mem[ceil32(_2) + ceil32(_3) + 288], 'duty', _4",
+      "source": "InteractionV2.sol:166-171 jug.drip(collateralType.ilk); jug.file(collateralType.ilk, \"duty\", duty);",
+      "issue": "The ilk stored into the memory struct a few lines earlier is not forwarded to the jug.file argument across the jug.drip call, whose return copy writes at most 32 bytes at a higher, disjoint offset.",
+      "rule": "A write 'mem[a len min(32, n)]' covers at most [a, a+32); with a common symbolic base, constant offsets 96 bytes apart do not overlap, so the earlier store can be forwarded.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "def SafeMath (div2, mul) used by collateralRate and borrowApr",
+      "lines": "39-52, 317, 482-489",
+      "decompiled": "def mul(a, b): require a * b / a == a\ndef div2(a, b): if not b: revert with 'Interaction/spot-not-init'",
+      "source": "InteractionV2.sol:390 require(mat != 0, \"Interaction/spot-not-init\"); hMath.sol:16 if iszero(eq(div(xx, x), x)) { revert(0,0) }",
+      "issue": "Generic-looking helpers are synthesised from local checks: div2 carries an application message, and mul(a, b) checks only a (a squaring check that is right only because every call is mul(u, u)).",
+      "rule": "Fold a check into a SafeMath helper only when the helper body is exactly the generic check for its parameters; otherwise keep the require inline or give the helper the specialised form (sqr(a)).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "borrowApr(address) (hMath.rpow loop)",
+      "lines": "481-490",
+      "decompiled": "require SafeMath.mul(u, u) + 500000000 * 10**18 >= SafeMath.mul(u, u)\n... _8 = SafeMath.add2(SafeMath.mul2((SafeMath.mul(u, u) + 500000000 * 10**18) / (1000000000 * 10**18), s), ...)\nu = (SafeMath.mul(u, u) + 500000000 * 10**18) / (1000000000 * 10**18)",
+      "source": "hMath.sol:15-25 xx, xxRound, x := div(xxRound, b), zx, zxRound",
+      "issue": "The loop is correct and readable as a while, but xxRound is recomputed four times and the new x twice, and RAY prints as 1000000000 * 10**18.",
+      "rule": "Name a repeated pure subexpression once per iteration (common-subexpression elimination) and fold constant products of powers of ten (10**27).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 68 ABI functions and the fallback reviewed; no semantic difference found. Loops: the four for loops of add/removeTo/FromBlacklist/Whitelist are clean whiles; hMath.rpow's Yul for (borrowApr) is 'while t' with the first iteration folded for the even YEAR and x == 0 folded to Panic(17), exact. AuctionProxy.getAllActiveAuctionsForClip's loop is in the delegatecalled library, not in this bytecode (not counted). Implicit: 4 calldata address[] decodes (readable), the Sale[] decode/re-encode of getAllActiveAuctionsForToken (readable whiles), and 4 bytes copies of SafeERC20/functionCall left as whiles (P7: deposit x2, payback, setCores). P12: deposit duplicates the blacklist/reentrancy/struct/jug.ilks prelude four times for the one-armed whitelisted and helioProviders ifs. P11: signed-add positive-overflow tests in the 'amount <' 0' arms (903-951, 1784-1857, 953-993), payback 'dart == MIN' after 'dart <' 0' reverts, borrow's dart+1 test, initialize's 'not initializing' test after setting the flag. P15: live=1/2 written as uint8 + uint24(field_520)=0. P18: struct members as 'mem[_38 + 12 len 20]' (startAuction, withdraw 'call mem[140 len 20].exit'). Selectors stored with len 4 print in decimal (599290589, 157198259). Events CollateralEnabled/Disabled and AuctionStarted are unnamed (not in the signature db); parameter names of withdraw/deposit from the db are misleading (withdraw(token, recipient) is (participant, token)). No execution run.",
+  "summary": "Faithful: every check, call, write and event matches the source, and all five source loops are clean whiles. Readability suffers from the unresolved free-memory pointer (30 P2 calls plus raw Error(string) reverts, log data and a return), the duplicated deposit prelude, FullMath expanded into polynomials, and memory slices for struct members and return data."
+}

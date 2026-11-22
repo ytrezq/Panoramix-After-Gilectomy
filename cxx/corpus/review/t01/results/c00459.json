@@ -1,0 +1,47 @@
+{
+  "id": "c00459",
+  "abi_functions": 54,
+  "reviewed": 54,
+  "not_reviewed": [],
+  "source_loops": 6,
+  "loops_shown": {"while": 6, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P4": 3, "P6": 3, "P12": 3},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "verifyBatches(uint32,uint64,uint64,uint64,bytes32,bytes32,address,bytes32[24]) (getRollupExitRoot inlined)",
+      "lines": "2164-2200 (if stor128 != 1 / else: while idx < 32), 2543-2618 (while True: if s < y: ...)",
+      "decompiled": "if stor128 != 1: <allocate first level> else: ... while idx < 32: <remaining levels>  |  s = 0 / t = ... / a = 32 / while True: / if s < y: <inner body> ... continue / <allocate next level> s = 0; t = y % 2 + y / 2 - 1; ... y = y % 2 + y / 2; a = a - 1 / continue / ... while idx < a - 1: <remaining levels>",
+      "source": "PolygonRollupManagerPrevious.sol:1694-1729 while (currentNodes != 1) { ...; for (uint256 i = 0; i < nextIterationNodes; i++) { ... } ... remainingLevels--; } ... for (uint256 i = 0; i < remainingLevels; i++)",
+      "issue": "In this copy the first test of 'while (currentNodes != 1)' is peeled into 'if stor128 != 1' with the remaining-levels loop duplicated in the else arm (with remainingLevels folded to 32), and the outer while and its inner for are merged into one 'while True' whose 'if s < y' branch is the inner loop and whose fall-through is the outer step; remainingLevels becomes 'a' off by one ('while idx < a - 1'). The same function is printed as properly nested 'while s - 1:' / 'while idx < s % 2 + s / 2' in getRollupExitRoot and in the other two copies.",
+      "rule": "A header reached by two back edges of different cycles (inner step, outer step) is two nested loops: split the header so the inner cycle gets its own while. Do not peel a loop's first test when the loop body is otherwise printed as a loop; keep one loop and one copy of its exit code.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "verifyBatches (and verifyBatchesTrustedAggregator, consolidatePendingState, overridePendingState, onSequenceBatches, which inline getRollupExitRoot once)",
+      "lines": "1972-2100, 2159-2200, 2270-2400, 2457-2500, 2543-2640",
+      "decompiled": "while idx < stor128: ... while s - 1: ... while idx < s % 2 + s / 2: ... while idx < u: ...   (printed in full in two branches, plus the split form)",
+      "source": "PolygonRollupManagerPrevious.sol:1670-1731 getRollupExitRoot(), called once at the end of _verifyAndRewardBatches",
+      "issue": "verifyBatches prints the inlined getRollupExitRoot (four loops, about 130 lines) in each arm of an earlier branch and a third time in split form, instead of once after the join.",
+      "rule": "Emit code reached from both arms of a branch once after the join (bind the differing values with phis) instead of tail-duplicating it.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getRollupExitRoot and its inlined copies",
+      "lines": "e.g. getRollupExitRoot body: 'while s - 1:', '32 * (s % 2) + 16 * Mask(251, 1, s)', 'mem[_67] = 64 ... sha3(mem[_67 + 32 len mem[_67]])'",
+      "decompiled": "while s - 1: / ... mem[64] = 32 * (s % 2) + 16 * Mask(251, 1, s) + mem[64] + 32 / ... _67 = mem[64] / mem[mem[64] + 32] = mem[64 * idx + t + 32] / mem[_67 + 64] = _66 / mem[_67] = 64 / ... / mem[64] = _67 + 96 / ... sha3(mem[_67 + 32 len mem[_67]])",
+      "source": ":1694 while (currentNodes != 1); :1696 new bytes32[](nextIterationNodes); :1704 keccak256(abi.encodePacked(tmpTree[i * 2], tmpTree[(i * 2) + 1]))",
+      "issue": "The loop test reads as 'while s - 1', the allocation size 32 * nextIterationNodes is split into 32 * (s % 2) + 16 * Mask(251, 1, s), and the keccak of the two packed words stays a hash of a memory range because the length 64 written at _67 is not forwarded past 'mem[64] = _67 + 96'; the same pair hash is shown as 'sha3(s, s)' where scratch memory is used.",
+      "rule": "Print a nonzero test of x - c as x != c. 16 * Mask(251, 1, s) = 32 * (s / 2), so 32 * (s % 2) + 16 * Mask(251, 1, s) = 32 * (s % 2 + s / 2). A write to mem[64] does not alias mem[_67] when _67 = old mem[64] >= 0x80; with the forwarded length, sha3(mem[_67 + 32 len 64]) is sha3(word1, word2).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Via-IR build; the pack lists getRollupExitRoot twice (ABI and public), its four loops are counted once. Reviewed in detail: getRollupExitRoot (leaf loop with uint32(i + 1) keys and checked SafeMath.add, level loop, odd-node branch with the zero hash, remaining-levels loop), rollbackBatches (while currentBatch != targetBatch), _updateBatchFee in verifyBatches ('while True: if uint64(s) == _61: ...' — the loop test is the first statement of the while True); the other rollup-management functions (create/add/update rollups, roles, getters) checked by structure and sampling. P12 counts the three duplicated getRollupExitRoot copies in verifyBatches; the external call at the end ('call 0x0.mem[_580 len 4] with: args c', globalExitRootManager.updateExitRoot) targets the zero immutable (artifact, not separately reported).",
+  "summary": "Faithful, with every source loop present; verifyBatches is bloated by three inlined copies of getRollupExitRoot, one of which merges its nested loops into a single while True with a peeled first test."
+}

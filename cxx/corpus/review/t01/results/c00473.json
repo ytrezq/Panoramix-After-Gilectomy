@@ -1,0 +1,47 @@
+{
+  "id": "c00473",
+  "abi_functions": 9,
+  "reviewed": 9,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 6, "P2": 124, "P3": 12, "P6": 20, "P7": 18, "P8": 60, "P11": 25, "P14": 40, "P18": 30},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "exactly(address)",
+      "lines": "2266-2286, 3211-3231",
+      "decompiled": "if mem[_2401 + 63 len 1] >= 78 and mem[_2401 + 63 len 1] >= 32: t = 10; u = 1; v = mem[_2401 + 63 len 1] / while v > 1: if t > -1 / t: revert with Panic(17); if not v % 2: _4192 = u else: _4192 = t * u; t = t * t; u = _4192; v = v / 2 / if u > -1 / t: revert with Panic(17); _4196 = t * u / else: _4196 = 10**mem[_2401 + 63 len 1]",
+      "source": "Previewer.sol: 10 ** market.decimals() (checked exponentiation)",
+      "issue": "The compiler's checked exponentiation helper is printed as a square-and-multiply while behind 'x >= 78 and x >= 32' (the second test is implied by the first); for base 10 any exponent >= 78 overflows, so the loop always ends in Panic(17), and the else arm already prints 10**x.",
+      "rule": "'a >= 78 and a >= 32' is 'a >= 78'; a square-and-multiply loop computing c**e with overflow checks is the checked power: print 'checked 10**e' (here: if e >= 78: revert with Panic(17) else 10**e).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "previewBorrowAtAllMaturities, previewDepositAtAllMaturities, exactly (12 allocation loops)",
+      "lines": "56-74, 881-890, 1206, 1657, 2382, 2474, 2549, 3327, 3431, 3471, 3572, 3658",
+      "decompiled": "mem[.. + 160] = 0; mem[.. + 192] = 0; mem[.. + 224] = 0; ... s = ceil32(return_data.size) + 160; idx = uint8(ext_call.return_data[0]) / while idx - 1: _2 = mem[64]; mem[64] = mem[64] + 96; mem[_2] = 0; mem[_2 + 32] = 0; mem[_2 + 64] = 0; mem[s + 32] = _2; s = s + 32; idx = idx - 1",
+      "source": "previews = new FixedPreview[](maxFuturePools) (memory array of structs, each element allocated)",
+      "issue": "The compiler's per-element allocation of a struct array is printed rotated: the first element is allocated before the loop, and the loop counts down with the condition 'idx - 1'.",
+      "rule": "Recognise the count-down allocation loop as one loop over all n elements ('for each element: allocate a zeroed struct'); 'while idx - 1' is 'while idx != 1'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "auditor(), basePriceFeed() and every call through them",
+      "lines": "3-4",
+      "decompiled": "const auditor = 0 / const unknowne41e7512 = 0",
+      "source": "Previewer immutables auditor and basePriceFeed",
+      "issue": "solc immutables read as 0 before deployment.",
+      "rule": "none (build artifact)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "exactly(address) (2,958 lines) reviewed by structure; the other six preview functions line by line against the source. Loops of Market.previewDebt, MarketBase.totalAssets, Auditor.accountLiquidity and RewardsController.claimable/pendingRewards/accountBalanceOperations are in other contracts (external calls) and are not counted. In-bytecode source loops (11): previewBorrowAtAllMaturities (77), previewDepositAtAllMaturities (893), exactly's market loop (1264), fixedPools, fixedPositions' two loops ('while v:' on packedMaturities at 3347/3488, 'while idx < u' at 3446/3587), rewardRates' four loops (2492, 2566, 2579, 2735 with '<='), claimableRewards (3695/3800); all whiles. Implicit: struct-array allocations (count-down loops, P3-like, 12), ABI decodes of returned arrays, return encodings, two checked-exponentiation loops (P7). P2 (124 lines) hides most market calls in exactly() and the try/catch self-calls ('static call this.address with: args mem[...]' for previewBorrowAtMaturity). Bound checks of previews[i] against the length just stored are kept (P11).",
+  "summary": "Complete and faithful with every in-bytecode source loop shown as a while; readability is hurt mostly by P2 (calls after the first allocation lose name and arguments), rotated struct-array allocation loops and the checked-exponentiation helper printed as a loop."
+}

@@ -1,0 +1,69 @@
+{
+  "id": "c00484",
+  "abi_functions": 89,
+  "reviewed": 89,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 62, "P2": 175, "P6": 17, "P7": 46, "P8": 400, "P9": 84, "P10": 120, "P11": 30, "P15": 50},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "epochEndDate()",
+      "lines": "148-149, 41, 984-987",
+      "decompiled": "def render(uint256 _day, uint256 _month, uint256 _year, string _engraving, bool _isLight): return render / render is uint256 at storage 290",
+      "source": "IdleCDOEpochVariant.sol:32 uint256 public epochEndDate",
+      "issue": "Selector 0x75d1497b collides in the signature database with render(uint256,uint256,uint256,string,bool); the getter is shown with five parameters it never reads and slot 290 (epochEndDate) is named render in 15 places.",
+      "rule": "Reject a database signature whose parameters disagree with what the function decodes (here no calldata read and no size check): fall back to unknownXXXXXXXX() and do not name storage after it.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "maxWithdrawable(address,address) (unknownef191b7f), getApr, updateAccounting, stopEpoch*",
+      "lines": "921-1006",
+      "decompiled": "(block.timestamp * (_6 * _1 / 10**18) * managementFee - _6 * _1 / 10**18 * latestHarvestBlock * managementFee) / (36500000 * 24 * 3600) repeated about 20 times; _19 = (-1 * (...) * (...) + _6 * _1 / 10**18 * (...)) / _17",
+      "source": "IdleCDOCreditVault._calculateManagementFee / IdleCDOEpochVariant._calcInterestWithdrawRequest",
+      "issue": "One management-fee value and one interest value are re-expanded inline in every check and use, and products are distributed over the subtraction ((a - b) * c printed as a*c - b*c, and -1 * x), so single lines run to 600 characters (P9).",
+      "rule": "Bind a non-trivial pure subexpression used more than once to a temporary at its first evaluation; keep (a - b) * c factored; print -1 * x as -x.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "transferToken(address,uint256) and the SafeERC20 paths (depositAA/BB, sendFundsToBorrower, getFundsFromBorrower...)",
+      "lines": "567-581, 3346-3368",
+      "decompiled": "mem[176 len 16] = stor202 >> 32 / mem[164 len 12] = 0 / mem[160 len 4] = 2835717307 / call _asset.transfer(address recipient, uint256 amount) with: args Bytes(28, stor202 >> 32), Bytes(4, uint32(stor202)), _amount",
+      "source": "IERC20Detailed(_asset).safeTransfer(governanceRecoveryFund, _amount) (abi.encodeWithSelector patches the 4-byte selector by read-modify-write)",
+      "issue": "The selector read-modify-write of abi.encodeWithSelector is printed as three partial-word stores, and the recipient word comes out as Bytes(28, x >> 32), Bytes(4, uint32(x)) instead of x; in other SafeERC20 paths the call becomes 'call token with: args mem[... len _14]' after a copy loop (P2, P7).",
+      "rule": "Merge adjacent byte slices that reassemble one value (Bytes(28, x >> 32) ++ Bytes(4, uint32(x)) = x for a 32-byte x); fold a masked read-modify-write of a known word into the resulting word.",
+      "verified": "reading only + disassembly (address masked at 0xa9a before the encoder)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "virtualPrice, depositAA, depositBB, updateAccounting, stopEpoch*",
+      "lines": "815-869, 3498-3548",
+      "decompiled": "if _2 <′ lastNAVAA + lastNAVBB + 0x8000000000000000000000000000000000000000000000000000000000000000 and lastNAVAA + lastNAVBB >=′ 0: revert with Panic(17)",
+      "source": "IdleCDOCreditVault.sol:306 int256 totalGain = int256(_nav) - int256(_lastNAV)",
+      "issue": "Each checked signed add/sub/mul is printed as two or four raw comparisons against 2**255 constants (378 lines with these constants), where unsigned ones use SafeMath.add/sub.",
+      "rule": "Recognize the exact signed-overflow test patterns of a - b, a + b and a * b and print them as SafeMath helpers for signed arithmetic (for example SafeMath.ssub).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "allowAAWithdrawRequest(), allowBBWithdrawRequest(), isEpochRunning(), emergencyShutdown(), restoreOperations()",
+      "lines": "37, 107, 140, 182, 316-317, 331",
+      "decompiled": "stor286 is uint24 at storage 286 / return bool(uint16(stor286) / 256) / return bool(stor286 >> 16) / uint16(stor286.field_8) = 257",
+      "source": "IdleCDOEpochVariant: slot 286 bool isEpochRunning, bool allowAAWithdrawRequest, bool allowBBWithdrawRequest",
+      "issue": "Three packed bools are one uint24 in def storage, so getters divide or shift and two flags are set together as uint16 = 257 (P15).",
+      "rule": "Split a slot into the fields its getters read (byte-aligned bools at offsets 0, 8, 16) and print a two-field store as two field stores.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loop in any reached source; the 47 while are implicit: 46 memory-to-memory copies (bytes for low-level calls, revert strings, string concatenation in _concat/_deployTranche) counted in P7, and 1 checked-exponentiation helper (while u > 1, oneToken = 10**decimals) which is readable. Reviewed by structure (calls, storage writes, events, reverts): stopEpochWithDuration (unknownc88e8447, 2153 lines) and stopEpoch (unknownd48099ad, 1762 lines); virtualPrice checked in detail against _virtualPriceAux (faithful). Most getters and setters are unknownXXXXXXXX (database). Custom errors Is0() (0x879d6504), ContractLimitReached() (0x1a8bb96e), Default() (0xc9c61e20) and event 0xddeda4ec... print raw because the database lacks them. depositDuringEpoch is shown as unknownc61e3faa(address _param1) although the address is the second ABI argument. Initializer checks after __init (Initializable: contract is not initializing, Ownable: caller is not the owner) are dominated (P11). P1: 36500000 * 24 * 3600 (FULL_ALLOC * 365 days), 365 * 10**18 * 24 * 3600, 18 * 24 * 3600 parts.",
+  "summary": "Faithful on the paths checked and free of spurious loops, but long-winded: repeated inline fee/interest expressions with distributed products, signed overflow checks as raw comparisons, SafeERC20 calls as raw memory, and a database collision that names epochEndDate render(...) with phantom parameters."
+}

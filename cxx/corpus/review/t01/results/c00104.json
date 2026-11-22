@@ -1,0 +1,61 @@
+{
+  "id": "c00104",
+  "abi_functions": 57,
+  "reviewed": 57,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {
+    "while": 5,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 38,
+    "P3": 7,
+    "P6": 18,
+    "P7": 12,
+    "P8": 20,
+    "P14": 40,
+    "P18": 30
+  },
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "preExecutionHook(uint8,address,uint256,bytes) (_checkBatch with LibBytes.slice inlined 4 times)",
+      "lines": "1824-1832, 1845-1852, 1925, 1961",
+      "decompiled": "mem[ceil32(min(4, mem[mem[mem[32 * s + 160] + 64]])) + mem[64]] = mem[ceil32(min(4, ...)) + mem[mem[32 * s + 160] + 64]] / idx = ceil32(_145) / while idx - 32: / mem[_148 + idx - 32] = mem[_142 + idx - 32] / idx = idx - 32",
+      "source": "solady LibBytes.sol slice(): for { let j := and(add(n, 0x1f), w) } 1 {} { mstore(add(result, j), mload(add(subject, j))); j := sub(j, 0x20); if iszero(j) { break } }  (ExaPlugin.sol:504-512 call.data.slice(0, 4), slice(4, length))",
+      "issue": "The Yul copy loop of LibBytes.slice is rotated (the first word, j = ceil32(n), is copied before the loop and the loop tests 'idx - 32') and stays a loop although it only copies ceil32(n) bytes from subject + 32 to result + 32.",
+      "rule": "A loop 'j = m; do { mem[d + j] = mem[s + j]; j = j - 32 } while j != 0' with m a multiple of 32 and no other effect is the copy mem[d + 32 len m] = mem[s + 32 len m]; recognise it before or after peeling, whichever comes first.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "collectDebit, collectCredit (x2), collectCollateral, collectInstallments, poke, pokeETH, swap, executeProposal (calls through executeFromPluginExternal)",
+      "lines": "387-391 (collectDebit) and the other _executeFromSender calls",
+      "decompiled": "mem[392 len 100] = Bytes(4, 0xb460af94), _param1, collector, caller / call caller.unknown38997b11(?) with: args Bytes(64, 0), 96, 100, Bytes(4, 0xb460af94), _param1, collector, caller, Bytes(28, 0)",
+      "source": "ExaPlugin.sol:250 _withdrawFromSender(EXA_USDC, amount, collector) -> IPluginExecutor(msg.sender).executeFromPluginExternal(target, 0, abi.encodeCall(IERC4626.withdraw, (amount, receiver, msg.sender)))",
+      "issue": "The arguments are printed along the memory stores instead of as ABI values: the zero target (an immutable) and the zero value are merged into Bytes(64, 0), and the inner bytes argument is spread as offset, length, selector bytes, three words and 28 padding bytes, instead of 0, 0, Array(len=100, data=withdraw(_param1, collector, caller)).",
+      "rule": "When the selector is known, cut the argument bytes at 32-byte boundaries after the selector and recognise (offset, length, data, padding) as one dynamic argument; a constant-zero region spanning two words prints as two zero words.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "AUDITOR, DEBT_MANAGER, EXA_USDC, EXA_WETH, EXTENSION, INSTALLMENTS_ROUTER, ISSUER_CHECKER and every function using them",
+      "lines": "3-11 (const ... = 0), 370-371 ('require ext_code.size(0)' / 'call 0x0.unknownb6724f79')",
+      "decompiled": "const unknown22f76d0f = 0 ... / require ext_code.size(0) / call 0x0.unknownb6724f79(?) with: args caller, _param1, _param2, Array(...)",
+      "source": "ExaPlugin.sol immutables (ISSUER_CHECKER.checkIssuer(...), EXA_USDC, ...)",
+      "issue": "The immutables read as 0, so the issuer check and the market/router calls target 0x0. Faithful to this bytecode.",
+      "rule": "",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed: the getters, role functions (AccessControl), setters (setCollector/setSwapper/setFlashLoaner/setProposalManager/setProposalNonce with their role checks), allowPlugin, hooks that revert (onInstall/onUninstall/postExecutionHook/userOp hooks), runtimeValidationFunction, propose/proposeRepay, collectDebit and collectCredit in full; collectInstallments, collectCollateral, poke/pokeETH, swap, receiveFlashLoan, executeProposal and executeProposals (~900 lines each), pluginManifest and preExecutionHook by structure (calls, loops, storage writes, reverts). No semantic error found. Loops: 5 source loops: collectInstallments' sum (516), executeProposals (3415), pluginManifest's executionFunctions loop (1428), _checkBatch (1815) and the Yul loop of solady LibBytes.slice (4 inlined copies, rotated, finding); the other text whiles are 3 rotated struct-array initialisations ('while idx - 1', P3), ABI encodings of the manifest's bytes4[]/struct arrays (P7) and the decoding of Call[] and FunctionReference[] (implicit). pluginMetadata() is a const of raw ABI words ('32, 128, 192, 256, 320, 10, 0x45786120506c7567696e00...') instead of the strings 'Exa Plugin', '1.1.0', 'Exactly' and an empty array. The reentrancy guard slot of solady (0x929eee149b4bd21268) is stor929E.",
+  "summary": "Faithful on the paths checked; the main obscurities are solady's slice copy loop printed as a rotated while in every inlined copy, plugin-executor calls whose bytes argument is spread as raw words, and ABI-encoding loops in pluginManifest; immutables read as 0."
+}

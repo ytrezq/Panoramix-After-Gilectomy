@@ -1,0 +1,77 @@
+{
+  "id": "c00515",
+  "abi_functions": 30,
+  "reviewed": 30,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {
+    "while": 3,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 4,
+    "P3": 3,
+    "P4": 7,
+    "P5": 3,
+    "P7": 18,
+    "P8": 56,
+    "P9": 1,
+    "P12": 1,
+    "P14": 1,
+    "P15": 38,
+    "P17": 1,
+    "P18": 17
+  },
+  "findings": [
+    {
+      "kind": "semantics",
+      "severity": "medium",
+      "function": "checkUpkeep (0xf7d334ba)",
+      "lines": "1198-1200, 1280, 1321, 1345, 1376",
+      "decompiled": "static call 0x0.latestRoundData() with: gas gas_remaining / _2 = gas_remaining / ... (max link payment, balance check, s_checkData copy) ... call address(stor4[_param1].field_72) with: gas uint32(stor[18]) ... / if _2 < gas_remaining: revert with Panic(17) / ... return 0, 192, 4, _2 - gas_remaining, _12, _25, ..",
+      "source": "if (upkeep.balance < maxLinkPayment) return (..INSUFFICIENT_BALANCE..); gasUsed = gasleft(); bytes memory callData = abi.encodeWithSelector(CHECK_SELECTOR, s_checkData[id]); (bool success, bytes memory result) = upkeep.target.call{gas: s_storage.checkGasLimit}(callData); gasUsed = gasUsed - gasleft();",
+      "issue": "The first gasleft() is bound as '_2 = gas_remaining' right after the second price-feed call, before the payment computation and the balance check, while the bytecode reads GAS just before hashing s_checkData[id] (pc 13511, after the balance check). The second gasleft() is printed at the return statements, after the result decoding, while the bytecode reads it right after the call. The gasUsed the text returns therefore measures a different window than the bytecode's.",
+      "rule": "GAS is position dependent: its value changes with every instruction, not only at calls. Bind gasleft() where the opcode executes and never move or re-print a gas_remaining read across other code.",
+      "verified": "bytecode disassembly: GAS at pc 13511 precedes mstore(0, id) / mstore(0x20, 7) / keccak (s_checkData[id]); GAS at pc 13840 follows the target call"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "checkUpkeep (0xf7d334ba)",
+      "lines": "1222-1242",
+      "decompiled": "if _12 * uint16(stor[15].field_96) and 7500 * uint8(uint8(stor[15]) + 1) + uint32(stor4[_param1].field_0) + 20 * uint32(stor[18].field_192) + 70000 > -1 / (_12 * uint16(stor[15].field_96)): revert with Panic(17) / if 70000 * _12 * uint16(stor[15].field_96) + 7500 * _12 * uint8(uint8(stor[15]) + 1) * uint16(stor[15].field_96) + _12 * uint16(stor[15].field_96) * uint32(stor4[_param1].field_0) + 20 * _12 * .. / if _12 * uint16(..) * uint32(..) > 0x44b82fa09b5a52cb98b405447c4a98187eebb22f008d5d64f9c394ae9: ..",
+      "source": "gasWei = fastGasWei * hotVars.gasCeilingMultiplier; gasPayment = ((gasWei * (gasLimit + gasOverhead) + l1CostWei) * 1e18) / linkNative; premium = (((gasWei * gasLimit) + l1CostWei) * 1e9 * hotVars.paymentPremiumPPB) / linkNative + uint256(hotVars.flatFeeMicroLink) * 1e12; if (upkeep.balance < reimbursement + premium) ..",
+      "issue": "The payment formula of _getMaxLinkPayment / _calculatePaymentAmount is distributed: gasWei * (gasLimit + 70000 + 7500 * (f + 1) + 20 * maxPerformDataSize) becomes a sum of four products, each multiplied again by 10**18 in the later overflow checks, the balance comparison is one 500-character expression, and the bound max / 1e9 is printed as a 57-digit hex constant. The reimbursement and premium are never named.",
+      "rule": "Keep a product of a sum as a product ((a + b) * c), bind repeated subexpressions (gasWei, gasOverhead, the two terms) to variables, and print a bound uint256_max / 10**k as such.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "migrateUpkeeps (0x85c1b0ba), checkUpkeep, receiveUpkeeps",
+      "lines": "1088-1091, 1127-1129, 1132-1145; 1306-1321, 1405-1433; 795-800",
+      "decompiled": "static call stor16_96 with: args mem[mem[64] len _125 + ceil32(return_data.size) + ceil32(_130) - mem[64] + 132]  |  call destination with: args mem[mem[64] len ceil32(_166) + 68]  |  mem[mem[64]] = 0xa9059cbb.. / mem[mem[64] + 4] = destination / mem[mem[64] + 36] = s / call 0x0 with: args mem[mem[64] len 68]  |  mem[_75] = 0 / mem[mem[64]] = 0 / .. _81 = mem[_75] / while idx < _81: .. / return 0, 192, 4, ..",
+      "source": "MigratableKeeperRegistryInterfaceV2(destination).receiveUpkeeps(UpkeepTranscoderInterfaceV2(s_storage.transcoder).transcodeUpkeeps(UPKEEP_VERSION_BASE, destination.upkeepVersion(), encodedUpkeeps)); i_link.transfer(destination, totalBalanceRemaining);  |  return (false, bytes(''), UpkeepFailureReason.UPKEEP_NOT_NEEDED, ..)",
+      "issue": "After a store at mem[mem[64]] the decompiler assumes mem[64] itself may have changed: migrateUpkeeps' transcodeUpkeeps, receiveUpkeeps and the LINK transfer of the migrated balance are nameless calls on raw memory (the transfer's selector, recipient and amount are only in the preceding stores); checkUpkeep's empty bytes('') returns copy mem[_75] bytes in a while although mem[_75] = 0 two lines above, and its main return is raw memory; UpkeepReceived logs mem[mem[64]] instead of the balance.",
+      "rule": "mem[64] only ever holds 0x80 plus non-negative bounded sizes, so a store at mem[64] + k (k >= 0) never changes mem[64]; with that the calls get their selectors' names and arguments, mem[_75] folds to 0 and the copy loop disappears.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "getMode, getLinkAddress, getFastGasFeedAddress, getLinkNativeFeedAddress; LINK and feed calls",
+      "lines": "3-6, 111, 134-140, 232, 260, 486, 1136, 1175, 1198",
+      "decompiled": "const getMode = 0 / const getLinkAddress = 0 / call 0x0.transfer(..) / static call 0x0.latestRoundData()",
+      "source": "address internal immutable i_link; i_linkNativeFeed; i_fastGasFeed; Mode internal immutable i_mode;",
+      "issue": "The immutables read as 0: LINK transfers and the two price feeds are calls to address 0, and i_mode = DEFAULT drops the Arbitrum block-number / block-hash and the Optimism / Arbitrum L1-fee branches (so OVM_GasPriceOracle's loop, an external contract anyway, is not counted). Not a decompiler error.",
+      "rule": "None (corpus artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 30 ABI functions (4 constants) and the fallback reviewed; no other semantic error found. Source loops (3): setPayees, migrateUpkeeps and receiveUpkeeps (test-at-top 'while True'), all whiles. Implicit: 18 ABI decodings / encodings and bytes copies (P7) and the zero-initialisation of bytes[] and Upkeep[] as rotated count-down 'while idx - 1' loops (P3). Error selectors and events that the decompiler's signature list lacks print as hex although they are in the ABI (UpkeepCancelled 0x9c0083a2, UpkeepAdminTransferred, UpkeepPaused...). registerUpkeep spells the new id three ways (sha3(.., stor18_64), concat(mem[0]), sha3(.., mem[224])); withdrawPayment pays mem[212 len 12] (the uint96 written at mem[192] ten lines above) in the storage write, transfer and event (P18); packed s_hotVars / s_storage fields are mostly raw stor[15..18].field_N (P15); the CHECK_SELECTOR is printed in decimal (1845821197).",
+  "summary": "Faithful except checkUpkeep's gas accounting, whose gasleft() reads are printed away from where the bytecode executes them; otherwise the payment formula is distributed into unreadable sums and the migration calls and LINK transfer are raw memory."
+}

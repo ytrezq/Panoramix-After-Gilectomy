@@ -1,0 +1,25 @@
+{
+  "id": "c00417",
+  "abi_functions": 46,
+  "reviewed": 46,
+  "not_reviewed": [],
+  "source_loops": 12,
+  "loops_shown": {"while": 12, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 6, "P3": 11, "P4": 8, "P6": 23, "P7": 12, "P8": 70, "P11": 10, "P12": 30},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "migrate(uint256,address)",
+      "lines": "1389-1440 (the LINK-transfer branches) and 1186-1197",
+      "decompiled": "if -uint96(u) + stor10 <= 0xffffffffffffffffffffffff: stor10 = uint96(-uint96(u) + stor10) ... _194 = LINK and bool(uint96(x)) / if not _194: ... if 0 >= mem[128]: ... stop / call mem[172 len 20].setCoordinator(address _coordinator) ... else: call LINK.transfer(...) ...   |   while -_to + address(stor[_3 + s]):",
+      "source": "VRFCoordinatorV2Plus.sol:672-689 s_totalBalance -= uint96(balance); ... if (address(LINK) != address(0) && balance != 0) { require(LINK.transfer(...), 'insufficient funds'); } s_config.reentrancyLock = true; for (i < consumers.length) consumers[i].setCoordinator(newCoordinator); ...",
+      "issue": "The consumer loop and its surrounding lock writes are printed once per arm of the LINK test, with the first iteration peeled (call target mem[172 len 20], i.e. consumers[0]); the uint96 underflow test reads '-uint96(u) + stor10 <= 2^96 - 1'; isTargetRegistered compares by a non-zero difference (as in c00007).",
+      "rule": "Hoist the common tail of an if/else; for unsigned N-bit a, b, 'b - a <= 2^N - 1' (computed in 256 bits) is 'a <= b'; mem[a + 12 len 20] as a word is address(mem[a]).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Same contract family as c00007 (ExposedVRFCoordinatorV2Plus, another chainlink copy): 38 of the 44 decompiled functions are identical to c00007's up to SSA numbering (same as c00007 for all of them, including the VRF curve loops, the uint256[2] copy loops and the rotated storage copies), and 6 differ only where the source does (LINK may be unset: 'if not LINK: revert 0xc1f0c0a1' in recoverFunds and oracleWithdraw, the guarded LINK transfer in migrate and in the cancel paths unknownaa433aff/unknown0ae09540, fulfillRandomWords). Source loops (12, all whiles): as in c00007 (isTargetRegistered, deregisterMigratableCoordinator, deregisterProvingKey, getActiveSubscriptionIds, pendingRequestExists' two, removeConsumer, deleteSubscription, migrate's consumer loop, fulfillRandomWords' numWords loop, VRF.fieldHash, VRF.hashToCurve). See c00007's findings for the 2-word copy loops and the raw migration-target access.",
+  "summary": "Faithful text identical in form to c00007's for most functions; all 12 source loops are found, with the same minor issues plus a migrate tail duplicated across the LINK-transfer branch."
+}

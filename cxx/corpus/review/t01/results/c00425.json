@@ -1,0 +1,47 @@
+{
+  "id": "c00425",
+  "abi_functions": 53,
+  "reviewed": 53,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 9, "P4": 3, "P6": 5, "P8": 120, "P11": 20},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "verifyBatchesTrustedAggregator-like unknown87c20c01(uint32,...)",
+      "lines": "unknown87c20c01 +806-876 (text ~2300-2380)",
+      "decompiled": "while True: if s < y: ... s = s + 1; continue / _557 = sha3(z, z) ... if y != 1: s = 0; t = y % 2 + y / 2 - 1; ... y = y % 2 + y / 2; z = _557; a = a - 1; continue",
+      "source": "PolygonRollupManagerPreviousV1toV2.sol:1647-1665 while (currentNodes != 1) { ... for (uint256 i = 0; i < nextIterationNodes; i++) {...} ... remainingLevels--; }",
+      "issue": "In this inlining of getRollupExitRoot the outer while and the inner for are flattened into one while True: the inner index s is reset by the outer step and the two loop tests appear as 'if s < y' and 'if y != 1' inside one body, so the nesting is lost (the other inlinings print the two nested loops correctly).",
+      "rule": "When a loop header is re-entered from a back edge that resets the induction variable after a different exit test, split it into an outer loop (test y != 1) containing the inner loop (test s < y).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "unknown87c20c01, unknown12b86e19, unknown1489ed10, unknown1608859c, unknown9a908e73 (9 calls)",
+      "lines": "897, 1288, 1474, 1785, 2123, 2265, 2421, 2563, 2702",
+      "decompiled": "_398 = mem[64] / mem[mem[64]] = 0x33d6247d00000000000000000000000000000000000000000000000000000000 / mem[_398 + 4] = t / call 0x0.mem[_398 len 4] with: args t",
+      "source": "globalExitRootManager.updateExitRoot(getRollupExitRoot())",
+      "issue": "The call's arguments are resolved but its selector is printed as the memory slice mem[_398 len 4] instead of updateExitRoot(bytes32), because the selector was stored through mem[mem[64]] and read through _398; same root cause as P2.",
+      "rule": "After _x = mem[64] with no intervening store to mem[64], mem[mem[64]] and mem[_x] are the same word, so the 4 selector bytes resolve and the function name is printed.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "globalExitRootManager, pol, bridgeAddress users",
+      "lines": "25 calls to 0x0",
+      "decompiled": "require ext_code.size(0) / call 0x0.mem[_398 len 4] with: ...",
+      "source": "immutable globalExitRootManager / pol / bridgeAddress",
+      "issue": "solc immutables read as 0 in the pre-deployment runtime code.",
+      "rule": "None (bytecode artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: getRollupExitRoot's 4 loops (for i < currentNodes as while idx < stor128, while currentNodes != 1 as while s - 1, inner for as while idx < s % 2 + s / 2, remaining levels as while idx < u; specialized to while idx < 32 when currentNodes == 1) inlined in 6 functions, and _updateBatchFee's while (currentBatch != last) as while True with break. via-IR build; the keccak of (zero, zero) pairs keeps its memory writes (P8). new bytes32[](n) sizes print as 32 * (y % 2) + 16 * Mask(251, 1, y). 40 events print with raw topics (database lacks them).",
+  "summary": "Loops are all present and mostly well nested, but one inlining flattens the Merkle-root nested loops into a single while True, and the exit-root update calls lose their selector to a memory slice."
+}

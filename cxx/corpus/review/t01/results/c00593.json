@@ -1,0 +1,63 @@
+{
+ "id": "c00593",
+ "abi_functions": 71,
+ "reviewed": 71,
+ "not_reviewed": [],
+ "source_loops": 15,
+ "loops_shown": {
+  "while": 14,
+  "copy_line": 1,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 146,
+  "P4": 3,
+  "P6": 84,
+  "P7": 60,
+  "P8": 80,
+  "P11": 10,
+  "P12": 20,
+  "P14": 40,
+  "P15": 10
+ },
+ "findings": [
+  {
+   "kind": "naming",
+   "severity": "medium",
+   "function": "addSigningKeys, addSigningKeysOperatorBH, getSigningKeys, obtainDepositData (def storage)",
+   "lines": "19-20, 1517-1518, 3581-3584, 3927-3928, 4941-4942",
+   "decompiled": "stor3 is fixed array of uint256 at storage 3 / stor4 is fixed array of uint256 at storage 4 ... stor[_233 + 2] = mem[...] / stor3[_233] = mem[...] / stor4[_233] = mem[...]",
+   "source": "SigningKeys.sol:72-74 sstore(add(curOffset, 2), ...); sstore(add(curOffset, 3), ...); sstore(add(curOffset, 4), ...) with curOffset = keccak256(abi.encodePacked(_position, _nodeOperatorId, _keyIndex))",
+   "issue": "The slots curOffset + 3 and curOffset + 4 of a key record are printed as elements of fictitious fixed arrays at slots 3 and 4, while curOffset + 1 and + 2 are printed as stor[_233 + 1/2]; slots 3 and 4 hold no variable.",
+   "rule": "A slot h + c with h a keccak value and c a small constant is a field of a record at h: print stor[h + c] (or h's record field c), never 'fixed array at c indexed by h'; reserve the fixed-array reading for c + i with i a small index and c a declared base.",
+   "verified": "reading only (same number either way: 3 + h = h + 3)"
+  },
+  {
+   "kind": "loop",
+   "severity": "medium",
+   "function": "addSigningKeys(uint256,uint256,bytes,bytes), addSigningKeysOperatorBH(...)",
+   "lines": "3515-3610, 3859-3954",
+   "decompiled": "s = 0; ... while True: if s >= _quantity: <SigningKeyAdded count event, packed write of the summary, keysOpIndex++, 2 logs> stop / ... body ... continue",
+   "source": "SigningKeys.sol:54 for (uint256 i; i < _keysCount;) { ... } return _startIndex; then NodeOperatorsRegistry._addSigningKeys updates the counters and emits",
+   "issue": "The loop's condition is hidden as an exit test at the top of 'while True', and the whole tail of the function after the loop is printed inside the loop under that test.",
+   "rule": "When the only exit of a 'while True' is a leading 'if c: <tail>; stop', print 'while not c: body' followed by <tail>; the tail does not depend on being inside the loop.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "every function touching signing keys (getKeyOffset), the NodeOperatorAdded/NameSet events and Error(string) reverts",
+   "lines": "4054-4071, 3530-3546, 1403, 1274",
+   "decompiled": "mem[mem[64] + 32] = 0xeb2b7ad4..; mem[_160 + 64] = _operator_id; mem[_160 + 96] = idx - 1 ... while w >= 32: mem[y] = mem[x]; ... _177 = sha3(mem[mem[64] len _160 + _162 - mem[64] + 128])",
+   "source": "SigningKeys.getKeyOffset: uint256(keccak256(abi.encodePacked(_position, _nodeOperatorId, _keyIndex)))",
+   "issue": "The key-record slot is a hash of raw memory built by a legacy bytes copy loop (P7), so 'sha3(0xeb2b.., _operator_id, idx - 1)' appears as 18 lines; the same for 18 events and 92 Error(string) reverts whose buffers start at mem[64].",
+   "rule": "Resolve buffers at mem[64] + k (fold mem[64] to _v after '_v = mem[64]'), turn the word-wise copy into a copy line, then keccak of a fully known buffer is sha3(word1, word2, ...).",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Aragon/solc 0.4.24 app with unstructured storage; the pack's compiler layout is empty. 15 source loops in this bytecode, all present: decreaseVettedSigningKeysCount:420, updateExitedValidatorsCount:497, getNodeOperatorIds:1343, _getRewardsDistribution:918 and :945 (getRewardsDistribution, distributeReward), getSigningKeys:1247, _distributeRewards:1384, _getSigningKeysAllocationData:790 and _loadAllocatedSigningKeys:833 (obtainDepositData), _invalidateReadyToDepositKeysRange:664, SigningKeys.loadKeysSigs:159, saveKeysSigs:54 (while True, second finding), removeKeysSigs:107 (while in removeSigningKeys, a single unrolled pass in removeSigningKey) with its inner :117 (while w < 5, a 5-slot storage copy that could be a copy line) and :126 (shown as the copy line 'stor[_212 len 5] = 0'). MinFirstAllocationStrategy.allocate is a public library function reached by DELEGATECALL to 0x114cf556... (line 4770), so its loops (:36, :76, :94) are not in this bytecode and are not counted. The other ~80 whiles are implicit: legacy word-wise bytes copies ('while idx >= 32' + masked tail merge, 14), event/return ABI encodings, and two calldata-to-storage string copies in addNodeOperator/setNodeOperatorName ('while _name + _name.length + 36 > idx'), counted as P7. Larger functions (obtainDepositData 560 lines, removeSigningKeys*, addSigningKeys*) reviewed by structure; the summary struct in slot 1 is read through shifts (stor1 >> 64, stor1 >> 192: P15). No semantic error found.",
+ "summary": "Faithful and all in-contract loops are present, but key-record slots + 3/+ 4 are named as fictitious arrays stor3/stor4, the key loop hides its condition with the function tail inside 'while True', and legacy memory copies keep hashes, events and reverts as raw memory."
+}

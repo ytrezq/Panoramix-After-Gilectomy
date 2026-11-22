@@ -1,0 +1,85 @@
+{
+  "id": "c00168",
+  "abi_functions": 42,
+  "reviewed": 42,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {
+    "while": 3,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 8,
+    "P3": 5,
+    "P4": 53,
+    "P6": 25,
+    "P7": 34,
+    "P8": 103,
+    "P10": 31,
+    "P12": 6,
+    "P18": 70
+  },
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "initialize (0x728cdbca)",
+      "lines": "218-255",
+      "decompiled": "def initialize(address _dusd, address _dfd, address _bFactory, uint256 _initiateSequence, uint256 _sequenceDuration, uint256 _immediateReleaseRatio): ... timelock = _dusd / sOHM = _dfd / gOHM = _bFactory / votingPeriod = _initiateSequence / votingDelay = _sequenceDuration / proposalThreshold = _immediateReleaseRatio",
+      "source": "function initialize(address timelock_, address sOHM_, address gOHM_, uint votingPeriod_, uint votingDelay_, uint proposalThreshold_)",
+      "issue": "The parameter names come from another contract's initialize(address,address,address,uint256,uint256,uint256) in the signature database, so the text reads 'votingPeriod = _initiateSequence', 'proposalThreshold = _immediateReleaseRatio' and checks '_dusd' against 'invalid timelock address'. The names describe a different contract.",
+      "rule": "A selector database gives the types of a signature but not trustworthy names when several contracts share it; print neutral names (_param1 ...) or names derived from the storage the param is written to, unless the names come from the contract's own ABI.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "propose (0xda95691a), execute, queue, cancel",
+      "lines": "propose 1310-1407, 1338-1361, 1745-1747, 1845-1885, 2258-2263; execute 572-573, 584-612; queue 823-826, 879-882; cancel 1192-1200",
+      "decompiled": "mem[_26 + ceil32(return_data.size) + 68] = 0x476f7665726e6f724f484d6567613a3a70726f706f73653a2070726f706f7365 / .. / revert with memory from mem[64] len _26 + ceil32(return_data.size) - mem[64] + 132  |  static call gOHM with: args mem[mem[64] len _22 + ceil32(return_data.size) - mem[64] + 68]  |  log ProposalExecuted(uint256 id=mem[mem[64] len _30 - mem[64] + 32])  |  _118 = sha3(mem[_116 + 32 len mem[_116]])",
+      "source": "require(gOHM.getPriorVotes(msg.sender, sub256(block.number, 1)) > getVotesFromPercentOfsOHMSupply(proposalThreshold), 'GovernorOHMega::propose: proposer votes below proposal threshold'); ... emit ProposalExecuted(proposalId); keccak256(abi.encode(target, value, signature, data, eta))",
+      "issue": "After the first return-data-sized allocation, every store at an address built on mem[64] is assumed to possibly overwrite mem[64]: propose's ten distinct require messages (threshold, arity, actions, live proposal, invalid id, overflows) are hex words in raw-memory reverts, its gOHM.balanceTo / getPriorVotes and timelock.GRACE_PERIOD calls are nameless with raw arguments, execute's executeTransaction and cancel's cancelTransaction are nameless calls, the ProposalCreated / Queued / Executed / Canceled data and propose's returned id are raw memory, and queue hashes raw memory.",
+      "rule": "mem[64] only ever holds 0x80 plus non-negative bounded sizes, so a store at mem[64] + k (k >= 0) never changes mem[64]; with that the reverts fold to revert with 'GovernorOHMega::propose: ...', the calls get their selectors' names and arguments, and the events and return print their values.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "propose (0xda95691a), state (0x3e4f49e6)",
+      "lines": "propose 1427-1468 (and 6 more copies to 1820), 1899-1974; state 282-330",
+      "decompiled": "_123 = _26 + ceil32(_1) + 512 / _124 = .. / _128 = .. (in each of 7 branches) ... proposals[concat(mem[_123])].field_0 = mem[_123] / address(proposals[concat(mem[_123])].field_256) = mem[_123 + 44 len 20] / ... latestProposalIds[concat(Bytes(12, 0), mem[_123 + 44 len 20])] = mem[_123]  |  _47 = _40 / _48 = _41 / _50 = _44 ... mem[_48] = _50 / return memory from mem[64] len _47 - mem[64]",
+      "source": "proposalCount++; Proposal memory newProposal = Proposal({id: proposalCount, proposer: msg.sender, ...}); proposals[newProposal.id] = newProposal; latestProposalIds[newProposal.proposer] = newProposal.id;  |  state(): return ProposalState.Canceled / Pending / ...",
+      "issue": "propose's construction tail (proposalCount++, the Proposal memory struct, the circulatingSupply call) is copied into the seven branches of the latest-proposal state check and then joined through the pointers _123/_124/_128, so the stored proposal is proposals[concat(mem[_123])] with every field a memory slice of the joined pointer instead of proposalCount, caller, 0, block.number + votingDelay... state() likewise returns its enum through 30 lines of pointer copies and 'return memory from mem[64] len _47 - mem[64]' instead of return 0..7.",
+      "rule": "Before joining paths, resolve memory reads through the incoming pointers (or join the values, not the pointers): when every path stores the same field values at its own base p, a read of mem[phi(p) + k] is phi of the stored values; a return of mem[p len 32] written with v on each path is return v.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "cancel (0x40e58ee5)",
+      "lines": "964-975 (and 4 more copies), 1125, 1159-1220",
+      "decompiled": "if 0 >= proposals[proposalId].field_768: log ProposalCanceled(..); stop / assert 0 < proposals[proposalId].field_1024 / .. / mem[mem[64]] = 0x591fcdfe.. (in 5 branches) ... s = mem[64] + 164 / t = .. / u = .. / v = 0 / w = 0 / x = .. / y = .. / z = 0 / while True: ... call timelock with: .. / if z + 1 >= proposals[proposalId].field_768: .. stop / ... v = z + 1 / w = z + 1 / z = z + 1",
+      "source": "for (uint i = 0; i < proposal.targets.length; i++) { timelock.cancelTransaction(proposal.targets[i], proposal.values[i], proposal.signatures[i], proposal.calldatas[i], proposal.eta); }",
+      "issue": "The loop is rotated: its first test, bounds checks and the selector/target stores of iteration 0 are copied into the five state branches, the shared 'while True' starts with the call and tests 'z + 1 >= targets.length' at the bottom, and it carries eight variables, with the counter three times (v, w, z) and y never read. execute and queue keep the same source loop as a readable while with the test at the top.",
+      "rule": "Undo the rotation: when the peeled head is the loop's own test and body prefix in every incoming branch, merge it back into a test-at-top loop and merge loop variables that always hold the same value; drop variables that are never read.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "initialize (0x728cdbca)",
+      "lines": "233-255",
+      "decompiled": "if not _2: mem[164] = 48 / mem[228] = 0x6c696420766f74696e672064656c6179.. / ... else: mem[164] = 49 / mem[228] = 0x6c696420766f74696e6720706572696f64.. / revert with Error(string reason), 32, mem[164], 'GovernorOHMega::initialize: inva', mem[228]",
+      "source": "require(votingPeriod_ >= MIN_VOTING_PERIOD && ..., 'GovernorOHMega::initialize: invalid voting period'); require(votingDelay_ ..., '... invalid voting delay'); require(proposalThreshold_ ..., '... invalid proposal threshold');",
+      "issue": "The optimizer shares the revert of the three range checks; the text keeps the shared block, so each message is a common 32-byte string prefix plus a per-branch length and a hex word in mem[164] / mem[228], and no branch shows which message it raises.",
+      "rule": "When a terminal block (revert, return) is reached from branches that each store different constants into the memory it reads, duplicate the terminal block into the branches so each revert prints its own message.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 42 ABI functions (11 constants) and the fallback reviewed; no semantic error found. propose (1043 lines) and getActions were reviewed by structure: calldata decoding of the arrays, the threshold / arity / max-operations / live-proposal checks, the latest proposal's inlined state() in 7 branches, the storage writes of the 4 arrays with clean-up loops, the 16 fields, latestProposalIds, the event and the return. Source loops (3): execute and queue as test-at-top 'while True', cancel rotated (finding). Implicit: 35 whiles (ABI decodings and encodings, storage<->memory array copies; P7) and a rotated address[] copy plus 4 storage-string copies with the first word peeled (P3). Also: proposals[id].receipts[voter] prints as raw stor[sha3(voter, sha3(proposalId, 11) + 15)]; _setPendingAdmin / _acceptAdmin read the old admin as stor[1] / stor[0] although def storage names them; VoteCast's empty reason prints as '128, 0'; ProposalCreated (10 params) prints as its topic hash.",
+  "summary": "Faithful but hard to read: the free-memory-pointer aliasing turns propose's requires, the gOHM/timelock calls and the events into raw memory, propose's construction tail is duplicated per branch and stored through a joined pointer, cancel's loop is rotated, and initialize carries another contract's parameter names."
+}

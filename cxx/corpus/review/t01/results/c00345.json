@@ -1,0 +1,47 @@
+{
+ "id": "c00345",
+ "abi_functions": 16,
+ "reviewed": [
+  "all 16 ABI functions (getters, isBlocked, isAuthorizedToBlock, getProxyAdmin/Implementation, changeIGovernor, the four initialize overloads, blockUntil, changeProxyAdmin, upgrade, upgradeAndCall)"
+ ],
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 1,
+  "P15": 45
+ },
+ "findings": [
+  {
+   "kind": "naming",
+   "severity": "low",
+   "function": "initialize(address,address,address,uint256), initialize(address,address), initialize(address), initialize(uint256)",
+   "lines": "228, 163, 107, 74",
+   "decompiled": "def initialize(address templateLibrary_, address clonableTokenAddress_, address initialAdmin, uint256 maxGenerationSize_) ... governor = address(templateLibrary_) ... governor = address(clonableTokenAddress_); proxyAdmin = address(initialAdmin); stor103 = maxGenerationSize_",
+   "source": "initialize(address _owner, address _governor, ProxyAdmin _proxyAdmin, uint256 _firstUnblockDate); initialize(address _governor, ProxyAdmin _proxyAdmin); initialize(address _governor); initialize(uint256 _firstUnblockDate)",
+   "issue": "Parameter names from unrelated contracts with the same signatures (template library, token addresses, total supply) label the owner, governor, proxy admin and unblock date.",
+   "rule": "Use the signature database for function names but neutral parameter names unless they come from the contract's own metadata.",
+   "verified": "by reading"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "upgradeAndCall; every initializer",
+   "lines": "209-224; 80-85 (and the 10 other initializer blocks)",
+   "decompiled": "mem[ceil32(data.length) + 288] = 0x9623609d...; ... call proxyAdmin with: value call.value wei gas gas_remaining args mem[ceil32(data.length) + 288 len _21 - ceil32(data.length) - 288]; _3 = stor0 / 256; stor0 = 257; _5 = not _3",
+   "source": "proxyAdmin.upgradeAndCall.value(msg.value)(proxy, implementation, data); bool isTopLevelCall = !initializing;",
+   "issue": "The forwarded upgradeAndCall call stays raw because solc 0.5 pads the bytes tail with a mask; in the initializer, '_3 = stor0 / 256' is read in the arm where it is known to be 0, so isTopLevelCall is printed as 'not _3' instead of 1, and the two Initializable flags stay one uint16 'stor0' read as 'stor0 / 256'.",
+   "rule": "Decode a call whose argument buffer starts with a known selector even when the last word is masked; fold a value tested in the enclosing condition; split a slot into the byte fields that are read and written separately.",
+   "verified": "by reading"
+  }
+ ],
+ "notes": "No loops in BlockableUpgradeDelegator, UpgradeDelegator, Blockable, Governed or zos Initializable. The nested initializer modifiers (4-argument initialize calls Governed.initialize(_owner), UpgradeDelegator.initialize, Blockable.initialize, each with its own check) are reproduced in order; notBlocked, the governor checks with their revert strings and blockUntil's threshold check match the source.",
+ "summary": "All 16 functions reviewed; no loops and the semantics match, including the nested zos initializers. Only small issues: misleading database parameter names on the initialize overloads, a raw upgradeAndCall forward, and an unsplit Initializable slot."
+}

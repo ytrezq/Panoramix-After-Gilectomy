@@ -1,0 +1,25 @@
+{
+  "id": "c00292",
+  "abi_functions": 20,
+  "reviewed": 20,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P11": 2, "P16": 12},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "add, addTo, addToMany (unknownf67a1389), remove, removeMany...",
+      "lines": "302-308",
+      "decompiled": "call 0x0.transferFrom(address sender, address recipient, uint256 amount) with: args caller, this.address, s",
+      "source": "Billing.sol: IERC20 public immutable graphToken; graphToken.transferFrom(msg.sender, address(this), totalAmount)",
+      "issue": "The graphToken immutable reads as 0 in pre-deployment code, so token calls target 0x0.",
+      "rule": "None needed (artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (3, all whiles, readable): addToMany's sum loop (296, with 'Must add more than 0') and its credit loop (with 'user != 0', the userBalances update and TokensAdded), and the third loop of the batch remove function (326). Calldata array elements print as cd[32 * idx + _param2 + 36] rather than _param2[idx] (P16, see c00239's finding); 'if idx >= cd[_param2 + 4]: Panic(50)' is implied by the length equality checked before (P11). The transferFrom result is decoded as a bool and not tested, as in the source. All 20 functions read; faithful.",
+  "summary": "Small, faithful and readable text with its three source loops found as whiles; only calldata elements as raw offsets and the token immutable artifact stand out."
+}

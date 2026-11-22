@@ -1,0 +1,36 @@
+{
+  "id": "c00014",
+  "abi_functions": 41,
+  "reviewed": 41,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 19, "P6": 100, "P7": 3},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "lockAcquired(bytes) (0xab6291fe), and the _handleAction code it inlines",
+      "lines": "e.g. 2-45 of the function body; 452 lines in all",
+      "decompiled": "cd[_param1 + Mask(27, 5, uint32(cd[_param1 + 100]) + 31) + cd[32 * idx + _param1 + Mask(27, 5, uint32(cd[_param1 + 100]) + 31) + 164] + 228]",
+      "source": "CalldataDecoder.sol:38-47 actions.length := and(calldataload(add(_bytes.offset, 0x40)), OFFSET_OR_LENGTH_MASK); paramsLengthOffset := add(and(add(actions.length, 0x1f), ...), 0x60); params.offset := add(paramsLengthPointer, 0x20)",
+      "issue": "The decoded params offset is never named: the aligned actions length Mask(27, 5, uint32(cd[_param1 + 100]) + 31) is re-expanded 452 times, nested twice in every params[i] field access, so most lines of the action handlers pass 240 characters.",
+      "rule": "Bind an expression to a variable when it is used more than a few times and has no side effects (calldata is immutable within a call); here params_base = _param1 + Mask(27, 5, uint32(cd[_param1 + 100]) + 31) + 164 and each params[i] base cd[32 * idx + params_base] + params_base.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "modifyLiquidities, lockAcquired, permit*, all vault and Permit2 calls",
+      "lines": "e.g. 328, lockAcquired 'if caller: revert with 0x62df0545' (104 calls to 0x0)",
+      "decompiled": "call 0x0.unknown81548319(?) ...  |  if caller: revert with 0x62df0545",
+      "source": "ImmutableState vault / permit2 immutables; SafeCallback onlyByVault: if (msg.sender != address(vault)) revert NotVault()",
+      "issue": "The vault and permit2 immutables read as 0 before deployment, so calls go to 0x0 and the vault-only check reads 'if caller:'.",
+      "rule": "None needed.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Via-IR build. The pack's reach lists miss BaseActionsRouter._executeActionsWithoutLock and CalldataDecoder.decodeActionsRouterParams, whose loops are in this bytecode: the strict-encoding Yul loop over params offsets -> 'while idx < 32 * uint32(...)' with the SliceOutOfBounds check after it, and the actions loop -> 'while idx < uint32(cd[_param1 + 100])' (lockAcquired) and 'while idx < cd[_param1 + 4]' (modifyLiquiditiesWithoutLock, with InputLengthMismatch); Multicall's loop -> 'while idx < data.length'. lockAcquired's action dispatch (by uint8(actions[i]) with the CL increase/decrease/mint/burn/settle/take handlers) and modifyLiquidities (lock with the payload copied as one Array argument, deadline check 0xbfb22adf, ContractLocked) reviewed by structure; getters and ERC721/permit functions checked. Implicit loops: multicall's results zero-init ('mem[idx + 160] = 96'), its result encoding, and permitBatch's PermitDetails[] decode loop (P7). P6 is mostly the transient locker slot 0xaedd6bde... (75 lines), plus Error(string) and 0x0b0d9c09 words.",
+  "summary": "Faithful, with all three source loops as whiles; the main readability problem is the never-named params offset expression (452 lines over 200 characters) in the inlined action handlers."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "c00150",
+  "abi_functions": 47,
+  "reviewed": 47,
+  "not_reviewed": [],
+  "source_loops": 14,
+  "loops_shown": {"while": 14, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 66, "P3": 10, "P6": 42, "P7": 99, "P8": 200, "P11": 40, "P14": 30, "P18": 20},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "pool(), bVault(), validator(), poolId(), poolController(), noticePeriod(), managementFee() and every pool/vault call",
+      "lines": "3-10",
+      "decompiled": "const pool = 0 / const bVault = 0 / const poolId = 0 ...",
+      "source": "AeraVaultV1 immutables pool, bVault, poolId, validator, poolController, noticePeriod, managementFee",
+      "issue": "solc immutables read as 0 in the pre-deployment runtime code, so Balancer pool and vault calls target 0 and the pool id is 0.",
+      "rule": "None (bytecode artifact).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "deposit/withdraw/finalize paths (unknown2adcfeab, unknown59e97475, unknownde9a3955, withdraw, finalize)",
+      "lines": "deposit +523-530, +585-640 (and the same in the other paths)",
+      "decompiled": "while idx - 1: _367 = mem[64]; mem[64] = mem[64] + 128; mem[_367] = 0 ... / while idx < _359: if idx >= mem[_361]: revert with Panic(50); mem[mem[_361 + 32 * idx + 32]] = 2 ... / while idx < _463: _482 = mem[s]; if mem[mem[s]] >= 3: revert with Panic(33) ...",
+      "source": "AeraVaultV1.updatePoolBalance: PoolBalanceOp[] memory ops = new PoolBalanceOp[](numAmounts); for (...) ops[i].kind = kind ...; bVault.managePoolBalance(ops)",
+      "issue": "The struct array is allocated by a rotated loop (P3, 10), filled through double indirection mem[mem[...]], and ABI-encoded by a loop that re-validates the enum; the struct members (kind, poolId, token, amount) are anonymous memory words and the managePoolBalance call loses its arguments (P2, P18).",
+      "rule": "Model a memory array of struct pointers as an array of records (ops[i].field_N) once the allocation loop is recognized; an encode loop that copies each record's words in order is a copy of the array into the call buffer.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (14): cancelWeightUpdates, claimGuardianFees, initialDeposit, updateWeightsGradually, depositTokens x2, getValuesFromTokenWithValues, lockGuardianFees x2, returnFunds, updatePoolBalance, updateWeights, withdrawTokens x2; mapped in deposit (getValuesFromTokenWithValues 166, deposit loop 180, updatePoolBalance 585/708, weights 805, updateWeights 849) and present as while in the other paths. Implicit: 28 ABI-decoding loops of address[] returns (getPoolTokens), 10 enum-checking encode loops, 99 memory copies (P7), 10 struct-array allocation loops (P3). Big paths reviewed by structure; most function names unknown (tuple signatures).",
+  "summary": "Loops present and readable at the source level; text dominated by struct-array plumbing (allocation loops, double indirection, encode loops) and immutables printed as 0."
+}

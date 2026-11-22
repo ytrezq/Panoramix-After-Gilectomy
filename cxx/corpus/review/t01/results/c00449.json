@@ -1,0 +1,36 @@
+{
+  "id": "c00449",
+  "abi_functions": 51,
+  "reviewed": 51,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P4": 3, "P8": 60, "P11": 3},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "rollbackBatches(address,uint64) (0x8fd88cc2), updateRollup/initMigration-type functions (0xdfdb8c5e, 0xc4c928c2, 0xe764a373), verify/sequence functions (0x1489ed10, 0x6c766877, 0x97d289a3)",
+      "lines": "def storage 14-18; 682-687, 690, 700, 942 (33 lines with stor1/3/6/7/9[...])",
+      "decompiled": "stor3 is fixed array of mapping of struct of 2 slots at storage 3 / _22 = sha3(stor130[_param1], 129) / if uint64(stor3[_22][s].field_320) < _param2: revert ... / stor3[_22][s].field_0 = 0 / uint64(stor[_22 + 6]) = _param2 / stor9[_41] = stor127[_param2].field_768",
+      "source": "AgglayerManager.sol:1058-1075 rollup.sequencedBatches[currentBatch] ... delete rollup.sequencedBatches[currentBatch]; rollup.lastBatchSequenced = targetBatch;",
+      "issue": "Members of the 10-slot struct mapping stor129 (RollupData) are declared as fixed arrays at slots 1, 3, 6, 7 and 9 and indexed by the struct's base hash (stor3[_22][s] is sequencedBatches of _rollupIDToRollupData[id]); the slot arithmetic is right but it reads as arrays at low slots, and the same member is printed three ways (stor129[...].field_1536 when read, stor[_22 + 6] when written, stor6[...] elsewhere).",
+      "rule": "A slot sha3(k, S) + m with m below the struct size of the mapping at S is member m of S[k] (and sha3(x, sha3(k, S) + m) an entry of that member's mapping); never type 'm + keccak' as a fixed array at slot m.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getRollupExitRoot() (0xa2967d99) and its two inlined copies (0x1489ed10, 0x6c766877)",
+      "lines": "530-538, 1296-1304, 1509-1517",
+      "decompiled": "while s - 1: / if 32 * (s % 2) + 16 * Mask(251, 1, s) + mem[64] + 32 > 18446744073709551615 ... / mem[64] = 32 * (s % 2) + 16 * Mask(251, 1, s) + mem[64] + 32 / mem[_17] = s % 2 + s / 2",
+      "source": "AgglayerManager.sol:1529-1531 while (currentNodes != 1) { uint256 nextIterationNodes = currentNodes / 2 + (currentNodes % 2); bytes32[] memory nextTmpTree = new bytes32[](nextIterationNodes);",
+      "issue": "The allocation size 32 * (s / 2 + s % 2) is printed as 32 * (s % 2) + 16 * Mask(251, 1, s), unlike the length stored right after; 'while s - 1' is 'while s != 1'.",
+      "rule": "16 * Mask(n, 1, s) is 32 * (s / 2) when s < 2^(n+1); prefer the factored form k * (a + b) when a + b already occurs; print a bare loop test 'x - c' as 'x != c'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 51 ABI functions compared (via-IR build, few memory problems: no P2 call except the bytes argument of upgradeToAndCall at line 961, shown as 64, mem[mem[64] + 68 len ...]). No semantic error found; the reentrancy guard uses transient storage and prints as transient[...]. Loops: getRollupExitRoot's four loops (fill tmpTree, while currentNodes != 1 with its inner for, and the remaining-levels for) are readable whiles in each of the 3 inlined copies, with the odd-node case, the Panic(50)/Panic(65) checks and remainingLevels-- (SafeMath.dec) exact; rollbackBatches' 'while (currentBatch != targetBatch)' is 'while s - _param2' with the RollbackBatchIsNotEndOfSequence revert and the 2-slot delete. 13 text whiles = 4 x 3 + 1, none spurious. P8: dead mem[0]/mem[32] hash-buffer writes (e.g. 'mem[0] = v; mem[32] = v').",
+  "summary": "Clean and faithful via-IR text with every source loop readable; the main problem is naming: the RollupData struct members appear as fake fixed arrays at slots 1-9 indexed by the struct's hash."
+}

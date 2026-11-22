@@ -1,0 +1,25 @@
+{
+  "id": "c00189",
+  "abi_functions": 54,
+  "reviewed": 54,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P4": 16, "P6": 1, "P7": 17, "P9": 6, "P11": 6, "P18": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setRateLimits (unknownc4f6d68f), resetRateLimits (unknownaeebf207)",
+      "lines": "1029-1048",
+      "decompiled": "mem[0] = Bytes(28, 0), mem[mem[32 * s + 160] + 28 len 4]; mem[32] = 6; ... if SafeMath.sub(block.timestamp, uint128(stor6[concat(mem[0])].field_0)) != (block.timestamp * stor6[concat(mem[0])].field_512 - uint128(stor6[concat(mem[0])].field_0) * stor6[concat(mem[0])].field_512) / ...",
+      "source": "SkyRateLimiter._checkAndUpdateRateLimit: decay = (rl.limit * timeSinceLastUpdate) / rl.window; rl.amountInFlight = ...; rl.lastUpdated = block.timestamp",
+      "issue": "The rate-limit entry is addressed as `stor6[concat(mem[0])]` with the uint32 eid key left as a memory slice (P4, P18), and `limit * (now - lastUpdated)` is distributed (P9), so the decay formula is spread over several 250-character lines.",
+      "rule": "Print a mapping key built from a single word as the word (`uint32(mem[x])`), and keep products unexpanded.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Functions are at most ~200 lines; all reviewed. Source loops, all whiles: lzReceiveAndRevert (`while idx < cd[_param1 + 4]`), _setEnforcedOptions (`while s < _76`), _resetRateLimits (inlined twice, for inbound and outbound) and _setRateLimits (inlined twice). Implicit: the uint32[]/RateLimitConfig[]/EnforcedOptionParam[] event and call encodings, calldata decodes, bytes copies for options (P7). P11: `if s >= cd[_param1 + 4]: revert Panic(50)` inside `while s < cd[_param1 + 4]`. No semantic error found.",
+  "summary": "Faithful, abort-free text with all 4 source loops as whiles; minor readability issues in the rate-limiter arithmetic (memory-slice concat keys, distributed decay)."
+}

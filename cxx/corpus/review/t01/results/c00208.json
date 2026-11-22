@@ -1,0 +1,36 @@
+{
+  "id": "c00208",
+  "abi_functions": 46,
+  "reviewed": 46,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 13, "P3": 1, "P6": 16, "P7": 16, "P8": 100, "P11": 6, "P13": 5, "P14": 40},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "propose, queue, execute, cancel, hashProposal, castVoteBySig",
+      "lines": "e.g. the inner copies of the bytes[] encodings ('while idx < _26: mem[idx + v + 32] = mem[_25 + idx + 32]; idx = idx + 32' / 'if idx > _26: mem[_26 + v + 32] = 0')",
+      "decompiled": "while idx < _26: mem[idx + v + 32] = mem[_25 + idx + 32]; idx = idx + 32 / if idx > _26: mem[_26 + v + 32] = 0",
+      "source": "abi.encode(targets, values, calldatas, descriptionHash) in hashProposal and the timelock calls (solc 0.8.9 copy_memory_to_memory)",
+      "issue": "P7: the per-element bytes copies of the bytes[] encodings and the uint256[] encodings ('mem[v] = mem[t]') stay word-copy loops (about 16).",
+      "rule": "As in c00441.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "grantRole, revokeRole, cancel and other onlyRole paths",
+      "lines": "e.g. 'if hasRole[stor[sha3(role, 0) + 1]][caller]:' in grantRole",
+      "decompiled": "if hasRole[stor[sha3(role, 0) + 1]][caller]: if not hasRole[role][account]: hasRole[role][account] = 1",
+      "source": "AccessControl: mapping(bytes32 => RoleData) _roles; RoleData { mapping(address => bool) members; bytes32 adminRole; } getRoleAdmin(role) = _roles[role].adminRole",
+      "issue": "P13: the struct mapping _roles is named hasRole (after one member's getter) and its adminRole member prints as raw stor[sha3(role, 0) + 1].",
+      "rule": "Name a mapping of structs by the struct, and print stor[sha3(k, m) + c] as member c of element k (e.g. roles[role].field_256).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops in this bytecode: OZ Strings.toHexString :60 ('while idx > 1', in grantRole/revokeRole/cancel for the AccessControl revert message; clear, with an implied 'if idx >= 42: Panic(50)' check, P11). TimelockController.scheduleBatch :227 and executeBatch :298 belong to the timelock, called externally, so not counted. Implicit loops: calldata decodes with per-element checks, address[] encodings with masks, bytes[] encodings as 'while True' with an inner copy loop and offset tables, rotated zero-init of bytes[] in propose (P3). propose/queue/execute/cancel/castVoteBySig reviewed by structure. No semantic error found.",
+  "summary": "Complete and faithful; the only source loop in this bytecode (toHexString) is a clear while loop. The governance entry points are dominated by ABI encodings of targets/values/calldatas with word-copy loops (P7) and raw-memory calls."
+}

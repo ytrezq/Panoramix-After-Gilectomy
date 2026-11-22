@@ -1,0 +1,40 @@
+{
+ "id": "c00529",
+ "abi_functions": 63,
+ "reviewed": 63,
+ "not_reviewed": [],
+ "source_loops": 12,
+ "loops_shown": {
+  "while": 12,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 7,
+  "P3": 2,
+  "P4": 18,
+  "P6": 1,
+  "P7": 10,
+  "P8": 50,
+  "P11": 10,
+  "P14": 60
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "allocateValidatorsAndUpdateOperatorId(uint256)",
+   "lines": "1312-1320",
+   "decompiled": "while True: ... if s % (stor255 - 1) - stor256 + 1: s = s % (stor255 - 1) + 1 / continue",
+   "source": "PermissionedNodeRegistry.sol:219-235 do { ... i = (i % (nextOperatorId - 1)) + 1; } while (i != operatorIdForExcessDeposit);",
+   "issue": "The do-while is found (as `while True` with the test at the end), but its exit test `i != operatorIdForExcessDeposit` is printed as the nonzero difference `s % (stor255 - 1) - stor256 + 1`.",
+   "rule": "Print a nonzero test of `a - b` (after collecting constants) as `a != b`; exact modulo 2^256.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Stader PermissionedNodeRegistry (solc 0.8.16). Source loops, all shown as whiles: whitelistPermissionedNOs (455), addValidatorKeys key loop (2124), allocateValidatorsAndUpdateOperatorId for over operators and the do-while (1312/1360/1394), markValidatorReadyToDeposit front-run and invalid-signature loops (1140, 1185), withdrawnValidators (741), getTotalQueuedValidatorCount (346), getOperatorTotalNonTerminalKeys (995, also inlined in addValidatorKeys at 1969), getAllActiveValidators (1481), getValidatorsByOperator (1781), StringsUpgradeable.toHexString in the AccessControl reverts. Implicit: bytes[] ABI encodes into external calls (P7), rotated new-array initialisations `while idx - 1` (P3). P4: mappings keyed by concat(mem[0]) (pubkey hashes). Long functions (addValidatorKeys 377 lines, getAllActiveValidators 289) reviewed by structure.",
+ "summary": "Good text: all twelve source loops, including a do-while, appear as whiles with readable bounds; minor issues are difference-style loop conditions, P4 mapping keys and implicit copy loops."
+}

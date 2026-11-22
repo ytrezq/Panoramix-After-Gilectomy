@@ -1,0 +1,47 @@
+{
+ "id": "c00165",
+ "abi_functions": 31,
+ "reviewed": 31,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 34,
+  "P6": 1,
+  "P7": 4,
+  "P8": 30
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "unknownfae1ba8f(address,address), unknownd76cc487(...)",
+   "lines": "1437-1471, 1911-1925",
+   "decompiled": "mem[196 len 4] = 3193963202; mem[200] = _param2; mem[232] = 64; mem[264] = 4; mem[296 len 4] = 1631983956 / while idx < 132: mem[idx + 328] = mem[idx + 196]; idx = idx + 32 / call _param1 with: args mem[328 len 132] / ... while idx < _12: mem[idx + mem[64] + 96] = mem[_10 + idx + 32] ... / return ext_call.success, 64, mem[mem[64] + 64 len _12 + 32], ...",
+   "source": "DssExecLib low-level helpers: (bool ok, bytes memory ret) = _target.call(abi.encodeWithSignature(..., _arg, abi.encodeWithSignature(...))); return (ok, ret)",
+   "issue": "Even with every address constant, the copy of the 132-byte encoded call into the call buffer stays a word loop, so a call whose selector and arguments are all known prints as 'args mem[328 len 132]'; the returned bytes are copied by another loop.",
+   "rule": "'i = 0; while i < n: mem[d + i] = mem[s + i]; i += 32' with constant, disjoint ranges is the copy 'mem[d len n] = mem[s len n]' (then decode the buffer as a call: selector, address, offset, nested bytes); the return copy is 'return ext_call.success, ext_call.return_data'.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "every state-changing library function",
+   "lines": "e.g. 1433",
+   "decompiled": "require this.address",
+   "source": "solc library call protection (the library's own address, a PUSH20 filled at deployment)",
+   "issue": "In this pre-deployment runtime the library address reads 0, so the delegatecall-only guard prints as 'require this.address'. Not a decompiler error.",
+   "rule": "none (corpus artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "DssExecLib is a library of thin wrappers (changelog getters, authorize/deauthorize, setters on MCD contracts); no explicit loop in the source. The 4 whiles are implicit word copies (P7, first finding). All 31 functions reviewed; the getters read the changelog via getAddress(bytes32) and the setters call file/rely/deny on the targets, matching the source. No semantic error found.",
+ "summary": "Faithful and simple; the only problems are word-loop copies of encoded calls (even at constant addresses) that keep two low-level calls and their returned bytes as raw memory."
+}

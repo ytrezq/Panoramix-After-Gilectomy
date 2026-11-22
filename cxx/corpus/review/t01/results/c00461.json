@@ -1,0 +1,42 @@
+{
+ "id": "c00461",
+ "abi_functions": 22,
+ "reviewed": 22,
+ "not_reviewed": [],
+ "source_loops": 10,
+ "loops_shown": {
+  "while": 10,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P1": 1,
+  "P2": 20,
+  "P4": 33,
+  "P6": 14,
+  "P7": 75,
+  "P8": 100,
+  "P9": 4,
+  "P11": 15,
+  "P14": 250,
+  "P15": 4
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "setRateLimiterConfig((bool,uint128,uint128))",
+   "lines": "167",
+   "decompiled": "stor3 = min(_param2, uint128(stor3)) | stor3 & 0x123456789abcdf012345677789abcdf0000000000000000000000000000000 * 3600 | _param1 << 160",
+   "source": "RateLimiter._setTokenBucketConfig: s_bucket.tokens = uint128(_min(config.capacity, s_bucket.tokens)); s_bucket.isEnabled = config.isEnabled; ...",
+   "issue": "The keep-mask of a packed-slot update (0xffffffffffffffffffffff00ffffffff00000000000000000000000000000000: keep lastUpdated and the upper bytes, clear isEnabled and tokens) is printed as a hex constant times 3600 (P1), which hides that this is a field write of tokens and isEnabled.",
+   "rule": "Never factor a time unit out of a constant whose hex digits are only runs of f and 0 (a bit mask); more generally factor only when the cofactor is small and decimal-looking. Then split the masked write into field assignments (P15).",
+   "verified": "python: 0x123456789abcdf012345677789abcdf0...0 * 3600 == 0xffffffffffffffffffffff00ffffffff00000000000000000000000000000000"
+  }
+ ],
+ "notes": "Chainlink CCIP EVM2EVMOffRamp (solc 0.8.24, no via-IR). Source loops: OCR2BaseNoChecks.setOCR2Config remove/add transmitters (470, 480), manuallyExecute gas-override loops over messages and their token amounts, _execute's hashing loop and main execution loop (in transmit and manuallyExecute, e.g. `while s < _276` at 2913 with the 2-bit execution-state bitmap), getAllRateLimitTokens, updateRateLimitTokens removes/adds (276, 330), _releaseOrMintTokens in executeSingleMessage; all present as whiles (mapped by structure, not line by line). ERC165Checker's interface-array loops and MerkleMultiProof (in the commit store) are not in this bytecode. The other ~80 whiles are implicit ABI decode/encode loops of nested message structs (bytes[], token amounts), P7. transmit, manuallyExecute and executeSingleMessage (800-950 lines each) reviewed by structure. The token-bucket refill is shown distributed: `block.timestamp * stor4_128 - uint32(stor3 >> 128) * stor4_128` for (now - lastUpdated) * rate (see c00026's distribution finding). P4: stor16[concat(mem[0])] bitmap words.",
+ "summary": "Faithful text with the source loops shown as whiles, but dominated by implicit decode/encode loops of nested CCIP structs; one packed-slot update hides its mask behind a P1 time-unit factorisation."
+}

@@ -1,0 +1,35 @@
+{
+ "id": "c00224",
+ "abi_functions": 70,
+ "reviewed": 70,
+ "not_reviewed": [],
+ "source_loops": 6,
+ "loops_shown": {
+  "while": 6,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P10": 8,
+  "P12": 10,
+  "P15": 66
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "buy, buyWithCustomerId, buyWithSignedAddress, invest, investWithCustomerId, investWithSignedAddress (inlined investInternal), def storage",
+   "lines": "1200-1226 and the same block in 5 more functions",
+   "decompiled": "if uint8(stor[16].field_16): ... while uint8(s) < joinedCrowdsalesLen: ... if joinedCrowdsales[uint8(s)] != this.address: _549 = t else: _549 = uint8(s) ... s = 0; u = t + 1 / while u < joinedCrowdsalesLen: ... _559 = joinedCrowdsales[u] ... s = _559",
+   "source": "CrowdsaleExt.sol:286-298 if (isWhiteListed) { for (var i = 0; ...) if (this == joinedCrowdsales[i]) num = i; ... for (var j = num + 1; ...) { CrowdsaleExt crowdsale = CrowdsaleExt(joinedCrowdsales[j]); crowdsale.updateEarlyParticipantWhitelist(msg.sender, this, tokenAmount); } }",
+   "issue": "isWhiteListed (slot 16, byte 2) is not declared in def storage and stays uint8(stor[16].field_16) (66 lines); the one-armed 'num = i' is printed with two arms and an SSA copy; the unused local 'crowdsale' survives as 's = _559'.",
+   "rule": "Declare every field of a packed slot that the code reads with a fixed mask (here bits 16-23); print 'if c: t = x' without the copying else; drop assignments to variables that are never read.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "solc 0.4.26. 6 source loops, all whiles and readable: updateJoinedCrowdsalesMultiple:491, setEarlyParticipantsWhitelist:463, setEndsAt:548 and its inner :554, investInternal:288 and :294 (inlined in the six buy/invest entry points). 'var i = 0' types i as uint8 in Solidity 0.4, and the text faithfully prints 'while uint8(s) < joinedCrowdsalesLen' (the loop cannot pass 255), while 'var j = num + 1' is uint256. send() shows as 'call multisigWallet with: value call.value, gas 2300 * (not call.value)'. No semantic error found; the text is close to the source.",
+ "summary": "Clean and faithful: all six loops (including the uint8 loop counters of Solidity 0.4 'var') are readable whiles; only small leftovers (an undeclared packed flag, a two-armed one-armed if, a dead local)."
+}

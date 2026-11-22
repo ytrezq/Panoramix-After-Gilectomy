@@ -1,0 +1,80 @@
+{
+  "id": "c00582",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 411, "P6": 140, "P7": 21, "P8": 250, "P9": 10, "P10": 4, "P11": 3, "P15": 76, "P18": 104},
+  "findings": [
+    {
+      "kind": "semantics",
+      "severity": "low",
+      "function": "emergencyExit(), withdrawAllToVault() (_redeemNoFlash specialised by _redeemMaximumWithFlashloan, borrow target 0)",
+      "lines": "1633, 4095",
+      "decompiled": "if min(SafeMath.add(_74, u), SafeMath.sub(v, SafeMath.div(t * u, collateralFactorNumerator))):",
+      "source": "AaveFoldStrategy.sol:498-503 requiredCollateral = borrowed.mul(_denom).div(collateralFactorNumerator()); toRepay = borrowed.sub(newBorrowTarget); toRedeem = Math.min(supplied.sub(requiredCollateral), amount.add(toRepay)); _redeem(toRedeem)",
+      "issue": "The operands of min are swapped, so read (and interpreted) left to right the text checks amount + toRepay for overflow (Panic 17) before the division by collateralFactorNumerator (Panic 18), while the bytecode divides first (0x4e7f-0x4ec5: div 0x2bd2, sub 0x2a71, add 0x29c1, min 0x2bad). With collateralFactorNumerator == 0 and _74 + borrowed >= 2^256 the text reverts with Panic(17) where the bytecode reverts with Panic(18). The general copies (5229-5240) print the checks as separate statements in order.",
+      "rule": "Never reorder the operands of a commutative operator when two or more of them can revert; or hoist each reverting sub-computation into a named temporary in execution order before the expression that uses it.",
+      "verified": "disassembly (pancxx disasm, the shared _redeemNoFlash body around 0x4e7f); not executed"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "withdrawToVault, withdrawAllToVault, emergencyExit, doHardWork, receiveFlashLoan, salvage, toggleMerklOperator (173 sites)",
+      "lines": "e.g. 1614-1620, 5229-5260 (calls); 1932-1940; 4400-4410",
+      "decompiled": "static call address(stor29E4) with: args mem[mem[64] len _69 + ceil32(return_data.size) - mem[64] + 36]  |  revert with memory from mem[64] len _X - mem[64] + 100  |  revert with Error(string reason), 32, mem[mem[64] + 36 len _224 + 32], Bytes(-_224 + ceil32(_224), 0)",
+      "source": "balanceOf / POOL() / withdraw / repay / approve / swap calls after the first call of each function; require messages ('Unable to withdraw the entire amountUnderlying', SafeERC20 messages, ...)",
+      "issue": "Same root cause as c00600/c00471: after the first external call the free-memory pointer is unknown, so 402 call argument lists, 20 event data lists and 173 revert reasons stay raw memory, and one Error(string) revert is half-decoded (selector recognised, the constant message not).",
+      "rule": "As in c00471: bound mem[64] (>= 96, stores at mem[64] + k never alias slot 64) so 'x - mem[64]' with x = mem[64] folds to 0, and decode call buffers and Error(string) layouts relative to any base.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "doHardWork, withdrawToVault, emergencyExit, withdrawAllToVault (inlined _depositNoFlash / _redeemNoFlash)",
+      "lines": "9100-9111; 5220-5229; 1620-1630",
+      "decompiled": "s = (_3489 * B - _3493 * B) / (stor4E92 - B) / t = storA170 / u = B / v = stor4E92 / w = _3493 / x = _3489 / y = storA170 / z = -_3493 + (_3489 * B - _3493 * B) / (stor4E92 - B) / a = (_3489 * B - _3493 * B) / (stor4E92 - B) / b = B / c = stor4E92 / while w < s:   (B = borrowTargetFactorNumerator)",
+      "source": "AaveFoldStrategy.sol:471-475 address _underlying = underlying(); balance = supplied.sub(borrowed); borrowTarget = balance.mul(_borrowNum).div(_denom.sub(_borrowNum)); while (borrowed < borrowTarget)",
+      "issue": "The loops carry 9 to 11 variables where 4 are needed: s and a are the same expression, t and y the same storage word, u and b, v and c the same values, and z is s - w; the borrow target itself is distributed ((supplied - borrowed) * B printed as _3489 * B - _3493 * B, P9). 18 such duplicate 'x = storA170' lines.",
+      "rule": "Merge loop-carried variables that are equal on entry and updated identically (or never updated): keep one name per value. Do not distribute a product over a difference of named values.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "receiveFlashLoan, emergencyExit, withdrawAllToVault (inlined _redeem)",
+      "lines": "1132, 1282, 1939, 2082, 3945, 4401",
+      "decompiled": "if -mem[32 * _param1.length + 192] - mem[32 * _param1.length + 32 * _amounts.length + 224]:  |  if -mem[_213] + pendingFee + 1:",
+      "source": "AaveFoldStrategy.sol:346 if (amountUnderlying == 0) return; with amountUnderlying = amounts[0].add(feeAmounts[0]) or supplied.sub(pendingFee().add(1))",
+      "issue": "The non-zero test of a sum or difference is printed negated (-(a + b), -(s - f - 1)), which hides that it is the amount being redeemed.",
+      "rule": "In a boolean context -e is non-zero iff e is: print 'if a + b:' (or 'if e != 0').",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "receiveFlashLoan, withdrawToVault, emergencyExit, withdrawAllToVault, doHardWork (SafeERC20.safeApprove, safeTransfer)",
+      "lines": "1012-1016, 1049; 47 sites",
+      "decompiled": "mem[.. + 288 len 4] = 157198259 / ... / call address(storA170).approve(address spender, uint256 amount) with: args Bytes(12, 0), ext_call.return_data[12 len 20], 0  |  if not mem[_121]: if not ext_code.size(_112): revert ... / if not mem[_121]: _168 = 1 else: ...",
+      "source": "SafeERC20.safeApprove(_pool, 0); Address.verifyCallResultFromTarget",
+      "issue": "The approve/transfer selectors are written in decimal (157198259 = 0x095ea7b3, 2835717307 = 0xa9059cbb) beside a decoded call; the spender argument repeats ext_call.return_data of the previous call although it is already named _3; two consecutive ifs test the same condition.",
+      "rule": "Print 4-byte slice constants in hex; once a return value is named, use the name in later argument lists; merge consecutive ifs with the same condition.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "isRewardToken(address) (_isAddressInList), rewardTokens() (getAddressArray)",
+      "lines": "506-526; 536-547",
+      "decompiled": "while s < _9: ... if s >= stor4541: revert with Panic(50) ... _9 = stor4541 ...  |  while True: if s >= stor4541: _20 = 0; break / if mem[32 * s + 172 len 20] != _token: s = s + 1; continue / _20 = 1; break",
+      "source": "BaseUpgradeableStrategyStorage.sol:282 for (i < values.length) values[i] = getAddress(slot + 1 + i); :119-123 for (i < _list.length) if (_list[i] == _searchValue) return true; return false",
+      "issue": "The search loop is printed as while True with its test and both exits inside; the copy loop re-reads the invariant bound every iteration and keeps a bounds check its condition implies (P11).",
+      "rule": "'while True: if c: A; break ...' is 'while not c: ...' followed by A; a loop-invariant bound read before the loop needs no re-assignment in the body; drop 'if s >= n: revert' under 'while s < n' with n unchanged.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Long functions reviewed by structure: doHardWork (3000 lines), withdrawToVault (2620), withdrawAllToVault (2400), emergencyExit (770), receiveFlashLoan (470, read in full). Checked: restricted modifier (vault/controller/governance), onlyGovernance via isGovernance, initializer logic on the packed slot 0, receiveFlashLoan's caller check, 'Only one can be true'/'One has to be true', the deposit/withdraw branches, safeApprove's non-zero-allowance check, repay mode 2, the flash-loan arrays and userData. Source loops: _liquidateReward for (2902, 7924), _depositNoFlash while (6014, 9111), _redeemNoFlash while (1630 and 4092 specialised to 'while u > 0', 5229, 6538, 9587), _isAddressInList (516, 'while True'), getAddressArray (506, 536); all shown as while. Implicit: P7 = 21 element-wise encoding loops of address[]/uint256[] (rewardTokens() 550, claimAllRewards assets 2846/7868, flashLoan tokens/amounts x9 pairs); the bytes copies are copy lines (cancun mcopy); 1 address[] calldata decoder. P15: slot 0 (_initialized, _initializing) is 'stor0 is uint16' and read as 'stor0 / 256' (76 lines); P10: 'else: _2 = stor0 / 256; ...; _4 = not _2' where _2 is known 0. P18: 104 'require mem[_n] == mem[_n + 12 len 20]' address checks on returns. P8: 47 dead 'SafeERC20: low-level call failed' string allocations, partial call-buffer writes next to decoded calls, keccak scratch (mem[0] = 4). Naming: aToken()/debtToken() return address(stor8CDE)/address(stor29E4), which stay unnamed (uint256 slots read through a cast).",
+  "summary": "Faithful control flow and calls, with all five source loops found; readability suffers from the lost free-memory pointer after the first call (raw calls and revert reasons), duplicated loop variables and distributed arithmetic in the fold loops, and one place where swapped min operands change which panic code a contrived input gets."
+}

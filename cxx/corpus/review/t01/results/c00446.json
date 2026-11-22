@@ -1,0 +1,25 @@
+{
+  "id": "c00446",
+  "abi_functions": 150,
+  "reviewed": 150,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {"while": 8, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 4, "P7": 33, "P8": 20},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "flashLoan, joinPool, exitPool, uniswapV3Swap, claim (Merkl), exactInput, deposit (DvStETH), send (OFT), call(address,address,uint256,bytes) (9 functions)",
+      "lines": "1488-1516, 1538-1566, 1588-1616, 1173-1200",
+      "decompiled": "_9 = mem[64] / _10 = mem[s] / while t < _10: mem[_9 + t + 32] = mem[s + t + 32] ... / mem[_9 + _10 + 32] = 0 / mem[_9 + _10 + 32] = cd[32 * idx + tokens + 36] << 96 / _14 = mem[64] / mem[mem[64]] = _9 + _10 - mem[64] + 20 / mem[64] = _9 + _10 + 52 ... return memory from mem[64] len _5 + ceil32(_6) - mem[64] + 64",
+      "source": "BalancerV2DecoderAndSanitizer.sol:24-27 addressesFound = abi.encodePacked(recipient); for (uint256 i; i < tokens.length; ++i) addressesFound = abi.encodePacked(addressesFound, tokens[i]);",
+      "issue": "Inside the loop _9 and _14 are both the current mem[64] (no store to mem[64] in between), but they are not identified with it, so the new length prints as '_9 + _10 - mem[64] + 20' instead of '_10 + 20', and the final 'return addressesFound' as a memory range whose length contains mem[64]. With the inner copy loop (P7) and a zero store overwritten on the next line, the abi.encodePacked accumulation becomes unreadable.",
+      "rule": "After '_t = mem[64]', mem[64] reads as _t until the next store to mem[64] (here _9 + _10 - _9 + 20 = _10 + 20); a store followed by a store to the same address with no read between is dead; then 'mem[p] = 32; mem[p + 32 ...] = bytes(b); return memory from p' is 'return b'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 150 ABI functions reviewed (5 are const lines returning empty bytes; the ~120 one-line decoders that return abi.encodePacked of their address arguments read and spot-checked; execute (UniversalRouter), modifyLiquidities (626 lines, UniswapV4), swapCompact, lockdown by structure). The 8 source loops are all whiles: flashLoan (1486), joinPool (1586), exitPool (1536), Merkl claim (1690), OFT send's options cursor loop (2076), OneInch uniswapV3Swap (1171), UniswapV3 exactInput's hop loop (1734, condition 'idx < path.length / 23'), DvStETH deposit (1803). The other whiles are implicit: 33 memory copies (the abi.encodePacked accumulation nested in each source loop, bytes encodings, P7) and 10 validated ABI decodes. No semantic difference found.",
+  "summary": "Faithful, and every loop is found; the abi.encodePacked accumulation in the loops is obscured by a free-memory-pointer temporary that is not identified with mem[64] and by nested copy whiles."
+}

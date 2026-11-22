@@ -1,0 +1,47 @@
+{
+  "id": "c00562",
+  "abi_functions": 6,
+  "reviewed": 6,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 6, "P3": 2, "P6": 12, "P7": 4, "P11": 2},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "closeSwapsUsdc, emergencyCloseSwapsUsdc, getPoolConfiguration, iporOracle, messageSigner, spreadRouter",
+      "lines": "2-5, 49-53, 1546",
+      "decompiled": "const unknownb80945e9 = Bytes(608, 0) ... _9 = cd[_param1 + 4] <= 0 and cd[_param2 + 4] <= 0 / if not _9: revert with 'IPOR_315' ... static call 0x0.getAccruedIndex(uint256 calculateTimestamp, address asset) with: args block.timestamp, 0",
+      "source": "AmmCloseSwapServiceStable: immutables iporOracle, ammStorage, asset, maxLengthOfLiquidatedSwapsPerLeg ...; _closeSwapsPerLeg: require(swapIdsLength <= poolCfg.maxLengthOfLiquidatedSwapsPerLeg, IPOR_315)",
+      "issue": "All configuration is immutable and reads as 0 in the undeployed code: maxLengthOfLiquidatedSwapsPerLeg = 0 forces both swap-id arrays to be empty, so the _closeSwapsPerLeg loop (the only source loop, inlined twice per function) is dead and not counted; the oracle and storage calls target address 0.",
+      "rule": "-",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "closeSwapsUsdc, emergencyCloseSwapsUsdc",
+      "lines": "49-53 and 98-104 (emergencyCloseSwapsUsdc: the guard, then 'while s != _12' from line 104 to about 1540; the second leg 'while s != _84' from 1620)",
+      "decompiled": "_9 = cd[_param1 + 4] <= 0 and cd[_param2 + 4] <= 0 / if not _9: revert with 'IPOR_315' / _12 = cd[_param1 + 4] / if cd[_param1 + 4] > 0: revert with 'IPOR_315' ... s = 0 / ... / while s != _12: (about 1,400 lines, with the aborted paths)",
+      "source": "AmmCloseSwapServiceStable.sol:345-360 require(swapIdsLength <= poolCfg.maxLengthOfLiquidatedSwapsPerLeg, ...); for (uint256 i; i != swapIdsLength; ) {...}",
+      "issue": "The dominating test already proves both lengths are 0, so each 'while s != _12' (s starting at 0) can never run, yet about 1,800 lines per function of loop body are printed, including all the aborted paths; the second IPOR_315 test is implied by the first (P11).",
+      "rule": "Propagate a dominating unsigned test into later conditions: after 'if x > 0: revert' (or require x <= 0), x == 0; a loop 's = 0; while s != x' then has a false entry condition and is removed with everything only it reaches.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "coverage",
+      "severity": "low",
+      "function": "closeSwapsUsdc, emergencyCloseSwapsUsdc",
+      "lines": "972, 1181, 1296, 1324, 1440, 1446, 1448, 1531, 1536, 2207 (and the same ten in the other function, 3185-4428)",
+      "decompiled": "if _2483 < 65536: _2549 = _2483 else: _2549 = _2483 >> 16 / ...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)",
+      "source": "_closeSwapPayFixed/_closeSwapReceiveFixed -> interest with ABDKMathQuad (fromUInt/mostSignificantBit, mul, div, exp, pow_2), the payout transfers and closedSwaps[i] = (swapId, true)",
+      "issue": "Ten paths per function are aborted inside the ABDKMathQuad compound-interest computation of the active-swap branch, losing the swap closing (pnl, payouts, transfers, events); these paths are dead in this bytecode because of the immutables (previous findings).",
+      "rule": "-",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "One source loop (_closeSwapsPerLeg's for, inlined for the pay-fixed and receive-fixed legs in both public functions) is dead because of the immutables, so it is not counted (it is printed as 'while s != _12' and 'while s != _84'). The other whiles are implicit: 'while idx - 1' (new IporSwapClosingResult[] initialisation, P3) and abi copies at the end (P7). Each public function (about 2,200 lines) reviewed by structure; the four getters are constants (immutables = 0).",
+  "summary": "The text is dominated by the immutables: the configuration reads as 0, which makes the swap-closing loop dead, yet the decompiler prints about 1,800 lines of it per function, with 20 aborted paths in its ABDKMathQuad math, because a dominating length check is not propagated."
+}

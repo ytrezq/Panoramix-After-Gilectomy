@@ -1,0 +1,47 @@
+{
+  "id": "c00078",
+  "abi_functions": 30,
+  "reviewed": 30,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 13, "P6": 2, "P7": 11, "P8": 120, "P9": 60, "P11": 10},
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "swap((address,address,address,address,uint24,bytes32),bool,int128,bytes)",
+      "lines": "3775-4209",
+      "decompiled": "while True: ... if not _3616: (bin not empty) ... if _4626: (fee / overflow checks only) else: if not _4623: ... else: (next-bin tree search) ... / ...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)",
+      "source": "BinPool.sol:147-200 if (!binReserves.isEmpty(!swapForY)) { getAmountsOut/In ...; if (amountsInWithFees > 0) { pFee...; self.reserveOfBin[swapState.activeId] = binReserves.add(amountsInWithFees).sub(amountsOutOfBin); if (getLiquidity(...) > MAX_LIQUIDITY_PER_BIN) revert BinPool__MaxLiquidityPerBinExceeded(); } } if (amountsLeft == 0) break; else nextId = getNextNonEmptyBin(...)",
+      "issue": "The main swap path, through a bin that holds liquidity, is cut after the amounts and fee computation: the write of self.reserveOfBin[activeId], the MaxLiquidityPerBinExceeded check (0x2d54cbbe never appears in swap), the protocol-fee accumulation and the loop's continuation (next bin or exit) are lost; only the empty-bin path continues (4210-5920). The marker sits after the if/else at 4127, which is the only hint that both arms continue into the aborted part.",
+      "rule": "Coverage limit of the decompiler (the loop body combines an unrolled pow, two mulDiv expansions and the TreeMath bit search). Printing the marker inside each arm that reaches it, rather than once after the if/else, would make the cut path unambiguous.",
+      "verified": "text_check run --per-selector 16: 0 differences, but no sampled swap reaches the loop (pools are not initialized in the sampled worlds); reading of 3768-4210"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "burn, mint, swap, getBin, getPosition, donate (228 lines)",
+      "lines": "e.g. 1028-1035, 3769-3774",
+      "decompiled": "_164 = stor[sha3(Bytes(29, 0), mem[32 * idx + 477 len 3], sha3(sha3(_param1, _param2, _param3, _param4, _param5, _param6), 5) + 1)]   |   stor[sha3(sha3(mem[32 * idx + 477 len 3], mem[_47 + 12 len 20], mem[_47 + 96]), sha3(sha3(...), 5) + 3)] = SafeMath.sub(...)",
+      "source": "BinPool.sol:326-340 self.reserveOfBin[id], self.shareOfBin[id], self.positions[...] where self = pools[poolId] (mapping of State structs at slot 5)",
+      "issue": "The mappings inside the pool's State struct (reserveOfBin at member +1, shareOfBin at +2, positions at +3) are never shown as mappings, so every bin access is a raw keccak expression of 120+ characters; the bin id is 'Bytes(29, 0), mem[a len 3]' instead of uint24(mem[a]).",
+      "rule": "sha3(k2, sha3(k1, S) + m) where sha3(k1, S) is the base of a mapping of structs at slot S is the mapping at member m: print stor5[k1].field_{256*m}[k2]; Bytes(29, 0), mem[a + 29 len 3] as a word is uint24(mem[a]).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "burn",
+      "lines": "1008",
+      "decompiled": "if -16777216 * mem[32 * idx + 448 len 29]: revert with 0x93dafdf1",
+      "source": "BinPool.sol:321 uint24 id = ids[i].safe24();",
+      "issue": "The range check id <= type(uint24).max prints as a product with -2^24 of the word's top 29 bytes.",
+      "rule": "For x of width w bits, -2^k * x (mod 2^256) is non-zero iff x is, when k + w <= 256: print 'if mem[a len 29]', or better 'if mem[a] > 0xffffff'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: extsload(bytes32[])'s Yul do-while (for {} 1 {} { ...; if iszero(lt(memptr, end)) { break } }) shown as one peeled iteration plus 'while idx + 32 < ...' (157-172), which is exact since the body runs once even for an empty array; BinPool._mintBins' for (2918), BinPool.burn's for (1007), BinPool.swap's while (true) (3768, see the coverage finding). Implicit whiles: the via-IR element-wise copy of a bytes32[] calldata array to memory (2860) and the ABI encodings of uint256[]/bytes32[] arrays for hooks/events in burn (1116-1166) and mint (3412-3602): 11, P7. getNextNonEmptyBin (1489 lines, no loop in the source: TreeMath/BitMath bit tricks) and the unrolled Uint128x128Math.pow in swap (108 'if Mask(1, k, ...)' tests, each squaring inlined as nested expressions that double in size, 19 lines over 1000 characters) are expanded mulDiv/pow code, P9; swap (2427 lines) and getNextNonEmptyBin were reviewed by structure, extsload, burn's loop head and swap's loop head line by line. Custom errors print as raw selectors (not in the database).",
+  "summary": "Mostly faithful via-IR text with all four source loops found, but swap's main path through a non-empty bin is lost to an abort (the reserve write and liquidity check never appear), struct-held mappings stay raw keccak expressions, and mulDiv/pow code is expanded into multi-kilobyte lines."
+}

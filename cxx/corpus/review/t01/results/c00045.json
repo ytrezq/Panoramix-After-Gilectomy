@@ -1,0 +1,36 @@
+{
+  "id": "c00045",
+  "abi_functions": 1,
+  "reviewed": 1,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P7": 3, "P8": 10},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "createSiloVault (0x2689beca, decompiled without an ABI entry)",
+      "lines": "17",
+      "decompiled": "require this.address",
+      "source": "library SiloVaultFactoryActionsLib, external non-view function createSiloVault (solc library call protection)",
+      "issue": "The library's own address is 0 in this pre-deployment bytecode, so the delegatecall-only guard reads 'require this.address' (as in c00063).",
+      "rule": "None (solc immutable placeholder).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "createSiloVault (inlined Clones.cloneDeterministic)",
+      "lines": "100-106",
+      "decompiled": "create2 contract with 0 wei / salt: _param6 / code: Bytes(23, _param8 >> 136 | 0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000), Bytes(17, uint136(_param8)), Bytes(15, 0x5af43d82803e903d91602b57fd5bf3)",
+      "source": "Clones.cloneDeterministic(_incentivesModuleImplementation, _salt): EIP-1167 init code 3d602d80600a3d3981f3363d3d373d3d3d363d73 <implementation> 5af43d82803e903d91602b57fd5bf3",
+      "issue": "The 20-byte implementation address inside the clone init code is split across two slices (3 bytes OR-ed into the 23-byte prefix, 17 bytes after), so the standard minimal-proxy code is not recognisable at a glance.",
+      "rule": "Concatenate code bytes by byte ranges: 'Bytes(23, a >> 136 | P << 24 ...), Bytes(17, uint136(a))' is 'Bytes(20, P), address(a)'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Library SiloVaultFactoryActionsLib. The pack lists only initCodeHash(bytes) (correct: keccak256 of the embedded SiloVault creation code code.data[1775 len 22696] and the arguments); createSiloVault, decompiled as 0x2689beca without an ABI entry, was reviewed too: argument decoding (3 address-array decode loops), the deterministic clone of the incentives module (create2, FailedDeployment 0xb06ebf3d on failure), new SiloVault{salt} with the constructor arguments, and __VaultIncentivesModule_init (0xf9d96614) with the three re-encoded arrays (3 encode loops: P7); all correct. No explicit loops in the source.",
+  "summary": "A small, faithful library text; only the library-address artifact and a split address in the clone code stand out."
+}

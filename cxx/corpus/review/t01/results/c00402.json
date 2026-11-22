@@ -1,0 +1,13 @@
+{
+  "id": "c00402",
+  "abi_functions": 3,
+  "reviewed": 3,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [],
+  "notes": "SimpleStorage: get() and storedData() return slot 0, set(x) writes it after the ABI length check; non-payable markers and the reverting fallback are right.",
+  "summary": "Trivial contract; the text is exact."
+}

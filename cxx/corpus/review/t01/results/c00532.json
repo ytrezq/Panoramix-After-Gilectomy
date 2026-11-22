@@ -1,0 +1,84 @@
+{
+  "id": "c00532",
+  "abi_functions": 35,
+  "reviewed": 35,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 2,
+    "P2": 146,
+    "P6": 1,
+    "P7": 33,
+    "P8": 400,
+    "P9": 161,
+    "P14": 200,
+    "P18": 50
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "maxRelease, canRebalance, balanceOf, maxBorrow, canLiquidate, liquidate, borrow, repay, withdraw, skim, rebalance, handleExternalLiquidation, checkVaultStatus",
+      "lines": "e.g. 100, 386-392, 411, 5762",
+      "decompiled": "return stor1 ^ (ext_call.return_data[0] < stor1) * (stor1 ^ ext_call.return_data[0]) / mem[_20 + ceil32(return_data.size)] = mem[_20] ^ (-_17 + stor1 < mem[_20]) * (mem[_20] ^ -_17 + stor1)",
+      "source": "CollateralVaultBase.sol:285 Math.min(intermediateVault.debtOf(address(this)), totalAssetsDepositedOrReserved); OZ Math.min/max via Math.ternary (b ^ ((a ^ b) * toUint(condition)))",
+      "issue": "The branchless select of OZ Math.ternary is printed as XOR arithmetic in 205 lines, nested inside distributed products, so every min/max/ceilDiv of the LTV maths is unreadable.",
+      "rule": "b ^ ((a ^ b) * c) with c in {0, 1} is 'a if c else b'; with c = (a < b) it is min(a, b), with c = (a > b) max(a, b) (also with the operands of ^ swapped).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "canRebalance, maxBorrow, liquidate, setTwyneLiqLTV, checkVaultStatus and the other LTV paths",
+      "lines": "386-392, 5651, 5712, 5762-5789",
+      "decompiled": "if (-10000 * (stor1 ^ ...) + 10000 * stor1) / (-(stor1 ^ ...) + stor1) != 10000 and ... / _17 = SafeMath.div((... ^ _15 ^ _16) - 1, _5 * (stor61 / 10**14)) * bool(...) + bool(...)",
+      "source": "CollateralVaultBase._invariantCollateralAmount, _collateralScaledByLiqLTV1e8, Math.ceilDiv",
+      "issue": "P9: products of differences are distributed (with '-1 *' factors), and ceilDiv appears as div(x - 1, y) * bool(x) + bool(x); combined with the XOR selects, lines run to several hundred characters.",
+      "rule": "Keep products factored as computed; 'div(x - 1, y) * bool(x) + bool(x)' (x / y rounded up, 0 for x = 0) prints as ceilDiv(x, y); '-1 * x' in a zero test is x.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "collateralBalance, balanceOf, isExternallyLiquidated, maxRepay and every MorphoLib.collateral / borrowShares read",
+      "lines": "138-144 (33 instances)",
+      "decompiled": "s = ceil32(return_data.size) + 416 / idx = _6 + 416 / while idx < _6 + 32 * _7 + 416: mem[s] = mem[idx]; s = s + 32; idx = idx + 32",
+      "source": "MorphoLib: IMorpho(targetVault).extSloads(slots) returns (bytes32[] memory) - ABI decoding from memory",
+      "issue": "P7: each decode of the returned bytes32[] is a word-copy loop; all 33 whiles of the contract are these (no source loops).",
+      "rule": "'while i < end: mem[d] = mem[i]; d += 32; i += 32' over disjoint ranges is 'mem[d0 len end - i0] = mem[i0 len end - i0]'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "collateralBalance and every MorphoLib.collateral / borrowShares read",
+      "lines": "147 (107 lines)",
+      "decompiled": "mem[mem[64]] = Bytes(16, 0), mem[ceil32(return_data.size) + 416 len 16]",
+      "source": "MorphoLib.collateral: uint256(morpho.extSloads(slot)[0] >> 128)",
+      "issue": "A right shift by 128 of a memory word is printed as a byte-slice concatenation.",
+      "rule": "'Bytes(k, 0), mem[p len 32 - k]' is mem[p] >> 8k (and 'Bytes(k, 0), mem[p + k len 32 - k]' is the low 32 - k bytes).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all functions using the EVC, Morpho (targetVault) or permit2 immutables",
+      "lines": "5101, 119, 5411",
+      "decompiled": "if caller: ... / static call 0x0.unknown7784c685(?) with: args Array(len=1, data=...)",
+      "source": "immutables evc, targetVault, permit2 (callThroughEVC: msg.sender == address(evc))",
+      "issue": "solc immutables read as 0: the EVC check becomes 'caller == 0' and the Morpho reads call address 0.",
+      "rule": "None (not a decompiler error).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No explicit loops in the source (functions and libraries reached). All 33 whiles are the bytes32[] decodes of Morpho extSloads (P7). Long functions (borrow, deposit, withdraw, skim, repay, liquidate, handleExternalLiquidation, checkVaultStatus, setTwyneLiqLTV, initialize) reviewed by structure: auth/pause/reentrancy checks (stor9B77 == 2 is the ERC-7201 ReentrancyGuard), external calls, transient snapshot writes (transient[0..8]), storage writes and events. P1: the OZ Initializable ERC-7201 slot printed as 'stor[0x111f...aa0 * 3600]' beside its named form storF0C5_64 in the same line (420-421). P9 counts lines with '-1 *' / '-10000 *' distributed factors. No semantic error found on the paths read.",
+  "summary": "Complete and faithful on the paths read, but the LTV arithmetic is close to unreadable: OZ branchless min/max/ternary printed as XOR expressions (205 lines) inside distributed products and ceilDivs, plus P7 decode loops and raw-memory call arguments."
+}

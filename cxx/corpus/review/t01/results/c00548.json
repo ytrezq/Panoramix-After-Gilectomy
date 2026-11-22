@@ -1,0 +1,51 @@
+{
+ "id": "c00548",
+ "abi_functions": 93,
+ "reviewed": 93,
+ "not_reviewed": [],
+ "source_loops": 1,
+ "loops_shown": {
+  "while": 1,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P1": 2,
+  "P2": 34,
+  "P6": 13,
+  "P7": 16,
+  "P8": 60,
+  "P9": 40,
+  "P11": 15,
+  "P12": 10
+ },
+ "findings": [
+  {
+   "kind": "loop",
+   "severity": "medium",
+   "function": "fulfillRedeemRequests(uint256[])",
+   "lines": "1659-1668",
+   "decompiled": "s = 0; t = asset / while True: if s >= cd[_param1 + 4]: <RedeemRequestsFulfilled log>; stor9B77 = 1; stop / ... body ... ",
+   "source": "AsyncRedemptionUpgradeable.sol:168 for (uint256 i; i < n; ++i) { ... } emit ...; (nonReentrant exit)",
+   "issue": "The loop's bound is an exit test at the top of 'while True' and the code after the loop (event, reentrancy-guard reset) is printed inside the loop under that test (same shape as c00593's addSigningKeys).",
+   "rule": "A 'while True' whose only exit is a leading 'if c: <tail>; stop' is 'while not c: body' followed by <tail>.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "requestFunding(address,uint256), fulfillRedeemRequests, deposit, mint (OpenZeppelin v4 SafeERC20 through Address.functionCall)",
+   "lines": "750-763, 1736-1751, 2388, 2450, 2531, 3094, 3156, 3237",
+   "decompiled": "mem[164] = caller; mem[196] = nonce; mem[128] = 68 ... mem[160 len 4] = 2835717307 / while idx < 68: mem[idx + 228] = mem[idx + 160]; idx = idx + 32 / call recipient with: args mem[228 len 68]",
+   "source": "StrategyBaseUpgradeable.sol:416 token.safeTransfer(caller, amount) (abi.encodeWithSelector(transfer.selector, to, value), then target.call(data))",
+   "issue": "The copy of the encoded call from its bytes buffer into the call buffer is printed as a word loop, even with the constant length 68, so the call shows raw memory instead of transfer(caller, amount) / transferFrom(...).",
+   "rule": "'i = 0; while i < n: mem[d + i] = mem[s + i]; i += 32' is the copy 'mem[d len n] = mem[s len n]' (plus a zero tail word when n % 32 != 0) when the ranges do not overlap; with the copy known, the call buffer's selector and words decode as usual.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "One explicit source loop in what the ABI functions reach (AsyncRedemptionUpgradeable.sol:168, fulfillRedeemRequests), shown as 'while True' with the tail inside (first finding). The other 32 whiles are implicit: 17 checked-exponentiation helpers for 10 ** decimals (readable), the storage-to-memory copies of the shards and asset arrays (6d53ae1e, getAssets), and the word-loop copies of SafeERC20 call payloads (P7, second finding). Reviewed in detail: fulfillRedeemRequests (checks AsyncRedemption_NothingToFulfill and FulfillTooEarly against requestBlock in the top 96 bits of slot +2, the min() cap, the three counters and the delete of the 3-slot request), requestFunding, and the ERC4626-style deposit/mint by structure. P9: mulDiv in fulfillRedeemRequests/previews is expanded into the 512-bit Newton iteration ('_74 = -6 * (_73 / (_73 & -_73)) * ...'). Parameter names from the signature database mislead in places (requestFunding(address recipient, uint256 nonce) takes token and amount). No immutable artifact seen. No semantic error found.",
+ "summary": "Faithful; the only source loop is present but printed as 'while True' with the function tail inside, and SafeERC20 payload copies stay word loops so token transfers lose their decoded call; mulDiv is expanded."
+}

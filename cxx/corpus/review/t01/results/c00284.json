@@ -1,0 +1,36 @@
+{
+  "id": "c00284",
+  "abi_functions": 19,
+  "reviewed": 19,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P3": 2, "P6": 11, "P7": 10},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "addPermittedCallers(address[]) (unknownffb8df3f)",
+      "lines": "425-445",
+      "decompiled": "(first iteration before the loop) / idx = 0 / s = 0 / t = 0 / while idx != -1: if idx + 1 >= cd[_param1 + 4]: stop; if owner != caller: revert ...; ... stor202[concat(Bytes(12, 0), mem[32 * idx + 204 len 20])] = 1; ...; s = idx + 1; t = idx + 1; idx = idx + 1 / revert with Panic(17)",
+      "source": "TuringHelper.sol:53 for (uint i = 0; i < _callerAddresses.length; i++) addPermittedCaller(_callerAddresses[i]);",
+      "issue": "The loop is rotated (first iteration before it) and its header is the overflow test of i++, whose exit only reaches Panic(17); the real bound appears inside as 'if idx + 1 >= len: stop', and two dead copies of the counter (s, t) remain.",
+      "rule": "As for c00557/c00468: do not use a revert-only exit test as the while condition; take 'idx + 1 < cd[_param1 + 4]' as the condition and print the overflow check as a require (here also provably true: idx < len <= 2**64). Drop loop variables that are never read.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "addPermittedCallers(address[])",
+      "lines": "397-407",
+      "decompiled": "if _param1 + 36 >= _param1 + 32 * cd[_param1 + 4] + 36: if owner != caller: revert ...; if 0 >= cd[_param1 + 4]: stop; mem[0] = 0; mem[32] = 202; stor202[0] = 1; mem[32 * cd[_param1 + 4] + 160] = 0; log 0x9ce84a7a...: 0",
+      "source": "TuringHelper.sol:51-56 (an empty _callerAddresses array: the loop body never runs)",
+      "issue": "The empty-array branch prints a storage write stor202[0] = 1 and an event after 'if 0 >= cd[_param1 + 4]: stop', but the branch condition already implies the length is 0, so that code is dead; a reader may think an empty call permits address 0.",
+      "rule": "Use the ranges given by the decoding checks (_param1 <= 2**64 - 1, cd[_param1 + 4] <= 2**64 - 1, so no wrap): 'a + 36 >= a + 32n + 36' is n == 0, which decides the nested 'if 0 >= n: stop' and removes the dead block.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loop (1): addPermittedCallers' for (see findings). Implicit loops: calldata address[] decoding (rotated, P3), bytes copies for the Turing request/response buffers ('while idx < 36' constant copy and the 'while s < mem[...]' copies, P7; london, no MCOPY). Owner checks, permitted-caller mapping (stor202), the Turing GetResponse/TuringTx calls and the balance/withdraw functions match by reading; the event topic prints raw because the signature database lacks it.",
+  "summary": "Small contract, faithful in effect, but its one loop is rotated around the i++ overflow check and the empty-array path keeps a dead storage write and event."
+}

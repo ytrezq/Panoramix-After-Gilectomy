@@ -1,0 +1,36 @@
+{
+  "id": "c00431",
+  "abi_functions": 43,
+  "reviewed": 43,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 12, "P3": 2, "P6": 3, "P7": 21, "P8": 40, "P11": 12, "P16": 10, "P18": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "addChains (unknown21b85cf4), disableAllChains (unknowndf18de07), unknown36c3753d, unknown03d6e119",
+      "lines": "1917-1945, 1737-1746, 1797-1802",
+      "decompiled": "while idx < cd[_param1 + cd[_param1 + 36] + 4]: ... if cd[_param1 + cd[_param1 + 36] + cd[32 * idx + _param1 + cd[_param1 + 36] + 36] + 36] == 32: ... s = 0 / while s < idx: if s >= cd[_param1 + cd[_param1 + 36] + 4]: revert with Panic(50) ...  |  while idx < _44: if idx >= mem[_49]: revert with Panic(50); mem[_49 + 32 * idx + 32] = _48; if idx >= mem[_51]: revert with Panic(50) ...  |  log 0xf520..: indexed mem[_34 + 32 * idx + ceil32(_2) + 56 len 8]",
+      "source": "CCIPTokenPoolConfig.sol:853-863 for (i < length) { bytes calldata remotePool = update_.remotePoolAddresses[i]; ... for (j < i) if (keccak256(update_.remotePoolAddresses[j]) == remotePoolHash) revert ... }; :660-669",
+      "issue": "The loops are right, but members of calldata structs and arrays (update_.remotePoolAddresses[i], its length) are nested raw calldata offsets several times per line, bound checks implied by 's < idx < length' or by the lengths just allocated are kept (P11), and chainSelectors[i] in the event is a byte slice of the memory copy.",
+      "rule": "Name calldata members by their offsets (p + cd[p + 36] is update_.remotePoolAddresses, cd[that + 4] its length, element i at that + cd[that + 36 + 32 i] + 36); inside 's < idx' with 'idx < n', s < n holds; m[a + 24 len 8] is uint64(m[a]).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "every function calling _POOL",
+      "lines": "e.g. 1789-1792",
+      "decompiled": "require ext_code.size(0) / call 0x0 with: args mem[..]",
+      "source": "immutable _POOL (the CCIP token pool)",
+      "issue": "solc immutables read as 0 before deployment.",
+      "rule": "none (build artifact)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Unoptimised build. Small functions line by line; addChains/removeChains/updateChain/disableAllChains/setRateLimiters by structure. Source loops (4): _validateAddChain's outer and inner for (1917, 1929, the inner one comparing keccak hashes of the calldata bytes), disableAllChains' two for loops (1737 filling the configs, 1797 emitting RouteDisabled). Implicit: rotated count-down allocations of Config[] (1705, 1726), abi.encode of uint64[] and Config[] (1754, 1766, 1781), abi.decode of returned arrays and bytes copies (P7). No semantic problem found.",
+  "summary": "Complete and faithful, with all four source loops (one nested) as whiles; readability is limited by raw nested calldata offsets for struct members, redundant bound checks and P2 calls to the immutable pool."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "c00236",
+  "abi_functions": 19,
+  "reviewed": 19,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P7": 2, "P8": 12},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "zap, quote functions, owner, set_mint_buffer, sweep and the token-list getters",
+      "lines": "3-10, 27-35, 77-86",
+      "decompiled": "const POOL = 0 ... return not _param1 / if _input_token: revert with 'invalid input token' / if not _output_token: revert with 'same token' / revert with 'invalid output token' / static call 0x0.owner()",
+      "source": "Zap.sol immutables (YB, YYB, POOL, the token addresses) and owner() read from an immutable vault",
+      "issue": "All token immutables read as 0, so the token checks fold (only address 0 is a valid input, and then output 0 is 'same token') and zap always reverts; owner() calls address 0.",
+      "rule": "None (not a decompiler error).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "the two token-list getters (0x48aed0ba, 0x9fe8eecd)",
+      "lines": "88-104, 105-122",
+      "decompiled": "mem[160 len 128] = 0; mem[160] = 0; mem[192] = 0; mem[224] = 0; mem[256] = 0 ... while idx < 4: mem[s] = Bytes(12, 0), mem[t + 12 len 20]; ... return Array(len=4, data=mem[352 len 128])",
+      "source": "returning a fixed list of 4 / 6 token immutables as address[]",
+      "issue": "The constant-length encoding loop copies words the text has just set to 0, so the result is a known array of zeros; the zero stores are written twice (P8).",
+      "rule": "Evaluate a constant-trip-count loop over known memory (or turn it into a copy line); merge a zero fill with the following zero stores of the same words.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No explicit loops in the source. The two whiles are the address[] encodings of constant-length lists (P7). set_mint_buffer (0x72aac6a1) and sweep are faithful (owner check, buffer bound 500, transfer to owner). No semantic error found.",
+  "summary": "Short and faithful: the immutables read as 0 collapse the zap paths to reverts; only two constant-length encoding loops over known zero memory remain to simplify."
+}

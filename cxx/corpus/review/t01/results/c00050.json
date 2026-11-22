@@ -1,0 +1,91 @@
+{
+  "id": "c00050",
+  "abi_functions": 74,
+  "reviewed": 74,
+  "not_reviewed": [],
+  "source_loops": 10,
+  "loops_shown": {"while": 10, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 1, "P2": 95, "P3": 11, "P6": 299, "P7": 272, "P8": 2000, "P9": 88, "P11": 90, "P12": 900, "P14": 400, "P18": 40},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "every function with a checked-math helper (mul_, add_, sub_, div_, safe32, safe224 with a string errorMessage): getAccountLiquidity, liquidateBorrowAllowed, getHypotheticalAccountLiquidity, exitMarket, mintAllowed, repayBorrowAllowed, seizeAllowed, _setRewardSpeed, borrowAllowed, redeemAllowed, claimReward x3, transferAllowed",
+      "lines": "e.g. 718-760, 773-813 (getAccountLiquidity); 2858-2946, 2985-3011 (mintAllowed)",
+      "decompiled": "mem[64] = _212 + 96 / mem[_212 + 32] = 23 / mem[_212 + 64] = 0x6d756c7469706c69636174696f6e206f766572666c6f77... / ... _218 = mem[64] / mem[mem[64]] = 0x8c379a0... / _220 = mem[_212 + 32] / idx = 32 / while idx < _220: mem[_218 + idx + 68] = mem[_212 + idx + 64] ... / mem[_218 + floor32(_220) + 68] = ~(256**(-(_220 % 32) + 32) - 1) & ... / revert with memory from mem[64] len _218 + floor32(_220) - mem[64] + 100",
+      "source": "ExponentialNoError.sol mul_/add_/sub_/div_(uint a, uint b, string memory errorMessage): require(c / a == b, errorMessage) with 'multiplication overflow', 'addition overflow', 'subtraction underflow', 'divide by zero'; safe32/safe224 'block timestamp exceeds 32 bits', 'new index exceeds 224 bits'",
+      "issue": "272 of the 312 while heads are the copy of a constant error string into the Error(string) buffer, each with about 20 lines of masked merge and memory reverts; the messages only show as hex words. The length read back (_220 = mem[_212 + 32]) is the constant 23 stored a few lines above, and _218 = mem[64] is the _212 + 96 just stored, so the loop never runs and the tail is one 'revert with \"multiplication overflow\"', which is how the text prints the same check where the base is a constant (liquidateCalculateSeizeTokens 549, def SafeMath).",
+      "rule": "Memory offsets of a completed execution are below 2^64, so stores at b + c do not alias 64 or each other for distinct small c when b is bounded below (mem[64] starts at 448 here and only grows): fold mem[64] to its last stored value and mem[b + c] to its last stored constant. A copy loop 'idx = 32; while idx < L' with constant L <= 32 never runs, and an Error(string) buffer with a constant length and data word is 'revert with <string>'.",
+      "verified": "reading only (text_check has no difference on this contract; constant-base form of the same check at 547-554)"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "mintAllowed, repayBorrowAllowed, seizeAllowed (2nd loop), borrowAllowed, redeemAllowed, transferAllowed (dst loop), claimReward(uint8,address), claimReward(uint8,address,address[]), claimReward(uint8,address[],address[],bool,bool)",
+      "lines": "2785-2790 and 3250-3271 (mintAllowed); 3329; 4637; 6761; 8533-8567 and 8655-8668, 9058-9063 (redeemAllowed); 17178-17200, 17691-17695; 9109-9146, 10860-10905 (claimReward(uint8,address)); 11051; 12522; 14652",
+      "decompiled": "s = 0 / while stor[_124].field_224 <= block.timestamp: ... if uint8(s + 1) > 1: return 0 / _124 = sha3(address(cToken), sha3(uint8(s + 1), 18)) / s = s + 1   |   rewardSupplierIndex[0][address(cToken)][address(redeemer)] = _1768 ... while _1776 <= _1775: ... s = _2035 / t = _2034 / u = -sha3(address(cToken), sha3(0, 18)) + sha3(address(cToken), sha3(uint8(w + 1), 18)) / v = w + 1 / w = w + 1   |   loop1: while stor[_616].field_224 <= block.timestamp: ... if u + 1 >= mem[_6]: if s + 1 >= mem[128]: stop ... continue loop1",
+      "source": "Comptroller.sol:1163 and :1200 for (uint8 rewardType = 0; rewardType <= 1; rewardType++) { updateRewardSupplyIndex / distributeSupplierReward } (sub_ checks at :1117, :1186); :1259 for (uint i = 0; i < qiTokens.length; i++) with the inner :1265 / :1272 loops over holders",
+      "issue": "The loops are kept but rotated: the while condition is the body's first underflow check (its exit goes to the 'subtraction underflow' revert after the loop), so the reward loop reads as a loop over timestamps or indexes, and the source condition 'rewardType <= 1' only appears as 'if uint8(s + 1) > 1: return' at the bottom (twice in redeemAllowed). In redeemAllowed, transferAllowed and the claimReward supplier loops rewardType 0's first half is peeled before the loop with the literal key 0, and the loop carries s and u that are never read (u is a difference of two slot hashes) and v, w that are always equal. In claimReward the outer qiTokens test sits inside the inner supplier loop. Only 4125, 15488 and 16328 print 'while uint8(s) <= 1'.",
+      "rule": "Choose as the loop header the test whose exit edge reaches the normal continuation, not one whose exit reaches only a revert: re-rotate 'while C_revert: B; if i + 1 > N: exit; i = i + 1' into 'while i <= N: require-check; B'. Drop loop-carried variables that are never read, and merge induction variables with equal initial values and equal steps.",
+      "verified": "reading only (traced mintAllowed 2785-3294 and redeemAllowed 8533-9086 against updateAndDistributeSupplierRewardsForToken; the order of checks, writes and logs matches)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "checkMembership, enterMarkets, exitMarket, borrowAllowed, redeemAllowed, transferAllowed (11 lines)",
+      "lines": "124; 586-590; 2714-2717; 6136, 6173-6176, 6198; 14981",
+      "decompiled": "return bool(uint8(stor[sha3(address(account), sha3(address(cToken), 9) + 2)]))   |   uint8(stor[sha3(caller, sha3(Bytes(12, 0), mem[32 * idx + 172 len 20], 9) + 2)]) = 1",
+      "source": "Comptroller.sol:145, :155, :195, :292 markets[qiToken].accountMembership[account] (mapping at member slot +2 of struct Market)",
+      "issue": "The mapping inside the Market struct is never shown as a mapping, although 'markets' is named and its other members print as markets[x].field_0 / field_256 / field_768; def storage does not mention the member.",
+      "rule": "When sha3(k1, S) is the base of a mapping of structs at slot S, the slot sha3(k2, sha3(k1, S) + m) is the mapping held at member m: print markets[k1].field_{256*m}[k2] and type that member as a mapping in def storage.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "exitMarket(address)",
+      "lines": "2745, 2750-2754",
+      "decompiled": "assert assetsIn[caller].length - 1 < assetsIn[caller].length / ... / _361 = assetsIn[caller].length / assetsIn[caller].length-- / if _361 > _361 - 1: stor[_361 + sha3(sha3(caller, 8)) - 1 len -_361 - sha3(sha3(caller, 8)) + max(_361 + sha3(sha3(caller, 8)), _361 + sha3(sha3(caller, 8)) - 1) + 1] = 0",
+      "source": "Comptroller.sol:214-215 storedList[assetIndex] = storedList[storedList.length - 1]; storedList.length--;",
+      "issue": "The clearing done by 'length--' (the old last element is zeroed) is one unreadable line; it is assetsIn[caller][_361 - 1] = 0 guarded by _361 != 0. The bounds assert is 'assert assetsIn[caller].length'.",
+      "rule": "x > x - 1 and x - 1 < x are x != 0. Under it, max(a + 1, a) - a is 1 when a + 1 does not wrap, which holds for a keccak-based slot plus a small offset if slot arithmetic is taken as non-wrapping like collision-freedom; stor[sha3(sha3(k, S)) + i] is element i of the array at sha3(k, S).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "enterMarkets, claimReward x3 (84 lines)",
+      "lines": "582-596; 10709-10723 vs 10755; 10752-10760; 12927-12950",
+      "decompiled": "markets[concat(Bytes(12, 0), mem[32 * s + 32 * _param2.length + 204 len 20])]   |   call mem[_6 + 32 * u + 44 len 20] with: value _2407 wei gas 4029 (the same holder is address(_2378) in the other arm)   |   _2414 = stor[_2384] and stor[_2384] <= mem[mem[64]]",
+      "source": "Comptroller.sol:1261 markets[address(qiToken)].isListed; :1300 user.call.value(amount).gas(4029)(\"\"); :1290-1291 rewardAccrued[rewardType][user]",
+      "issue": "An address taken from a memory word is printed as a byte concat or a 20-byte slice instead of address(word), and rewardAccrued is raw stor[_2384] where its slot hash was first held in a variable.",
+      "rule": "concat(Bytes(12, 0), mem[a + 12 len 20]) and mem[a + 12 len 20] used as a word are address(mem[a]); a storage access through a variable bound to a mapping slot hash is that mapping access.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialIndexConstant, rewards code (112 lines); _setCollateralFactor; enterMarkets",
+      "lines": "1 (const); e.g. 2879, 3106, 3216; 464; 579",
+      "decompiled": "const initialIndexConstant = 1000000000000000000 * 10**18   |   if 25 * 10**13 * 3600 >= newCollateralFactorMantissa   |   mem[32 * cTokens.length + 192 len 32 * cTokens.length] = code.data[24396 len 32 * cTokens.length]",
+      "source": "initialIndexConstant = 1e36; doubleScale = 1e36; collateralFactorMaxMantissa = 0.9e18; new uint[](len)",
+      "issue": "Products of constants are not folded (1e36 as 10**18 * 10**18), 0.9e18 is factored by the time unit 3600, and the zero-fill of new uint[](len) reads code past its 24396-byte end.",
+      "rule": "Fold constant products to one power of ten when exact; factor a time unit only for small results; CODECOPY from an offset >= the code size gives zero bytes (the runtime code is the analysed bytecode).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "exitMarket, liquidateBorrowAllowed, _setCollateralFactor, borrowAllowed, _setRewardSpeed (unknown1d94cb94)",
+      "lines": "2698-2707; 1508-1543; 477-491; 6187-6193; 5170-5179",
+      "decompiled": "_272 = mem[128] <= mem[160] and -mem[128] + mem[160] / _288 = _272 and 4 / if _288: ... log Failure(14, 3, _288)   |   _6 = 13 / _7 = 9 / _8 = 13 ... _6 = 6 / _7 = 8 / _8 = 6   |   _51 = stor17[uint8(_param1)][address(_param2)] ... if _51 != _param3: stor17[...] = _param3; log ...",
+      "source": "redeemAllowedInternal :301 if (shortfall > 0) return INSUFFICIENT_LIQUIDITY; failOpaque(REJECTION, EXIT_MARKET_REJECTION, allowed); setRewardSpeedInternal :1096 if (currentSupplyRewardSpeed != newSupplyRewardSpeed)",
+      "issue": "Value-returning 'and' on integers, a detail that is the constant 4 inside 'if _288', phis equal on every edge (_6/_8, _15/_16), and in _setRewardSpeed re-read speeds whose value a dominating 'if not stor17[...]' / 'if not _param3' already fixes, so a dead store and event stay printed.",
+      "rule": "'c and x' as a value is 'x if c else 0'; inside 'if v:' with v in {0, k}, v is k; merge phis equal on every incoming edge; a load with no store between it and a dominating test of the same slot takes the tested value, and a branch it decides is dropped.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Long functions (claimReward x3, transferAllowed, redeemAllowed, borrowAllowed, seizeAllowed: 1050-2750 lines) were reviewed by structure: control flow, loops, calls, storage writes, events, reverts; mintAllowed, getAccountLiquidity, exitMarket, enterMarkets, liquidateCalculateSeizeTokens, liquidateBorrowAllowed's tail, the reward payout (10705-10772) and all small admin functions line by line. Error and FailureInfo codes all match the enums. While census: 312 heads = 272 revert-string copies (P7) + 11 rotated storage-to-memory copies of assetsIn/allMarkets (P3) + 29 renderings of the 10 source loops (liquidity loop in 7 functions, reward loops 9 times, claimReward 3x3, plus _addMarketInternal, enterMarkets, exitMarket's search as 'while True' with two breaks, _setMarketBorrowCaps). transferAllowed prints the src reward loop and the start of the dst loop in both arms of the membership test (15487-16325 vs 16327-17177, about 840 lines, P12) while redeemAllowed (same source shape) merges first; borrowAllowed repeats the price and cap checks (6137-6164 = 6199-6226). P2 = 95 call lines (getAccountSnapshot, getUnderlyingPrice, totalSupply, balanceOf, borrowIndex, totalBorrows, borrowBalanceStored, comptroller, Qi.transfer) plus 41 log lines with raw memory data. P11: 'assert a' after 'not (a == 0 or b == 0)' (56), 'assert s < mem[576]' under the loop test 's < len' (28), 'assert idx < newBorrowCaps.length' after the length equality. rewardAccrued[..] = rewardAccrued[..] self-stores (20) are real SSTOREs. Events QiGranted / Distributed* / *RewardSpeedUpdated print as raw topics (not in the signature database).",
+  "summary": "Faithful text (all checks, writes, events and calls traced right where read), but bloated: 272 of 312 while loops are dead copies of constant revert strings, the reward-type and claimReward loops are rotated around an underflow check with dead loop variables, and about 900 lines are duplicated arms; the struct's inner mapping and several call arguments stay raw."
+}

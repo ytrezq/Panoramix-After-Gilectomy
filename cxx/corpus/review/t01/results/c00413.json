@@ -1,0 +1,155 @@
+{
+ "id": "c00413",
+ "abi_functions": 40,
+ "reviewed": 40,
+ "not_reviewed": [],
+ "source_loops": 5,
+ "loops_shown": {
+  "while": 5,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 290,
+  "P3": 1,
+  "P4": 76,
+  "P6": 135,
+  "P7": 3,
+  "P8": 300,
+  "P10": 20,
+  "P11": 70,
+  "P12": 2400,
+  "P14": 324,
+  "P15": 50,
+  "P16": 509,
+  "P18": 607
+ },
+ "findings": [
+  {
+   "kind": "coverage",
+   "severity": "medium",
+   "function": "_getPriceImplNoWrite(address,uint256,bool,bool)",
+   "lines": "9097-9108",
+   "decompiled": "if not _2527: ... if _3760 <′ 0: mem[mem[64]] = 0xf2a91419..; mem[mem[64] + 4] = 310010 / ...  # Decompilation aborted",
+   "source": "main.sol:1270 _getPriceWithAlt -> _readComposedPrice -> chainlinkSourceReader.sol:41 (exchangeRate_ < 0) for leg 2",
+   "issue": "On the PEG-token path that needs the alt/deviation logic (_getPegResolvedPrice -> _getPriceWithAlt), with Chainlink-style legs 1 and 2, the text stops inside leg 2's _readChainlink: the RateInvalid revert, leg 3, the fallback-alt read, the deviation check and the overall cap of that path are lost.",
+   "rule": "Decompiler limit (path budget); the function is huge because every inlined leg read is duplicated per branch, so the P12 merge would also shrink the work.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "coverage",
+   "severity": "medium",
+   "function": "getPrice(address,uint256,bool,bool), getPriceDetailed(address,uint256,bool,bool)",
+   "lines": "15477-15488; 19879-19890",
+   "decompiled": "static call _3809.unknown8e7bfbc0(?) ... require return_data.size >=′ 32 / ...  # Decompilation aborted",
+   "source": "main.sol:1588 _getPriceImpl -> _getPegResolvedPrice/_getPriceWithAlt -> fluidSourceReader.sol:11 _readFluidSource (getExchangeRateOperate) after the Write getter failed",
+   "issue": "Same place in both functions (getPriceDetailed inlines getPrice): on the PEG alt/deviation path, after a Write getter fails and the view getter getExchangeRateOperate() succeeds for a later leg, the rest (normalisation, leg composition, fallback, deviation check, overall cap, return) is lost.",
+   "rule": "Decompiler limit; see the P12 note.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "coverage",
+   "severity": "medium",
+   "function": "getPriceRawForMode(address,uint8)",
+   "lines": "7140-7163",
+   "decompiled": "_202 = 2 == uint8(stor4[_param1].field_936) or 4 == ... / if _202: static call ... latestRoundData / if ext_call.success: require return_data.size >=′ 160 / ...  # Decompilation aborted",
+   "source": "main.sol:1565-1567 _priceRawForMode: priceRaw_ = _readComposedPriceRaw(fallbackAltCfg_) when the primary raw price is 0 (PEG token in MARKET mode, Chainlink-style alt leg 1)",
+   "issue": "The fallback read of _additionalTokenSources.altSrc is lost after its first latestRoundData call succeeds (the staleness test, legs 2-3 and the return of that path).",
+   "rule": "Decompiler limit.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "coverage",
+   "severity": "medium",
+   "function": "getPricesRawForMode(address[],uint8[])",
+   "lines": "9287, 9293, 10622, 10710, 10783, 10851, 11044",
+   "decompiled": "if idx >= mem[_4]: ...  # Decompilation aborted (x5); _1303 = 1 == uint8(...field_936) or ...: ...  # Decompilation aborted (x2)",
+   "source": "main.sol:1514-1516 the loop body (pricesRaw_[i], decimals_[i], tokenTypes_[i]) = _priceRawForMode(...) and main.sol:1566 the fallback-alt read",
+   "issue": "Seven paths of the loop body stop: five at the bounds check of tokenTypes_[i], so the stores of the results and the next iteration are lost on those paths, and two at the start of the fallback-alt read.",
+   "rule": "Decompiler limit.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "coverage",
+   "severity": "medium",
+   "function": "getConfiguredTokenOracles(address)",
+   "lines": "24849-24852, 25683-25829",
+   "decompiled": "if not 2 * uint1(tokenConfig[_param1].field_233): if not 4 * uint1(...field_234): if s >= mem[_6]: ...  # Decompilation aborted",
+   "source": "main.sol:1581 infos_[i] = _buildConfiguredTokenOracle(...) and main.sol:1734-1746 the additionalPrimary/additionalAlt reads",
+   "issue": "For a token with an alt bucket and a single-leg primary, the store infos_[i] = info_ and the continuation of the loop are lost on one path; on another, the read of the additional sources stops after the zero-initialisation of the result struct.",
+   "rule": "Decompiler limit.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "_getPriceImplNoWrite(address,uint256,bool,bool) (and getPrice, getPriceDetailed)",
+   "lines": "7234-7236, 7470-7532 and 9 more tests; 11153-11155",
+   "decompiled": "_14 = mem[64]; mem[_14] = _param3; mem[_14 + 32] = _param4; mem[_14 + 64] = 0 ... _3681 = mem[_14 + 64] and (1 == uint8(tokenConfig[_param1].field_176) or 5 == ...) / if not _3681: ... else: if not mem[_14]: if not mem[_14 + 32]: call address(tokenConfig[_param1].field_264).unknownfac80f7e(?)",
+   "source": "main.sol:1627 PriceReadContext({isOperate, isCollateral, isWrite: false}); main.sol:1099 if (ctx_.isWrite && ...) _readFluidSourceWrite(...)",
+   "issue": "The constant isWrite = 0 stored in the memory struct is not propagated, so the 'NoWrite' function prints 24 non-static calls to the Write getters (and their fallbacks) in branches that can never run; ctx_.isOperate/isCollateral stay mem[_14]/mem[_14 + 32] (324 lines), and getPrice tests mem[_14 + 64] (= 1) 20 times.",
+   "rule": "Memory written at b + k from a free-memory-pointer value b is not overwritten by later writes at b' + k' when b' >= b + 96 is known from the monotonic free pointer (or by writes at constant offsets below 128); forward such stores to the reads and fold the branches they decide.",
+   "verified": "reading only (the store at 7236 and the guards at 7470-8852 were followed by hand)"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "getPriceView, getPriceDetailedView, getPriceDetailedViewRaw",
+   "lines": "258-286, 292-321, 326-356",
+   "decompiled": "static call this.address.unknown76c8121a(?) with: args Bytes(28, uint128(_param1 >> 32)), Bytes(4, uint32(_param1)), _param2, _param3, _param4 / if not return_data.size: _1 = 96 else: ... _1 = 292 / if not ext_call.success: revert with memory from _1 + 32 len mem[_1] / require mem[_1] >=′ 32 / mem[mem[64]] = mem[_1 + 32] / return memory from mem[64] len 32",
+   "source": "main.sol:1647 address(this).staticcall(abi.encodeCall(this._getPriceImplNoWrite, (token_, emode_, isOperate_, isCollateral_))); revert(add(data_, 0x20), mload(data_)); abi.decode(data_, (uint256))",
+   "issue": "The address argument is split into two byte strings across a word boundary, and the returndata-to-bytes idiom stays a pointer phi, so a plain self call with four arguments that returns its result reads as raw memory (plus 6 dead memory writes building the payload before its copy).",
+   "rule": "Bytes(a, x >> 8b), Bytes(b, x mod 2^(8b)) is Bytes(a + b, x) when x < 2^(8(a+b)). In 'p = rds == 0 ? 96 : fresh buffer holding rds and the return data', mem[96] is 0 when nothing in the function wrote [96, 128), so mem[p] = return_data.size and mem[p + 32 len mem[p]] = return_data on both arms.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "removeConfig()",
+   "lines": "722-732",
+   "decompiled": "uint240(stor1[..][s].field_0) = uint240(stor1[..][len - 1].field_0) / uint240(..field_0) = _53 / uint8(..field_240) = bool(..) / stor1[..][s].field_248 = _52 >> 248 / uint240(..field_0) = _53 / uint8(..field_240) = bool(_54) / ..field_248 = bool(..[_51 - 1].field_248)",
+   "source": "main.sol:826 arr_[i] = arr_[arr_.length - 1]  (ConfigMap {uint240 eMode; bool isOperate; bool isCollateral})",
+   "issue": "A 3-field struct copy within one slot is printed as 7 stores: field_0 three times with the same value, field_240 twice, and field_248 first with its own old value.",
+   "rule": "Drop a storage store that a later store to the same bits overwrites with no read of those bits, call or log in between, and a store of a location's current value; the copy then reads as one line per field (or one slot copy).",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "most functions (159 range checks, ~300 slice reads)",
+   "lines": "e.g. 20449-20450, 1702-1704, 815, 2003, 11066",
+   "decompiled": "require mem[_1298] == mem[_1298 + 22 len 10] / _101 = bool(mem[_41 + 22 len 10]) / require ext_call.return_data[0] == ext_call.return_data[31 len 1] / ext_call.return_data[12 len 20] != caller / mem[t] = Bytes(31, 0), mem[s + 31 len 1]",
+   "source": "chainlinkSourceReader.sol:16 latestRoundData() returns (uint80 ...); main.sol:637 roundId > 0; IERC20Metadata.decimals() returns uint8; address(...) of readFromStorage",
+   "issue": "Masks are printed as byte slices of the same word: the ABI validation of a uint80/uint8 return value reads as comparing a word with a slice, and address/uint8 values read as slices.",
+   "rule": "mem[a + 32 - n len n] (and Bytes(32 - n, 0), mem[a + 32 - n len n]) is uint(8n)(mem[a]); after 'require x == uint(8n)(x)', uint(8n)(x) is x.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "enable*/remove*/set* functions, getTokenConfig, isTokenConfigGovernanceApproved, price functions",
+   "lines": "e.g. 416, 534, 643, 689, 49, 73",
+   "decompiled": "if not 2 * uint1(tokenConfig[..].field_233) / bool(8 * uint1(tokenConfig[_param1].field_235)) / uint8(tokenConfig[_param1].field_232) = tokenConfig[_param1].field_232 & 251",
+   "source": "main.sol:869 flags_ & FLAG_HAS_ADDITIONAL_SOURCES == 0; main.sol:1420 flagsBitmap & FLAG_GOVERNANCE_APPROVED != 0; main.sol:557 flagsBitmap & ~FLAG_HAS_ADDITIONAL_ALT_SOURCES",
+   "issue": "A single-bit flag test keeps its weight (2 * uint1(x), 8 * uint1(x)), and a single-bit clear is a byte mask (& 251) in some functions while others print uint1(field_234) = 0.",
+   "rule": "In a boolean context c * uint1(x) with c != 0 (no overflow) is uint1(x); 'uint8(f) = f & ~2^k' is 'uint1(bit k of f) = 0', as the text already prints elsewhere.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "every governance check; upgradeTo, upgradeToAndCall, proxiableUUID",
+   "lines": "147-153, 163-166, 61-62 and all callers of readFromStorage",
+   "decompiled": "static call 0x0.unknownb5c736e4(?) with: args 0xb531...6103 / if not this.address: revert with 'Function must be called through delegatecall' / if stor3608: revert",
+   "source": "variables.sol:110 address public immutable LIQUIDITY (read by _getGovernanceAddr); OZ UUPSUpgradeable __self immutable",
+   "issue": "solc immutables read as 0 in this pre-deployment code: governance is read from address 0, and onlyProxy/notDelegated compare with 0. Not a decompiler error.",
+   "rule": "none (corpus artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "33.5 KB bytecode, 25935 text lines. The large functions (getConfiguredTokenOracles 6000 lines, getPrice 4400, getPriceDetailed 4400, _getPriceImplNoWrite 1950, getPricesRawForMode 1980, set*SourceConfig 700-1330 each) were reviewed by structure (control flow, loops, calls, stores, events, reverts) with spot checks of the leg reads, caps and multipliers; the other functions line by line. No semantic error found; text_check passes. Loops: 5 source loops, all whiles: _tokenHasEmodeInConfigsMap (isEmodeValid, 'while True' with the bound inside), _revertIfTokenKeysBlockAltRemoval (7 inlined copies in setTokenType, removeSourceConfig x2, removeAltSourceConfig, removeAdditionalSourceConfig x2, removeAdditionalAltSourceConfig), removeConfig's search loop, getPricesRawForMode's loop (9137), getConfiguredTokenOracles' loop (20201). The other 63 whiles are implicit: 51 checked-exponentiation helpers for 10 ** multiplier (readable), the storage-to-memory copy of configsMap (19901), the zero-initialisation of new ConfiguredTokenOracle[] (rotated: the first element's 110 lines are printed before 'while idx - 1', P3), the ABI encoding of the returned struct array (25838), and getPricesRawForMode's three return encodings (P7). P12 is massive: setAltSourceConfig, setAdditionalSourceConfig and setAdditionalAltSourceConfig print their ~620-line body once per arm of the authorization test; enableDeviationCheck, enableFallback, setOverallCap (9 copies of the store + event key), setSourceCapMode, setPriceMode and setPausedState repeat their tails. P2 (290 calls) includes every second call of a try/catch pair (getExchangeRateOperateDebt, symbol(), the second readFromStorage after an inlined public call) and 18 logs and the custom-error reverts whose memory base is a phi after a loop; the same calls are decoded where the base is constant. P15: whole-slot stores for the multiplier+capOperand pairs of legs 2-3 and for setPausedState. P16: tokens_[i] stays cd[32 * idx + _param1 + 36]. P18: the OracleKeyConfig copy is read as mem[_8 + 31 len 1], mem[_8 + 157 len 3] through a phi of two buffers, and setOverallCap's event logs the key as mem[mem[64] len 128]. P11: 'u >= 78 and u >= 32' (50), Panic(50)/Panic(49) checks implied by SafeMath.sub(length, 1) in removeConfig, the dead int256 overflow check '27 - d >′ 27' for a uint8 d. The 10**27 constant prints as '1000000000 * 10**18' (149 lines). Event and error names are raw (not in the signature database); transient storage shows as transient[N]. ABI functions missing from the text: none (LIQUIDITY and TEAM_MULTISIG are consts).",
+ "summary": "Faithful where it finished, with all five source loops shown as whiles, but 13 aborted paths cut parts of the six price/view functions, and the text is bloated: whole function bodies duplicated per authorization arm (P12), memory-pointer phis that hide call arguments, event data and struct fields (P2/P18), and a constant isWrite flag left in memory so the NoWrite path still prints state-changing calls."
+}

@@ -1,0 +1,173 @@
+{
+  "id": "c00159",
+  "abi_functions": 42,
+  "reviewed": 42,
+  "not_reviewed": [],
+  "source_loops": 20,
+  "loops_shown": {
+    "while": 16,
+    "copy_line": 3,
+    "unrolled": 1,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "batch_set_delegation_status, preseed, tokenURI, batch_cancel_boosts, and the _burn_boost loop in burn / cancel_boost / extend_boost / transferFrom / safeTransferFrom (both)",
+      "lines": "1794-1831 (batch_set); 1952-2032 vs 2035-2120 and 2121-2128 vs 2131-2143 (preseed); 272-296 vs 297-328 (tokenURI); 1028-1181 (batch_cancel); e.g. 632-643 (cancel_boost)",
+      "decompiled": "if _status[0] > 1: stop / ... (iteration 0, 15 lines) / _13 = 0 / mem[8576] = 1 / while _13 + 1 != 256: ... _13 = mem[8576]; mem[8576] = mem[8576] + 1   |   while True: ... _111 = mem[1216]; mem[1216] = mem[1216] + 1; if _111 + 1 != 256: continue; stop   (x5 in one body)",
+      "source": "PreseededVotingEscrowDelegation.vy:816 for i in range(256); :1021 and :1033 for i in range(10); :455 for i in range(78); :781 for _token_id in _token_ids; :343 for i in range(513)",
+      "issue": "Every Vyper range loop is rotated: either its first iteration is peeled and printed before the loop (80 duplicated lines in preseed's first loop) with the test 'while _prev + 1 != N', where _prev is the counter before its increment, or it is 'while True' with 'if _prev + 1 != N: continue / break' at the bottom, repeated at each of the 5 exits of batch_cancel_boosts' body. The counters (mem[1216], mem[8576], mem[1312], mem[672], mem[416]) are memory words.",
+      "rule": "Recognise the do-while shape 'body; i = i + 1; if i != N: goto body' as one loop with its test, not by peeling an iteration: 'while i < N' (or i != N) with the increment at the end. 'p = i; i = i + 1; if p + 1 != N' is 'i = i + 1; if i != N'. When every path of a loop body ends with the same increment-and-test, it is the loop's step and condition, printed once.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "name(), symbol(), base_uri(), tokenURI(uint256)",
+      "lines": "148-162; 164-178; 180-194; 259-269",
+      "decompiled": "mem[256] = stor8 / _4 = 0 / mem[192] = 1 / while _4 + 1 != 5: if 32 * mem[192] > stor8 + 32: return mem[224 len mem[256] + 64], call.data[calldata.size len -((mem[256] - 1) % 32) + 31] / mem[32 * mem[192] + 256] = stor[mem[192] + 8] ...",
+      "source": ":114-116 name / symbol / base_uri: public(String[32] / String[128]); :556 concat(self.base_uri, ...)",
+      "issue": "Copies of a Vyper string from storage (length word at slot p, data at p+1...) to memory are printed as loops whose bound is hidden in an early return; the Solidity equivalent prints 'return Array(len=name.length, data=name[all])'. The storage variables stay stor4 / stor6 / stor8 / stor9 although the getters return them.",
+      "rule": "A loop writing mem[d + 32*i] = stor[p + i] for i from a start to a bound computed from the length word, with no other effect, is one copy line mem[d len 32*k] = stor[p len k] (k from the bound); a string at slot p with its data at p+1.. is one storage variable (named after the getter that returns it). Also call.data[calldata.size len n] is n zero bytes and 31 - (x - 1) % 32 is ceil32(x) - x.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "most non-trivial functions (adjusted_balance_of, burn, cancel_boost, batch_cancel_boosts, create_boost, extend_boost, preseed, calc_boost_bias_slope(4), batch_set_delegation_status, tokenURI)",
+      "lines": "e.g. 235-253; 363-388; 1189-1260; 1797-1805; 1815-1824",
+      "decompiled": "mem[320] = ext_call.return_data[0] ... mem[320] = -_7 + ext_call.return_data[0]  |  require -1 * block.timestamp * mem[400 len 16] + mem[384 len 16] >=\u2032 0  |  (mem[928 len 16] << 128) + mem[960]  |  mem[224] = _receiver / mem[256] = _delegators[0] / mem[288] = bool(_status[0]) / mem[160] = _receiver / mem[128] = 21 / mem[160] = _delegators[0] / mem[128] = sha3(21, _receiver)",
+      "source": "local variables (adjusted_balance, ddata, expiry_data, next_expiry, expiries, receiver...), internal-call arguments and the scratch of nested HashMap keys, all of which Vyper keeps at fixed memory addresses",
+      "issue": "Locals stay mem[N], so their meaning is hidden, the halves of a local are read as byte slices (mem[400 len 16] is uint128(ddata), mem[384 len 16] its high half), and the stores of internal-call arguments and HashMap key scratch are printed although nothing reads them (7 dead lines per iteration in batch_set_delegation_status).",
+      "rule": "A constant memory address accessed only as the 32-byte word at that address (and slices of it), whose ranges are not otherwise read, is a local variable: name it and print slices of it as Mask/shift of the variable (mem[a + 16 len 16] = uint128(mem[a]), mem[a len 16] = mem[a] >> 128). A store no later read can see is dead (the sha3 scratch at [128, 192) once the sha3 is folded into the mapping access).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "burn, cancel_boost, batch_cancel_boosts, extend_boost, preseed, batch_set_delegation_status, transfers",
+      "lines": "e.g. 475, 509 (burn); 646 (cancel_boost); 1866, 1896, 1922 (extend_boost); 1984-2031 (preseed); 1823 (batch_set)",
+      "decompiled": "account_expiries[_value >> 96][concat(mem[512])] = mem[640]  |  stor16[concat(mem[288])].field_256  |  grey_list[concat(mem[736])][concat(mem[704])]",
+      "source": "self.account_expiries[_delegator][expire_time] = expiries; self.boost[_receiver].received; self.grey_list[_receiver][_delegator]",
+      "issue": "56 mapping keys read from a memory word are printed as a one-element concat(...), which reads as a byte concatenation.",
+      "rule": "concat(e) with a single 32-byte element is e: stor16[mem[288]], account_expiries[x][mem[512]].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "create_boost, extend_boost, preseed, calc_boost_bias_slope (both)",
+      "lines": "1233-1260 (create_boost); 1911-1938 (extend_boost); 2004-2031, 2089-2116 (preseed); 414-426, 376-388",
+      "decompiled": "_28 = block.timestamp * (-((_percentage * ext_call.return_data[0] - _percentage * stor16[_delegator].field_128 + block.timestamp * _percentage * uint128(stor16[_delegator].field_0)) /\u2032 10000) /\u2032 (-block.timestamp + 7 * 24 * 3600 * (_expire_time / (7 * 24 * 3600)))) >=\u2032 0 and ...   (2,000-3,000 characters per line)",
+      "source": ":621-628 delegated_boost = point.slope * time + point.bias; y = _percentage * (balanceOf - delegated_boost) / MAX_PCT; point = _calc_bias_slope(time, y, expire_time); data = shift(bias, 128) + abs(slope)",
+      "issue": "y is printed about 20 times and slope about 15 times per function, with _percentage * (balance - delegated) distributed, so no line can be checked by eye; the same value 'data' is even printed in two different forms (from storage at 1249, from mem[1120] at 1250) because a store came between.",
+      "rule": "Bind a composite subexpression used more than twice to a temporary at its first evaluation (y, slope, bias, data), and do not distribute a product over a sum when that duplicates operands; checked-arithmetic tests then read 'require y >\u2032 0', 'require slope <\u2032 0'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "cancel_boost(uint256), batch_cancel_boosts(uint256[256])",
+      "lines": "547-588 and 590-631 (cancel_boost); 1047-1101 and 1103-1157 (batch_cancel_boosts)",
+      "decompiled": "if ownerOf[_token_id] != caller: <permission checks> / mem[512] = token_expiry[_token_id].field_768 / ... 42 lines ... / else: mem[512] = token_expiry[_token_id].field_768 / ... the same 42 lines",
+      "source": ":426-433 the permission test of _cancel_boost, then one call of _burn_boost",
+      "issue": "The whole _burn_boost body is printed twice, once in each arm of the permission test, though only the permission checks differ (about 45 duplicated lines per function).",
+      "rule": "When both arms of an if end with the same statement sequence (equal up to renaming of temporaries), print the common tail once after the if.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "batch_cancel_boosts(uint256[256]), batch_set_delegation_status(...)",
+      "lines": "1030-1176 (about 80 occurrences); 1813, 1818, 1823-1828",
+      "decompiled": "if not cd[32 * mem[1216] + 4]: stop / mem[832] = ownerOf[cd[32 * mem[1216] + 4]] ... stor16[cd[32 * mem[1216] + 4] >> 96]  |  if cd[32 * mem[8576] + 8228] > 1: stop",
+      "source": ":781 for _token_id in _token_ids; :817 _status[i]",
+      "issue": "An element of a static calldata array parameter with a variable index is raw calldata arithmetic, while constant indices are named (_delegators[0], _status[0]).",
+      "rule": "cd[4 + o + 32*i], with o the offset of a static array parameter and 0 <= i < its length (here guaranteed by the loop bound), is param[i]: _token_ids[mem[1216]], _status[mem[8576]].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "batch_set_delegation_status(address,address[256],uint256[256])",
+      "lines": "1273-1784",
+      "decompiled": "require not _delegators[0] >> 160 / mem[384] = _delegators[0] / ... / require not _delegators[255] >> 160 / mem[8544] = _delegators[255]   (512 lines)",
+      "source": ":803 _delegators: address[256] (the argument is copied to memory and each address checked)",
+      "issue": "Vyper 0.3.1 unrolls the copy and check of the 256 addresses in the bytecode (346 CALLDATALOADs in the code), and the text prints all 512 lines. Afterwards the loop reads mem[32 * mem[8576] + 384] instead of _delegators[i].",
+      "rule": "Re-roll N >= 4 consecutive groups of statements that are equal up to an affine index into one loop over that index (exact: same statements in the same order), or print the copy as one copy line 'mem[384 len 8192] = call.data[36 len 8192]' after a loop of the checks; memory then known to hold the parameter prints as the parameter.",
+      "verified": "reading only (CALLDATALOAD count from the bytecode)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "burn, cancel_boost, batch_cancel_boosts, extend_boost, transferFrom, safeTransferFrom (both)",
+      "lines": "455, 474 (burn); 570, 582, 645 (cancel_boost); 1075, 1091, 1171; 1876, 1895; 739, 758; 854, 873; 982, 1001",
+      "decompiled": "if stor16[_value >> 96].field_640 == 1: ... stor16[_value >> 96].field_512 = (stor16[_value >> 96].field_640 << 128) + 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000",
+      "source": ":352-355 elif active_delegations == 0: next_expiry = 0 ... expiry_data = shift(active_delegations, 128) + next_expiry",
+      "issue": "Under the guard field_640 == 1 the stored value is 0, but the text neither substitutes the guarded value nor prints the constant as a subtraction: x + 0xffff..ff0000..00 is (field_640 - 1) << 128.",
+      "rule": "Inside 'if x == c', replace x by c; print x + (2^256 - k * 2^m) as x - k * 2^m, and (a << k) - (1 << k) as (a - 1) << k.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "tokenURI, safeTransferFrom (both)",
+      "lines": "273, 279, 282, 284, 286, 289, 295, 308-324, 331, 334, 339, 341, 344 (tokenURI); 767, 881, 889 (3 args); 1014, 1024 (4 args)",
+      "decompiled": "copied = identity(mem[288 len 78]) # precompiled / mem[576 len 78] = mem[288 len 78]",
+      "source": "Vyper copies memory with the identity precompile (address 4); _uint_to_string's raw_call(IDENTITY_PRECOMPILE, concat(buffer, char))",
+      "issue": "23 'copied = identity(...)' lines whose variable is never used; each internal copy is already printed as the copy line that follows (the raw_call's success test is printed separately as 'if not memcopy.success').",
+      "rule": "A STATICCALL to address 4 whose result is unused is a memory copy: print only the copy line mem[dst len n] = mem[src len n].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "semantics",
+      "severity": "low",
+      "function": "preseed()",
+      "lines": "1948-1949, 1970, 1999, 2055, 2084",
+      "decompiled": "_1 = gas_remaining / _2 = gas_remaining / ... static call 0xa0da...1557.locked__end(address _addr) with: gas _1   (in every iteration of the loop)",
+      "source": ":1024 self._create_boost(...) inside for i in range(10); VotingEscrow(VOTING_ESCROW).locked__end / balanceOf",
+      "issue": "Two GAS reads are hoisted to the function entry and reused as the gas of all locked__end and balanceOf calls of the 10 iterations; the bytecode executes GAS right before each STATICCALL (pc 18395 -> 18396, 1832 -> 1833, 9073 -> 9074). No observable difference, because a call never receives more than 63/64 of the gas left and the hoisted value is never smaller than the actual one, but the text states a different argument (other functions print 'gas gas_remaining').",
+      "rule": "gas_remaining (GAS) is not a pure expression: never hoist it out of a loop or merge two reads of it; print each call's gas operand where it is read.",
+      "verified": "reading only (disassembly: GAS immediately before each STATICCALL)"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "every function touching boost_tokens",
+      "lines": "18 (def storage); e.g. 435, 554-564, 1252-1255",
+      "decompiled": "token_expiry is mapping of struct of 4 slots at storage 17  ...  if token_expiry[_value].field_0:  /  token_expiry[t].field_256 = Mask(128, 128, _34)",
+      "source": "slot 17 boost_tokens: HashMap[uint256, Token]; token_expiry(uint256) returns only .expire_time",
+      "issue": "The 4-slot Token mapping is named after token_expiry, which returns its 4th member; the boost data (field_0), cancel time / delegator position (field_256) and position (field_512) all read as 'token_expiry[...]'.",
+      "rule": "Name a storage variable after a getter only when the getter returns the whole value at that location.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "coverage",
+      "severity": "low",
+      "function": "set_base_uri(string), admin(), and every call to VOTING_ESCROW",
+      "lines": "95-96; 98; 229, 397, 1198 ...",
+      "decompiled": "def set_base_uri(string _new_base_uri) payable: revert  |  const admin = 0x6104c052610320516104e052610340516105005260606104c0a4565b600080fd  |  static call 0xa0daf467ac52ecf3071f7a028d5b2adc802b213d6104805160008112614b1557.balanceOf(...)",
+      "source": ":1007-1009 assert msg.sender == AUTHORIZER_ADAPTOR; self.base_uri = _base_uri; :106-107 immutables",
+      "issue": "Corpus artifact, not a decompiler error: Vyper 0.3.1 reads immutables at CODESIZE - 64 + k, and this pre-deployment runtime has no data appended, so they read the last 64 bytes of the code itself (checked: VOTING_ESCROW = code[-64:-32], AUTHORIZER_ADAPTOR = code[-32:]). The garbage word has high bits set, so caller == AUTHORIZER_ADAPTOR is always false and set_base_uri folds to 'revert': its String[128] storage write (an implicit copy loop) cannot be reviewed. The call target is also printed as a 32-byte word, not as the 20-byte address the CALL uses.",
+      "rule": "For the corpus: append zero-filled immutable data to Vyper runtimes (or decompile codecopy(codesize - k) as an unknown constant). In the text: print a call target or address constant masked to 160 bits.",
+      "verified": "reading only (bytecode tail compared with the constants)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "many",
+      "lines": "e.g. 239, 249 ('or False'); 112, 139 ('not _approved / 2'); 149, 165, 181, 258, 893 (mem[28 len 4] = call.data[0 len 4]); 1254, 1932, 2025 (self-assignment); 415, 1234 (_percentage != -1 or ...); 418, 1238 (block.timestamp >=\u2032 0 and ...); 278 (10**77 in hex)",
+      "decompiled": "require ... >=\u2032 ... or False  |  require not _approved / 2  |  token_expiry[t].field_512 = token_expiry[t].field_512  |  require _percentage != -1 or ...  |  tokenId / 0xdd15fe86affad91249ef0eb713f39ebeaa987b6e6fd2a0000000000000000000 % 10",
+      "source": "Vyper's checked signed arithmetic and bool clamps; self.boost_tokens[_token_id] = token (whole struct written back)",
+      "issue": "Leftovers that a general rule removes: 'x or False'; a bool clamp printed as 'not x / 2'; the selector copied to mem[28] and never read; a store of a slot's own value; overflow-case disjuncts made dead by an earlier require (_percentage >\u2032 0 makes '_percentage != -1' true; block.timestamp < 2^255 makes 'block.timestamp >=\u2032 0' true); 10**77 printed in hex while 10**i prints as a power.",
+      "rule": "x or False == x; not (x / 2^k) == x < 2^k (print x == bool(x) for k = 1); drop a store of the value just read from the same slot when an earlier store on the path already made the call non-static; simplify a condition with the facts established by dominating requires; print a constant equal to 10**n as 10**n.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Vyper 0.3.1: no per-function source in the pack; reviewed against the full source at its end. All 42 ABI functions and the fallback ('revert', no __default__) reviewed. Same code: transferFrom = safeTransferFrom(address,address,uint256) without the onERC721Received call; cancel_boost = the body of batch_cancel_boosts; the _burn_boost block is the same in burn, cancel_boost, batch_cancel_boosts, extend_boost and the three transfer functions; preseed's _create_boost block is create_boost's. Checked by disassembly: the onERC721Received check 'require _1 == 0x150b7a02 << 224' compares the whole 32-byte response, and so does the bytecode (pc 612-668: mload of the slice buffer's data word, unmasked, XOR with the method_id word), a Vyper 0.3.1 quirk the text shows faithfully. The 4128-byte zero / mem[5568 len 4128] _data argument is faithful (Vyper sends the full Bytes[4096] buffer). Loop count: 12 explicit (7 copies of _burn_boost's range(513) loop, batch_cancel_boosts', _uint_to_string's, batch_set_delegation_status', preseed's two) + 8 implicit (3 getter string copies and tokenURI's base_uri copy as whiles; tokenURI's two concats and safeTransferFrom's _data calldata copy as copy lines; the unrolled address[256] copy). set_base_uri's String[128] copy is unreachable in this bytecode (see the coverage finding) and not counted. No execution run: the one doubtful point (gas hoisting) cannot change an effect.",
+  "summary": "Faithful on every path checked, and every loop is present; but Vyper's memory-resident locals and loop counters stay mem[N] (with concat(mem[N]) keys and byte-slice reads), range loops are peeled or rotated, storage string copies stay loops, two functions print the same 45-line tail twice, and the boost arithmetic is printed as 2-3K-character repeated expressions."
+}

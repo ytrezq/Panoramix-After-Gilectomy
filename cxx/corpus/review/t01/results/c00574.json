@@ -1,0 +1,74 @@
+{
+  "id": "c00574",
+  "abi_functions": 46,
+  "reviewed": 46,
+  "not_reviewed": [],
+  "source_loops": 20,
+  "loops_shown": {
+    "while": 15,
+    "copy_line": 0,
+    "unrolled": 5,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 80,
+    "P2": 49,
+    "P3": 17,
+    "P4": 1166,
+    "P6": 34,
+    "P7": 65,
+    "P8": 140,
+    "P11": 70,
+    "P12": 15
+  },
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "every function touching owners / modules / userRecoverySigners (solady EnumerableSetLib.AddressSet), def storage",
+      "lines": "16-37 (def storage (vyper)); 117-120 (isOwner); 226 (isRecoverySigner); 9537-9547 (setUserRecoverySigners); 1166 lines with concat(Bytes(4, 0x978aab92))",
+      "decompiled": "def storage (vyper): stor0 is fixed array of mapping of uint256 at storage 0 / stor1 ... at storage 1 / stor2 ... at storage 2  |  uint96(storA70A[concat(Bytes(4, 0x978aab92))][0].field_0)  |  bool(stor[sha3(_3, sha3(0xa70a..., Bytes(4, 0x978aab92)))])  vs  bool(stor0[_param1][sha3(0x8212...e0 * 3600, Bytes(4, 0x978aab92))])  |  stor[_1179].field_96 == _1180 or _1180 == stor1[_1179].field_96 or _1180 == stor2[_1179].field_96",
+      "source": "solady EnumerableSetLib.sol:41-50 rootSlot = keccak256(set.slot . 0x978aab92 (4 bytes)); positionSlot = keccak256(value . rootSlot); values at rootSlot + i; the contract has no state variable in slots 0-2",
+      "issue": "The set's root slot keccak(base ‖ 4-byte seed) is printed as a Vyper-style mapping keyed by a one-element concat, which makes the whole layout 'def storage (vyper)'; the position slot keccak(value ‖ root) and root + 1 / root + 2 are printed three ways, two of them as phantom variables at storage 0, 1 and 2 indexed by a hash. The same set therefore reads as four unrelated variables.",
+      "rule": "A keccak whose input is a constant slot followed by a constant shorter than 32 bytes is a derived constant slot R, not a mapping access: bind R once and print R + i as R[i]; keccak(k ‖ R) is the mapping rooted at R ('R[k]'); never turn stor[H + c] with H a hash into a variable at slot c. Infer a Vyper layout only from keys of 32 bytes placed after the slot.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all signature-checked functions (cancelNonce, cancelRecovery, setThreshold, setRecoveryThreshold, toggleRecoveryEnabled, overrideRecoverySigners, configureAdmins, configureModules, configureOwners, setUserRecoverySigners, recoverSafe), execTransactionFromModule, initialize, isAdmin, getAdmins",
+      "lines": "e.g. 1910-1919, 2045-2051, 2146-2154 (cancelNonce); 706-711, 761 (execTransactionFromModule); 1695, 1701 (recoverSafe); 5811 (initialize); 230 'revert with memory from mem[64]', 39 logs with raw data, 58 sha3(mem[...])",
+      "decompiled": "_296 = mem[64] / mem[mem[64]] = 64 / mem[64] = mem[64] + 96 / _298 = sha3(mem[_296 + 32 len mem[_296]])  |  mem[mem[64]] = 0x2cc396b1... / mem[_529 + 4] = t / revert with memory from mem[64] len _529 - mem[64] + 36  |  static call 0x0.mem[mem[64] len 4] with:",
+      "source": "EtherFiSafeCore.sol:104 keccak256(abi.encode(CANCEL_NONCE_TYPEHASH, cancelledNonce)); MultiSig.sol:250 revert InvalidSigner(i); EtherFiSafeCore.sol:208 revert CallFailed(i); EtherFiSafeBase.sol:212 dataProvider.roleRegistry()",
+      "issue": "Every EIP-712 struct hash is an opaque sha3 of a buffer at the free pointer, 230 custom-error reverts (InvalidSigner(i), InvalidSignatures(), CallFailed(i), ...) and 39 events show raw memory, and in initialize the roleRegistry() call prints the selector's memory expression as the function name ('0x0.mem[mem[64] len 4]', 997 such lines in the corpus). The same reverts at constant addresses print as 'revert with 0x2cc396b1, 0'.",
+      "rule": "Same as c00463 (bound the free-memory word so writes at mem[64] + k do not alias it); and when a call's selector is not a resolved constant, print it in the P2 form ('call addr with: args mem[...]'), never as a function name.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "checkSignatures and its inlined copies in the 11 signature-checked functions; EnumerableAddressWhitelistLib.configure (setUserRecoverySigners, configureOwners); _setupMultiSig / _setupModules (initialize)",
+      "lines": "2027-2191 (cancelNonce: 'while address(s)'); 3155-3160, 4395-4560 ('while True' variants); 9540 ('while address(s) - 4643283231987334101183'); 5719, 6051, 11131 ('while idx + 1 < ...')",
+      "decompiled": "s = cd[_param1 + 36] / while address(s): <body> ... if t + 1 < cd[_param1 + 4]: ... s = cd[32 * t + _param1 + 68] / continue / else: <final check, log, stop> ... / revert with memory (InvalidSigner(t))  |  while address(s) - 4643283231987334101183:",
+      "source": "MultiSig.sol:249-261 for (uint256 i = 0; i < len;) { if (signers[i] == address(0)) revert InvalidSigner(i); ... if (validSigs == $.threshold) break; ++i }; EnumerableAddressWhitelistLib.sol for (i; i < len; ++i) { if (addrs[i] == address(0)) revert InvalidAddress(i); ... }",
+      "issue": "The loop test printed is a revert guard of the next element (signer != 0, value != the zero sentinel), while the real bound i < len is tested at the bottom of the body and duplicated into every exit path (each with its own final threshold check, log and stop); the first iteration's guard is peeled before the loop. The same source loop takes four different shapes across the functions.",
+      "rule": "Choose as loop condition the test on the induction variable (t + 1 < len, i.e. i < len after the increment) and keep guards that exit to a revert inside the body; a test of element i+1 done at the end of iteration i plus the same test of element 0 before the loop is the guard of element i at the top of the body.",
+      "verified": "reading only (followed for cancelNonce, setRecoveryThreshold, toggleRecoveryEnabled: every exit path is equivalent to the source)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize, execTransactionFromModule, cancelNonce and every function reading a codecopy'd constant; every solady set access",
+      "lines": "5526-5540 (initialize); 674-678 (execTransactionFromModule); 1910-1913; 107 'mem[4] = 2542447506' lines",
+      "decompiled": "uint8(storA16A_a16a46d9_2) = 22 / address(storA16A_a16a46d9_2.field_8) = 0 / storA16A_a16a46d9_2.field_168 = 83965601836788521053021797  |  _25 = mem[0] / mem[0] = 0xa13222fb... / mem[0] = _25  |  mem[4] = 2542447506 / mem[0] = 0xa70a07de...",
+      "source": "EIP712Upgradeable __EIP712_init(\"EtherFiSafe\", \"1\") (short-string store); constant MODULE_BATCH_SLOT read with codecopy(0, ...) / mload(0) / mstore(0, old); solady _rootSlot scratch writes",
+      "issue": "The one-word store of the short string 'EtherFiSafe' is split into three field writes, one named 'address' (the zero padding) and the text as a decimal number (49 for \"1\"); a save/overwrite/restore of mem[0] around a code constant is printed although it leaves memory unchanged; the keccak scratch writes stay after the keccak is folded (P8).",
+      "rule": "Merge the field writes of one SSTORE into one write; a constant stored in a bytes/string slot with the short-string length byte prints as the string ('EtherFiSafe'); 'v = mem[a]; mem[a] = x; mem[a] = v' with no read of mem[a] in between is a no-op; scratch stores read only by a folded keccak are dead.",
+      "verified": "disassembly (pc 0x1218-0x1224, 0x2238-0x2248: codecopy(0, 0x592c, 32), mload(0), mstore(0, old), tload/tstore)"
+    }
+  ],
+  "notes": "Reviewed against EtherFiSafeCore/Base, MultiSig, ModuleManager, RecoveryManager, TradingSafe, ArrayDeDupLib, EnumerableAddressWhitelistLib, SignatureUtils, solady EnumerableSetLib (AddressSet length/contains/add/remove/values/at) and OZ ECDSA/EIP712Upgradeable/SafeERC20 (the pack has no 'Reaches' lists for this contract). Read line by line: cancelNonce (whole: _currentOwner with values()/remove/_configureAdmin/add, _useNonce, EIP-712 domain separator with the two storage strings, checkSignatures with checkDuplicates, ECDSA.tryRecover error codes 1/2/3 and the ERC-1271 path, incoming-owner path), the getters, isOwner, isModuleEnabled, useNonce, isRecoverySigner, getModules, getOwners, getRecoverySigners, getAdmins, isAdmin, eip712Domain, execTransactionFromModule (hooks are view, so STATICCALL is right), redirectToTopUp. The other signature-checked functions share these blocks and were reviewed by structure (effects, logs, storage writes, loop shapes; tails of setRecoveryThreshold, toggleRecoveryEnabled and recoverSafe followed in full, including the checked block.timestamp + delay). AccountRecovered is emitted with 0 (after the delete) in the source too. Loops: 15 real source loops (initialize, getAdmins, execTransactionFromModule, _setupModules, configureModules, _configureModules, _setupMultiSig, checkSignatures, _currentOwner, recoverSafe, getRecoverySigners, checkDuplicates outer and inner, EnumerableAddressWhitelistLib.configure, solady values()) all shown as while in every inlined copy; 5 solady Yul 'for {} 1 {} {... break}' blocks (length, contains, add, remove, values outer) run at most once and are shown as straight code (counted unrolled). Implicit: 65 ABI-encode loops as while (P7), calldata array decodes with validation. P4 counts the concat(Bytes(4, seed)) keys (first finding). P1: storage-slot constants and error selectors factored by 3600 (0x2cb721...*3600 = InvalidSignatures()). 142 reverts print custom errors that are in the ABI as raw selectors (EmptySigners, InsufficientSigners, DuplicateElementFound, InvalidSigner, InvalidSignatures, OnlyModules...) - error database gap, not a decompiler error. P11: in-loop Panic(50) checks implied by the loop bound, 'require -s + t >=′ 32' (always 32), the threshold re-check after 'u + 1 == threshold', Panic(34) string-encoding checks done twice. dataProvider is an immutable read as 0 (artifact, const dataProvider = 0). No execution run: no semantic suspicion remained.",
+  "summary": "Faithful on every path read, with all loops present, but hard to read: solady's set storage is shown as a Vyper-style mapping plus phantom slot-0/1/2 variables, memory at the free pointer hides every struct hash, 230 custom-error reverts and 39 events, and the signature loop is rotated so that a revert guard becomes its condition."
+}

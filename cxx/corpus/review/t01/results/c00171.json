@@ -1,0 +1,36 @@
+{
+  "id": "c00171",
+  "abi_functions": 20,
+  "reviewed": 20,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 13, "P4": 14, "P6": 20, "P7": 37, "P8": 60, "P9": 20, "P18": 30},
+  "findings": [
+    {
+      "kind": "semantics",
+      "severity": "high",
+      "function": "handleOps((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes)[],address) (also handleAggregatedOps 3603-3604, simulateHandleOp-like unknownd6383f94 1670-1672)",
+      "lines": "2600, 2628-2631, 2640-2662",
+      "decompiled": "call this.address with: gas gas_remaining args ... ; if 0xdeaddead... == ext_call.return_data[0]: revert ...; _3 = gas_remaining; _5 = gas_remaining; if SafeMath.sub(_3, _5) > _3 - _5 + mem[_182 + 128]: ... ; _6 = gas_remaining; if mem[_182 + 64] < _3 * _255 - _5 * _255 + _6 * _255 - gas_remaining * _255 + ...; uint112(balanceOf[...].field_0) = uint112(... + gas_remaining * _255 ...); log 0x49628fd1...: ..., _3 * _255 - ... - gas_remaining * _255 ..., _3 - _5 + _6 - gas_remaining + _238",
+      "source": "EntryPoint._executeUserOp: uint256 preGas = gasleft(); try this.innerHandleOp(...) ... catch { ... uint256 actualGas = preGas - gasleft() + opInfo.preOpGas; ... } and _handlePostOp: actualGas += preGas - gasleft(); actualGasCost = actualGas * gasPrice; ... _incrementDeposit(refundAddress, refund); emit UserOperationEvent(..., actualGasCost, actualGas)",
+      "issue": "The bytecode reads `preGas` (GAS at pc 0x1ad6) before the innerHandleOp CALL (pc 0x1b14), but the text binds it as `_3 = gas_remaining` after the call, next to `_5`, so `_3 - _5` reads as ~0 instead of the gas used by the inner call; the later single gasleft() of _handlePostOp is re-printed inline six times, across the deposit SSTORE and the LOG. Read literally, actualGas, actualGasCost, the refund credited to the deposit and the event data are all wrong.",
+      "rule": "A GAS read is not a pure expression: bind each GAS opcode's result to a variable at the exact point where it executes (before any later CALL, SSTORE or LOG) and refer to that variable at every use; never sink or duplicate it.",
+      "verified": "disassembly: 0x1ad6 gas (preGas), call encoding with selector 0xeb993ab<<0xe1 = 0x1d732756, 0x1b12 address, 0x1b13 gas, 0x1b14 call, 0x1b2d push4 0xdeaddead; the text has no GAS binding before its call at line 2600"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "handleOps, handleAggregatedOps",
+      "lines": "2640-2662",
+      "decompiled": "mem[_286 + 64] = _3 * _255 - _5 * _255 + _6 * _255 - gas_remaining * _255 + _238 * _255 ; uint112(balanceOf[concat(mem[0])].field_0) = uint112(-1 * _3 * _255 + _5 * _255 - _6 * _255 + gas_remaining * _255 - _255 * mem[_182 + 128] + mem[_182 + 64] + ...)",
+      "source": "_handlePostOp: actualGasCost = actualGas * gasPrice; refund = opInfo.prefund - actualGasCost",
+      "issue": "actualGas and actualGasCost are never named: the product with gasPrice is distributed over the five gas terms (P9) and re-expanded with flipped signs in the refund, so the event's two values and the deposit credit can't be read as `actualGas * gasPrice` and `prefund - actualGasCost`.",
+      "rule": "Keep products unexpanded and bind a value that is used three or more times (here actualGas) to a named temporary.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "handleOps (1990-2809), handleAggregatedOps (2810-3779), simulateValidation and unknownd6383f94 (simulateHandleOp) reviewed by structure; the rest fully. All 7 source loops are shown as whiles: handleOps' validation loop (`while idx < _param1.length`) and execution loop (`while True: if s >= _param1.length`), handleAggregatedOps' 5 loops (2810, 2935 with inner 2943, 3504 with inner 3536). Implicit: UserOpInfo[] allocations (`while idx < 32 * _param1.length`), the ABI encoding of ops for validateSignatures and many bytes/string copies for FailedOp reasons (P7). FailedOp reverts print as `revert with mem[_230 len 4], s, 64, 15, 0x4141393520...` (selector left as a memory slice, ASCII reasons in hex). P4: `balanceOf[concat(mem[0])]` for deposits. The GAS-placement problem also affects the other GAS bindings listed at 1670-1672 and 3603-3604 (three/two consecutive `_N = gas_remaining` lines that in the source straddle calls).",
+  "summary": "All 7 loops are present and the structure is faithful, but GAS reads are moved past the innerHandleOp CALL and re-printed across SSTORE/LOG, which makes the printed gas accounting (actualGas, refund, UserOperationEvent) wrong; the gas-cost arithmetic is also distributed and unnamed."
+}

@@ -1,0 +1,63 @@
+{
+  "id": "c00058",
+  "abi_functions": 58,
+  "reviewed": 58,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {
+    "while": 5,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 2,
+    "P2": 1,
+    "P3": 1,
+    "P6": 45,
+    "P8": 428,
+    "P10": 188,
+    "P11": 3,
+    "P16": 20,
+    "P18": 31
+  },
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "deployMarket (unknown23fb1d21)",
+      "lines": "4390-4405 and the three other CREATE3 deployments",
+      "decompiled": "create2 contract with 0 wei salt: cd[_param1 + 388] code: Bytes(16, 0x67363d3d37363d34f03d5260086018f3) / ... / call create2.new_address.atInversebrah(int248 a, uint48[] b, uint32 c, bytes20[] d, bytes30[] e) with: args Bytes(640, 0x52610284803803806100148161016e...) ...",
+      "source": "RoycoFactory.sol:300 CREATE3.deployDeterministic(abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(_implementation, _initData)), _salt)",
+      "issue": "The call to the CREATE3 deployer proxy sends the ERC1967Proxy creation code (0x6080604052...) as call data; the text takes its first 4 bytes 0x60806040 as a selector and names the call 'atInversebrah(int248, uint48[], uint32, bytes20[], bytes30[])' (a database collision), so the deployment reads as a function call with nonsense parameters.",
+      "rule": "Decode a call's first 4 bytes as a selector only when they were stored as a 4-byte value (selector) followed by ABI words; when the data is a copied constant blob (here the code of a contract, starting 0x6080604052 / PUSH1 0x80 PUSH1 0x40 MSTORE) print the call with raw data and no name.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "every onlyAuthorized function (setTargetFunctionRole, setRoleAdmin, grantRole, revokeRole, labelRole, setGrantDelay, setTargetClosed, updateAuthority, setScheduledOperationsExpiry, upgradeToAndCall, deployMarket ...)",
+      "lines": "e.g. 503-519, 1579-1611, 1739",
+      "decompiled": "_59 = (_39 > _50) * (_39 ^ _50) == _50 / _60 = (_39 > _50) * (_39 ^ _50) ^ _50  |  _59 = not _39 * (_39 > 0) / _60 = _39 * (_39 > 0)  |  _71 = call.func_hash == 0x853551b8.. or call.func_hash == 0x30cae187.. / if not _71: _72 = call.func_hash == 0x52962952.. else: _72 = _71 / if not _72: _73 = ...",
+      "source": "OZ AccessManager _canCallSelf: uint32 delay = uint32(Math.max(operationDelay, currentDelay)); return (delay == 0, delay); _getAdminRestrictions' selector tests (a || b || c ...)",
+      "issue": "OZ's branch-free Math.max / ternary (b ^ ((a ^ b) * (a > b))) is printed as the raw bit trick (35 lines), x * (x > 0) is kept for an unsigned x, and the '||' chains of selector tests are printed as nested if/else with phi copies (188 SSA-copy lines), repeated in every onlyAuthorized function.",
+      "rule": "b ^ ((a ^ b) * c) with c boolean is 'a if c else b' (max(a, b) when c is a > b); x * (x > 0) is x for unsigned x; 'if not p: q' with the result phi'd to p in the other arm is 'p or q'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setTargetFunctionRole (unknown08d6122d), deployMarket, initialize",
+      "lines": "1573-1626; 4966-5004",
+      "decompiled": "if 0 >= cd[_param2 + 4]: stop / require not uint224(cd[_param2 + 36]) (in both arms of the authorization test) / uint64(stor[..]) = _param3 / log ... / s = cd[_param2 + 36] / idx = 0 / while idx + 1 < cd[_param2 + 4]: ... s = cd[32 * idx + _param2 + 68]  |  cd[32 * s + _param1 + cd[_param1 + 516] + cd[32 * idx + _param1 + cd[_param1 + 516] + 36] + cd[_param1 + cd[_param1 + 516] + cd[32 * idx + ...] + 68] + 68]",
+      "source": "AccessManagerUpgradeable.sol:412 for (i < selectors.length) _setTargetFunctionRole(target, selectors[i], roleId); RoycoFactory.sol:266-283 _configureRoles' nested loops over _roles[i].selectors[j] / roles[j]",
+      "issue": "setTargetFunctionRole's loop is rotated (first iteration peeled and its head duplicated in both arms of the preceding if; P3) and keeps an unused variable s; in deployMarket the nested calldata struct-array elements (_roles[i].selectors[j], .roles[j], .target) are printed as raw calldata arithmetic up to 600 characters long, and roles[j]'s bounds check is kept although 'selectors.length == roles.length' was just required.",
+      "rule": "Recognise the rotated loop as 'while i < n'; drop variables never read; print cd[base + cd[base + off] + 32*i + 36] as param.field[i] once the offsets are bound to the parameter's ABI type; a bounds check of b[j] under j < a.length and a.length == b.length is implied.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 58 ABI functions and the fallback reviewed; no semantic error found. Most functions are OZ AccessManagerUpgradeable (each starts with the inlined _checkAuthorized / _canCallSelf / _getAdminRestrictions / _consumeScheduledOp, ~140 lines); these were compared once in detail (selector dispatch, hasRole with grant delay and the Time.Delay unpacking, SafeCast toUint48 revert, schedule expiry with the overridden expiration(), AccessManagerUnauthorizedAccount / NotScheduled / NotReady / Expired) and by structure elsewhere. initialize (1,197 lines) and deployMarket (1,022) reviewed by structure: role assignments with getRoleConfig, the four CREATE3 deployments with ALREADY_DEPLOYED and the deployer-proxy checks, the cross-checks of the deployed components (authority, SENIOR/JUNIOR_TRANCHE, asset, KERNEL...), _configureRoles, the tranche mappings and the events. multicall's pack source is a wrong snippet (ERC20PermitUpgradeable); checked against OZ Multicall (context suffix, functionDelegateCall with FailedCall / AddressEmptyCode). Source loops: multicall, setTargetFunctionRole (rotated, P3), initialize's role loop, _configureRoles' two nested loops: all whiles. Implicit: multicall's results init and ABI encoding, deployMarket's event encodings. P1: the Initializable slot printed as 0x111f..aa0 * 3600 (2 lines; the other 14 regex hits are 5 * 24 * 3600, the 5-day minSetback, correct). P10 counted as the SSA-copy lines of the or-chains.",
+  "summary": "Faithful on every path checked; long because every AccessManager entry point inlines the authorization logic, which prints OZ's branch-free max and the selector or-chains in raw form, and the CREATE3 proxy calls are misnamed 'atInversebrah(...)' by a database collision on the creation code's first bytes."
+}

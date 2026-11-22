@@ -1,0 +1,25 @@
+{
+  "id": "c00339",
+  "abi_functions": 8,
+  "reviewed": 8,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P7": 3, "P8": 8},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setDstConfig((uint32,uint128)[]) (0x34378d48)",
+      "lines": "100-114",
+      "decompiled": "mem[mem[64]] = 32 / mem[mem[64] + 32] = cd[_param1 + 4] / idx = 0 / s = mem[64] + 64 / t = _param1 + 36 / while idx < cd[_param1 + 4]: require cd[t] == uint32(cd[t]); mem[s] = uint32(cd[t]); ... / log 0xf7b6cda3...: mem[mem[64] len 64 * cd[_param1 + 4] + 64]",
+      "source": "CCIPDVNAdapterFeeLib.sol:30 emit DstConfigSet(_param);",
+      "issue": "The event's only field, the calldata struct array, is printed as a raw memory range filled by a validating copy loop, instead of the array argument (the loop is needed for the uint32/uint128 validation, but the data equal the calldata words).",
+      "rule": "When a loop copies calldata elements to memory after validating that each equals its cleaned value, the memory range equals the calldata range; print the log data as Array(len=cd[_param1 + 4], data=call.data[_param1 + 36 len 64 * n]) after the checks.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The pack has no source for setDstConfig/getFee/getFeeOnSend/initialize ('no source definition found in the AST'); they were compared with contracts/uln/dvn/adapters/CCIP/CCIPDVNAdapterFeeLib.sol. All 8 ABI functions compared in full. No semantic error found: the gas == 0 check with CCIPDVNAdapter_EidNotSupported(dstEid), the options-length check, the router getFee static call with the EVM2AnyMessage encoding, and _applyPremium (multiplierBps or the default, times fee / 10000) match. The only source loop, setDstConfig's for, is a readable while; the other 3 whiles are implicit validating copies (the DstConfigSet event data and the tokenAmounts array of the message in getFee/getFeeOnSend).",
+  "summary": "Small, faithful text with its one source loop readable; only the event data and message encodings are shown through validating copy loops into memory."
+}

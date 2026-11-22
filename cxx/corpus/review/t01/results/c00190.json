@@ -1,0 +1,71 @@
+{
+  "id": "c00190",
+  "abi_functions": 33,
+  "reviewed": 33,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {
+    "while": 3,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 25,
+    "P6": 7,
+    "P8": 30,
+    "P10": 10,
+    "P11": 15,
+    "P12": 40
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "fillContractOrderArgs, fillOrderArgs (and fillOrder's extension paths)",
+      "lines": "1362-1373, 1403, 1630 and 19 more 'call X.mem[_N len 4] with:' lines",
+      "decompiled": "_284 = mem[64] / mem[mem[64]] = 0x23b872dd... / mem[_284 + 4] = address(_param2) / ... / call address(_param4).mem[_284 len 4] with: args address(_param2), _275, _273, mem[_284 + 100 len _279]",
+      "source": "OrderMixin._fill: IERC20(order.makerAsset.get()).safeTransferFromUniversal / transferFrom with the maker-asset suffix from the extension (selector 0x23b872dd + args + suffix bytes)",
+      "issue": "The arguments are resolved but the selector, stored at the same address just before, is printed as a memory expression in the function-name position, so the maker/taker transfers read as calls to a function named 'mem[_284 len 4]'.",
+      "rule": "_x = mem[64] followed by mem[mem[64]] = v with no write to word 64 in between gives mem[_x len 4] = v >> 224; resolve the selector like the arguments, and when it stays unknown print the P2 form instead of a name.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "fillContractOrder, fillContractOrderArgs, fillOrder, fillOrderArgs",
+      "lines": "528-683, 611-..., 766-..., 849-964 (fillContractOrder: the same block four times); fillOrderArgs 2,343 lines",
+      "decompiled": "stor5[address(_param2)][sha3(...)] = ... / stor4[...] |= 1 << uint8(_param8 >> 120) / call address(_param2).unknown0986bdd5(?) / call address(_param4).transferFrom(...) / ... call 0x0.withdraw(...) / call caller with ... (printed once per amount-computation path)",
+      "source": "OrderMixin.sol _fill: if (takerTraits.isMakingAmount()) {...} else {...}; then one common tail: invalidation, preInteraction, maker->taker transfer, WETH unwrap, taker->maker transfer, postInteraction, OrderFilled",
+      "issue": "The common tail of _fill is duplicated for each path of the amount computation (and of the permit2/WETH choices), so each fill function prints the transfer/invalidation block four times; fillOrderArgs reaches 2,343 lines.",
+      "rule": "Same as c00463: when paths join with only some variables differing, print the shared continuation once after the join with phi variables.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "fillContractOrder (and the other fills), permitAndCall, all no-argument functions, renounceOwnership, transferOwnership",
+      "lines": "470-477; 380-384; 37, 41, 65 ...; 110, 137",
+      "decompiled": "if not Mask(1, 249, _param8): _20 = 1 / _21 = 0 / else: _20 = 0 / _21 = 0xb2d25e49... / if not _20: revert with Bytes(4, _21 >> 224)  |  if cd[_param1 + 4] < 20: _1 = Mask(...) else: _1 = ... / require 20 <= cd[_param1 + 4]  |  require calldata.size - 4 >=′ 0  |  _1 = stor[3] / owner = 0",
+      "source": "OrderLib.isValidExtension returns (bool, bytes4) and _fill reverts with the bytes4 in assembly; permitAndCall's permit[:20]; Ownable._transferOwnership",
+      "issue": "A (flag, selector) pair of constants is tested after the join instead of in its arm (the revert is really 'if Mask(1, 249, _param8): revert with 0xb2d25e49'); a value is computed for a length the next require rejects; a size check that is always true and a raw read of the slot named owner are kept.",
+      "rule": "Sink a test of a phi whose incoming values are constants into the incoming arms; drop computations whose only use is dominated by a failing require; 'calldata.size - 4 >=′ 0' after dispatch is always true; print a read of a named slot by its name.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "DOMAIN_SEPARATOR, eip712Domain, hashOrder, every fill function, the WETH paths",
+      "lines": "98-104, 82-91, 153-158, 442-447, 577",
+      "decompiled": "_1 = not this.address and not chainid / if not _1: return sha3(0x8b73c3c6..., Bytes(64, 0), chainid, this.address) else: return 0  |  call 0x0.withdraw(uint256 amount)",
+      "source": "OZ EIP712 immutables (_cachedThis, _cachedChainId, _cachedDomainSeparator, _hashedName, _hashedVersion, ShortStrings name/version); immutable _WETH",
+      "issue": "solc immutables read as 0, so the cached domain separator is used only when this == 0 and chainid == 0, the hashed name and version are zero, and WETH is address 0.",
+      "rule": "none (expected for this corpus)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against OrderMixin, PredicateHelper, SeriesEpochManager, BitInvalidatorLib, RemainingInvalidatorLib, MakerTraitsLib/TakerTraitsLib, OrderLib, SafeERC20 (1inch solidity-utils), Pausable/Ownable. The small functions were read line by line (and/or/not/eq/lt/gt predicates, arbitraryStaticCall, simulate with its SimulationResults revert, permitAndCall with the six permit encodings and the Permit2 address chosen by chainid, cancelOrder(s), bitsInvalidateForOrder, increaseEpoch/advanceEpoch, epoch views, remaining invalidators, hashOrder). fillContractOrder (547 lines), fillContractOrderArgs (963) and fillOrder (1,057) were read by structure (checks in source order: remaining invalidator, ERC-1271 or ECDSA signature, paused, extension validity, private order, expiration, epoch manager, amount computation with the threshold checks, invalidation, pre/post interactions, transfers with permit2 and WETH, OrderFilled event); fillOrderArgs (2,343 lines) by structure only. Loops: 3 source loops (and, or, cancelOrders) all shown as readable while loops; no implicit loop is printed as a while (via-IR copies are copy lines). The text is otherwise clean (via-IR build): calldata copies, named custom errors, resolved Permit2 calls. No execution run: no semantic suspicion remained.",
+  "summary": "Readable and faithful on every path read, with its 3 loops present; the main defects are the fill functions' common tail duplicated per amount path, 22 calls whose resolved selector is printed as a memory expression in the function-name slot, and a few unfolded constant phis."
+}

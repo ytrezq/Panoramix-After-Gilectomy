@@ -1,0 +1,51 @@
+{
+ "id": "c00460",
+ "abi_functions": 42,
+ "reviewed": 42,
+ "not_reviewed": [],
+ "source_loops": 8,
+ "loops_shown": {
+  "while": 7,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 1
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P1": 2,
+  "P2": 40,
+  "P3": 2,
+  "P6": 22,
+  "P7": 12,
+  "P8": 80,
+  "P14": 60,
+  "P18": 30
+ },
+ "findings": [
+  {
+   "kind": "semantics",
+   "severity": "high",
+   "function": "_fallback (receive), depositTransaction(address,uint256,uint64,bool,bytes)",
+   "lines": "1087-1201, 1313-1430",
+   "decompiled": "_4 = gas_remaining / _5 = gas_remaining ... if _3 >= _4: if 100000 * uint128(stor1.field_0) / _104 <= _3 - _4: stop / if SafeMath.sub(_5, gas_remaining) >= -_3 + _4 + 100000 * uint128(stor1.field_0) / _104: stop / revert with Panic(17)",
+   "source": "ResourceMetering.sol:147-149 usedGas = _initialGas - gasleft(); if (gasCost > usedGas) Burn.gas(gasCost - usedGas);  Burn.sol:18 while (initialGas - gasleft() < _amount) { ++i; }",
+   "issue": "The gas-burning loop is missing: the text tests 'initialGas - gasleft() >= amount' once and otherwise falls through to 'revert with Panic(17)', while the bytecode loops (back edge 0x3859 -> 0x383b, ++i checked) until enough gas is burned and then returns normally; a deposit whose gas limit costs more than the gas already used is shown as reverting.",
+   "rule": "GAS is not loop-invariant: a loop whose condition reads GAS (directly or through a value computed from it inside the loop) must stay a loop, e.g. 'while initialGas - gas_remaining < amount: i = i + 1'; never conclude 'condition invariant, so the loop only exits by overflow of i' when the condition contains GAS.",
+   "verified": "disassembly 0x3834-0x3861 (gas at 0x383d re-read each iteration, jump back at 0x3859); text_check run --per-selector 32: 0 differences because no sampled call takes the burn path"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "proveWithdrawalTransaction(...) (inlined MerkleTrie.get / RLPReader / Bytes.slice)",
+   "lines": "2658-2662, 2693-2697, 2130, 2279, 2432, 2630, 2759, 2908, 3082",
+   "decompiled": "while idx < 2 * _1028 + _1069 + (2 * _1028 + (_1040 >> 248) % 2 - 2) % 32 + (_1040 >> 248) ...: mem[idx] = mem[v]; v = v + 32; idx = idx + 32  |  while idx < _710: mem[_713 + idx + 32] = mem[_709 + idx]; idx = idx + 32",
+   "source": "Bytes.sol:48 slice's Yul copy loop (for { ... } lt(mc, end) { ... } { mstore(mc, mload(cc)) }); RLPReader.sol:246 _copy (for { } lt(i, _length) { i := add(i, 32) } { mstore(add(dest, i), mload(add(src, i))) })",
+   "issue": "The source's word-copy loops are printed as whiles, one with a bound expression of five terms that is just 'start + length rounded up', so the proof walk is hard to follow.",
+   "rule": "A loop 'mem[d + i] = mem[s + i]; i += 32' while i < n with disjoint ranges is the copy line mem[d len ceil32(n)] = mem[s len ceil32(n)]; simplify 'a + b - t + (a - t) % 32 + 32 * not((a - t) % 32)' style bounds to ceil32 forms.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "8 source loops in what the ABI functions reach (3 of them Yul): Burn.gas:18 (missing, first finding), MerkleTrie._parseProof:186, MerkleTrie.get:78 (walk over the proof), MerkleTrie._getSharedNibbleLength:215 ('while idx < min(mem[_1093], mem[_1124])'), RLPReader.readList:75, Bytes.toNibbles Yul:122 ('while idx < _323' writing two nibbles per byte), Bytes.slice Yul:48 and RLPReader._copy Yul:246 (copies kept as whiles, second finding). Implicit: the calldata decode of bytes[] _withdrawalProof (1678), the zero-initialisation of new TrieNode[] arrays (rotated 'while idx - 1', P3), the copy of _data into the packed opaque data (1069, 1295, P7). proveWithdrawalTransaction (1500 lines) reviewed by structure; finalizeWithdrawalTransaction*, checkWithdrawal, depositTransaction, receive and the getters in detail apart from the burn loop. The EIP-150 check '63 * gas_remaining < 63 * _90 + 64 * gasLimit + 700 * 3600' prints 2520000 as '700 * 3600' (P1-like time-unit factoring of a gas constant).",
+ "summary": "Mostly faithful with the trie/RLP loops present, but the Burn.gas loop of ResourceMetering is missing: the text treats the GAS-based condition as loop-invariant and shows a deposit that must burn gas as reverting with Panic(17); the source's word-copy loops stay obscure whiles."
+}

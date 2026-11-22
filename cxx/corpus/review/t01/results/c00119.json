@@ -1,0 +1,102 @@
+{
+  "id": "c00119",
+  "abi_functions": 59,
+  "reviewed": 59,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 12, "P3": 2, "P6": 319, "P7": 329, "P8": 900, "P12": 4000, "P15": 100},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "voteOnBehalfOf(uint256,bool,address[])",
+      "lines": "6937-6992 (hoisted first test in both arms of 'if _3'), 6992 (while s:), 11640-11675 (step and exit)",
+      "decompiled": "if 0 >= _voters.length: stop / call token.balanceOfAt(...) args address(_voters[0]), ... / _12 = ext_call.return_data[0] > 0  (x2) ... s = _12 / t = address(_voters[0]) / u = 0 / while s: ... s = ext_call.return_data[0] > 0 / t = address(cd[32 * u + _voters + 68]) / u = u + 1 / continue / (14-line revert 'VOTING_CANNOT_VOTE')",
+      "source": "DisputableVoting.sol:295-305 for (uint256 i = 0; i < _voters.length; i++) { address voter = _voters[i]; require(_hasVotingPower(vote_, voter), ERROR_CANNOT_VOTE); require(_isRepresentativeOf(voter, msg.sender), ...); if (!_hasCastVote(...)) _castVote(...); else emit ProxyVoteFailure(...); }",
+      "issue": "The loop is found, but its condition is the require of the voting-power test of the next voter (computed by the call at the end of the previous iteration, and hoisted for voter 0 into both arms of an earlier if); the real bound i < _voters.length is an 'if ...: stop' inside a 4,700-line body, and falling out of the while is the revert. The text never states that the loop runs over _voters.",
+      "rule": "When a loop's exit edge leads only to a revert, keep it as a guarded revert inside the body ('require s') and take the loop condition from the exit that leaves normally (the index test); move a computation peeled before the header back to the top of the body when the body ends with the same computation for the next index.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "canVoteOnBehalfOf(uint256,address[],address)",
+      "lines": "782-836",
+      "decompiled": "if 0 >= _voters.length: return 1 / call token.balanceOfAt(... address(_voters[0]) ...) (x2) / ... / s = _12 / t = address(_voters[0]) / idx = 0 / while idx + 1 < _voters.length: ... address(cd[32 * idx + _voters + 68]) ... s = ... / t = ... / idx = idx + 1",
+      "source": "DisputableVoting.sol:528-533 for (uint256 i = 0; i < _voters.length; i++) { address voter = _voters[i]; if (!_hasVotingPower(...) || !_isRepresentativeOf(...) || _hasCastVote(...)) return false; }",
+      "issue": "Rotated loop (P3): iteration 0 is printed before the loop (twice, once per arm of the quiet-ending test), the loop runs on idx + 1 and reads _voters[idx + 1] as raw calldata cd[32 * idx + _voters + 68]; s and t are assigned in and before the loop and never read.",
+      "rule": "Re-roll a peeled first iteration when it equals the body with the index 0 (i = idx + 1 throughout); print cd[_a + 36 + 32 * i] of a calldata array param _a as _a[i]; drop SSA variables that no path reads.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "voteOnBehalfOf (247 lines), vote, getCastVote, canVote, canVoteOnBehalfOf (227 lines)",
+      "lines": "25-26 (def storage), 6929, 7017-7019, 7069; 153-162 (getCastVote)",
+      "decompiled": "stor6 is fixed array of struct of 1 slot at storage 6 / stor8 is fixed array of mapping of struct of 1 slot at storage 8 ... _1 = sha3(_voteId, 4) ... stor[_1 + 3] ... uint64(stor6[_1].field_0) ... uint8(stor8[_1][t].field_0) = 2  |  assert uint8(stor[sha3(address(_voter), sha3(_voteId, 4) + 8)]) <= 2",
+      "source": "struct Vote { ... uint64 pausedAt; uint64 pauseDuration; uint64 quietEndingExtensionDuration; VoterState quietEndingSnapshotSupport; (slot 6) bytes32 executionScriptHash; mapping (address => VoteCast) castVotes; (slot 8) }  mapping (uint256 => Vote) internal votes; (slot 4)",
+      "issue": "Where the vote's slot sha3(_voteId, 4) is bound to _1, its members print as raw stor[_1 + i], and members 6 and 8 are taken for two variables 'stor6' and 'stor8' at slots 6 and 8, which do not exist; the castVotes mapping inside the struct is raw storage arithmetic everywhere (vote() prints the scalar members as vote[_disputeId].field_N but castVotes as stor[sha3(caller, sha3(_disputeId, 4) + 8)]).",
+      "rule": "stor[sha3(k, s) + i] is member i of mapping s at key k, also when sha3(k, s) is held in a variable, and a mapping at member i is stor[sha3(key2, sha3(k, s) + i)]: print it as vote[k].field_{256 i}[key2]; never declare a storage variable from an access whose base is sha3(...) + constant.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "voteOnBehalfOf, vote",
+      "lines": "6992-11640 (84 copies of the CastVote emission); 3076-6915 (vote: 16 balanceOfAt calls)",
+      "decompiled": "stor[_1] = _115 - ext_call.return_data[0] / stor[_1 + 1] = _117 + ext_call.return_data[0] / uint8(stor8[_1][t].field_0) = 2 / address(stor8[_1][t].field_8) = caller / log CastVote(...)   (90 copies in the text)",
+      "source": "DisputableVoting.sol:776-808 _castVote (one CastVote emit; two balanceOfAt calls per vote: _hasVotingPower and _castVote)",
+      "issue": "The branches of _castVote (quiet-ending period started or not, snapshot absent or not, previous state Absent/Yea/Nay, _supports) are never joined: each combination prints its own tail, so CastVote is emitted 90 times in the text (2 in the source) and the loop body of voteOnBehalfOf is 4,600 lines (P12). As in c00034, the paths differ in dead memory (revert-message allocations, sha3 scratch).",
+      "rule": "Drop memory writes dead at a join (scratch, message allocations only read on revert paths) before comparing states, and join the paths; then the shared tail (the yea/nay writes, the castVote write and the event) is printed once with phi'd values.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "changeSupportRequiredPct, changeVoteTime, changeMinAcceptQuorumPct, changeDelegatedVotingPeriod, changeExecutionDelay, changeQuietEndingConfiguration",
+      "lines": "888-904 (changeSupportRequiredPct) and the same block in the five others",
+      "decompiled": "uint64(setting[_17].field_0) = uint64(setting[_17 - 1].field_0) / setting[_17].field_0 = Mask(128, 128, _29) | Mask(128, 128, _30) | _29 | uint64(setting[_17 - 1].field_64) << 64 / setting[_17].field_0 = Mask(64, 192, _29) | Mask(64, 192, _30) | Mask(64, 128, _31) << 64 | _29 | uint64(_31) << 64 | uint64(setting[_17 - 1].field_128) << 128 / uint64(setting[_17].field_0) = _29 ...",
+      "source": "DisputableVoting.sol:_newCopiedSettings: Setting storage setting = _newSetting(); Setting storage from = _getSetting(settingId - 1); setting.voteTime = from.voteTime; ... (7 packed uint64 members in 2 slots)",
+      "issue": "A storage-to-storage copy of a packed struct prints as successive whole-slot writes (P15) containing masks of values known to fit (Mask(128, 128, _29) with _29 = uint64(...) is 0), and the same fields are written two or three times.",
+      "rule": "Mask(n, k, x) is 0 when x < 2^k; a slot written several times with no read in between keeps only the last write, which then splits into its fields; field-by-field equality with another slot's fields is a struct copy.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "298 revert-message copy loops (most functions); transferToVault, changeSupportRequiredPct and the other setters (merged reverts)",
+      "lines": "e.g. 7000-7015 (voteOnBehalfOf); 699-715 (transferToVault); 916-943 (changeSupportRequiredPct)",
+      "decompiled": "mem[552] = 0x8c379a0... / mem[588] = 29 / mem[620] = 'RECOVER_TOKEN_TRANSFER_FAILED' / _13 = 620 / _15 = 29 / else: ... _13 = 324 / _15 = 26 / mem[_13 + floor32(_15)] = ~(256**(-_15 + 32) - 1) & mem[_13 + floor32(_15)] / revert with memory from mem[64] len _13 + floor32(_15) - mem[64] + 32",
+      "source": "VaultRecoverable.transferToVault: require(isContract(vault), ERROR_VAULT_NOT_CONTRACT) ... require(token.safeTransfer(vault, balance), ERROR_TOKEN_TRANSFER_FAILED)",
+      "issue": "Besides the 298 message-copy loops that fold with symbolic-base forwarding (same as c00034), two literal reverts that the compiler shares are joined through phi'd addresses and lengths, so neither message is printed as a revert string.",
+      "rule": "Duplicate a revert tail into its predecessors when the tail's data depends only on values that are constant in each predecessor; each copy then folds to 'revert with <literal>'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getEVMScriptExecutor, executeVote, newVote, forward, canForward, canPerform; transferToVault",
+      "lines": "273-308; 2867-2868 (execScript delegatecall), 2997 (ScriptResult); 1418-1420, 1550-1552, 1585-1590 (newVote); 666-668",
+      "decompiled": "call address(stor4172) with: args mem[mem[64] len ceil32(_script.length) - mem[64] + 228] ... _17 = mem[64] / mem[mem[64]] = Bytes(12, 0), mem[mem[64] + 12 len 20] / return memory from mem[64] len _17 - mem[64] + 32  |  mem[_573 + 32 len 4] = 664594997 / delegate _537 with: args mem[_573 + 32 len mem[_573]]  |  log StartVote(...): mem[mem[64] len _110 - mem[64]], indexed _31, indexed caller  |  args Bytes(28, uint128(this.address >> 32)), Bytes(4, uint32(this.address))",
+      "source": "EVMScriptRunner.getEVMScriptExecutor / runScript (execScript selector 0x279cea35); _newVote: token.totalSupplyAt(...), agreement.newAction(...), emit StartVote(voteId, msg.sender, _context, _executionScript); SafeERC20.staticBalanceOf(this)",
+      "issue": "Calls, event data and return values built at the free-memory pointer stay raw (P2): kernel.getApp and getScriptExecutor even though mem[64] is known as ceil32(len) + 160, the execScript delegatecall (selector in decimal), token.totalSupplyAt, agreement.newAction, the StartVote and ScriptResult data, and the returned address and voteId; an address argument prints as two byte slices of itself.",
+      "rule": "Resolve memory relative to the free-memory pointer's symbolic value; a 4-byte constant at the head of call data is a selector (hex, named); adjacent byte slices Bytes(28, x >> 32), Bytes(4, uint32(x)) of one value x < 2^224 are x; a return of the word written at the pointer is a return of that value.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "most functions",
+      "lines": "e.g. 7004, 6952, 687",
+      "decompiled": "if 0 >= mem[_58]:  |  if 0 >= _voters.length: stop  |  if ext_call.success <= 0:",
+      "source": "-",
+      "issue": "Unsigned comparisons with 0 are printed as 0 >= x or x <= 0 (336 lines) instead of not x.",
+      "rule": "For unsigned x, 0 >= x and x <= 0 are x == 0.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Storage: the pack's compiler layout is empty; the text's slots 0-5 match the source (token, settingsLength, settings, votesLength, votes, representatives); stor6/stor8 are artifacts (finding 3); stor4172, stor6DBE, appId and initializationBlock are aragonOS unstructured slots (kernel, agreement). The MiniMeToken.getValueAt while (in 'Reaches') is in the token contract, called externally, not in this bytecode, so not counted. Whiles: 325 'while idx < _N' (298 revert-message copies, 27 bytes copies for abi encoding and keccak), 2 'while idx >= 32' (call-data copies), 1 uint256[] copy in canPerform, 1 address[] copy for execScript: all P7. vote (3,840 lines) and voteOnBehalfOf (4,760) reviewed by structure (branches, calls, events, storage writes); executeVote's script path read line by line; canForward, initialize, isVoteOpenForVoting, canClose, canChallenge, canVote, forward and canExecute checked by their calls, events and reverts against the source; the rest line by line. The SafeMath helper 'sub' is SafeMath64.sub (its message MATH64_SUB_UNDERFLOW is right for its three uses).",
+  "summary": "Semantically faithful on everything read; both source loops are found, but the delegation loop is shaped around its require (condition = voting power of the next voter, bound hidden in the body). The text is dominated by unjoined _castVote branches (90 CastVote copies), raw struct/mapping-in-struct storage with invented stor6/stor8 variables, revert-message loops and raw-memory calls and events."
+}

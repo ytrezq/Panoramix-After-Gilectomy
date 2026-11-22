@@ -1,0 +1,47 @@
+{
+  "id": "c00062",
+  "abi_functions": 22,
+  "reviewed": 22,
+  "not_reviewed": [],
+  "source_loops": 10,
+  "loops_shown": {"while": 10, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 96, "P3": 9, "P6": 23, "P7": 19, "P8": 400, "P11": 30, "P14": 300, "P15": 3, "P18": 100},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "getSafeCashData, canSpend, canSpendSingleToken, applicableSpendingLimit (inlined SpendingLimitLib.getCurrentLimit)",
+      "lines": "e.g. the block around 'while block.timestamp > uint64(24 * 3600 * ((uint64(s) + mem[ceil32(return_data.size) + 992]) /′ (24 * 3600)) - ...)'",
+      "decompiled": "(overflow checks of nextDay(r0)) / s = mem[ceil32(return_data.size) + 864] / while block.timestamp > uint64(24 * 3600 * ((uint64(s) + off) /′ (24 * 3600)) - off + 24 * 3600): (checks) s = 24 * 3600 * ((uint64(s) + off) /′ (24 * 3600)) - off + 24 * 3600 / mem[... + 864] = uint64(<same expression>)",
+      "source": "SpendingLimitLib.sol:272-274 do { renewalTimestamp = renewalTimestamp.getStartOfNextDay(timezoneOffset); } while (block.timestamp > renewalTimestamp); (and the monthly loop :287-289)",
+      "issue": "P3: the do-while renewal loops are rotated: the loop variable lags one step, so TimeLib.getStartOfNextDay(s) is written out 4 times (condition, checks, step, result) and the first iteration's checks sit before the loop. These two loops are in a library the pack does not list as reached.",
+      "rule": "Recognise 'x = f(x); if c(x): repeat' as 'while True: x = f(x); if not c(x): break' (do-while) instead of rotating it and recomputing f.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize(address)",
+      "lines": "84-100",
+      "decompiled": "_1 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64 ... storF0C5 = 1; storF0C5_8 = 0; if not storF0C5_64: storF0C5_64 = 1; if not storF0C5_64: revert with 0xd7e6bcf8",
+      "source": "OZ v5 Initializable.initializer ($._initialized uint64 at offset 0, $._initializing bool at offset 8 of slot 0xf0c57e...00), onlyInitializing in __UpgradeableProxy_init",
+      "issue": "The same slot reads as storF0C5_64 and as stor[0x111f...aa0 * 3600] (P1) in one line; def storage splits the uint64 _initialized into uint8 storF0C5 + uint56 storF0C5_8 (P15); the NotInitializing revert after setting the flag to 1 is dead (P11).",
+      "rule": "Factor a slot constant by a time unit only if the product is not a known slot; merge adjacent fields always written together into the field width of the reads (uint64); after 'if not x: x = 1', 'x' is nonzero.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getSafeCashData, getMaxSpendDebit, canSpend, canSpendSingleToken, getUserTotalCollateral",
+      "lines": "e.g. the TokenData[] encodings 'mem[t] = Bytes(12, 0), mem[mem[s] + 12 len 20]'",
+      "decompiled": "mem[t] = Bytes(12, 0), mem[mem[s] + 12 len 20] / require mem[idx] == mem[idx + 12 len 20] / if block.timestamp > mem[ceil32(return_data.size) + 888 len 8]",
+      "source": "abi.encode / abi.decode of TokenData[] and address[]; SpendingLimit memory struct fields (uint64)",
+      "issue": "Same as c00410: address and uint64 conversions print as byte slices (158 lines), and memory-struct fields as raw slices (P18).",
+      "rule": "As in c00410 ('Bytes(12, 0), x[12 len 20]' is address(x); mem[p + 24 len 8] is uint64(mem[p])).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Long functions (getSafeCashData 2,900 lines, canSpendSingleToken, canSpend, getMaxSpendDebit) reviewed by structure. Source loops in this bytecode (10): canSpend :131, getMaxSpendDebit :377, getSafeCashData :311, _checkTokenPreferences :163, _collateralBalances :572, _debitCheck :223, _debtBalances :606, _getPendingWithdrawalAmount :470 ('while True' searches with break), SpendingLimitLib daily/monthly do-whiles - all while. LendCapacityLib :254 and :267 are in an external library reached by delegatecall (0x11f18d33... / 0x119aed40...), not in this bytecode, so not counted. Implicit loops: TokenData[] / address[] ABI encodings and decodes with per-element address checks (~60), zero-init of struct arrays rotated as 'while idx - 1' (P3, 5), and 19 word-copy loops (P7). Linked libraries LendSourcingLib / CashLensLegacyLib are delegatecalls to placeholder addresses, mostly with unknown selectors. Event Initialized(uint64) unknown to the database. No semantic error found on the paths read.",
+  "summary": "Complete and faithful on the paths read; all source loops appear as while loops, but the SpendingLimitLib do-whiles are rotated and recompute the next-day expression four times, and the large view functions are dominated by raw-memory ABI encodings, P2 calls and byte-slice conversions."
+}

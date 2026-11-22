@@ -1,0 +1,36 @@
+{
+  "id": "c00283",
+  "abi_functions": 28,
+  "reviewed": 28,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P3": 1, "P6": 3, "P8": 50, "P11": 12},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "executeBatch(address[],uint256[],bytes[],bytes32,bytes32)",
+      "lines": "810-900",
+      "decompiled": "s = _107; t = _106; u = _105 (ext_call.success of call 0); v = ...; ... c = targets[0]; d = 0 / while u: (event CallExecuted for the previous call, bound check, next call) ...",
+      "source": "OZ TimelockController.sol:340-345 for (uint256 i = 0; i < targets.length; ++i) { _execute(...); emit CallExecuted(...); } _afterCall(id);",
+      "issue": "P3: the loop is rotated around its call: call 0 is before the loop and the header 'while u' tests the previous call's success flag, with the bound inside the body (solc 0.8.22 unchecked ++i gives this variant of c00263's shape).",
+      "rule": "As in c00263.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "coverage",
+      "severity": "low",
+      "function": "all (pack only)",
+      "lines": "pack lines 245-260",
+      "decompiled": "(text complete)",
+      "source": "pack maps executeBatch and others to IL1SyncPool.sol:11 with no code; the real source is node_modules/.../@openzeppelin/contracts/governance/TimelockController.sol (EtherFiTimelock only passes constructor arguments)",
+      "issue": "The pack's source sections are empty (wrong AST mapping); the review used the OZ TimelockController source found in the corpus (same line numbers as c00263).",
+      "rule": "None (pack generation issue, not the decompiler).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Same OZ TimelockController 4.x as c00263 (EtherFiTimelock adds only a constructor); reviewed as 'same as c00263' except the executeBatch loop shape. Source loops in the runtime code: executeBatch :340, scheduleBatch :257, Strings.toHexString :64 - all while. No semantic error found.",
+  "summary": "Same as c00263: complete and faithful, source loops as while loops, but executeBatch's loop is rotated (here around the call's success flag)."
+}

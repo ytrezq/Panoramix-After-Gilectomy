@@ -1,0 +1,36 @@
+{
+  "id": "c00162",
+  "abi_functions": 59,
+  "reviewed": 59,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 12, "P6": 7, "P8": 20, "P11": 44},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "every role-gated function (Strings.toHexString inlined in AccessControl._checkRole), e.g. pause()",
+      "lines": "e.g. pause: 'while idx > 1: if idx >= 42: revert with Panic(50)' and 'if idx >= 66: revert with Panic(50)' (44 instances)",
+      "decompiled": "idx = 41 / s = caller / while idx > 1: / if idx >= 42: revert with Panic(50) / mem[idx + 160 len 1] = byte(s % 16, 0x3031...6566...) / idx = idx - 1 / s = s / 16",
+      "source": "Strings.sol:64-67 for (uint256 i = 2 * length + 1; i > 1; --i) { buffer[i] = _SYMBOLS[value & 0xf]; value >>= 4; }",
+      "issue": "The bounds check of buffer[i] is kept in every iteration although i starts at 2 * length + 1 = 41 (or 65), below the buffer length 42 (66), and only decreases.",
+      "rule": "For a loop variable with initial value a and only decreasing steps (guarded by i > 1, so no wrap), i <= a holds in the body; a check i >= n with a < n is dead and can be dropped.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "onStEthAllocated, recover functions and others reading token immutables",
+      "lines": "e.g. 'static call 0x0.balanceOf(address account) with: args _3'",
+      "decompiled": "static call 0x0.balanceOf(address account) with: args _3",
+      "source": "BuybackExecutor immutables (stETH and other token addresses)",
+      "issue": "solc immutables read as 0 in the pre-deployment runtime code.",
+      "rule": "None needed.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small, clean text. The only source loop is OZ Strings.toHexString, inlined twice in each role-gated function (address and role); its 'while idx > 1' is exact, and the whole AccessControl revert is decoded into one 'revert with Error(string reason), 32, 148, ..., mem[162 len 40], ' is missing role 0x', mem[258 len 64]' line with the '0x' prefix folded into the literal. Reviewed in detail: pause / unpause, onStEthAllocated (reentrancy, pause, role, timelocked pending order, balance checks), getters and role management; the other setters are the same pattern. P8 counts the hash-scratch writes kept before hasRole[...][caller] reads; P11 the dead buffer bounds checks of the finding.",
+  "summary": "Faithful and readable: the single source loop is a clean while and the AccessControl message is fully decoded; only dead bounds checks, hash scratch writes and zero immutables remain."
+}

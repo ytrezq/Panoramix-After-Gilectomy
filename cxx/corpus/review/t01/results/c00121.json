@@ -1,0 +1,75 @@
+{
+ "id": "c00121",
+ "abi_functions": 52,
+ "reviewed": [
+  "all 52 ABI functions (constants, BalancerPoolToken ERC20/permit forwarding to the Vault, EIP712, hooks onBefore/onAfter*, onRegister, computeInvariant/computeBalance, getters of tokens/weights/min balances/fees, Weighted/Cow pool data getters, refreshTrustedCowRouter); onSwap only up to the abort"
+ ],
+ "not_reviewed": [
+  "onSwap (unknown72c98186) after line 1891: aborted, not in the text"
+ ],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 4,
+  "P6": 2,
+  "P7": 39,
+  "P8": 2,
+  "P10": 4,
+  "P18": 16
+ },
+ "findings": [
+  {
+   "kind": "coverage",
+   "severity": "medium",
+   "function": "onSwap (unknown72c98186)",
+   "lines": "1679-1891",
+   "decompiled": "... if cd[_param1 + 132] != 7: revert with InvalidToken()\n  ...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)",
+   "source": "WeightedPool.onSwap: computeOutGivenExactIn / computeInGivenExactOut with _getNormalizedWeight(indexIn/indexOut)",
+   "issue": "Decompilation aborted: the text stops inside the weight lookup and max-ratio checks, so no path reaches the WeightedMath pow/return.",
+   "rule": "Coverage gap; the function is the pool's core swap math.",
+   "verified": "text line 1891"
+  },
+  {
+   "kind": "naming",
+   "severity": "medium",
+   "function": "onRegister (unknown0b89f182)",
+   "lines": "312, 338-350",
+   "decompiled": "def unknown0b89f182(address _param1, address _param2, array _param3, bool _param4, bool _param5): ... _5 = this.address == _param2 and stor7 == _param1; ... _8 = _param5 ... _11 = _param4",
+   "source": "return pool == address(this) && factory == address(_cowPoolFactory) && liquidityManagement.enableDonation == true && liquidityManagement.disableUnbalancedLiquidity == true;",
+   "issue": "The head has seven words (the LiquidityManagement struct is inline at 100..227), but only the used words are numbered, so '_param5' is calldata word 7 (enableDonation, offset 196), not word 5 (enableAddLiquidityCustom); the signature line reads as if the pool checked the wrong flag.",
+   "rule": "Number _paramN by head position (offset 4 + 32*(N-1)) so unused words keep their numbers, or name struct members by offset.",
+   "verified": "disassembly at 0x960-0x989: the bool reads are at lm + 0x60 and lm + 0x00 with lm = 100"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "getWeightedPoolDynamicData, getCowPoolDynamicData, permit, getAggregateFeePercentages",
+   "lines": "1159-1170 (and the same in unknownbeb5c1e1); 647-659; 416-418",
+   "decompiled": "_19 = mem[64] ... static call 0x0 with: args mem[mem[64] len _19 + ceil32(return_data.size) - mem[64] + 36]; signer = ecrecover(mem[mem[64] len _10 - mem[64] + 160]); if mem[mem[64] - 20 len 20]",
+   "source": "_vault.totalSupply(address(this)); _vault.getPoolConfig(address(this)); ECDSA.recover(hash, v, r, s)",
+   "issue": "With the selector stored through a copy of mem[64], four Vault calls stay raw ('static call 0x0 with args mem[...]'), permit's ecrecover shows raw argument and result memory, and getAggregateFeePercentages returns 'memory from ceil32(return_data.size) + 192 len 64' instead of the two PoolConfig fields.",
+   "rule": "Treat a variable assigned mem[64] as equal to mem[64] until the next store to slot 64, then decode the call and the precompile arguments; return decoded fields of copied return data by name.",
+   "verified": "by reading: _19 = mem[64] directly precedes the selector store and the length folds to 36"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "getNormalizedWeights, computeInvariant, computeBalance, onSwap, all Vault-forwarding ERC20 functions, onlyVault hooks, permit/DOMAIN_SEPARATOR",
+   "lines": "6; 47-48; 228-238; 276-310; 86, 104, 182; 116-117; 81-82, 631-642",
+   "decompiled": "const getVault = 0; def getNormalizedWeights(): revert with Panic(50); computeBalance: ... revert with Panic(18); if caller: revert with 0x089676d5, caller",
+   "source": "WeightedPool immutables (_totalTokens, _normalizedWeight0..7, min balances), _vault, EIP712 cached separator / hashed name and version",
+   "issue": "solc immutables read as 0: with _totalTokens = 0 the weight array access reverts, so getNormalizedWeights/computeInvariant always revert (the WeightedMath invariant loops are dead) and computeBalance divides by a zero weight; Vault calls go to 0x0.",
+   "rule": "Known artifact of immutables in runtime code; show them as named unknown constants rather than 0 so the dependent code survives.",
+   "verified": "source declares them immutable; WeightedMath L84/L115 are reached only through _getNormalizedWeights()"
+  }
+ ],
+ "notes": "The pack found sources only for CowPool.sol; inherited code checked in pkg/pool-weighted/WeightedPool.sol, pkg/vault/BalancerPoolToken.sol, BaseHooks.sol and solidity-utils WeightedMath/LogExpMath/FixedPoint. Source loops: WeightedPool L101 is in the constructor; WeightedMath L84/L115 (computeInvariantDown/Up) are reached only after _getNormalizedWeights(), which reverts because the immutables read as 0, so they are not counted. All 39 text whiles are implicit (returndata/calldata decoding and ABI encoding, P7). Hook return values, onBeforeAddLiquidity's trusted-router test, refreshTrustedCowRouter and the ECDSA s-bound check match the source.",
+ "summary": "52 functions reviewed; onSwap is aborted and much of the weighted math degenerates because the immutables read as 0, so no source loop is live. Problems: onRegister's parameters are numbered by use, so '_param5' is really the enableDonation word; free-pointer aliasing leaves four Vault calls and permit's ecrecover as raw memory."
+}

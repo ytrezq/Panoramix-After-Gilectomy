@@ -1,0 +1,36 @@
+{
+  "id": "c00216",
+  "abi_functions": 35,
+  "reviewed": 35,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 3, "P3": 1, "P4": 1, "P7": 59, "P12": 30},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "tokenURI(uint256)",
+      "lines": "680-1990 (42 toString whiles for 9 calls)",
+      "decompiled": "if stor14[tokenId].field_248: s = 0 / t = ... / while t: ... while u: ... / if uint8(stor14[tokenId].field_216): ... while u: ... while v: ... / if uint8(stor14[tokenId].field_192): ... (the rest of tokenURI repeated in each arm)",
+      "source": "AddOnChainMetaData.sol:27-29 Strings.toString(uint8(i_bytes[k])) nine times (Strings.sol:23-35: if (value == 0) return \"0\"; while (temp != 0) ...; while (value != 0) ...), then abi.encodePacked and Base64.encode",
+      "issue": "Each inlined toString branches on value == 0, and instead of joining after it the decompiler prints the whole continuation of tokenURI in both arms, nested nine deep: the two toString loops appear 42 times and the encodePacked copies about 50 times, which makes the 1458-line function unreadable although its source is a few lines.",
+      "rule": "Join the arms of an if whose continuations are the same code up to renaming of the values produced in each arm (here the pointer and length of the toString result): introduce phi variables for those values and print the continuation once (tail merging / un-duplication of a diamond).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "tokenURI(uint256)",
+      "lines": "699, 721, 743 (21 lines)",
+      "decompiled": "mem[t + 383 len 1] = (u % 10 << 248) + 0x3000000000000000000000000000000000000000000000000000000000000000 >> 248",
+      "source": "Strings.sol:30 buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));",
+      "issue": "The digit byte is printed as a shift up, a 32-byte constant add and a shift down instead of 48 + u % 10.",
+      "rule": "((x << 248) + (c << 248)) >> 248 is (x + c) % 256; with x < 10 and c = 48, it is 48 + x.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 35 ABI functions reviewed (ERC721 functions, mint, withdraw, recover*, royaltyInfo read; tokenURI by structure). The tokenURI source (AddOnChainMetaData.getMetadata, OpenZeppelin Strings.toString, base64-sol Base64.encode) is not in the pack; it was read from the corpus. Source loops: mint's 'for (i < _count)' (463), withdraw's project-owner loop (228), Strings.toString's two while loops (42 copies, first finding) and Base64.encode's Yul for (2071): all whiles. Implicit loops: about 59 memory copies of abi.encodePacked and the onERC721Received data (P7) and the rotated initialisation of 'string[5] memory part' ('while idx - 1', P3). The transfer functions and the Turing random calls match the source.",
+  "summary": "All loops are found, but tokenURI is blown up to 1458 lines because the continuation after each inlined toString(value == 0 ? ...) is duplicated into both arms nine levels deep."
+}

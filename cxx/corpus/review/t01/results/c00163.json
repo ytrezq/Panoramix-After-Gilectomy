@@ -1,0 +1,36 @@
+{
+  "id": "c00163",
+  "abi_functions": 44,
+  "reviewed": 44,
+  "not_reviewed": [],
+  "source_loops": 8,
+  "loops_shown": {"while": 8, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 10, "P3": 7, "P4": 2, "P6": 20, "P7": 18, "P8": 40},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "exit(bytes) (21 lines), executeMetaTransaction",
+      "lines": "1424-1425, 1530, 3155, 3267-3275",
+      "decompiled": "if _132 != floor32(max(31, _132)): mem[_133 + floor32(max(31, _132)) + 32] = mem[...] & 256**(-_132 + floor32(max(31, _132)) + 32) - 1 | mem[_131 + floor32(max(31, _132))] & ~(256**(...) - 1)",
+      "source": "RLPReader.sol:340-349 copy(): for (; len >= WORD_SIZE; len -= WORD_SIZE) {...} uint mask = 256 ** (WORD_SIZE - len) - 1; mstore(dest, or(destpart, srcpart))",
+      "issue": "The tail of the word copy is correct (the skipped write is a no-op when nothing remains), but `floor32(max(31, x))` is just `floor32(x)` for any x, and the remainder `x - floor32(x)` (`x % 32`) is never named, so the mask expression is hard to recognise.",
+      "rule": "Simplify `floor32(max(31, x))` to `floor32(x)` (floor32 maps 0..31 to 0); print `-x + floor32(x) + 32` as `32 - x % 32`.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "exit(bytes)",
+      "lines": "1315-1340 (7 copies: 1645, 1797, 1965, 2097, 2387, 2648)",
+      "decompiled": "while idx - 1: _53 = mem[64]; ... ; while idx < t: _99 = mem[u] ...",
+      "source": "RLPReader.sol:107-116 toList(): RLPItem[] memory result = new RLPItem[](items); for (uint i = 0; i < items; i++) {...}",
+      "issue": "Each toList allocates its RLPItem[] with a rotated count-down loop (`while idx - 1`, first struct allocated before it, P3) before the real decoding loop, doubling the loops in the 2,000-line exit().",
+      "rule": "Un-rotate loops whose pre-header repeats the first iteration; a loop that only allocates zeroed structs and stores their pointers can print as `new struct[n]`.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "exit(bytes) (1247-3310) reviewed by structure (loops, calls, storage writes, reverts); the rest fully. All 8 source loops are shown as whiles: RLPReader.numItems (`while s < end: if mem[s len 1] < 128`, 7 copies), RLPReader.toList (7), RLPReader.copy / ExitPayloadReader.copy (`while idx >= 32: mem[s] = mem[t]`), MerklePatriciaProof._getNibbleArray (`while s < _245: if not (... + 2) % 2`), _nibblesToTraverse (`while a < _2118 + w`), verify (`while True: if mem[t]`), Merkle.checkMembership (`while a <= _2422`). Implicit loops: 15 bytes copies for abi.encode in the deposit/mapping functions and the exitTokens call (P7) and some solc-0.6 word-copy loops of the same `while idx >= 32` shape. processedExits write, the checkpoint headerBlocks call and the predicate exitTokens call are present; those two calls lose their names (P2, raw `args mem[mem[64] len _N - mem[64] + 36]`). The meta-transaction msgSender (`if caller != this.address ... mem[calldata.size + 140 len 20]`) matches. Out-of-bounds INVALIDs of solc 0.6 print as `assert`. No semantic error found.",
+  "summary": "Faithful, abort-free text in which all 8 source loops (RLP and Merkle-Patricia decoding) are whiles; readability is hurt by unresolved free-pointer call arguments, rotated struct-array allocation loops and an obscure `floor32(max(31, x))` in the copy tails."
+}

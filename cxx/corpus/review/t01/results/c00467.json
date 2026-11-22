@@ -1,0 +1,58 @@
+{
+  "id": "c00467",
+  "abi_functions": 70,
+  "reviewed": 70,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 1,
+  "patterns": {"P1": 2, "P2": 98, "P4": 1, "P6": 37, "P7": 8, "P8": 200, "P12": 120},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "mint(address,uint256,address,bool) (basket mode)",
+      "lines": "2922 (loop1: while True), 3075-3165 (while d <= b + d), 3166 (revert Panic(17))",
+      "decompiled": "loop1: while True: (body of _mint for asset x) ... b = _1000 / c = y / d = z / e = a / while d <= b + d: if c + 1 >= registeredAssets.length: return b + d ... if not _1068: c = c + 1 / d = b + d / b = 0 / continue ... continue loop1 / revert with Panic(17)",
+      "source": "HoneyFactory_V1.sol:359-364 for (uint256 i = 0; i < registeredAssets.length; i++) { amount = refAmount * weights[i] / 1e18; amount = vaults[registeredAssets[i]].convertToAssets(amount); honeyToMint += _mint(registeredAssets[i], amount, receiver, true); }",
+      "issue": "The one source loop is printed as two nested loops: an outer 'while True' over the _mint body and an inner 'while d <= b + d' whose condition is the no-overflow test of honeyToMint += ... (its exit is the Panic(17) after it); the real bound i < registeredAssets.length is a return inside, and the inner loop exists only for the path where _mint returns 0 early.",
+      "rule": "A loop exit that leads only to a revert is a guarded revert in the body, not the loop condition; take the condition from the exit that leaves normally (the index test) and merge back-edges that reach the same header state into one loop (the early 'amount == 0' path and the normal path both go to i + 1).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "mint, redeem, liquidate, recapitalize, withdrawAllFees, createVault and most functions after their first call",
+      "lines": "e.g. 1965-1981 (mint), 3087-3095",
+      "decompiled": "_22 = mem[64] / mem[mem[64]] = 0xb5641f3a... / mem[_22 + 4] = registeredAssets[s] / static call priceOracle with: args mem[mem[64] len _22 - mem[64] + 36]",
+      "source": "priceOracle.priceAvailable(asset), getPriceUnsafe(asset), vaults[asset].convertToAssets(...), ERC20(asset).decimals() ...",
+      "issue": "Calls made with the free-memory pointer symbolic (after earlier calls bump it by ceil32(return_data.size)) print without their function name and with raw-memory arguments (P2, 98 lines), as do events after a call.",
+      "rule": "Resolve stores relative to the symbolic free-memory pointer so that mem[mem[64] len n] is the words just stored; then the call is named by its selector and its arguments printed.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "mint, redeem (Utils.changeDecimals with checked 10 ** n); recapitalize, liquidate, mint (_isCappedGlobal)",
+      "lines": "2543-2565; 1338-1352 and 1368-1382",
+      "decompiled": "_302 = not uint8(-mem[_263 + 31 len 1] + 18) or 10**uint8(...) ... if uint8(x - 18) >= 78 and uint8(x - 18) >= 32: s = 10 / t = 1 / u = ... / while u > 1: ...  |  if s: ... while True: (search) ... else: while True: (the same search)",
+      "source": "Utils.changeDecimals: amount * 10 ** (to - from) / amount / 10 ** (from - to); _isCappedGlobal: for (i < registeredAssets.length) if (registeredAssets[i] == asset && weights[i] > globalCap) return false;",
+      "issue": "x >= 78 and x >= 32 is x >= 78; 'not e or 10**e' is 10**e; the exponentiation helper's loop is kept for the case it can never run usefully here (base 10, exponent below 256) (P7); the _isCappedGlobal search loop and the code after it are printed in both arms of the weights normalisation test (P12).",
+      "rule": "Merge conjunctions of comparisons of one value with constants; 10**0 = 1 so 'not e or 10**e' = 10**e; hoist a tail common to both arms of an if.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize(address,address,address,address,address,address)",
+      "lines": "522-523",
+      "decompiled": "_1 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64",
+      "source": "Initializable (ERC-7201 slot 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00): _initialized (uint64) and _initializing (bool) in one slot",
+      "issue": "The same slot is printed as a constant factored by 3600 (P1) in one operand and as storF0C5 in the other, so the reader cannot see that _initialized and _initializing share it.",
+      "rule": "Never factor a storage slot constant; print it as the named slot (storF0C5) everywhere.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (11, each once): isBasketModeEnabled (970 and inlined), mint's basket for (two nested whiles, the inner one counted as spurious), redeem's two fors, setFeeReceiver (441), setGlobalCap (655), withdrawAllFees (716, 'while s < t'), _getWeights' two fors (887/942 and inlined copies), _isCappedGlobal (while True with breaks, several copies), _lookupRegistrationIndex. Implicit: the checked-exponentiation helper ('while u > 1', 2) and ABI encodings of the weights array ('while s < mem[128]', 'while s < mem[_153]'): P7 8. mint (1,200 lines) and redeem (1,068) reviewed by structure (loops, calls, events, reverts, writes); the others line by line. Custom errors print as selectors (revertWith(selector) helper).",
+  "summary": "Faithful where read and every source loop is found, but mint's basket loop is split into two nested loops whose inner condition is an overflow check, and most calls after the first lose their names to symbolic memory."
+}

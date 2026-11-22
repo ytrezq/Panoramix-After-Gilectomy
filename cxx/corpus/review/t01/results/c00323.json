@@ -1,0 +1,13 @@
+{
+  "id": "c00323",
+  "abi_functions": 16,
+  "reviewed": 16,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P4": 4, "P7": 2},
+  "findings": [],
+  "notes": "solc 0.7.6 ERC-1056 DID registry, no source loops. All 16 functions reviewed. The two whiles are the compiler's copy of 'bytes value' into the abi.encodePacked buffer of the signed variants (c00600's shape B, 'while idx >= 32: mem[t] = mem[s]' plus the masked last word, P7); because of it the hashed value prints as mem[ceil32(value.length) + 310 len value.length] instead of value, although the keccak of the signed message is otherwise decoded field by field (Bytes(2, 0x1900), this, nonce, identity, 'setAttribute', name, .., validity). The 'Signer must be the identity owner' revert data shows its padding as 'Bytes(27, uint216(sigS)), mem[.. len 4]': the compiler leaves stale memory (from the ecrecover input) after the 33-byte string, so this is the bytecode's real revert data, not a decompiler error. The recovered signer is used as a mapping key through concat(Bytes(12, 0), mem[.. len 20]) (P4-like, 4 lines).",
+  "summary": "A small, faithful text without source loops; only two unconverted bytes copies and address keys read as memory slices."
+}

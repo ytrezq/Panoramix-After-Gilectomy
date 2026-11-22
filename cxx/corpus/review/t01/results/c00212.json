@@ -1,0 +1,36 @@
+{
+  "id": "c00212",
+  "abi_functions": 30,
+  "reviewed": 30,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {
+    "while": 1,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P3": 1,
+    "P6": 2,
+    "P7": 9,
+    "P8": 60
+  },
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "mint(address,uint256), initialize(address,address,uint8) 0x..., the Mint event",
+      "lines": "314, 373, 375",
+      "decompiled": "def mint(address _to, uint256 _amount)  |  log Mint(address minter, uint256 mintAmount, uint256 mintTokens): _6, _amount, indexed _to  |  def initialize(address ohmTokenAddress_, address sOHM_, uint8 epochLengthInBlocks_)",
+      "source": "RenovaItem.sol:35 mint(address tokenOwner, uint256 hashverseItemId); event Mint(address indexed tokenOwner, uint256 tokenId, uint256 hashverseItemId); :21 initialize(...)",
+      "issue": "Parameter and event-field names come from unrelated contracts sharing the selector / topic: the hashverse item id is called '_amount' (and 'mintTokens' in the event), the minted token id 'mintAmount', and the initializer's arguments carry OHM staking names.",
+      "rule": "Same as the c00113 naming finding: use database parameter names only when unambiguous for the selector / topic, otherwise print _param1... (keep the function or event name).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "RenovaItem (ERC721 + royalties + Wormhole bridging), 30 functions, all reviewed: the ERC721 functions, mint (with _checkOnERC721Received), wormholeBridgeOut (0x258ad6ee: burn, nonce, publishMessage with value, events) and wormholeBridgeIn (0x7b0cad31: parseAndVerifyVM, emitter / chain checks, replay protection, _mintItem) by structure, the setters and getters in full; all correct. The pack has no source for 28 of the sections ('no source definition found in the AST', inherited functions); they were compared with contracts/nft and contracts/wormhole and the OpenZeppelin sources directly. Source loop: OpenZeppelin Strings.toString 'while (true)' (reached from tokenURI), shown rotated: the last digit is written before 'while t / 10:' (P3), after an inlined Math.log10 if-chain. The other whiles are copies (string concatenation in tokenURI, the VM struct decode and payload copies in wormholeBridgeIn: P7). RenovaItem's own sources have no loops.",
+  "summary": "Faithful and complete; the single library loop is shown (rotated), and the main oddity is misleading parameter names from the signature database."
+}

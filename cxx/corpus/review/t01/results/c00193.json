@@ -1,0 +1,89 @@
+{
+ "id": "c00193",
+ "abi_functions": 37,
+ "reviewed": [
+  "all 37 ABI functions (getters, Ownable, setRouter, setRebalancer, setRateLimitAdmin, supportsInterface, getAllowList, getRemoteToken, getCurrentOutbound/InboundRateLimiterState, provideLiquidity, withdrawLiquidity, transferLiquidity, getSupportedChains, addRemotePool, removeRemotePool, initialize, getRemotePools, applyAllowListUpdates, setChainRateLimiterConfig, lockOrBurn, setChainRateLimiterConfigs, releaseOrMint, applyChainUpdates)"
+ ],
+ "not_reviewed": [],
+ "source_loops": 9,
+ "loops_shown": {
+  "while": 9,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P1": 8,
+  "P2": 1,
+  "P3": 1,
+  "P4": 16,
+  "P6": 5,
+  "P7": 15,
+  "P8": 130,
+  "P10": 32,
+  "P11": 25,
+  "P12": 7,
+  "P18": 102
+ },
+ "findings": [
+  {
+   "kind": "naming",
+   "severity": "medium",
+   "function": "applyChainUpdates (unknowne8a1da17); def storage",
+   "lines": "8-13 (def storage); 1878-1935; 1952-1964",
+   "decompiled": "_459 = sha3(mem[0], 108) ... uint128(stor1[_459].field_0) = uint128(_466); uint128(stor2[_459].field_0) = ...; stor4[_459] = 2 * _483 + 1; stor5[_586][_591] = _585; stor6[_586][_585] = stor5[_586].length",
+   "source": "remoteChainConfig.outboundRateLimiterConfig = TokenBucket(...); remoteChainConfig.inboundRateLimiterConfig = ...; remoteChainConfig.remoteTokenAddress = ...; remotePools.add(poolHash)",
+   "issue": "Fields of remoteChainConfigs[sel] (slot 108), read through a variable holding the element's hash, are printed as element _459 of fixed arrays stor1..stor6 at slots 1-6, and def storage gains six declarations inside the ContextUpgradeable __gap. The same fields are stor108[sel].field_256..field_1280 in the getters and stor[sha3(sha3(sel, 108) + 5) + i] in addRemotePool/removeRemotePool, so one struct has three names.",
+   "rule": "When a storage index is v + k with v the result of a keccak (variable or not), name it as field k of the mapping element v comes from, the same as when the hash is written inline; never declare a variable at slot k from such an access.",
+   "verified": "by reading: _459 and _586 are assigned sha3(key, 108) on lines 1878 and 1952; the source layout puts token at slot 101 and the Context __gap at 1-50"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "releaseOrMint (unknown39077537), applyChainUpdates (unknowne8a1da17), setChainRateLimiterConfigs (unknown962d4020)",
+   "lines": "1414-1436 (safeTransfer); 1263-1270, 1290-1303 (custom errors); 1490-1503 (event, return); 1759-1763, 1870-1875, 1966-1981; 1048-1051",
+   "decompiled": "_303 = mem[64] ... mem[_304 + 32 len 4] = 2835717307 ... call token with: args mem[mem[64] len _307 + _308 - mem[64]]; _190 = mem[64]; mem[mem[64]] = 0xc12fdd...0 * 3600; revert with memory from mem[64] len _190 - mem[64] + 100",
+   "source": "getToken().safeTransfer(receiver, localAmount); revert OverflowDetected(remoteDecimals, tokenDecimals, remoteAmount); revert ZeroAddressNotAllowed(); emit Released(msg.sender, receiver, localAmount); return ReleaseOrMintOutV1(localAmount)",
+   "issue": "Values copied from the free pointer (_190 = mem[64]) are not identified with mem[64], so the transfer call keeps its selector as a decimal store and raw argument memory, and 27 custom-error reverts, the Released/ChainAdded/ConfigChanged data and the return are printed as memory ranges with lengths like '_331 - mem[64] + 32' (which is 32). The same transfer in withdrawLiquidity (line 355) and the same errors elsewhere (line 526) are decoded.",
+   "rule": "Treat a variable assigned mem[64] as equal to mem[64] until the next store to slot 64, then fold 'x - mem[64]' and decode the selector, arguments, revert and log data as for constant offsets.",
+   "verified": "by reading: each _N is assigned mem[64] on the line before the store, with no store to mem[64] between; 0xc12fdd...*3600 = 0xa9cb113d (OverflowDetected) checked in Python"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "getCurrentOutbound/InboundRateLimiterState, setChainRateLimiterConfig, setChainRateLimiterConfigs, lockOrBurn, releaseOrMint (RateLimiter refill, 12 sites)",
+   "lines": "197-199, 208-210, 785-787, 890-892, 1024-1026, 1175-1177",
+   "decompiled": "if stor108[_param1].field_384 != (block.timestamp * stor108[_param1].field_384 - uint32(stor108[_param1].field_128) * stor108[_param1].field_384) / (block.timestamp - uint32(stor108[_param1].field_128)) and uint32(stor108[_param1].field_128) != block.timestamp: revert with Panic(17)",
+   "source": "_min(capacity, tokens + timeDiff * rate) with timeDiff = block.timestamp - bucket.lastUpdated",
+   "issue": "The refill product is distributed over the difference ('bt * r - lu * r'), so timeDiff * rate is never written and its checked multiplication shows as a division test; inside 'if lu != bt' the extra 'and lu != bt' is kept.",
+   "rule": "Do not distribute a product over a difference that is itself computed (and checked) nearby; keep (a - b) * c and print the overflow test as SafeMath.mul(a - b, c).",
+   "verified": "by reading against RateLimiter._calculateRefill"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "releaseOrMint (unknown39077537, _calculateLocalAmount, inlined twice)",
+   "lines": "1231-1261, 1337-1367; 1202-1306 vs 1308-1412",
+   "decompiled": "_161 = not uint8(d) or 10**uint8(d) ... if uint8(d) >= 78 and uint8(d) >= 32: s = 10 ... while u > 1: ...",
+   "source": "if (diffDecimals > 77 || remoteAmount > type(uint256).max / (10 ** diffDecimals)) revert OverflowDetected(...); return remoteAmount * (10 ** diffDecimals);",
+   "issue": "The 10**d helper's special cases stay visible ('not d or 10**d', 'd >= 78 and d >= 32') and its square-and-multiply loop is printed although d <= 77 is already established on that path, so the loop is unreachable. The whole decimals block is printed twice, once per arm of the inbound rate-limit test.",
+   "rule": "Fold 10**0 to 1 and drop a conjunct implied by another; drop a branch whose condition contradicts a dominating test (d > 77 reverted before), and merge identical continuations of both arms.",
+   "verified": "by reading: line 1231 sends d > 77 to the revert at 1263, so line 1238's test is false"
+  },
+  {
+   "kind": "naming",
+   "severity": "low",
+   "function": "lockOrBurn, releaseOrMint, setRouter",
+   "lines": "916, 925, 1492-1495, 125",
+   "decompiled": "log Locked(address _who, uint256 _index); log Released(address indexed arbitrator=caller, address indexed sentTo=..., uint256 transactionId=...); def setRouter(address _newPancakeRouter)",
+   "source": "event Locked(address indexed sender, uint256 amount); event Released(address indexed sender, address indexed recipient, uint256 amount); setRouter(address newRouter)",
+   "issue": "Parameter names come from other contracts with the same signatures, so the locked amount is called _index and the released amount transactionId.",
+   "rule": "Use the signature database for names of functions and events, but print neutral parameter names (arg1, amount by type) unless the names come from the contract's own metadata.",
+   "verified": "by reading"
+  }
+ ],
+ "notes": "Source loops: TokenPoolUpgradeable L411 (getRemotePools, text 604), L493 (getSupportedChains, 307), L510/L526 (applyChainUpdates remove loops, 1519/1593), L540/L582 (add loops, 1667 'while True' with stop, 1938), L720 (setChainRateLimiterConfigs, 976), L829/L835 (_applyAllowListUpdates, 687/735; the adds loop is also inlined in initialize at 550, the removes loop over new address[](0) is gone there). Implicit: 15 ABI copy/decode loops (P7), one rotated zero-init (597, P3), two 10**d helper loops (1242, 1348). OptimismMintableUpgradableTBTC loops belong to another contract. No immutables (upgradeable; storage token/router/rmnProxy). The P1 constants are the TokenBucket mask (keeps lastUpdated, checked) and the OverflowDetected selector. Rate limiter, validation, Initializable, EnumerableSet add/remove and decimals logic all match the source.",
+ "summary": "All 37 functions reviewed; every source loop is shown as a while and the semantics match. Main problems: storage of remoteChainConfigs[sel] named as fixed arrays at slots 1-6 in applyChainUpdates (bogus def storage entries), and free-pointer aliasing leaving releaseOrMint's transfer call, 27 custom-error reverts, events and the return as raw memory."
+}

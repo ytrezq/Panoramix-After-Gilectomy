@@ -1,0 +1,36 @@
+{
+  "id": "c00195",
+  "abi_functions": 60,
+  "reviewed": 60,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 12, "P6": 3, "P7": 1, "P8": 40, "P9": 73, "P17": 20},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "POOL(), INCENTIVES_CONTROLLER(), POOL_ADDRESSES_PROVIDER() and the calls through them",
+      "lines": "3-10, 737",
+      "decompiled": "const POOL = 0 / const INCENTIVES_CONTROLLER = 0 / call 0x0 with: args mem[mem[64] len _10 + 32 * _12 - mem[64] + 164]",
+      "source": "AaveV3ATokenWrapper immutables POOL, INCENTIVES_CONTROLLER, POOL_ADDRESSES_PROVIDER, aToken-related immutables",
+      "issue": "solc immutables read as 0 in the pre-deployment runtime code, so Aave pool and incentives calls target 0x0 (and claimRewards also loses its arguments, P2).",
+      "rule": "None (bytecode artifact).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "constants and ray math (convertToAssets/Shares, redeem, withdraw...)",
+      "lines": "9, 415-418",
+      "decompiled": "const RAY = 1000000000 * 10**18 / ... 0x2245cd4e1f3755e770b615377cde9082e11ad04b156637b5cd27412a54f5b6b5 * (shares * x - mulmod(shares, x, 1000000000 * 10**18) >> 27 | ...)",
+      "source": "RAY = 1e27; mulDiv(shares, index, RAY)",
+      "issue": "1e27 is printed as an unfolded product, and the 512-bit mulDiv by RAY is expanded into mulmod and modular-inverse arithmetic (P9).",
+      "rule": "Fold a product of constants into one power of ten (10**27); recognize the exact full-precision mulDiv sequence and print mulDiv(a, b, d).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loop in the reached sources; the one while is the ABI encoding of a one-element address[] for claimRewards (P7). The Initializable ERC-7201 slot is printed as 0x111f...aa0 * 3600 (P1, same as c00102). Functions are short; ERC4626/permit/upgrade paths checked by reading.",
+  "summary": "Short and faithful text with no loops; readability costs are the expanded ray mulDiv arithmetic, immutables as 0 and the P1-factored Initializable slot."
+}

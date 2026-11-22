@@ -1,0 +1,49 @@
+{
+ "id": "c00016",
+ "abi_functions": 20,
+ "reviewed": 20,
+ "not_reviewed": [],
+ "source_loops": 7,
+ "loops_shown": {
+  "while": 7,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 46,
+  "P4": 5,
+  "P6": 21,
+  "P8": 80,
+  "P12": 300,
+  "P14": 400
+ },
+ "findings": [
+  {
+   "kind": "coverage",
+   "severity": "medium",
+   "function": "swap((address,uint256,bytes),address,address,uint256,bytes)",
+   "lines": "4224-4227 (called at 829, 1769, 2876)",
+   "decompiled": "def internal_0x12ec(_param1, ..., _param7): # recursive / if not _param7: revert with 0xa7406b60, _param6, _param5 / ...  # Decompilation aborted, sorry: ('jump to a parameter computed at runtime', 4852)",
+   "source": "libs/VM.sol:117-136 runLoop: for (pc = ctx.vm.nextPC; pc < programBytes.length; ) { ... ctx.vm.opcodes[opcode](ctx, args); ... }",
+   "issue": "swap runs the VM through a specialised copy of runLoop (internal_0x12ec, return address 4990 passed as a parameter) whose body aborts right after the RunLoopExcessiveCall check, so the text of swap has no interpreter loop and no instruction effects at all; only quote's copy (internal_0x1356) shows the loop and the opcode dispatch.",
+   "rule": "Coverage limit (an internal function whose return jump targets a stack parameter the decompiler does not match); handle a jump to the return-address parameter as the function's return.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "quote(...) via internal_0x1356 (Power.pow inlined three times)",
+   "lines": "5010-5024, 5044, 5151",
+   "decompiled": "v = block.timestamp - (cd[...] >> 216) / w = 10**18 / while t: if v % 2: _1088 = SafeMath.mul2(w, u) / 10**18 else: _1088 = w / t = v / 2 / u = SafeMath.mul3(u, u) / 10**18 / v = v / 2 / w = _1088",
+   "source": "libs/Power.sol:16-22 while (exponent > 0) { if (exponent & 1 == 1) result = result * base / precision; base = base * base / precision; exponent >>= 1; }",
+   "issue": "The exponent is carried by two loop variables (t tests, v computes) that always hold the same value, and the one-armed `if` is printed as two arms with an SSA copy.",
+   "rule": "Merge loop variables with equal initial values and equal updates; print `if c: w = f(w)` instead of `if c: _x = f(w) else: _x = w; w = _x`.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "1inch SwapVM debug router (solc 0.8.30, via-IR). Source loops reached through the opcode table: VM.runLoop (while s < uint128(_2) in internal_0x1356, with the internal-function-pointer dispatch rendered as an if-chain on function ids), Balances _staticBalancesXD / _loadBalances / _initBalances (4388, `while True` with break at 4442, 4501), Power.pow (while t, inlined 3 times), Debug._toHexString (5935) and OZ Strings.toHexString (`while idx > 1` at 6055); all shown as whiles. Balances.build and the UniERC20 string loop are unreached. The swap path loses its VM execution (finding 1); quote is complete. internal_0x1356 (2590 lines) and swap (3644 lines) reviewed by structure. Many calls in swap use raw memory arguments (P2, free-pointer identification as in c00026). P12/P14 estimates.",
+ "summary": "The interpreter and instruction loops are found and shown as whiles in quote's runLoop copy, but swap's own runLoop copy aborts immediately, so the text of swap omits the whole VM execution; the rest is long via-IR memory/calldata arithmetic with raw-memory calls."
+}

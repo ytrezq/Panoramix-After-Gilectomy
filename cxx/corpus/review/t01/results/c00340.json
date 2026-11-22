@@ -1,0 +1,21 @@
+{
+ "id": "c00340",
+ "abi_functions": 14,
+ "reviewed": 14,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P11": 2
+ },
+ "findings": [],
+ "notes": "solc 0.6.12 optimized, OpenZeppelin 3 ERC20 + SushiBar-style enter/leave. No loops. Every function checked against the source: enter's (totalShares == 0 || totalGamma == 0) split, mul/div with SafeMath's a == 0 shortcut kept outside the helper (needed, since the helper divides by a), _mint/_burn checks and order (division-by-zero check before the burn, old totalSupply kept in _5 for what = _share * bal / totalShares), the ignored bool of gamma.transfer/transferFrom with the return-size check, transferFrom's _transfer then allowance sub and _approve (the owner != 0 check correctly dropped as implied by _transfer's sender check), increase/decreaseAllowance order of checks, events and returns. Storage split right (decimals uint8 and gamma address share slot 5). P11: enter's 'SafeMath: division by zero' test of totalGamma inside the branch where totalGamma != 0.",
+ "summary": "An essentially exact and readable text of a small ERC20 staking wrapper; the only redundancy is one implied division-by-zero check in enter."
+}

@@ -1,0 +1,95 @@
+{
+  "id": "c00523",
+  "abi_functions": 3,
+  "reviewed": 3,
+  "not_reviewed": [],
+  "source_loops": 9,
+  "loops_shown": {
+    "while": 9,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 186,
+    "P3": 10,
+    "P6": 35,
+    "P8": 30,
+    "P9": 300,
+    "P12": 18,
+    "P14": 40,
+    "P17": 40
+  },
+  "findings": [
+    {
+      "kind": "semantics",
+      "severity": "medium",
+      "function": "fallback (SELECT callback), execute, executeWithPermit (Select.select inlined in the action loop)",
+      "lines": "4876-4884 (fallback); 17101-17110, 19881-19890, 21618-21627, 23296-23305 (execute); 9323-9332, 11497-11506, 13962-13971, 15648-15657 (executeWithPermit)",
+      "decompiled": "call this.address with: gas (1 == n) * (gasCap ^ gas_remaining) ^ gasCap ... / t = 0 / while not ext_call.success: / if gasCap / 63 + gasCap + 8192 > gas_remaining or t + 1 == n: revert with memory ...",
+      "source": "Select.sol:153-169 if (_setOperatorAndTryCall(address(this), callData, ..., (!isLast).ternary(gasCap, beforeGas = gasleft()))) break; if (isLast.or(beforeGas < beforeGasThreshold)) { revert(returndata) }",
+      "issue": "The bytecode reads GAS once, before the trial call (pc 0x453b), and compares that same value with the threshold after the call fails (pc 0x459c dup14 gt). The text prints `gas_remaining` in the post-call test as if gas were read again after the call, so the condition that chooses between 'revert' and 'try the next candidate' reads a different (smaller) value than the bytecode uses.",
+      "rule": "GAS is not a pure value: when its result is used after another gas-consuming instruction (a CALL above all), bind it to a variable at the GAS instruction (beforeGas = gas_remaining) and print that variable at every later use.",
+      "verified": "pancxx disasm: pc 0x453b gas ... 0x4589 call ... 0x459c dup14 gt or jumpi (no second GAS)"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "fallback, execute, executeWithPermit (Select.select); fallback (UniswapV4.unlockCallback hop loop)",
+      "lines": "4848-4905 (fallback select); 6202-6336 (fallback UniV4 hop loop); 17101-17130 etc.",
+      "decompiled": "mem[_2978 + 36] = ...offset[0]... / call this.address ... / t = 0 / while not ext_call.success: / if ... or t + 1 == n: revert ... / mem[_2978 + 36] = cd[32 * t + ...] ... / call this.address with: gas (t + 2 == n) * ... / t = t + 1  |  if len >= 53: (first hop's head) s = 297 ... while True: ... if rest >= 53: ...; continue / break",
+      "source": "Select.sol:136-171 uint256 i; while (true) { ...offset[i]...; i++; bool isLast = i == n; if (tryCall) break; if (isLast || ...) revert }  |  UniswapV4.sol while (data.length >= _HOP_DATA_LENGTH) { ... }",
+      "issue": "The SELECT trial loop is rotated in all 9 copies: the first trial (selection, call, transient bookkeeping) is printed before the loop and repeated in the body, and the counter t is one behind the source's i (tests t + 1 == n, t + 2 == n). One of the three copies of the UniswapV4 hop loop is also rotated (its head is peeled into an 'if len >= 53' guard and the next iteration's head is printed before 'continue'), while the other two copies print 'while t >= 53'.",
+      "rule": "Recognise the do-while shape 'body; i = i + 1; if c(i): goto body' as one loop with its test at the place of the exit, instead of peeling an iteration; when the peeled copy and the loop body are the same statements up to the counter, fold them into one loop with the counter starting at its initial value.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "fallback, execute, executeWithPermit (UniswapV3 pool swap call, Basic/RFQ calls)",
+      "lines": "3998, 4032, 4071, 4105, 4114-4120 (fallback); 23891, 23927, 23936-23942 (execute); 8445-8564, 10665-10784, 12771, 15001 (executeWithPermit); 18 such branches in all",
+      "decompiled": "_5995 = 822 ... _5995 = 810 ... _5994 = 823 ... _5994 = 811 / if _5994 == 822: mem[_5934 + 32 len _5800] = ext_call.return_data[0 len _5800] / else: if _5994 == 810: (same line) / else: (same line)",
+      "source": "UniswapV3Fork._uniV3ForkSwap: (bool success, bytes memory returndata) = pool.call(...) - the returndata copy is a shared compiler helper reached from several call sites",
+      "issue": "A phi of jump-destination constants (the return address of a shared helper) leaks into the text as a variable that is only tested to choose between three identical arms; it is also assigned under two names (_5995 is set, _5994 is tested, with no copy between them).",
+      "rule": "A branch whose arms are identical is its arm; a variable whose only values are code addresses and whose only uses are such branches is dead and must not be printed (more generally, never print the value of a jump destination as data).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "fallback (Take.take / Take._callSelector, about 60 calls), execute, executeWithPermit",
+      "lines": "e.g. 425-430, 442-447, 462-467, 509-516",
+      "decompiled": "mem[44] = 0x1000000000000000000000000 * _4428 * (_4428 << 96 != 0xeeee...000000000000000000000000) / call caller.sendTo(address from, address to, uint256 tokens) with: args Bytes(12, 0), 0x1000000000000000000000000 * _4428 * (...), Bytes(20, this.address), mem[96]",
+      "source": "FlashAccountingCommon.sol:758-766 mstore(0x60, amount); mstore(0x40, to); mstore(0x2c, mul(iszero(eq(0xeee..., token)), token)); mstore(0x0c, shl(0x60, selector)); call(gas(), caller(), 0, 0x1c, 0x64, 0, 0)",
+      "issue": "Once the selector is recognised, the 96 argument bytes are still split along the stores (12 zero bytes, a token<<96 word, 20 bytes of 'to') instead of the three ABI words (token or 0, to, amount); the shift by 96 is printed as a multiplication by 0x1000000000000000000000000 (212 lines), and the amount as mem[96] instead of the value just stored there.",
+      "rule": "When a call's selector is known, re-slice its argument bytes at 32-byte boundaries after the selector and simplify each word (Bytes(12,0) ++ Bytes(20, x << 96 >> 96) is address(x)); print x * 2**k as x << k; fold a memory read through the store just before it.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "execute((address,address,uint256),bytes[],bytes32)",
+      "lines": "23954 (top level), 21030, 21654, 22171, 22301, 22497, 22511, 22610, 22646, 23334-23395 (19 aborts)",
+      "decompiled": "if first action == RFQ: ... else: ... (UNISWAPV3 ...) / ...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)",
+      "source": "Settler.sol:165-190 _execute: the first action's _dispatchVIP/_dispatch, the 'for (i = 1; i < actions.length; ...)' loop, _checkSlippageAndTransfer, clearPayer (takerSubmitted), return true",
+      "issue": "Paths are complete only when the first action is TRANSFER_FROM, UNISWAPV3_VIP, UNISWAPV4_VIP, PANCAKE_INFINITY_VIP, BALANCERV3_VIP or ATTEST; for RFQ, UNISWAPV3 and every other first action the text stops after (or inside) that action, losing the remaining actions, the slippage check and transfer, the payer clearing and the return. Inside the action loops, the tails of some actions are lost too (after the RFQ fill log 21030, after the UniswapV3 pool call 22171, after a SELECT trial loop 21654).",
+      "rule": "",
+      "verified": "reading only"
+    },
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "executeWithPermit((address,address,uint256),bytes[],bytes32,bytes)",
+      "lines": "15910 (top level), 14804, 15268, 15365, 15524, 15797, 15870, 15901, 12567, 13740-13996, 14232-14638, 15685-15724 (31 aborts)",
+      "decompiled": "if first action == VELODROME: ... static call _11.balanceOf(...) / if ext_call.success: ...  # Decompilation aborted",
+      "source": "Settler.sol:133-163 executeWithPermit -> _execute (as above)",
+      "issue": "The permit handling (ERC2612 and DAI permit with the SafePermit fallback checks) is complete, but after the first action the text stops for RFQ, UNISWAPV3, UNISWAPV2, BASIC and VELODROME (each branch ends in an abort) and for every other first action (SELECT, NATIVE_CHECK, BALANCERV3, UNISWAPV4, MAKERPSM, DODO, MAVERICKV2, ...), losing the remaining actions, the slippage check, clearPayer and the return.",
+      "rule": "",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed by structure: the three big functions are 7,900-8,000 lines each (fallback 34-8030, executeWithPermit 8031-15916, execute 15917-23956); balanceOf checked in full (exact: Bytes(1, 0)). Checked in detail: the takerSubmitted modifier (setPayer: ConfusedDeputy, ReentrantPayer revert data - exact, the compiler keeps the source's store order so the 12 padding bytes are zero; clearPayer: PayerSpent), the empty-actions path (_checkSlippageAndTransfer with balanceOf/transfer/ETH send), executeWithPermit's permit dispatch (ERC2612 and DAI permit, PermitExpired, nonces/allowance/DOMAIN_SEPARATOR, the EIP-712 hash, ecrecover and InvalidSignature, UnsupportedPermitType/Panic(33)); the allowance revert reading 'from uint96(ptr) | ALLOWANCE_HOLDER << 96' is exact (the source's mstore(0x34, spender) clobbers the free memory pointer before mload(0x40)); the BalancerV3 callback header, Take.take (sendTo calls, ZeroBuyAmount, TooMuchSlippage), safeTransfer/TransferFailed, the callback dispatch through the transient operator slot. No semantic error found other than the GAS one. Loops: 9 explicit source loops (BalancerV3, PancakeInfinity and UniswapV4 hop loops, Take.take, Select._runActions, Select.select, Settler._execute, UniswapV3Fork._uniV3ForkSwap, Velodrome._get_y's for); Velodrome's two inner whiles are inside a /* */ comment and not counted. The 59 text whiles are all copies of these: fallback 33 (24 Take.take copies, 3 UniV4 hop copies, 1 each of the others), execute 13 and executeWithPermit 13 (_execute loop x4-5, UniV3 swap loops, Velodrome, SELECT). No spurious while. Other things not filed: 'signerN = ecrecover(...)' is unused and the check reads 'mem[ecrecover.result]' (the source's mload(staticcall(...)) idiom, exact but obscure); the base-36 Cuid.decode of the zid word (ATTEST) is an unreadable chain of '/ 2176782336 %'; 10**54 is printed in hex (P17, 40 lines); P2 also covers 46 calls whose selector is a memory slice ('call caller.mem[_5389 + 28 len 4]'). Event and error names are mostly raw selectors (not in the signature database). Immutables: none visible (no '????').",
+  "summary": "A faithful but enormous transcript of assembly-heavy code: everything checked matches the bytecode except a GAS value propagated past a call in the SELECT trial loop; 50 aborted paths lose the tail of execute/executeWithPermit for most first-action types, the SELECT loop is rotated, leaked jump-address phis select between identical arms, and the mulDiv/512-bit arithmetic is unreadable."
+}

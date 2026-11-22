@@ -1,0 +1,25 @@
+{
+  "id": "c00552",
+  "abi_functions": 30,
+  "reviewed": 30,
+  "not_reviewed": [],
+  "source_loops": 17,
+  "loops_shown": {"while": 17, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 4, "P3": 2, "P4": 16, "P6": 1, "P7": 6, "P8": 131, "P10": 39, "P18": 94},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getTokenPrice, getValidatedTokenPrice, getTokenAndGasPrices, getTokenPrices, onReport, convertTokenAmount, processMessageArgs, getValidatedFee (12 inlined '10 ** n' helpers)",
+      "lines": "361-380 (getTokenPrice) and the other 'u > 1' loops",
+      "decompiled": "if uint8(d + f) <= 36: _13 = uint8(d + f) == 36 or 10**(-uint8(d + f) + 36) / ... else: if uint8(d + f) - 36 >= 78 and uint8(d + f) - 36 >= 32: s = 10 / t = 1 / u = ... / while u > 1: ...",
+      "source": "FeeQuoter._calculateRebasedValue / _getValidatedTokenPrice: 10 ** (36 - decimals) or 10 ** (decimals - 36) (solc's checked exponentiation helper)",
+      "issue": "The exponentiation helper's special cases stay visible: 'x == 36 or 10**(36 - x)' (10**0 is already 1) and 'e >= 78 and e >= 32' (the second test is implied), around the readable square-and-multiply loop.",
+      "rule": "'x == c or 10**(c - x)' is 10**(c - x) (the power is 1 when x == c); 'e >= a and e >= b' is 'e >= max(a, b)' (same rule as c00290).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 30 ABI functions reviewed (getValidatedFee and processMessageArgs, ~300-500 lines, by structure; the configuration setters and getters line by line). The 17 source loops are all readable whiles: getTokenPrices (L280), _applyFeeTokensUpdates (L432, L437), updatePrices (L457, L466), _updateTokenPriceFeeds (L487), onReport (L509), _applyPremiumMultiplierWeiPerEthUpdates (L614), _getTokenTransferCost (L656), _applyTokenTransferFeeConfigUpdates (L795 with the nested L799, and L815), _processPoolReturnData (L953), _applyDestChainConfigUpdates (L1006), KeystoneFeedsPermissionHandler.setReportPermissions (L33), AuthorizedCallers._applyAuthorizedCallerUpdates (L49, L58). Implicit loops: 12 checked-exponentiation helpers ('while u > 1', readable), ~14 calldata decodes of struct arrays, 2 rotated zero-initialisations (P3), the bytes[] return encoding of processMessageArgs (a 'while True' with the return inside), 6 copy loops (P7). The selector of Client._argsToBytes' tag is printed in decimal (404606736). Struct members of returned configs are copied field by field as memory slices (P18). No semantic error found.",
+  "summary": "Faithful and its 17 source loops are readable whiles; readability suffers only from the known patterns (keccak scratch stores, struct copies as memory slices, concat keys) and the exponentiation helper's leftover special cases."
+}

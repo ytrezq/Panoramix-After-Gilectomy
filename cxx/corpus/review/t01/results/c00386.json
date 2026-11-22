@@ -1,0 +1,25 @@
+{
+  "id": "c00386",
+  "abi_functions": 7,
+  "reviewed": 7,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P3": 1, "P7": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getDepositors()",
+      "lines": "57-79",
+      "decompiled": "if depositors.length: mem[0] = 2; mem[160] = depositors[0]; idx = 160; s = 0 / while 32 * depositors.length + 160 > idx + 32: mem[idx + 32] = depositors[s + 1]; idx = idx + 32; s = s + 1 / ... while idx < depositors.length: mem[s] = Bytes(12, 0), mem[t + 12 len 20] ... / return Array(len=depositors.length, data=mem[32 * depositors.length + 224 len 32 * depositors.length])",
+      "source": "TokenVault.sol: function getDepositors() external view returns (address[] memory) { return depositors; }",
+      "issue": "Returning a storage address[] takes two implicit loops: the storage-to-memory copy, rotated (element 0 peeled, condition 'end > idx + 32'), and the ABI re-encoding with address cleanup; the result is just the array.",
+      "rule": "The rotated per-element copy mem[160 + 32 i] = depositors[i] for i < n is the copy mem[160 len 32 n] = depositors[all]; a re-encoding loop that copies masked addresses already masked is a copy; then 'return depositors' (as the text does for bytes32 arrays).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 7 functions compared with the source (balances, allowances struct getter, depositors getter with its bound check, deposit with checked add and push, approve writing the two-slot Allowance struct, deactivateAllowance, getDepositors). No source loops; the two whiles are implicit (P7, one rotated).",
+  "summary": "Tiny and faithful; the only noise is the two implicit loops used to return the storage address[]."
+}

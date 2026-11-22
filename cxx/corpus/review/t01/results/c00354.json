@@ -1,0 +1,36 @@
+{
+  "id": "c00354",
+  "abi_functions": 8,
+  "reviewed": 8,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 4, "P7": 4},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "migrate(uint256), migrate(address,uint256)",
+      "lines": "51-67, 92-107, 140-156, 181-196",
+      "decompiled": "mem[164] = caller / mem[196] = this.address / mem[228] = _pid / mem[128] = 100 / mem[176 len 16] = uint128(caller >> 32) / mem[164 len 12] = 0 / mem[160 len 4] = 599290589 / while idx < 100: mem[idx + 260] = mem[idx + 160] ... / call 0x0 with: args mem[260 len 100]",
+      "source": "ERC20Helper.transferFrom(oldToken, msg.sender, address(this), oldTokenAmount_) -> _call(token, abi.encodeWithSelector(IERC20Like.transferFrom.selector, from, to, amount)) -> token.call(data)",
+      "issue": "The abi.encodeWithSelector buffer is built with unaligned split stores (the selector 0x23b872dd in decimal) and copied by a constant 100-byte while loop, so the low-level call shows raw memory instead of transferFrom(caller, this, _pid) (and the transfer call likewise).",
+      "rule": "Merge adjacent byte-range stores into whole words (mem[160 len 4] = sel, then words at 164 ...); a word-copy loop of constant length is a copy line; with both, the call buffer is sel ++ args and the call prints with its selector and arguments.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "migrate(uint256), migrate(address,uint256), oldToken(), newToken(), tokenSplitScalar()",
+      "lines": "59-60, 85, 131",
+      "decompiled": "if ext_code.size(0): ... call 0x0 with: ... / mem[mem[64] + 68] = 0 / return 0",
+      "source": "address public immutable override oldToken; address public immutable override newToken; uint256 public immutable override tokenSplitScalar; newTokenAmount_ = oldTokenAmount_ * tokenSplitScalar;",
+      "issue": "The immutables read as 0 (solc, pre-deployment bytecode): both token calls target 0x0 and the new amount is always 0.",
+      "rule": "None (input artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 8 ABI functions reviewed (no-optimizer build, read in full). No source loop; the 4 whiles are the ERC20Helper call-buffer copies (P7). The success decoding of the low-level calls (empty return or a bool) matches ERC20Helper._call.",
+  "summary": "Faithful and loop-free in the source; the token calls are hidden behind split buffer stores and constant-length copy whiles, and immutables read as zero."
+}

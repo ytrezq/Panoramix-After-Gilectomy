@@ -1,0 +1,47 @@
+{
+  "id": "c00037",
+  "abi_functions": 72,
+  "reviewed": 72,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 1, "P2": 8, "P4": 1, "P6": 70, "P7": 3, "P8": 300, "P9": 205, "P11": 4, "P18": 20},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "supply, withdraw, borrow, repay, supplyCollateral, withdrawCollateral, liquidate, liquidateBrokerPosition, accrueInterest, setFee (inlined _accrueInterest)",
+      "lines": "e.g. 2744-2791 (205 lines)",
+      "decompiled": "if (block.timestamp * block.timestamp * ext_call.return_data[0] * ext_call.return_data[0] - 2 * block.timestamp * _22 * ext_call.return_data[0] * ext_... : revert with Panic(17) ... uint128(stor2[sha3(...)].field_256) = uint128(uint128(((block.timestamp * ((block.timestamp * block.timestamp ...",
+      "source": "MathLib.sol:37-43 wTaylorCompounded(x, n): firstTerm = x * n; secondTerm = mulDivDown(firstTerm, firstTerm, 2 * WAD); thirdTerm = mulDivDown(secondTerm, firstTerm, 3 * WAD); Moolah._accrueInterest: elapsed = block.timestamp - market.lastUpdate; interest = totalBorrowAssets.wMulDown(borrowRate.wTaylorCompounded(elapsed))",
+      "issue": "The products of sums are distributed: (block.timestamp - lastUpdate)^2 * rate^2 becomes 't*t*r*r - 2*t*L*r*r + L*L*r*r' and the cubic term likewise, so each overflow check and the stored totals are lines of several hundred characters (P9, 205 lines) instead of firstTerm / secondTerm / thirdTerm.",
+      "rule": "Never distribute a product over a sum or difference during simplification (x * (a - b) stays as is; it is exact either way modulo 2^256 but the expanded form is longer), and name a subexpression (elapsed, firstTerm) that is used more than once.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all onlyRole functions (17 sites), batchToggleLiquidationWhitelist, setWhiteList, setProvider, setMarketBroker, ... (39 string reverts)",
+      "lines": "1445-1447; 1474-1486",
+      "decompiled": "revert with caller >> 32 | 0xe2517d3f00000000000000000000000000000000000000000000000000000000, Bytes(4, uint32(caller)), 0xaf290d8680820aad922855f39b306097b20e28774d6c1ad35a20325630c3a02c  |  mem[_49] = 7; mem[_49 + 32] = 0x6e6f7420736574...; ... revert with Error(string reason), 32, mem[mem[64] + 36 len _53 + 32], Bytes(-_53 + ceil32(_53), 0)",
+      "source": "AccessControlUpgradeable._checkRole: revert AccessControlUnauthorizedAccount(account, role); Moolah.sol:203 require(liquidationWhitelist[id].contains(account), ErrorsLib.NOT_SET)",
+      "issue": "The custom error AccessControlUnauthorizedAccount(address,bytes32) is printed as word-aligned pieces where the selector is OR-ed with 'caller >> 32'; the ErrorsLib string reverts copy a string just written at mem[64] and print as an Error(string) with raw memory arguments instead of 'revert with \"not set\"'.",
+      "rule": "Split revert data at 4 + 32k when the first 4 bytes are a constant selector ('sel << 224 | a >> 32', 'Bytes(4, uint32(a))' is the word a); read a string just stored at _x (mem[_x] = n, mem[_x + 32...] = data, _x = mem[64]) through the copy, as for P2.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getLiquidationWhitelist(bytes32), batchToggleLiquidationWhitelist, isLiquidationWhitelist, getWhiteList, setWhiteList, setProvider (EnumerableSet in a mapping)",
+      "lines": "100-111; 1469-1500",
+      "decompiled": "_10 = sha3(_param1, 8) / while s < stor[_10]: if s >= stor8[_param1].field_0: revert Panic(50) ... mem[32 * s + 160] = address(stor[s + sha3(sha3(_param1, 8))])  |  if not stor[sha3(address(_44), sha3(_22, 8) + 1)]",
+      "source": "Moolah.sol:834-835 for (i < liquidationWhitelist[id].length()) whitelist[i] = liquidationWhitelist[id].at(i); :198-204 liquidationWhitelist[id].contains(account)",
+      "issue": "The set's length is printed both as stor8[_param1].field_0 and as stor[_10] in the same loop (so the Panic(50) check implied by the loop test is kept), its elements as raw slot arithmetic, and the _positions mapping (member 1 of the struct) as stor[sha3(account, sha3(id, 8) + 1)] (57 lines with raw stor[sha3(...)]).",
+      "rule": "stor[sha3(k, n)] is the mapping access storn[k]; stor[sha3(k2, sha3(k, n) + m)] is member m of storn[k], itself a mapping, indexed by k2; stor[i + sha3(sha3(k, n))] is element i of the dynamic array stored at storn[k]. Printing one name per slot also lets the implied bound check be removed.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Via-IR build. The market functions (supply, withdraw, borrow, repay, supplyCollateral, withdrawCollateral: 380-550 lines; liquidate 935; liquidateBrokerPosition 270; flashLoan 155) were reviewed by structure: pause / re-entrance (stor9B77 == 2) checks, whitelist and blacklist checks, the inlined _accrueInterest with the IRM call (0x9451fed4) and fee shares, the share/asset updates of the market and position structs, callbacks, token transfers (SafeTransferLib) and events; the small functions and getters were reviewed in full. Source loops: Moolah.sol:191 and :194 (batchToggleLiquidationWhitelist: 'while True' with the exit inside, and 'while t < _42'), :834 (getLiquidationWhitelist: 'while s < stor[_10]'); all shown. Implicit: calldata decoding of ids / accounts (1416, 1429), result encodes of address[] (119, 190, 520: P7). EnumerableSet values() copies from storage are copy lines. Custom errors of the ABI without a database name print as bare selectors (revert with 0xd93c0665 for EnforcedPause), which is normal. P11: Panic(50) bound checks implied by the loop tests and the equal-length require (1460, 1466, 105).",
+  "summary": "Faithful and complete with all loops shown, but the inlined interest accrual is expanded into enormous polynomials (P9), custom errors and ErrorsLib reverts print as raw word pieces, and EnumerableSet storage accesses stay raw slot arithmetic."
+}

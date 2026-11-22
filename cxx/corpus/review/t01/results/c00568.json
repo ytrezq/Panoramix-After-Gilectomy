@@ -1,0 +1,58 @@
+{
+  "id": "c00568",
+  "abi_functions": 8,
+  "reviewed": 8,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 1, "P2": 11, "P3": 3, "P6": 7, "P7": 110, "P11": 4, "P14": 150},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "initiateDistribute(), distribute(...), processLzReceive(...), bridgedGmxReceived() (the inlined _emitFeeDistributionEvent)",
+      "lines": "2463-2506, 3888-3931, 6130-6173, 1299-1341",
+      "decompiled": "while True: / if s >= _794: / require ext_code.size(0) / call 0x0 with: args mem[mem[64] len u - mem[64]] / ... stor0 = 1 / stop / mem[w] = u - v - 32 ... s = s + 1 ... continue",
+      "source": "FeeDistributor._emitFeeDistributionEvent -> eventEmitter.emitEventLog(eventName, eventData) (ABI encoding of EventLogData.stringItems.arrayItems), then nonReentrant's _status = _NOT_ENTERED",
+      "issue": "The last ABI-encoding loop of the event data is printed as 'while True' whose exit branch holds the rest of the function (the event-emitter call, the reentrancy-guard reset and stop), so the function's tail reads as part of the loop.",
+      "rule": "When a loop's exit branch never rejoins the body, print 'while not exit_cond: body' and put the exit branch after the loop; a 'while True: if c: T; stop' with T straight-line is 'while not c: ...' followed by T.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "initiateDistribute(), distribute(...), processLzReceive(...)",
+      "lines": "1530-1550, 3355-3370, 4525-4540",
+      "decompiled": "if 3 * mem[...] != 3: _60 = mem[64]; mem[64] = mem[64] + 96; mem[_60] = 0; mem[_60 + 32] = 0; mem[_60 + 64] = 96; mem[_57 + 32] = _60 / s = _57 + 32 / idx = 3 * _56 - 3 / while idx - 1: (the same five stores) ... idx = idx - 1",
+      "source": "FeeDistributor.sol:111-112 new MultichainReaderUtils.ReadRequestInputs[]((chainIdsLength - 1) * 3)",
+      "issue": "The compiler's loop that allocates a zeroed struct for each element of a new memory array of structs is rotated: its first iteration is printed before 'while idx - 1' (P3).",
+      "rule": "Un-rotate: 'if n != 0: B; i = n; while i - 1: B; i = i - 1' (B the same block) is 'while n != 0: B; n = n - 1'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all functions",
+      "lines": "45, 66, 253, 2466 (105 lines with '0x0.' and 9 'call 0x0')",
+      "decompiled": "static call 0x0.hasRole(address, bytes32) / static call 0x0.getAddress(bytes32 id) / call 0x0 with: args mem[...]",
+      "source": "RoleModule.roleStore, FeeDistributor.dataStore / eventEmitter / multichainReader / feeDistributorVault (immutables)",
+      "issue": "The immutables read as 0 in this pre-deployment bytecode (solc), so the role store, data store and event emitter calls target 0x0.",
+      "rule": "None (input artifact).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "distribute(uint256,uint256,uint256,uint256), _fallback",
+      "lines": "970-972, 39-40",
+      "decompiled": "if SafeMath.sub((block.timestamp / (24 * 3600) + 4) % 7 + 7, ext_call.return_data[0]) % 7 != 24 * 3600 * (...) ... / require calldata.size < 4 / require not calldata.size",
+      "source": "FeeDistributor._validateDistributionNotCompleted (day-of-week arithmetic with 1 days); receive()",
+      "issue": "An overflow check of (x % 7) * 1 days is kept although x % 7 < 7 makes the product small, and the receive path keeps a require implied by the next one.",
+      "rule": "Drop a multiplication overflow check when both factors have small known bounds (x % k < k); drop a require implied by the following require.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 8 ABI functions reviewed; the three large ones (initiateDistribute 1165 lines, distribute 1425, processLzReceive 2242) by structure, depositReferralRewards (788) by structure, withdrawToken/withdrawNativeToken/roleStore read. Source loops in this bytecode: initiateDistribute's chain loop (1553), processLzReceive's chain loop (4099), depositReferralRewards' params loop (225, holding the per-deposit emitEventLog1 encoding), _calculateAndBridgeGmx's target loop (5212) and transfer loop (5294), _bridgeGmx (5350), _transferWntCosts' keeper loop (3015): all whiles. Not counted, because they are not in this bytecode: FeeDistributorUtils (calculateKeeperCosts, computeTransfers, retrieveChainIds and its recursive quicksort) and ClaimUtils.incrementClaims are external library functions reached by DELEGATECALL to 0x1115384b.../0x115d88b1..., and MultichainReader._getCmd / ReadCodecV1.encode belong to the external MultichainReader contract (the pack's reach list over-approximates). The other ~120 whiles are the compiler's ABI encoding loops of EventUtils.EventLogData (offset tables 'mem[t] = -u + w - 96', element copies, address/bool cleanups) and of the call arguments, plus validated ABI decodes: counted as P7 (and the 3 rotated allocation loops as P3). The day-of-week check prints '0x49e68a65f8... * 24 * 3600' for a string word (P1). Custom errors (Unauthorized 0xa35b150b with 'TIMELOCK_ADMIN') and library functions are unnamed (signature database).",
+  "summary": "All loops are found and shown as whiles, but they are buried among ~120 ABI-encoding loops of the event data; some functions' tails are printed inside a 'while True' exit branch, and immutables make every dataStore/eventEmitter call target 0x0."
+}

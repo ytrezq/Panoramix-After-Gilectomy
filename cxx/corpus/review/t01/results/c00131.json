@@ -1,0 +1,25 @@
+{
+  "id": "c00131",
+  "abi_functions": 44,
+  "reviewed": 44,
+  "not_reviewed": [],
+  "source_loops": 10,
+  "loops_shown": {"while": 10, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 75, "P3": 7, "P6": 16, "P7": 24, "P8": 150, "P11": 20},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "updateTokenList(address[]), initToken(address[])",
+      "lines": "updateTokenList: the 'tokens = _tokens' block",
+      "decompiled": "s = 0 / idx = _param1 + 36 / while _param1 + 32 * _param1.length + 36 > idx: stor254[s] = address(cd[idx]) ... s = s + sha3(254) / _46 = s / stor[_46 len -_46 + max(_46, _33 + sha3(254))] = 0",
+      "source": "VaultConfig.sol:112 tokens = _tokens;",
+      "issue": "The calldata-to-storage array assignment is a while loop plus a tail clear whose bounds mix the element counter with the data slot (s = s + sha3(254)) and a max(...) length; it is one array copy and a clear of the old tail.",
+      "rule": "A loop storing address(cd[p + 32i]) to arr[i] for i < n is a copy line stor254[0 len n] = cd[p len 32n] with cleaning; print the shrink clear as clearing arr[n .. old_length).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: getTokenBalancesOf (TokenBalanceLibrary 28), getVaultValueInUSD (VaultCalculations 76), initToken (VaultConfig 76), updateTokenList (103), _resetPreviousTokenList (121), _handleTokenTransfer (567, 593, 604), _multiTokenTransferWithPermit (466), _multiTokenWithdrawal (362); all while loops, mapped by their calldata or storage bounds (while idx < cd[_param1 + 4], while idx < _param1.length...). Implicit: storage-to-memory copies of tokens (P3, 7), memory copies (P7, 23), the calldata-to-storage copy in updateTokenList (finding). Big deposit/withdraw functions (unknown05414b41, unknowncf4f4dc6) reviewed by structure. const unknown12261ee7 = 0 is an immutable (artifact, no effect on calls seen). Calls to configuration contracts made with CALL (interfaces not declared view) are shown as call stor409.unknowne348560b(?) (database lacks the selector).",
+  "summary": "A faithful text with all loops present; the usual raw-memory call arguments (75 P2 lines) and storage-array copy plumbing are the main readability costs."
+}

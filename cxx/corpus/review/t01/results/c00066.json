@@ -1,0 +1,58 @@
+{
+  "id": "c00066",
+  "abi_functions": 60,
+  "reviewed": 60,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 4, "P2": 322, "P4": 80, "P6": 66, "P7": 129, "P8": 800, "P11": 5},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "relayTokens (both), relayTokensAndCall, onTokenTransfer, fixMediatorBalance (the AMB bridge calls), handle*Tokens*, deployAndHandle* (limit counters, fee calls)",
+      "lines": "e.g. relayTokens(address,uint256) 6878-6995 (bridge calls), 6209 (totalSpentPerDay write), 6999-7000 (message records); handleBridgedTokens 898-935",
+      "decompiled": "static call forwardingRulesManager with: args mem[...] / static call stor6007 with: ... / call bridgeContract with: gas gas_remaining args mem[mem[64] len ...]  |  stor0[sha3(mem[_27 + 32 len mem[_27]])] = _value + stor[_25]  |  stor2[sha3(mem[_1579 + 108 len mem[_1579 + 76]])] = caller",
+      "source": "HomeOmnibridge.sol:190-199 _passMessage: bridge.requireToPassMessage / requireToConfirmMessage(executor, _data, gasLimit); TokensBridgeLimits.sol:231 addTotalExecutedPerDay; BridgeOperationsStorage setMessageRecipient",
+      "issue": "Once mem[64] becomes symbolic (after a call, or a phi of two allocation sizes), stores through it are not forwarded: the central call of every relay function (the message to the AMB bridge) shows no function and no arguments, nor do destinationLane and requestGasLimit; the daily-counter and message-record storage keys are hashes of raw memory and their reads stay 'stor[_25]'; SafeMath/SafeERC20 revert strings are raw memory.",
+      "rule": "Same root cause as c00409/c00170: prove that mstore(mload(0x40) + k), k >= 0, never writes slot 0x40 (the pointer starts at 0x80 and only grows by sizes < 2^64), and forward such stores into call inputs, keccak inputs and revert data; then sha3 of a packed 'string ++ address ++ uint' buffer and the bridge call arguments resolve as they already do at the top of each function.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "claimTokens, fixMediatorBalance, relay*/onTokenTransfer, handle*/deployAndHandle* (every SafeERC20 call, every abi.encodePacked/abi.encode of bytes or string)",
+      "lines": "e.g. 617-626 (claimTokens), 663-672; 129 loops in all",
+      "decompiled": "s = _15 + 32 / t = mem[64] / idx = mem[_15] / while idx >= 32: mem[t] = mem[s]; s = s + 32; t = t + 32; idx = idx - 32 / mem[_20 + floor32(max(31, _21))] = mem[_15 + floor32(max(31, _21)) + 32] & ~(256**(-_21 + floor32(max(31, _21)) + 32) - 1) | mem[_20 + floor32(max(31, _21))] & 256**(...) - 1",
+      "source": "Address._functionCallWithValue: target.call{value: weiValue}(data); abi.encodePacked(_name, SUFFIX); abi.encodeWithSelector(..., _data)",
+      "issue": "All 129 memory-to-memory copies of solc 0.7 (word loop plus a masked tail word, or a plain word loop with a separate tail) stay while loops with a 200-character tail expression; floor32(max(31, n)) is just floor32(n).",
+      "rule": "Known P7: a loop copying mem[s + i] to mem[t + i] by 32-byte steps while i < n (or while the remaining count >= 32), followed by the masked merge of the tail word, is the copy mem[t len n] = mem[s len n] when the ranges do not overlap; floor32(max(31, n)) = floor32(n).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "nearly all functions (every storage mapping access)",
+      "lines": "e.g. 838-842, 849-856 (handleBridgedTokens), 703-731 (fixFailedMessage)",
+      "decompiled": "mem[160] = 0x686f6d65546f6b656e4164647265737300000000000000000000000000000000 / mem[176] = _token << 96 / mem[128] = 36 / mem[64] = 196 / mem[0] = sha3('homeTokenAddress', Bytes(20, address(_token))) / mem[32] = 2",
+      "source": "addressStorage[keccak256(abi.encodePacked(\"homeTokenAddress\", _nativeToken))]",
+      "issue": "After the keccak is folded into the mapping access, the packed buffer, its length word, the free-pointer bump and the 64-byte hashing scratch are all still printed (about 800 dead stores, 4-6 per storage access).",
+      "rule": "Known P8: drop a memory store that no later load, call, log, return or revert can read (here the buffer is only read by the folded sha3).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "claimTokens, requestFailedMessageFix, upgradeability-owner checks; TokenReader paths",
+      "lines": "569; 587-588; 6502",
+      "decompiled": "mem[128] = 0x7f48420000000000000000000000000000000000000000000000000000000 * 3600  |  _4 = stor0[sha3('minPerTx', ...)] > 0 / _6 = _4 <= 0 / require _6  |  mem[_1151 + 32] = cd[calldata.size]",
+      "source": "Upgradeable: IUpgradeabilityOwnerStorage(this).upgradeabilityOwner() (selector 0x6fde8202); require(_token == address(0) || !isTokenRegistered(_token)); new string(32)",
+      "issue": "The selector word is factored by 3600 (P1, and a dead store); a boolean compared '<= 0' instead of negated; the zero fill of new string(32) reads as a calldata load.",
+      "rule": "Never factor a constant by a time unit unless it is used in arithmetic with time (P1); for a boolean b, b <= 0 is not b; calldataload(calldatasize) is 0.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "60 ABI functions plus the fallback reviewed. Reviewed by structure (calls, storage writes, events, reverts, loops): relayTokens (both, 1,319 lines each), relayTokensAndCall, onTokenTransfer, deployAndHandleBridgedTokens(AndCall), fixMediatorBalance; read in full: handleBridgedTokens, fixFailedMessage, claimTokens, claimTokensFromTokenContract, the limit/setter functions. Same code: relayTokens(address,uint256) = relayTokens(address,address,uint256) with receiver = msg.sender; relayTokensAndCall = relayTokens + data; handleNativeTokens/handleBridgedTokens share _handleTokens. Checked: onlyMediator, minPerTx's 'limit > 0 ? 1 : 0' rule, withinLimit/withinExecutionLimit order, _distributeFee's two directions (transfer vs mint, FeeDistributionFailed), safeSendValue's send-then-Sacrifice create, the STAKE minter override, TokenReader._convertToString. No semantic error found. The only source loop is TokenReader._convertToString's Yul 'for {} gt(data, 0)', inlined 20 times and shown as a readable 'while t: s = s + 1; t = 256 * t'. The OmnibridgeFeeManager and SelectorTokenGasLimitManager loops are in other contracts (external calls), not counted. The other 129 whiles are solc 0.7 memory copies (P7). P2 counted with keccak inputs and revert data built in raw memory.",
+  "summary": "Faithful and well structured at the top of each function, but after the first symbolic free-memory pointer the main bridge calls lose their names and arguments and storage keys become hashes of raw memory; 129 copy loops and about 800 dead memory stores bury the logic."
+}

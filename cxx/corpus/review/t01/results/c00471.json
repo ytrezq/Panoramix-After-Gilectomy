@@ -1,0 +1,58 @@
+{
+  "id": "c00471",
+  "abi_functions": 53,
+  "reviewed": 53,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 617, "P3": 1, "P6": 267, "P7": 38, "P8": 600, "P11": 12, "P15": 3},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "signalTransfer, acceptTransfer, batchStakeGmxForAccounts, batchCompoundForAccounts, batchRestakeForAccounts, compound, handleRewards, handleRewardsV2, unstakeGmx, unstakeEsGmx, multicall (186 sites)",
+      "lines": "1245-1248, 1601-1604, 1637-1644 (signalTransfer); 1051-1059, 1112-1119 (batchStakeGmxForAccounts); 568-575 (multicall); 2978-2986, 3044-3053 (unstakeGmx); 7690-7697 (handleRewards)",
+      "decompiled": "if mem[_11]: revert with memory from mem[64] len _11 + ceil32(return_data.size) - mem[64] + 132  |  _37 = mem[64] / mem[mem[64]] = 0x8c379a0.. / mem[_37 + 4] = 32 / mem[_37 + 36] = 15 / mem[_37 + 68] = 0x696e76616c6964205f616d6f756e74.. / revert with memory from mem[64] len _37 - mem[64] + 100",
+      "source": "RewardRouterV2.sol:679-704 the 16 requires of _validateReceiver ('stakedGmxTracker.averageStakedAmounts > 0' ...); :712 'invalid _amount'; :398 'insufficient allowance'; :178 'call failed'; :592 'unsupported votingPowerType'; SafeMath 'SafeMath: addition overflow'; Address 'Address: call to non-contract'",
+      "issue": "Every require message raised after the first external call of a function (186 of them) is printed as a raw memory revert, its text only visible as hex words or not at all (the _validateReceiver ones), while the same messages before any call print as revert with 'invalid _amount' (stakeGmx 740-741). The calls between them also lose their function and arguments (617 P2 lines), e.g. the second call of each _validateReceiver pair shows no _receiver argument.",
+      "rule": "Decode the Error(string) layout relative to any base b: mem[b] = 0x08c379a0 << 224, mem[b + 4] = 32, mem[b + 36] = n, n bytes at b + 68, then revert(b, 68 + ceil32(n)) is 'revert with <string>', whatever b is. With the c00600 bound (mem[64] >= 96, stores at mem[64] + k never alias slot 64), 'x - mem[64]' with x = mem[64] folds to 0, so the revert range starts at b.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "withdrawToken, unstakeGmx, unstakeEsGmx, compound, handleRewards(V2), batchCompoundForAccounts, batchRestakeForAccounts, acceptTransfer (SafeERC20 / Address._verifyCallResult)",
+      "lines": "439-456 (withdrawToken); 3005-3054 (unstakeGmx)",
+      "decompiled": "if not return_data.size: _4 = 96 else: mem[292] = return_data.size; mem[324 len return_data.size] = ext_call.return_data[...]; _4 = 292 / if not ext_call.success: if not mem[_4]: revert with 'SafeERC20: low-level call failed' / revert with memory from _4 + 32 len mem[_4] / if mem[_4]: require mem[_4] >=′ 32; require mem[_4 + 32] == bool(mem[_4 + 32]); if not mem[_4 + 32]: revert ...",
+      "source": "Address.sol:119-120 (bool success, bytes memory returndata) = target.call{value: value}(data); _verifyCallResult; SafeERC20.sol:70-72 if (returndata.length > 0) require(abi.decode(returndata, (bool)), ...)",
+      "issue": "The returned bytes are read through the phi pointer _4, so the bubbled revert, the length test and the decoded bool stay memory reads instead of return_data.size and ext_call.return_data[0].",
+      "rule": "If on every arm of a phi pointer p, mem[p] = return_data.size and mem[p + 32 len return_data.size] = ext_call.return_data[0 len return_data.size] (the arm p = 96 holds 0 = return_data.size), then mem[p] folds to return_data.size and mem[p + 32 + k len w] (k + w <= size) to ext_call.return_data[k len w].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "withdrawToken and the 16 inlined SafeERC20.safeTransferFrom calls",
+      "lines": "428 (withdrawToken); 2975 (unstakeGmx) and 15 more",
+      "decompiled": "mem[160 len 4] = 2835717307  |  mem[_799 + 32 len 4] = 599290589",
+      "source": "SafeERC20.sol:23, 27 abi.encodeWithSelector(token.transfer.selector / token.transferFrom.selector, ...)",
+      "issue": "The selectors 0xa9059cbb and 0x23b872dd are printed in decimal.",
+      "rule": "A constant stored as a 4-byte slice (mem[x len 4] = c) prints in hex; when the slice is the first 4 bytes of a call buffer, name it as a selector.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "multicall(bytes[]), stakeEsGmx/stakeGmx (_syncVotingPower), handleRewards",
+      "lines": "584-604; 674-687; 6309-6320",
+      "decompiled": "while True: if s >= _33: return memory from mem[64] len u - mem[64] ...  |  _10 = return_data.size + 128 (both arms) / require _10 - 128 >=′ 32  |  _62 = _2 + _4 + ext_call.return_data[0] > 0 / if _62: if _61 <= 0: revert with 'invalid _amount'",
+      "source": "multicall return encoding; _syncVotingPower stakedAmounts() in both branches; handleRewards :298 if (_shouldStakeGmx && gmxAmount > 0) _stakeGmx(...) -> _validateAmount",
+      "issue": "A loop whose first statement is its exit test is printed as while True; a phi of two identical expressions is not merged, so the return-size check reads _10 - 128; gmxAmount > 0 recomputes the sum instead of _61 > 0 and _validateAmount's check is kept under it (P11).",
+      "rule": "'while True: if c: exit; body' is 'while not c: body' then exit; a phi whose operands are equal is that operand; reuse a named value instead of its expression, and drop a check implied by the dominating condition.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Long functions reviewed by structure (calls, branches, reverts, storage writes, events, loops): signalTransfer, batchRestakeForAccounts, unstakeGmx, unstakeEsGmx, compound, handleRewards, handleRewardsV2, batchCompoundForAccounts, acceptTransfer (900-2900 lines each, made of the inlined _compound/_restakeForAccount/_stakeBnGmx/_syncVotingPower call sequences). Call order, targets (stor7 stakedGmxTracker ... stor16 externalHandler), argument order, the nonReentrant/onlyGov order, the 'transfer not signalled' mapping check and delete, the inStrictTransferMode allowance check, sendValue and the voting-power mint/burn branches all match the source. Removed checks are exact (extcodesize before a second static call to the same address; _validateAmount under 'if amount'). Source loops: batchStakeGmxForAccounts (1046), batchRestakeForAccounts (1671), batchCompoundForAccounts (9489), multicall (539), all readable whiles; their bodies suffer P2 and raw reverts. Implicit loops: 6 address[] and 2 bytes[] calldata decoders are fine; P7 = 32 copy loops of the 16 inlined safeTransferFrom (call data copy + error-message copy), multicall's 2 bytes copies, makeExternalCalls' bytes copy and 3 address[] re-encoding loops (mem[u] = Bytes(12, 0), mem[t + 12 len 20]); P3 = the zero-init of new bytes[](n) (532). P8: call buffers printed beside decoded calls (614-618 and every stake call of stakeGmx/stakeEsGmx/unstake*), 80 dead 'SafeMath: subtraction overflow' string allocations (= 30 / string word), withdrawToken 422-431 (incl. mem[176 len 16] = uint128(_addr >> 32)), sha3 scratch mem[0]/mem[32]. P11: 'assert s < mem[128]' in the batch loops, the kept _validateAmount check. P15: slot 18 (inStrictTransferMode, govToken, votingPowerType, inRestakingMode) is 'stor18 is uint256' and setVotingPowerType writes 'stor18 = _param1 << 168 | stor18 >> 176 << 176 | uint168(stor18)' while setGovToken uses address(stor18.field_8). Events are shown by topic hash (names unknown to the database), and 19 log data lists are raw memory (counted in P2).",
+  "summary": "Semantically faithful (every call, branch, revert and write of the source is present and in order), but after the first external call of a function the free-memory pointer is lost: 617 call lines lose their function and arguments and 186 revert reasons are hidden in raw memory, which makes the long reward functions very hard to read."
+}

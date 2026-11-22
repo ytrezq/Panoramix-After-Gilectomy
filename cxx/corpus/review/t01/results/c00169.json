@@ -1,0 +1,25 @@
+{
+  "id": "c00169",
+  "abi_functions": 75,
+  "reviewed": 75,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 4, "P3": 1, "P4": 20, "P6": 13, "P7": 3, "P8": 30},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "initialize(...) (Initializable)",
+      "lines": "1078-1079",
+      "decompiled": "_1 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64",
+      "source": "OZ Initializable (ERC-7201 slot 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00): _initialized (uint64) and _initializing",
+      "issue": "The same namespaced slot is printed in one line both as the named storF0C5_64 and as stor[<constant> * 3600] (P1), so the reader does not see that _initialized and _initializing share the slot.",
+      "rule": "Fold constant products before naming storage, and name every access to a known slot with that slot's name (storF0C5 for the low uint64, storF0C5_64 for the next field).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small, clean text. Loop map: claimRewards (1024, SFC claimRewards per validator), undelegateMany (1290, with the amounts bound check), withdrawMany (1423), getUserWithdraws (1588: size = min(maxSize, userNumWithdraws[user] - skip) with SafeMath.sub, both order branches, the remaining - 1 - i underflow checks, enum Panic(33), bound Panic(50)), all checked against the source. Implicit: getUserWithdraws' zero-initialisation of the WithdrawRequest[] array rotated as 'while idx - 1' (P3), and the ABI encode loops of the three array-returning functions (P7). withdrawDelay = 14 * 24 * 3600 is the source's 14 days. P8: hash scratch writes kept before mapping reads; P4: one-element concat keys.",
+  "summary": "Faithful and readable; every source loop is a clean while, with only P1/P4 noise and kept hash scratch writes."
+}

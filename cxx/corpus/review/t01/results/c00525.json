@@ -1,0 +1,58 @@
+{
+  "id": "c00525",
+  "abi_functions": 58,
+  "reviewed": 58,
+  "not_reviewed": [],
+  "source_loops": 12,
+  "loops_shown": {"while": 12, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 91, "P3": 36, "P4": 8, "P6": 2, "P7": 50, "P8": 120, "P9": 30, "P11": 60, "P15": 6},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "arrangePortfolio, getMargin, getMarginAndMtM, getMarginAndMarkToMarket, getScenarioPnL, handleAdjustment (inlined _arrangeAssets, _initialiseExpiries, _arrangePortfolio)",
+      "lines": "1472, 1523-1524 (arrangePortfolio) and 32 + 6 similar lines",
+      "decompiled": "mem[_773 + 224] = mem[_773 + 224] ^ (mem[_800 + 32] < mem[_773 + 224]) * (mem[_773 + 224] ^ mem[_800 + 32])  |  mem[_773 + 256] = SafeMath.add(mem[_773 + 256], (mem[_646 + 64] >>′ 255) + mem[_646 + 64] ^ mem[_646 + 64] >>′ 255)  |  -1 * _482 * (_482 >′ 0) * uint64(_633) /′ (365 * 24 * 3600)",
+      "source": "PMRM_2.sol:409 expiry.minConfidence = Math.min(confidence, expiry.minConfidence); :411 expiry.netOptions += SignedMath.abs(currentAsset.balance); :361 rate = SignedMath.max(rate, 0); :426 Math.min(conf, portfolio.minConfidence)",
+      "issue": "OpenZeppelin's branchless Math.min / SignedMath.abs / SignedMath.max (ternary as b ^ ((a ^ b) * cond), abs as (n + (n >> 255)) ^ (n >> 255)) are printed as the xor/multiply formulas, 38 times, which hides min, abs and max.",
+      "rule": "b ^ ((a ^ b) * c) with c in {0, 1} is 'a if c else b'; with c = (a < b) it is min(a, b), with c = (a > b) max(a, b); x * (x >′ 0) is max(x, 0) (signed); ((x >>′ 255) + x) ^ (x >>′ 255) is abs(x) (two's complement).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "initialize(address,...,uint256) (OpenZeppelin Initializable v5)",
+      "lines": "33-35 (def storage), 419-428, 465-467",
+      "decompiled": "storF0C5 is uint8 at storage 0xf0c5..6a00 / storF0C5_8 is uint56 at storage 0xf0c5..6a00 offset 8 / storF0C5_64 is uint8 ... offset 64  |  _1 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64 / ... / storF0C5 = 1 / storF0C5_8 = 0",
+      "source": "Initializable.sol: struct InitializableStorage { uint64 _initialized; bool _initializing; } at INITIALIZABLE_STORAGE 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00; initializer: initialized == 0 && isTopLevelCall ... $._initialized = 1",
+      "issue": "The uint64 _initialized is split into a uint8 and a uint56 because its write of 1 is stored byte-wise, and its reads print the slot as 0x111f..aa0 * 3600 (the time-unit factoring applied to a storage slot), so the reader cannot see that the guard reads the same field the modifier writes.",
+      "rule": "Never factor a storage slot or memory offset by a time unit; derive field boundaries from the widest access (a uint64 read at offset 0 makes a uint64 field, and 'low byte = 1, bits 8..63 = 0' is one store of 1 into it).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "arrangePortfolio and its 5 inlined copies (findInArray in _arrangeAssets)",
+      "lines": "1490-1506",
+      "decompiled": "if 0 >= mem[mem[_11 + 128]]: revert with memory ... 0xe07d33fa / _735 = mem[mem[mem[_11 + 128] + 32]] / v = 0 / while _735 - mem[mem[32 * t + ceil32(_3) + 576] + 60 len 4]: if v + 1 >= mem[mem[_11 + 128]]: revert ... / _735 = mem[mem[32 * v + mem[_11 + 128] + 64]] / v = v + 1",
+      "source": "PMRM_2.sol:443-448 for (uint i; i < arrayLen; ++i) if (expiryData[i].expiry == expiryToFind) return i; revert PMRM_2_FindInArrayError();",
+      "issue": "The search loop is rotated: the first bound test and the first load are peeled before the loop (P3), the loop condition is the difference '_735 - expiry' used as a boolean, and the searched value is the slice 'mem[asset + 60 len 4]' (uint32 of the subId).",
+      "rule": "Recognise the rotated form as 'i = 0; while i < n and a[i].expiry != x: i += 1; if i == n: revert'; print a difference used as a condition as '!=' and a 4-byte low slice of a word as uint32(word).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "arrangePortfolio, getMargin, getMarginAndMtM, getMarginAndMarkToMarket, getScenarioPnL, handleAdjustment, settleOptions, executeBid",
+      "lines": "e.g. 1092-1099, 1110-1118 (arrangePortfolio)",
+      "decompiled": "_89 = mem[64] / mem[mem[64]] = 0x6dfcc650.. / mem[_89 + 4] = 96 / mem[_89 + 36] = _87 / revert with memory from mem[64] len _89 - mem[64] + 68  |  static call stor65 with: args mem[mem[64] len _119 - mem[64] + 4]",
+      "source": "SafeCast.toUint96 -> SafeCastOverflowedUintDowncast(96, value); spotFeed.getSpot(); PMRM_2_TooManyExpiries(); PMRM_2_FindInArrayError()",
+      "issue": "Same root cause as c00600: 61 custom-error reverts and 91 call buffers built at mem[64] stay raw (selector words visible, names and arguments not).",
+      "rule": "As in c00471 (bounded mem[64]; decode error and call layouts relative to any base).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Long functions reviewed by structure: handleAdjustment (1660 lines) and the five copies of _arrangePortfolio (arrangePortfolio, getMargin, getMarginAndMtM, getMarginAndMarkToMarket, getScenarioPnL, ~850 lines each, 'same as arrangePortfolio' for the shared part); setScenarios, settleOptions, executeBid, initialize and the setters read. Source loops: executeBid (865), handleAdjustment's assetDeltas loop, setScenarios x2 (591, 643), _processManagerData, _settleAccountOptions (717), _arrangeAssets (1415), _chargeAllOIFee, _countExpiriesAndAssets outer (1080) and inner ('while True', 1105), _initialiseExpiries (1244), findInArray (1499, rotated); all shown as loops. Implicit: 30 'while idx - 1' zero-init loops of new struct arrays and the findInArray rotation (P3), ~50 decode/encode loops of AssetBalance[] and of the Portfolio struct passed to and returned by lib (P7). P9: FixedPointMathLib.exp in _initialiseExpiries expanded into 30 lines over 1000 characters. P11: Panic(50) checks implied by the loop bounds, 'if not storF0C5_64: revert NotInitializing' right after setting it. P4: 8 'stor73[concat(mem[0])]' (collateralSpotFeeds). Naming: collateralSpotFeeds is stor73 and its getter is unknown.",
+  "summary": "All twelve source loops are present, the control flow and calls match, but the text hides OpenZeppelin's branchless min/max/abs behind xor formulas, prints a rotated search loop with a subtraction as condition, factors a storage slot by 3600, and leaves the usual raw reverts and call buffers after the first call."
+}

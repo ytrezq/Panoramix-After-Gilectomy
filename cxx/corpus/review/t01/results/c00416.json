@@ -1,0 +1,36 @@
+{
+  "id": "c00416",
+  "abi_functions": 15,
+  "reviewed": 15,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P8": 20, "P14": 40},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "_fallback (the initializer)",
+      "lines": "255-258",
+      "decompiled": "log Initialized(address collateralToken=cd[0], address borrowerNote=cd[32], address lenderNote=pool)",
+      "source": "MaplePoolManagerInitializer: emit Initialized(poolDelegate_, asset_, address(pool_))",
+      "issue": "The event's parameter names come from an unrelated contract with the same event signature, so the pool delegate is called collateralToken and the pool lenderNote.",
+      "rule": "As in c00576: use database parameter names only when not contradicted by the contract's own ABI (here the build's ABI gives the right names), else print plain types.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "_fallback, encodeArguments (0xb628fee9), decodeArguments",
+      "lines": "84-97, 205-254",
+      "decompiled": "mem[2 * Mask(250, 5, cd[_param4 + 4] + 31) + ceil32(cd[_param5 + 4]) + 416] = cd[_param5 + 4] / mem[ceil32(_1) + ceil32(_3) + ceil32(_4) + ceil32(_5) + ceil32(return_data.size) + ceil32(cd[cd[96]]) + ceil32(cd[cd[128]]) + 192] = 0x74df2558...",
+      "source": "abi.encode / abi.decode of (address, address, uint256, string, string); unoptimized build",
+      "issue": "Same as c00247: ceil32 prints as 2 * Mask(250, 5, x + 31) mixed with ceil32(x), and every scratch address is the full sum of earlier allocations (memory bases not named).",
+      "rule": "As in c00247 (Mask(250, 5, x + 31) is ceil32(x)) and c00457 (name allocation bases).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Unoptimized build. No loops in the source or the text. The initializer runs in the fallback (proxy-initializer pattern): globals checks with string reverts (PMI:I:...), two creates (pool, withdrawal manager) and storage writes - faithful. Getters trivial. No semantic error found.",
+  "summary": "Complete and faithful; no loops. Only cosmetic issues: misleading event parameter names from the database and long memory-address expressions."
+}

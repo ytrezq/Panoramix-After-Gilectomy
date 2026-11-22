@@ -1,0 +1,25 @@
+{
+  "id": "c00110",
+  "abi_functions": 91,
+  "reviewed": 91,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 2, "P4": 25, "P6": 12, "P7": 4, "P8": 100},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "claimRedeem(uint256[]) and the other request / epoch functions; addAsset-style transferFrom calls (unknown2480fd86, deposit paths)",
+      "lines": "1356-1379, 1383; 685-687",
+      "decompiled": "mem[mem[64]] = 0x8c379a0...; mem[_99 + 36] = 15; mem[_99 + 68] = 0x756e6b6e6f776e2072657175657374...; revert with memory from mem[64] len _99 - mem[64] + 100  |  epochs[concat(mem[0])].field_1024  |  call asset.transferFrom(...) with: args Bytes(28, uint128(caller >> 32)), Bytes(4, uint32(caller)), this.address, _param1",
+      "source": "RenaissNavPool.sol:251-253 require(r.owner != address(0), \"unknown request\"); require(c.state == EpochState.Settled, \"epoch not settled\"); SafeERC20.safeTransferFrom(asset, msg.sender, address(this), amount)",
+      "issue": "Inside the claimRedeem loop the require messages stay raw memory reverts (P2 root cause) although the same messages print as strings outside loops, epochs[...] is keyed by 'concat(mem[0])' (P4) while the same entry is keyed by requests[...].field_256 two lines before, and the transferFrom sender is cut into 28 + 4 bytes.",
+      "rule": "As for P2 (decode a revert payload written at mem[64] + constants); 'storN[concat(mem[0])]' with mem[0] = k is storN[k]; concatenate argument data by byte ranges so 'Bytes(28, uint128(a >> 32)), Bytes(4, uint32(a))' is address(a).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 91 functions were reviewed: the deposit / redeem / claim / batch functions by structure (access roles, nonReentrant stor9B77, whitelist, epochs and requests, transfers, events), the getters and setters in full. Source loops: RenaissNavPool.sol:249 claimRedeem ('while idx < cd[_param1 + 4]', with 'continue' for cancelled or claimed requests), :73 setWhitelist ('while idx < whitelisters.length', EnumerableSet add/remove inlined), CreditFundBase.sol:208 _confirmBatches ('while idx <= currentBatchId' with the break printed as the nonReentrant exit 'stor9B77 = 1; stop', inlined in two functions); all correct. Implicit whiles: EnumerableSet values() result encodes and request-array copies (515, 722, 739, 772: P7).",
+  "summary": "Faithful and complete with all three loops shown and readable; minor raw-memory reverts, concat keys and byte-split arguments remain."
+}

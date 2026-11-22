@@ -1,0 +1,42 @@
+{
+ "id": "c00120",
+ "abi_functions": 8,
+ "reviewed": 8,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {},
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "isDeployedConvertor4626(address)",
+   "lines": "45-68",
+   "decompiled": "_2 = ext_call.return_data[12 len 20]\n...\nrequire ext_call.return_data[0] == ext_call.return_data[12 len 20]\nreturn stor3[address(_1)][concat(Bytes(12, 0), Bytes(20, _2))][concat(Bytes(12, 0), ext_call.return_data[12 len 20])] == _param1",
+   "source": "Convertor4626Factory.sol isDeployedConvertor4626: return deployments4626[convertor.asset()][convertor.WANT()][convertor.vault()] == _strategy;",
+   "issue": "The first returned address is printed as address(_1) but the WANT() and vault() results, identical in kind, become 20-byte slices, so two of the three mapping keys print as concat(Bytes(12, 0), Bytes(20, x)) and their ABI checks as comparisons with a slice.",
+   "rule": "The low 20 bytes of a returned word zero-extended to 32 bytes, concat(Bytes(12, 0), w[12 len 20]), is address(w): print the key and the check (require w == address(w)) with the cast, as for the first call.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "newConvertor4626(address,string,address,address,address,address), emergencyAdmin()",
+   "lines": "3, 101-103",
+   "decompiled": "const emergencyAdmin = 0\ncall _1.setEmergencyAdmin(address emergencyAdmin) with: args 0",
+   "source": "Convertor4626Factory.sol address public immutable emergencyAdmin; _strategy.setEmergencyAdmin(emergencyAdmin)",
+   "issue": "The emergencyAdmin immutable is 0 in this build, so the new strategy's emergency admin is set to 0.",
+   "rule": "none (build artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "solc 0.8.18 optimized, 116-line text. No loops; the BaseConvertor4626 creation code and its constructor arguments (asset, offset 192, want, oracle, vault, gov, the name string) are one create line, and a failed create bubbles its revert data. AlreadyDeployed(deployed), the four configuration calls (setPerformanceFeeRecipient, setKeeper, setEmergencyAdmin, setPendingManagement = unknownf629b790), the mapping write, the NewConvertor4626 topics (convertor, asset, vault) and data (want), setAddresses' '!management' check and the getters all match. Unknown selectors (deployments4626, isDeployedConvertor4626, performanceFeeRecipient, newConvertor4626, WANT) leave storage as stor1/stor3. sigdb names mislead in setAddresses(address _traits, address _treat, address _zug) for (_management, _performanceFeeRecipient, _keeper).",
+ "summary": "A short, exact text of a factory; only the address-typed call results used as mapping keys print as zero-padded byte slices, and the emergencyAdmin immutable is 0 in this build."
+}

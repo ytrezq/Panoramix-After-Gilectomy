@@ -1,0 +1,50 @@
+{
+ "id": "c00527",
+ "abi_functions": 86,
+ "reviewed": 86,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 3,
+  "P6": 8,
+  "P7": 10,
+  "P8": 60,
+  "P9": 10,
+  "P14": 20,
+  "P15": 30
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "submit(address), _fallback (receive), getCurrentStakeLimit and the stake-limit getters",
+   "lines": "1692-1697",
+   "decompiled": "_3 = (storA367_160 > block.number * _1 - _1 * storA367 + storA367_32) * storA367_32 - (storA367_160 > block.number * _1 - _1 * storA367 + storA367_32) * storA367_160 + bl...",
+   "source": "StakeLimitUtils.sol:99-110 calculateCurrentStakeLimit: limit = prev < max ? _constGasMin(prev + change, max) : _constGasMax(_saturatingSub(prev, change), max), with _constGasMin = lhs * lhsIsLess + rhs * (1 - lhsIsLess)",
+   "issue": "The branchless min/max (a 0/1 flag times each operand) is distributed over the sums, so the stake limit is printed as lines of several hundred characters in which 'blocksPassed * incPerBlock' is expanded into 'block.number * _1 - _1 * storA367'.",
+   "rule": "x * c + y * (1 - c) with c in {0, 1} is 'c ? x : y' (min/max when c compares x and y); recognise it before distributing products, and keep 'a * (b - c)' factored.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "submit, _fallback, transfer*, mint/burn paths (Lido SafeMath with string reasons)",
+   "lines": "1717-1732, 1739-1757",
+   "decompiled": "_9 = mem[64]; mem[64] = mem[64] + 64; mem[_9] = 17; mem[_9 + 32] = 0x4d4154485f4144445f4f564552464c4f57.. (x3, unused) ... while idx < _20: mem[idx + mem[64] + 68] = mem[_17 + idx + 32] ... revert with Error(string reason), 32, mem[mem[64] + 36 len floor32(_20) + 64]",
+   "source": "Lido's SafeMath64/SafeMath128 add/sub with 'MATH_ADD_OVERFLOW'-style messages (require(c >= a, ERROR_ADD_OVERFLOW))",
+   "issue": "Every checked operation allocates its 17-byte message even when it cannot fail (three unused allocations in a row), and the revert copies it with a word loop, so 'revert with \"MATH_ADD_OVERFLOW\"' takes about 15 lines.",
+   "rule": "Drop allocations whose memory is never read on the path; a string literal stored at a fresh pointer and copied into an Error(string) buffer is 'revert with <literal>'.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "solc 0.4.24 Aragon app. No explicit loop in Lido.sol or in the libraries it uses (StakeLimitUtils, UnstructuredStorage, SafeMath variants). The 10 whiles are implicit word-wise memory copies (revert strings, getEVMScriptExecutor/canPerform returns, eip712Domain's strings, initialize), counted as P7. Storage is unstructured: packed slots are read through '>> 128' and uint128() (P15). The division-by-zero guard of getSharesByPooledEth prints as 'assert <total pooled ether>', which is the 0.4 invalid-opcode behaviour, faithful. No semantic error found.",
+ "summary": "Faithful, loop-free text; readable except where the branchless min/max of the stake limit is distributed into very long expressions and where SafeMath string messages are allocated and copied word by word."
+}

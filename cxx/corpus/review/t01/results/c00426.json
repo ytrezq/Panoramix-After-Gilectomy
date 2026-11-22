@@ -1,0 +1,36 @@
+{
+  "id": "c00426",
+  "abi_functions": 42,
+  "reviewed": 42,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 2, "P3": 2, "P4": 4, "P7": 7},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "applyChainUpdates (unknowne8a1da17), addRemotePool/removeRemotePool, getRemotePools (unknowna42a7b8b) ... (50 raw stor[sha3(..)] lines)",
+      "lines": "1356, 1360, 1378, 1382, 1407, 1411",
+      "decompiled": "stor[sha3(sha3(uint64(cd[32 * idx + _param1 + 36]), 9) + 5) + stor9[uint64(cd[32 * idx + _param1 + 36])].field_1280 - 1] = 0 / stor[sha3(mem[_112 + 32 * s + 32], sha3(uint64(cd[32 * idx + _param1 + 36]), 9) + 6)] = 0",
+      "source": "TokenPool.sol:402-404 s_remoteChainConfigs[selector].remotePools.remove(remotePools[j]); (EnumerableSet: _values.pop(), delete _indexes[value])",
+      "issue": "stor9 is recognised as a mapping of structs, but its EnumerableSet member (array _values at member +5, mapping _indexes at +6) is accessed through raw keccak arithmetic, so the set removal reads as unrelated slot writes.",
+      "rule": "sha3(T) + i with T = sha3(k, s) + 5 is element i of the dynamic array member 5 of s[k]; sha3(v, sha3(k, s) + 6) is entry v of the mapping member 6 of s[k]: print stor9[k].field_1280[i] and stor9[k].field_1536[v] (or the member names).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "applyAllowListUpdates(address[],address[]) (unknown54c8a4f3), getAllowListEnabled, getToken ...",
+      "lines": "154-156",
+      "decompiled": "if caller == owner: revert with 0x35f4a7b3 / revert with 0x2b5c74de",
+      "source": "TokenPool.sol:637-655 applyAllowListUpdates -> if (!i_allowlistEnabled) revert AllowListNotEnabled(); for (removes) ...; for (adds) ...",
+      "issue": "i_allowlistEnabled and the token are immutables that read as 0 here (solc), so the allow-list update always reverts and its two loops (TokenPool.sol:645, 651) are dead; they are not counted.",
+      "rule": "None (input artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 42 ABI functions reviewed (no-optimizer build; getters, ownership, kernel policy functions read; lockOrBurn/releaseOrMint (unknown39077537, unknown9a4575b9) and applyChainUpdates by structure). Counted source loops (7) are all whiles: getSupportedChains' conversion loop (306), getRemotePools (518), setChainRateLimiterConfigs (1144), applyChainUpdates' remove loop (1291) with its nested pool loop (1343), the add loop ('while True' with the exit test first, 1417) and its nested remote-pool loop (1872). The delete of the chain config clears its bytes and array storage with copy-like lines (good). Implicit loops: EnumerableSet.values() storage-to-memory copies (203, 318), the rotated allocations of bytes[]/Permissions[] arrays ('while idx - 1', P3), fixed-size Keycode/Permissions copies ('while idx < 2/3') and the validated decode of ChainUpdate (1440) (P7). P1: the selector 0x0c12fdd... printed as a constant times 3600.",
+  "summary": "Faithful, all live loops shown as whiles; the main readability gap is the EnumerableSet inside a struct mapping, printed as raw keccak slot arithmetic."
+}

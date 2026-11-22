@@ -1,0 +1,75 @@
+{
+ "id": "c00273",
+ "abi_functions": 22,
+ "reviewed": [
+  "all 22 ABI functions (constants, AccessControl, delay/grace-period setters, getCurrentState, cancel, executeDelegateCall, execute, getActionsSetById, queue, receiveFunds)"
+ ],
+ "not_reviewed": [],
+ "source_loops": 1,
+ "loops_shown": {
+  "while": 1,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 2,
+  "P3": 1,
+  "P6": 1,
+  "P7": 37,
+  "P8": 51,
+  "P10": 21,
+  "P12": 6,
+  "P13": 9
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "queue",
+   "lines": "737-1037",
+   "decompiled": "if not mem[32 * targets.length + 32 * values.length + 192]:\n    s = 0\n    while _46 + sha3(sha3(_28, 1) + 2) > s + sha3(sha3(_28, 1) + 2): ...\n    _73 = stor1[_28].field_768 ...\n    if not mem[_6]: ... while u: ...\n    else: ... while u: ...\nelse:\n    ... (the calldatas and withDelegatecalls copies again)",
+   "source": "actionsSet.signatures = signatures; actionsSet.calldatas = calldatas; actionsSet.withDelegatecalls = withDelegatecalls; actionsSet.executionTime = executionTime;",
+   "issue": "The storage copy of each array splits on 'length == 0' and the rest of the function is copied into both arms, so the calldatas copy appears twice and the bool[] packing and clearing loops four times: about 300 lines and 25 whiles for a function without a source loop.",
+   "rule": "Do not copy a join's continuation into both arms of a test that only guards the copy's first step; keep one copy after the join (structure the if around the guarded part only).",
+   "verified": "by reading: the 'while u' bool-tail clearing loops at 791, 864, 957 and 1030 are identical"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "execute (_executeTransaction, Address.functionCallWithValue)",
+   "lines": "275-280, 316-330, 332-345, 389",
+   "decompiled": "_123 = mem[64]; mem[mem[64]] = 0xf4d678b8...; revert with memory from mem[64] len _123 - mem[64] + 4 ... call this.address with: value stor[...] wei gas gas_remaining args mem[mem[64] len _134 + ceil32(_136) - mem[64] + 100]",
+   "source": "if (address(this).balance < value) revert InsufficientBalance(); return this.executeDelegateCall{value: value}(target, callData); revert FailedInnerCall(); revert AddressEmptyCode(target);",
+   "issue": "Errors and the self-call built at a copy of mem[64] stay raw: InsufficientBalance, FailedInnerCall and AddressEmptyCode are memory reverts with lengths '_123 - mem[64] + 4' (= 4), and the delegate path's call to this.executeDelegateCall is a raw call to this.address, while executeDelegateCall itself shows the same two errors decoded (lines 169, 175).",
+   "rule": "Treat a variable assigned mem[64] as equal to mem[64] until the next store to slot 64, then decode the selector, arguments and revert data.",
+   "verified": "by reading: _123 = mem[64] directly precedes the selector store"
+  },
+  {
+   "kind": "naming",
+   "severity": "low",
+   "function": "updateDelay, updateGracePeriod, executeDelegateCall, queue; getRoleAdmin, grantRole, revokeRole",
+   "lines": "51, 64, 149; 23, 101, 113",
+   "decompiled": "if not uint8(stor[sha3(caller, sha3(Bytes(64, 0)))]): revert with 0xe2517d3f, caller, 0; return stor[sha3(role, 0) + 1]; hasRole[stor[sha3(role, 0) + 1]][caller]",
+   "source": "onlyRole(DEFAULT_ADMIN_ROLE) -> _roles[0].hasRole[msg.sender]; _roles[role].adminRole",
+   "issue": "hasRole[0][caller] is printed as a raw slot because the key 0 makes the inner hash 'sha3(Bytes(64, 0))', while other keys are named hasRole[k][a]; the struct's adminRole field stays 'stor[sha3(role, 0) + 1]'.",
+   "rule": "Recognise sha3(Bytes(64, 0)) as the hash of key 0 in mapping slot 0 and name it like any other key; name the second word of a struct-valued mapping entry as a field of that mapping.",
+   "verified": "by reading"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "queue (bool[] packing), getCurrentState/cancel/execute",
+   "lines": "782-797 (10 index updates); 92, 132, 192",
+   "decompiled": "s = s - (s + 1) / 32 - s * ((s + 1) / 32) + 1; t = t + (s + 1) / 32; _2 = block.timestamp > SafeMath.add(stor1[_address].field_1280, gracePeriod) and 3",
+   "source": "bool[] storage copy (implicit); return ActionsSetState.Expired / Queued",
+   "issue": "The packed-bool byte index (s + 1) % 32 is printed as a four-term expression, and 'state = cond ? 3 : 0' as a Python 'and'.",
+   "rule": "Fold x + 1 - k*((x + 1)/k) style forms to (x + 1) % k; print 'c and K' with a non-boolean K as a conditional.",
+   "verified": "by reading: for s <= 31 the expression equals (s + 1) % 32"
+  }
+ ],
+ "notes": "Source loop: Executor L110 (execute's action loop, text 215). Implicit: the bytes[] zero-init (208, P3), calldata decoding, struct-array storage copies/clears and event encodings (P7). The queue struct copy writes slots 0-5 only (no executed/canceled write), which matches the bytecode (checked at 0xa96-0xb37). getCurrentState's state codes, cancel/execute guards, the signature-hash prefix and OZ v5 call-result checks match the source.",
+ "summary": "All 22 functions reviewed; the single source loop is a while and the semantics match. Problems: queue's per-array emptiness tests duplicate the rest of the function (25 implicit loops for a loop-free function), and execute's errors and self-call are raw memory because of free-pointer aliasing."
+}

@@ -1,0 +1,19 @@
+{
+ "id": "c00401",
+ "abi_functions": 2,
+ "reviewed": 2,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {},
+ "findings": [],
+ "notes": "Two public constants of the same ChainlogAbstract-typed address (ABSTRACT and ADDRESS, both 0xda0ab1e0017debcd72be8599041a2aa3ba7e740f) and a reverting fallback; the text prints both constants exactly (ABSTRACT as unknowna92d49af because its name is not in the signature database).",
+ "summary": "Exact: two address constants and a reverting fallback."
+}

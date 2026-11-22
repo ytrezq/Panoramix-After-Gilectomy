@@ -1,0 +1,47 @@
+{
+  "id": "c00440",
+  "abi_functions": 55,
+  "reviewed": 55,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {
+    "while": 5,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 7,
+    "P3": 1,
+    "P6": 30,
+    "P8": 17
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "most functions (clone immutable args), getChallengerDuration, resolveClaim, step, move/attack/defend, addLocalData; challengeRootL2Block",
+      "lines": "e.g. 236-258, 252-260; 862-865",
+      "decompiled": "static call cd[calldata.size - (cd[calldata.size - 2] >> 240) + 172] >> 96.paused()  |  if uint32(claimData[5 * _param1].field_0) == 4294967295: ... _3 = claimData[5 * uint32(claimData[5 * _param1].field_0) + 4].field_128  |  idx = 0 / while idx < _340: mem[_346 + idx + 32] = mem[_338 + _339 + idx]; idx = idx + 32",
+      "source": "Clone._getArgAddress / _getArgUint256 (immutable args appended to the calldata, length in the last 2 bytes); ClaimData[] claimData (5-slot struct); RLPReader._copy: for { } lt(i, _length) { i := add(i, 32) } { mstore(add(dest, i), mload(add(src, i))) }",
+      "issue": "Every clone argument (anchor state registry, l1Head, rootClaim, extraData...) is the raw expression cd[calldata.size - (cd[calldata.size - 2] >> 240) + k] (repeated in most functions); elements of the 5-slot ClaimData array are indexed as claimData[5 * i + k]; RLPReader._copy's word-copy loop stays a while.",
+      "rule": "Bind 'calldata.size - (cd[calldata.size - 2] >> 240)' (the start of appended immutable args) to one name and print the args as fields of it; print arr[k*i + j] with k-slot elements as arr[i].field_(256*j); a loop whose only effect is mem[d + i] = mem[s + i] for i = 0, 32, .. < n is a copy line.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "getRequiredBond (0xc395e1ca), getChallengerDuration, move / attack / defend, step, addLocalData, resolveClaim (MAX_GAME_DEPTH, SPLIT_DEPTH, MAX_CLOCK_DURATION, CLOCK_EXTENSION, GAME_TYPE, VM, WETH... immutables)",
+      "lines": "211-217; 219-235",
+      "decompiled": "def unknownc395e1ca(uint128 _param1): ... if byte(<de Bruijn depth>) ...: revert with 0x7c5f487d / revert with 0x56f57b2b  |  if uint64(..) > 0: return 0",
+      "source": "FaultDisputeGame.getRequiredBond: if (depth > MAX_GAME_DEPTH) revert GameDepthExceeded(); ... FixedPointMathLib.divWad(b, MAX_GAME_DEPTH * WAD); getChallengerDuration: challengeDuration > MAX_CLOCK_DURATION ? MAX_CLOCK_DURATION : challengeDuration",
+      "issue": "solc immutables read as 0: getRequiredBond always reverts (GameDepthExceeded for any nonzero depth, DivWadFailed otherwise), so its lnWad / expWad code is unreachable, and getChallengerDuration returns 0 whenever the duration is nonzero. Not a decompiler error.",
+      "rule": "None (corpus artifact).",
+      "verified": "reading only (both revert selectors traced to the immutable being 0)"
+    }
+  ],
+  "notes": "All 55 ABI functions and the fallback reviewed; no semantic error found. initialize, move / attack / defend, step, addLocalData, challengeRootL2Block, resolveClaim, resolve, closeGame, claimCredit by structure (status and enum checks, clone-arg reads, claim hashing, clock arithmetic with its checked adds, bond accounting and WETH unlock/withdraw, anchor registry calls, the RLP header decoding and output-root proof check). Source loops (5): resolveClaim's subgame loop, _findTraceAncestor (inlined 4 times), _findStartingAndDisputedOutputs' depth loop, RLPReader.readList's item loop and RLPReader._copy (a word copy left as a while, see the finding): all whiles. Implicit: readList's RLPItem[] allocation (rotated count-down loop, P3). The lnWad / expWad code of getRequiredBond is unreachable because of the immutables and is not printed.",
+  "summary": "Faithful; the dispute-game logic reads well except for the raw clone-argument expressions and the flat 5-slot ClaimData indexing, and several functions are degenerate only because the immutables (MAX_GAME_DEPTH, MAX_CLOCK_DURATION...) read as 0."
+}

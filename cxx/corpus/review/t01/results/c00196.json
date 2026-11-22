@@ -1,0 +1,25 @@
+{
+  "id": "c00196",
+  "abi_functions": 51,
+  "reviewed": 51,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P6": 1, "P7": 8, "P8": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "lzReceiveAndRevert(((uint32,bytes32,uint64),uint32,address,bytes32,uint256,address,bytes,bytes)[])",
+      "lines": "815-835, 850-874",
+      "decompiled": "_31 = mem[64] / mem[mem[64]] = 0xd045a0dc.. / ... / call this.address with: value cd[...] wei ... args mem[mem[64] len _31 + ceil32(...) + ...]  |  while idx < _23: mem[_21 + idx + ceil32(return_data.size) + 32] = mem[_21 + _22 + idx + 32] ...  |  revert with 0x8351eea7, 32, mem[..], mem[mem[64] + 68 len ..], Bytes(..)",
+      "source": "OAppPreCrimeSimulator.sol:46-60 for (...) { if (!isPeer(...)) continue; this.lzReceiveSimulate{value: packet.value}(packet.origin, packet.guid, packet.message, packet.executor, packet.extraData); } revert SimulationResult(IPreCrime(msg.sender).buildSimulationResult());",
+      "issue": "The self-call to lzReceiveSimulate keeps its arguments as a raw memory range although the selector and every field are written just above (P2), and the returned bytes are copied twice by word loops (decode and revert encoding, P7) before a half-decoded SimulationResult revert.",
+      "rule": "As in c00600 for the call buffer (mem[64]-relative base); a word loop copying n bytes between disjoint memory ranges is one copy line (see c00600's shape A).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: OAppOptionsType3._setEnforcedOptions for (setEnforcedOptions 709) and lzReceiveAndRevert for (796); both while. Implicit: options/bytes copy loops in quoteSend/send/combineOptions (486-575, 659, 719, 764-777) and the two SimulationResult copies (P7 ~8). 51 ABI functions read (OFT send/quote paths, lzReceive, peers, enforced options, UUPS upgrade, Ownable2Step).",
+  "summary": "A small, faithful LayerZero OFT text with both source loops found; remaining issues are a raw self-call buffer and word-wise byte copies."
+}

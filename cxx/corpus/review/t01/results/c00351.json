@@ -1,0 +1,36 @@
+{
+  "id": "c00351",
+  "abi_functions": 24,
+  "reviewed": 24,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 5, "P6": 1, "P7": 1, "P9": 3},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "latestRoundData(), getRatio(), isCapped()",
+      "lines": "102, 128, 210, 218, 255",
+      "decompiled": "static call 0x0.stEthPerToken() ... static call 0x0.latestRoundData() ... revert with Panic(18)",
+      "source": "PriceCapAdapterBase: RATIO_PROVIDER, ASSET_TO_USD_AGGREGATOR and the ratio-decimals divisor are immutables",
+      "issue": "The immutables read as 0, so the ratio provider and the aggregator are address 0 and the final division of latestRoundData divides by 0: past the early-return branch the function is the overflow checks followed by an unconditional Panic(18).",
+      "rule": "none (not a decompiler error)",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "latestRoundData(), setCapParameters (0x3c191b9e), isCapped()",
+      "lines": "238-239, 193-200, 133-134",
+      "decompiled": "mem[ceil32(_5) + ceil32(min(32, _1)) + 128] = Bytes(22, 0), mem[ceil32(min(32, _1)) + 150 len 10] / return mem[ceil32(_5) + ceil32(min(32, _1)) + 128], 0, _8, _9, uint80(_10) ; stor4 = 10**10 * _param1 * _param3 / 10000 / (365 * 24 * 3600) ; (block.timestamp * stor4 - snapshotTimestamp * stor4) / 10**10",
+      "source": "return (roundId, 0, startedAt, updatedAt, answeredInRound); SECONDS_PER_YEAR = 365 days; (block.timestamp - _snapshotTimestamp) * _maxRatioGrowthPerSecond",
+      "issue": "The returned roundId is written to memory and read back instead of uint80(word); SECONDS_PER_YEAR and 3 years are printed as 365 * 24 * 3600 and 1095 * 24 * 3600 (P1); the elapsed-time product is distributed (P9).",
+      "rule": "A load of a word just stored is that value (here uint80(mem[...+128])); keep a single folded constant (31536000) or name it from the getter that returns it; do not distribute a product over a difference computed by a checked subtraction.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "via-IR build, 255 lines. All 24 ABI functions compared in full (getters, setManager, setSnapshotDelay-type setter, setCapParameters with its two Panic(17) checks and the uint128 3-year growth check, isCapped, description, latestRoundData). No source loops; the only while is description()'s ABI-encoding copy of the stored string (P7), the storage-to-memory part being a copy line. No semantic error found beyond the immutables artifact.",
+  "summary": "Small, faithful via-IR text; latestRoundData degenerates to a Panic(18) because of immutables, and a few constants and products are printed in expanded form."
+}

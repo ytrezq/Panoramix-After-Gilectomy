@@ -1,0 +1,24 @@
+{
+ "id": "c00279",
+ "abi_functions": 16,
+ "reviewed": 16,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P2": 3,
+  "P4": 4,
+  "P7": 3,
+  "P8": 20
+ },
+ "findings": [],
+ "notes": "Maple LiquidatorFactory (MapleProxyFactory, solc 0.8.7). No explicit loop in the reached source; the 3 whiles are implicit bytes copies of the initialisation/migration arguments (P7). createInstance checks (factory(), isFactory(\"LOAN_MANAGER\", ...), isInstance, protocolPaused), the CREATE2 proxy deployment, upgradeInstance and the governor-only registry functions read correctly. bytes32 string keys such as \"LOAN_MANAGER\" are printed as hex words.",
+ "summary": "Small, faithful and readable factory text; only implicit bytes-copy loops and a few raw-memory call arguments."
+}

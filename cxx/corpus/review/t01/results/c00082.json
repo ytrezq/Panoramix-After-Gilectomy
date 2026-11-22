@@ -1,0 +1,50 @@
+{
+  "id": "c00082",
+  "abi_functions": 61,
+  "reviewed": 61,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {
+    "while": 2,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 4,
+    "P4": 6,
+    "P7": 4,
+    "P8": 25,
+    "P11": 3,
+    "P16": 30,
+    "P18": 40
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "approveDkgResult, submitDkgResult, challengeDkgResult, isDkgResultValid, notifyOperatorInactivity, seize",
+      "lines": "e.g. 1700-1768, 1773-1788, 1105-1129",
+      "decompiled": "mem[ceil32(_1) + ceil32(return_data.size) + 2 * Mask(250, 5, cd[dkgResult + cd[dkgResult + 36] + 4] + 31) + 2 * Mask(250, 5, cd[dkgResult + cd[dkgResult + 100] + 4] + 31) + 96 * cd[dkgResult + cd[dkgResult + 68] + 4] + ...] = ...  (lines of 300-550 characters)",
+      "source": "WalletRegistry.sol:877-909 approveDkgResult(DKG.Result calldata dkgResult): misbehavedMembers = dkg.approveResult(dkgResult); keccak256(abi.encode(dkgResult)); sortitionPool.setRewardIneligibility(misbehavedMembers, ...)",
+      "issue": "Every memory address after the result is ABI-encoded for hashing is a sum over the lengths of its four dynamic fields and earlier return-data sizes (ceil32(x) + ceil32(x) even appears as 2 * Mask(250, 5, x + 31)), so the encoding of abi.encode(dkgResult), the misbehavedMembers array and the call arguments cannot be read; the encoded result is then hashed and stored without the reader seeing which words go in.",
+      "rule": "Bind each allocation base (the value read from mem[64]) to a temporary and print addresses as base + constant; keep ceil32(x) + ceil32(x) as 2 * ceil32(x) (or a named padded length) instead of the masked form.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "hasDkgTimedOut, hasSeedTimedOut, getWalletCreationState, and the EcdsaDkg state checks inlined in submit / approve / challenge / notify*",
+      "lines": "e.g. hasDkgTimedOut and unknown770124d3 (the state ladder _2 = 0/1/2/3 then 'if _2 != 2')",
+      "decompiled": "if not ext_call.return_data[0]: _2 = 0 else: if not stor159: _2 = 1 else: if not stor163: _2 = 2 else: _2 = 3 / if _2 != 2: _4 = 0 else: ... _4 = block.number > stor156 + stor159 + stor161",
+      "source": "EcdsaDkg.currentState (IDLE / AWAITING_SEED / AWAITING_RESULT / CHALLENGE) compared with one state",
+      "issue": "A phi of constants is compared with a constant instead of being folded into the conditions that produce it (isLocked and stor159 != 0 and stor163 == 0); harmless but repeated in every state-dependent function.",
+      "rule": "When a variable is assigned only constants on its incoming paths, 'v == c' is the disjunction of the path conditions that assign c; substitute it when it is used only by that comparison.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 61 ABI functions (2 immutable constants: staking, sortitionPool = 0) and the fallback reviewed; no semantic error found. EcdsaDkgValidator, SortitionPool, EcdsaInactivity.verifyClaim (external library, delegatecall) and ReimbursementPool are other contracts: their loops (validateFields, validateSignatures, Branch, RNG, verifyClaim) are not in this bytecode although the pack lists them as reached. Source loops here: EcdsaDkg.approveResult's misbehavedMembers loop (approveDkgResult 1705, with the uint8 '- 1' underflow check and the members bounds check) and seize's operatorToStakingProvider loop (1131): both whiles. Implicit: calldata struct-array decoding and re-encoding (uint8[] / uint32[] masking loops), the validator's (bool, string) return copies (P7). Checked by hand: Wallets.addWallet (walletID = keccak256(publicKey), X = first word, Y = bytes32(publicKey[32:]) with the calldata-slice bound printed as SafeMath.sub2 and the short-slice mask), the DKG timeouts with their checked adds, the gas-refund arithmetic, the authorization functions. P16: nested calldata struct fields printed as cd[dkgResult + cd[dkgResult + k] + ...]. Immutables staking and sortitionPool are 0 (calls to 0x0): corpus artifact.",
+  "summary": "Faithful on every path checked; the DKG functions are hard to read because the ABI encoding of the calldata result makes every memory address a long symbolic sum, while the small getters, authorization and wallet functions are clean."
+}

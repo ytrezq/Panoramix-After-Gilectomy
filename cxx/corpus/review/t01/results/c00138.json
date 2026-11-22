@@ -1,0 +1,36 @@
+{
+  "id": "c00138",
+  "abi_functions": 57,
+  "reviewed": 57,
+  "not_reviewed": [],
+  "source_loops": 18,
+  "loops_shown": {"while": 18, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 19, "P3": 6, "P4": 3, "P6": 39, "P7": 20, "P11": 15},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "execute (unknown6d605c98, _runTasks), switchRound (unknown375e2729, RoundInfoLib/SubscribedOraclesLib loops)",
+      "lines": "1222-1229 (_99), 2664-2666 (_1738), 2812-2814 (_1829), 2780-2784 (_1873)",
+      "decompiled": "_99 = 0 < stor228 and lastTaskIndex != stor226.length + lastTaskIndex / ... while _99:   and   _1738 = 0 < mem[_1697] and stor109.length < stor107 / s = 0 / while _1738:",
+      "source": "TasksRunner.sol:331 while (executed < maxTasksPerBatch && i != startIndex + taskLength); :230 for (uint256 i = 0; i < selected.length && !roundInfo.isFull(); i++); SubscribedOraclesLib.sol:86 while (j > 0 && vStake > getStake(selected[j - 1]))",
+      "issue": "As in c00024, loops whose condition is a conjunction print as 'while flag:' with the flag computed before the loop and recomputed in the body; for the pure conditions (_99, _1738, _1829) the flag hides the loop bounds. (The sort's inner loop calls getStake in its condition, so a flag is needed there.)",
+      "rule": "Same rule as c00024: when a variable is used only as the loop test and is recomputed as f(next values) at the end of the body, with f free of calls and side effects, print 'while f(vars):' and drop the variable.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize-type setter (unknown at 590-620: sets stor107, stor108, clears stor109 and stor112)",
+      "lines": "602-616",
+      "decompiled": "_10 = stor109.length / stor109.length = 0 / s = 0 / while _10 + sha3(109) > s + sha3(109): stor109[s] = 0; s = s + 1",
+      "source": "AddressSetLib.clear: delete set._values (after the for over set._values)",
+      "issue": "Clearing the old elements of a storage array prints as a while, while other texts of this batch print the same clear as a range store 'stor[a len n] = 0'.",
+      "rule": "A loop 'while a + c > s + c: stor[c + s] = 0; s = s + 1' starting at s = 0 stores zeros to slots c .. c + a - 1 (the same slots in the same order, wrap included): print 'stor[c len a] = 0' (stor109[0 len _10] = 0).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "solc 0.6.12. Long functions (switchRound ~1,000 lines, execute ~800) reviewed by structure. Source loops (18), all whiles: AddressSetLib.clear, RoundInfoLib.switchRound, _processAutoUnsubscribeBySignatures, _validateExecution, getMaxUnselectedStake, getMin, sort (outer for and inner while), _distributeRewards (2), _runTasks' while, and the fors of the ABI functions (lines 459, 302, 519, 479, 499, 105, 230 of their files). Supporters.getMaxMOCBalance is an external contract's code (not counted). Implicit loops: storage-array copies to memory as rotated whiles (P3, e.g. 652, 1386, 1901, 2690, 2838), return encodings and calldata decodings (P7), storage clears. Array bounds checks use assert (0.6). P11: bounds asserts implied by the loop condition ('assert s < mem[_1697]' under 's < mem[_1697]'-style conditions).",
+  "summary": "Faithful, all eighteen source loops are whiles; the main readability issue is conjunction loop conditions printed as precomputed flags, plus rotated storage-to-memory copy loops."
+}

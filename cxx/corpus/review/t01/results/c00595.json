@@ -1,0 +1,25 @@
+{
+  "id": "c00595",
+  "abi_functions": 15,
+  "reviewed": 15,
+  "not_reviewed": [],
+  "source_loops": 15,
+  "loops_shown": {"while": 15, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 50, "P3": 15, "P6": 59, "P7": 33},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "withdrawProcessing(address,address,uint256,address), withdrawProcessing(address,address,uint256,address,bytes)",
+      "lines": "1015-1055, 3881-3920",
+      "decompiled": "s = 0 / t = _367 / ... / d = _354 / while True: / if s < v: mem[s + u] = mem[s + t]; s = s + 32; continue / if s > v: mem[u + v] = 0 / if a + 1 >= _356: return memory ... / mem[d + 32] = ... / s = 0; t = _378 + 32; u = ...; v = _379; ... a = a + 1; b = b + 32 ... / continue",
+      "source": "the ABI encoding of the returned MultiTransaction[] (each (address to, bytes txData)): an outer loop over transactions with an inner word-copy loop of txData",
+      "issue": "Two nested loops are printed as one 'while True' whose head is the inner copy loop: the outer step (12 variables reassigned, a = a + 1) sits after the inner exit, and the outer exit is a test in the middle. In flashloanProcessing the same encoding keeps its nesting (2681-2700: outer 'while True' with an inner 'while idx < _1201').",
+      "rule": "Two back edges to one header that belong to different cycles (one through the inner copy step only, one through the outer step) form nested loops: give the inner cycle its own header (a copy of the head block if needed) so that each loop is a separate while; the inner word copy then becomes a copy line.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "solc 0.7.6: array bounds are 'assert idx < len' (invalid-opcode panic), shown correctly. Reviewed in detail: getBalance / removeAssetCheck (_getBalance loop and the supported-assets decode), withdrawProcessing (4 args) (_calculateBorrowAsset, _calculateCollateralAssets, _withdrawAndTransfer loops, flash-loan branch); calculateSwapDataParams, flashloanProcessing and withdrawProcessing (5 args) by structure, matching each function's expected number of assert-guarded loops. Loop map: _getBalance -> 'while s < mem[...]' (156, 388), _calculateBorrowAsset -> 616 / 1174 and copies, _calculateCollateralAssets -> 860 / 1322 ..., _withdrawAndTransfer -> 954, _calculateSwapDataParams -> 1424 / 1480 (filter and counter loops), calculateSwapDataParams' own srcData loop -> 1634, flashloanProcessing's repay / withdraw loops and _withdrawCollateralTransactions (both overloads, including the nested j search loop printed as 'while True: if u >= t: ... break' at 2479) and _validateSwapData -> the assert-guarded whiles 1886-2662 and 3343-3819. Implicit: 15 zero-initialisation loops of memory struct arrays rotated as 'while idx - 1' (P3), ABI decode loops of getSupportedAssets() results ('require return_data.size - s + ... >=′ 64'), encode and copy loops (P7). P6: Error(string) selectors with 63 digits.",
+  "summary": "Faithful, with every source loop present as a while; the text is long from struct-array zero-init, decode and encode loops, and in both withdrawProcessing functions the returned array's encoding flattens a nested copy loop into one obscure 'while True'."
+}

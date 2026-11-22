@@ -1,0 +1,25 @@
+{
+  "id": "c00570",
+  "abi_functions": 7,
+  "reviewed": 7,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "deployNewOperator, deployNewForwarder, deployNewOperatorAndForwarder, deployNewForwarderAndTransferOwnership",
+      "lines": "4, 23, 34, 47, 57, 72",
+      "decompiled": "const linkToken = 0 ... create contract with 0 wei code: code.data[2260 len 15087], 0, caller",
+      "source": "OperatorFactory.sol: address public immutable linkToken; new Operator(linkToken, msg.sender)",
+      "issue": "The linkToken immutable reads as 0 in pre-deployment code, so the first constructor argument of every deployed contract is 0.",
+      "rule": "None needed (artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loops. All functions read: creation code and ABI-encoded constructor arguments (new bytes(0) as offset 128 and length 0, the message bytes appended for deployNewForwarderAndTransferOwnership), the created mapping writes and the events with their owners (msg.sender or this) match the source. Same bytecode as one other contract of the corpus.",
+  "summary": "Clean, faithful factory text; only the linkToken immutable artifact."
+}

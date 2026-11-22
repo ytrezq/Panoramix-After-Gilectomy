@@ -1,0 +1,69 @@
+{
+  "id": "c00596",
+  "abi_functions": 4,
+  "reviewed": 4,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 60, "P6": 10, "P8": 120, "P9": 168, "P14": 200},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "executeMetaTxn and _fallback (every inlined revertTooMuchSlippage and the other address-carrying custom errors)",
+      "lines": "252-255, 322-325, 392-395, 106 (119 such reverts)",
+      "decompiled": "revert with Bytes(16, 0x97a6f3b9000000000000000000000000), Bytes(20, address(_338)), cd[_param4 + cd[_param4 + 36] + 264], -((mem[_479 + 64] ^ ...) ...)",
+      "source": "SettlerErrors.sol:43-50 mstore(0x54, actual); mstore(0x34, expected); mstore(0x14, buyToken); mstore(0x00, 0x97a6f3b9000000000000000000000000); revert(0x10, 0x64)  // TooMuchSlippage(address,uint256,uint256)",
+      "issue": "The revert payload is a 4-byte selector and three ABI words, but because the selector word carries the address's 12 zero padding bytes it prints as a 16-byte and a 20-byte piece, so the custom error is not seen (61 TooMuchSlippage, 48 0xcbf0dbf5, 8 0xfb772a88, 2 others).",
+      "rule": "Re-split a revert (or return) payload of length 4 + 32k at offsets 4 + 32i: Bytes(16, S << 96) followed by Bytes(20, a) is the selector S then the word address(a); then print 'revert with S, address(a), w1, w2' (named when S is known).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "executeMetaTxn, _fallback (action dispatch of _dispatchVIP/_dispatch)",
+      "lines": "109-110 and 30 more lines; 1098",
+      "decompiled": "if cd[_param4 + cd[_param4 + 36] + 68] >> 224 != 234796057: / if ... >> 224 != 1171831583: / mem[ceil32(cd[_param7 + 4]) + 992] = 326904318",
+      "source": "SettlerBase.sol:144-194 if (action == uint32(ISettlerActions.RFQ.selector)) ... else if (action == uint32(ISettlerActions.UNISWAPV3.selector)) ...",
+      "issue": "The action selectors (0x0dfeb419, 0x45d8bb1f, ...) compared with the top 4 bytes of a word print in decimal, so the dispatch reads as arbitrary numbers.",
+      "rule": "Print a constant compared with x >> 224 (or with uint32 of a word) as an 8-digit hex number; a constant below 2^32 stored where a call reads it as its first 4 bytes is a selector too.",
+      "verified": "reading only (19 distinct values, e.g. 234796057 = 0x0dfeb419)"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "getSolvers() (unknown8bc1e8eb)",
+      "lines": "44-51",
+      "decompiled": "s = address(stor8054[1]) / t = 512 / while -s + 1: mem[t] = s; mem[0] = s; s = address(stor8054[s]); t = t + 32",
+      "source": "SettlerIntent.sol:214-224 for { ... let x := ... } xor(_SENTINEL_SOLVER, x) { i := add(0x20, i) ... } { mstore(i, x) mstore(0x00, x) }",
+      "issue": "The loop is found, but its condition xor(1, x) prints as the arithmetic -s + 1, which only means 's != 1' as a truth value.",
+      "rule": "xor(c, x) or c - x used only as a branch condition is x != c.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "executeMetaTxn and _fallback (Velodrome _get_y inlined)",
+      "lines": "3100-3210, 7738-7850",
+      "decompiled": "u = 0 / while True: / if u >= 255: revert with 0x481b61af / ... u = u + 1 / continue ... break",
+      "source": "Velodrome.sol:142-225 for (uint256 i; i < 255; i++) { ... return ...; } revert NotConverged()",
+      "issue": "The bounded for loop prints as 'while True' with its exit test as the first statement of the body.",
+      "rule": "'while True: if c: S_exit ...' where S_exit leaves the loop (revert, return or break) is 'while not c: ...' followed by S_exit.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "owner(), setSolver, executeMetaTxn, _fallback",
+      "lines": "30, 59, 66, 92-98",
+      "decompiled": "static call 0x4533fe15556b1e086bb1a72ceae.unknown2bb83987(?) / 0xcf9e3c5a26621af382fa17f24f == caller",
+      "source": "SettlerIntent.sol:56-68 DEPLOYER = 0x00000000000004533Fe15556B1E086BB1A72cEae; staticcall(gas(), deployer_, 0x1c, 0x24, 0, 0x40)",
+      "issue": "Address constants with leading zero bytes (a call target, the trusted forwarder) print with 29 and 26 hex digits, so they do not read as addresses.",
+      "rule": "Print a constant used as a call target or compared with caller/address(...) with 40 hex digits.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "getSolvers, owner and setSolver read in full and match the assembly (setSolver: deferred 'fail' check after both sstores, InvalidSolver = 0xe2b339fd unnamed because not in the signature database). executeMetaTxn (3400 lines) and the fallback (callbacks and executeSelected, 5700 lines) reviewed by structure: onlySolver/metaTx transient checks, _dispatchVIP of the first action then the action loop, _checkSlippageAndTransfer. The source loops in comments (SettlerIntent.sol:200 and Velodrome.sol:157/161 inside /* */) are not counted. The 11 source loops all show as while: getSolvers (46), the meta-txn action loop (1190), Select's try-candidates while(true) as 'while not ext_call.success' (2348, 6986), Select._runActions (5873), the UniswapV3 hop loop (193, 1285, 5922), the Velodrome Newton loop (3102, 7740), the three hop loops of UniswapV4/PancakeInfinity/EkuboV3 ('while s >= 48', 'while s >= 83', 'while t >= 53') and FlashAccountingCommon's two note loops (12 inlined copies 'while idx < mem[640]'/'while idx < _NNN'). P2 includes 7 calls whose target and selector are memory slices ('static call mem[396 len 20].mem[_1825 len 4]' right after 'mem[mem[64]] = 0x392f37e9...', i.e. pool.metadata()). Lib512Math/FullMath arithmetic is fully expanded with mulmod/addmod (168 lines, P9), and its scratch writes mem[0]/mem[32] are kept (P8).",
+  "summary": "All loops are found and the small functions are exact; the large dispatch is readable in outline but custom errors with an address argument print as split byte pieces, action selectors print in decimal, and the 512-bit arithmetic is expanded."
+}

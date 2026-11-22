@@ -1,0 +1,47 @@
+{
+  "id": "c00539",
+  "abi_functions": 76,
+  "reviewed": 76,
+  "not_reviewed": [],
+  "source_loops": 10,
+  "loops_shown": {"while": 10, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 59, "P4": 8, "P6": 19, "P7": 71, "P8": 12, "P11": 6, "P15": 309},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "totalAssets, totalAssetsWithdrawable, cachePriceRouter, callOnAdaptor, maxWithdraw, maxRedeem, withdraw, redeem, addPosition, removePosition, forcePositionOut, swapPositions, getCreditPositions, getDebtPositions ...",
+      "lines": "e.g. 2324, 1766, and 309 lines in all",
+      "decompiled": "stor13[Mask(32, 32 * (idx % 8), stor[idx / 8 + sha3(10)]) >> 32 * (idx % 8)].field_257 (repeated about 15 times per loop body)  |  stor[idx / 8 + sha3(10)] = 256**(4 * (idx % 8)) * (Mask(32, 32 * (SafeMath.sub(idx, 1) % 8), stor[SafeMath.sub(idx, 1) / 8 + sha3(10)]) >> ...) | ~(...) & ...",
+      "source": "Cellar.sol:994 uint32 position = creditPositions[i]; getPositionData[position]; Uint32Array.sol:22 array[i] = array[i - 1]",
+      "issue": "Elements of the packed uint32[] creditPositions / debtPositions are never shown as array accesses: every read is the slot-and-mask arithmetic and every write the read-modify-write formula, and 'def storage' types them as 'array of fixed array of uint32'. Lines grow past 200 characters and the same element expression repeats in each use.",
+      "rule": "For a dynamic array at slot p with w-byte elements (k = 32 / w per slot), Mask(8w, 8w * (i % k), stor[i / k + keccak(p)]) >> 8w * (i % k) is storP[i], and the masked store into stor[i / k + keccak(p)] that changes only those bits is storP[i] = v; type storP as an array of w-byte values.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "every function that checks the pause or reads the registry (totalAssets, deposit, withdraw, callOnAdaptor, ...)",
+      "lines": "e.g. totalAssets: 'static call 0x0.unknownad85dff0(?) with: args this.address' (21 calls)",
+      "decompiled": "static call 0x0.unknownad85dff0(?) with: args this.address",
+      "source": "Cellar.sol _checkIfPaused: registry.isCallerPaused(address(this)) with registry immutable",
+      "issue": "The immutable registry reads as 0 in the pre-deployment runtime code, so every registry call targets 0x0.",
+      "rule": "None needed (solc immutables are zero before deployment).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "multicall(bytes[]), removePosition / forcePositionOut (Uint32Array.remove)",
+      "lines": "915-990; 1757-1770, 1793-1806",
+      "decompiled": "while True: / if s >= data.length: return ...  |  if stor10.length - 1 > stor10.length: revert with Panic(17) / s = index / t = stor10.length / while s < t - 1: ... if t - 1 > t: revert with Panic(17)",
+      "source": "MultiCall.sol:71 for (uint256 i = 0; i < data.length; i++); Uint32Array.sol:38-40 require(index < len, ...); for (uint256 i = index; i < len - 1; i++)",
+      "issue": "multicall's loop test is the first statement of a 'while True'. In remove, the underflow check of len - 1 is kept before the loop although 'index < len' was just required, and kept again in every iteration although t is invariant.",
+      "rule": "'while True: if c: <exit>' is 'while not c:' followed by the exit. A check on loop-invariant values that holds at entry holds in every iteration; a check 'a - 1 > a' (a = 0) is false after 'require a > b' for unsigned b.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed: totalAssets (credit and debt loops, balanceOf(bytes)/assetOf(bytes) adaptor calls with the storage bytes copy, REENTRANCY and pause checks), addPosition/removePosition (Uint32Array shift loops with checked i - 1 / i + 1, pop with Panic(49)), callOnAdaptor (_makeAdaptorCalls i/j loops, catalogue check), executeOperation (approve loop with premiums bounds), multicall, withdraw (_withdrawInOrder) in detail; the other functions are short getters/setters or the same inlined code (maxWithdraw / maxRedeem / redeem / totalAssetsWithdrawable 'same as totalAssets' loops). Source loops counted are those in this bytecode: PriceRouter._getValues (in the pack) runs in the external PriceRouter contract (priceRouter.getValues is an external call), so it is not counted. Loop map: _calculateTotalAssetsOrTotalAssetsWithdrawable's three loops ('while idx < stor10.length' / 'stor11.length'), _makeAdaptorCalls i/j (4921/4938, 2634/2643), _withdrawInOrder (3677), executeOperation (2733), multicall (915, as while True), Uint32Array.add ('while idx > index' 2319/2347), Uint32Array.remove ('while s < t - 1'). P7 counts the storage-bytes-to-memory copy loops, ABI encode loops, payload copies and the two checked-exponentiation loops ('while x > 1'). P8 counts the dead 't = (_68 + 31) / 32 + sha3(...)' after the bytes copies. P15 counts the packed-element lines of the finding.",
+  "summary": "Faithful, every in-bytecode source loop is a while; the main readability problem is the packed uint32[] position arrays, accessed in 309 lines through raw slot-and-mask arithmetic, plus the usual ABI copy loops and raw-memory calls."
+}

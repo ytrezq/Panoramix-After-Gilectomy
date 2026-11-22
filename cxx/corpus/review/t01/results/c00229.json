@@ -1,0 +1,25 @@
+{
+  "id": "c00229",
+  "abi_functions": 31,
+  "reviewed": 31,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 8, "P4": 3, "P6": 23, "P7": 4, "P8": 40},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "getModulesPaginated(address,uint256)",
+      "lines": "465-480",
+      "decompiled": "_10 = stor1[start] and stor1[start] != 1 / _11 = _10 and 0 < pageSize / s = stor1[start] / t = 0 / while _11: ... _10 = stor1[s] and stor1[s] != 1 / _11 = _10 and t + 1 < pageSize / s = stor1[s] / t = t + 1",
+      "source": "ModuleManager.sol:121 while (currentModule != address(0x0) && currentModule != SENTINEL_MODULES && moduleCount < pageSize) { array[moduleCount] = currentModule; currentModule = modules[currentModule]; moduleCount++; }",
+      "issue": "The three-part condition is evaluated before the loop and again, for the next values, at the end of the body into flags _10/_11, so the text reads 'while _11' (same shape as c00455's _returnDataToString loop).",
+      "rule": "'c = C(x0); while c: B; c = C(x'); x = x'' where c is used only as the loop test is 'while C(x): B; x = x''.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The pack has no source for any of the 31 functions ('no source definition found in the AST'); the review used GnosisSafe.sol, base/OwnerManager.sol and base/ModuleManager.sol of the corpus. Source loops (4, all whiles): setupOwners' for (in setup), getOwners' linked-list walk ('while s != 1', readable, 355), getModulesPaginated's walk (finding), checkNSignatures' signature loop (883, with the four signature kinds: contract signature with isValidSignature, approved hash, eth_sign with v - 4, ecrecover). Implicit whiles: the ABI encodings of the returned address[] (P7) and the copy of setup's owners. Faithful; the checked index++ of getOwners is dropped correctly (t < ownerCount < 2^64). The assembly 'mstore(array, moduleCount)' prints as mem[128] = t. execTransaction (432 lines) was reviewed by structure, the rest by reading.",
+  "summary": "Faithful, readable text of the Safe with its four source loops found; only the paginated walk is printed as a flag-rotated loop."
+}

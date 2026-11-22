@@ -1,0 +1,72 @@
+{
+  "id": "c00444",
+  "abi_functions": 47,
+  "reviewed": 47,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {
+    "while": 11,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 3,
+    "P2": 24,
+    "P3": 6,
+    "P6": 6,
+    "P7": 64,
+    "P8": 200,
+    "P15": 4
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "setOutboundLimit(uint256), setInboundLimit(uint256,uint16), setPeer(uint16,bytes32,uint8,uint256)",
+      "lines": "1536, 1801, 2084",
+      "decompiled": "stor7C25 = uint64(block.timestamp) << 144 | stor7C25 & 0x123456789abcccccccccccccccccdf0123456789abcdf00000000000000000 * 3600 | uint64(_44) << 8 | uint8(_10)",
+      "source": "RateLimiter._setLimit: rateLimitParams.limit = limit; rateLimitParams.currentCapacity = ...; rateLimitParams.lastTxTimestamp = uint64(block.timestamp)",
+      "issue": "The packed RateLimitParams slot is written as whole-slot arithmetic (def storage types stor7C25/storEFB2 as uint256 or one-slot structs), and the keep-mask 0xffffffffffff0000000000000000ffffffffffffffffff000000000000000000 is printed by the time-unit factorer as a 'pretty' 0x123456789abccc... * 3600, which hides which fields are replaced.",
+      "rule": "Never factor a mask (a word whose bytes are all 00 or ff) by a time unit; split a store 'x << a | old & keep | y << b' into field stores (bits 144-207 = block.timestamp, bits 8-71 = _44, bits 0-7 = _10) and declare those fields in def storage.",
+      "verified": "reading only (0x1234...df0..0 * 3600 = 0xffffffffffff0000000000000000ffffffffffffffffff000000000000000000)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "migrate(), setTransceiver(address), removeTransceiver(address)",
+      "lines": "475-512, 712-760, 778-870",
+      "decompiled": "s = 0\nwhile True:\n    if s >= stor8561_8:\n        if stor8561 > 64: revert Panic(1)\n        storF0C5_64 = 0\n        log 0xc7f505b2...: uint64(_2 + 1)\n        stop\n    ...\n    while idx < stor8561_8: ...\n    s = s + 1",
+      "source": "TransceiverRegistry.sol:265-277 for (i < numTransceiversEnabled) for (j = i + 1; ...) assert(...); assert(_numTransceivers.registered <= MAX_TRANSCEIVERS); then the reinitializer epilogue",
+      "issue": "The outer duplicate-check loop and _checkTransceiverInvariants' search are printed as 'while True' with the exit test first, and the code after the outer loop (the final assert, the initializer write, the Initialized event, stop) sits inside that exit branch.",
+      "rule": "A 'while True' whose body starts with 'if c: T (ending the path or breaking)' is 'while not c: ...' followed by T.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "isMessageApproved, messageAttestations, attestationReceived, executeMsg, setTransceiver, removeTransceiver, migrate",
+      "lines": "e.g. 486, 170",
+      "decompiled": "bool(uint64(shift(1, uint8(stor49BC[stor758A[idx]].field_16)) & storFD65))",
+      "source": "TransceiverRegistry: (bitmap & uint64(1 << transceiverInfos[t].index)) != 0",
+      "issue": "A left shift by a variable amount is printed as the function-like 'shift(1, x)' (11 lines here, 19 texts in the corpus), unlike '<<' everywhere else.",
+      "rule": "Print SHL by a variable amount as 'x << n' like a constant shift.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all token paths; mode(), chainId(), rateLimitDuration(), NTT_MANAGER_VERSION",
+      "lines": "3-8, 1663, 4358, 4390, 4436",
+      "decompiled": "const mode = 0 / const chainId = 0 / const token = 0 / static call 0x0.decimals() / call 0x0 with: args mem[...]",
+      "source": "immutable token, mode, chainId, rateLimitDuration",
+      "issue": "solc immutables read as 0 in the pre-deployment code: the token is address 0, so transfers and burns are calls to 0x0 (and the mode switch is constant-folded).",
+      "rule": "None: normal for this corpus.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 47 ABI functions reviewed; the long ones (transfer x2, completeOutboundQueuedTransfer, attestationReceived, executeMsg, setPeer, setInbound/OutboundLimit) by structure: calls, storage writes, events, reverts, loops; the rate-limit and queue logic, the reentrancy flag (stor9B77 = 2/1), pause checks and custom errors match the source. Function names are unknownXXXX (not in the DB): normal. Loops: 11 explicit, all whiles: getTransceiverInfo, transferOwnership's loop over registered transceivers, countSetBits ('while uint64(t)' with the uint8 overflow test), _quoteDeliveryPrice, _sendMessageToTransceivers, _removeTransceiver, parseTransceiverInstructions, _checkTransceiverInvariants' search and _checkTransceiversInvariants' three loops (2 as 'while True', finding 2). Implicit: 50 checked-exponent helpers for TrimmedAmount scaling ('while u > 1', readable), 6 storage-array-to-memory copies printed rotated (P3), 1 zero-init of a struct array ('while idx - 1'), 64 memory-to-memory copies as whiles (P7), including constant-length ones ('while idx < 36:' copying abi.encodeWithSelector data into a call buffer, which also leaves the token calls raw, P2). Dead memory writes are frequent (selector written twice at 160/164 before 'decimals()', P8). No execution run.",
+  "summary": "Faithful and the loops are all present, but the text is long with copy loops and exponent helpers, the packed rate-limit slot is written as whole-slot arithmetic under a mask printed as 0x123456789abccc... * 3600, and immutables make every token interaction a call to 0x0."
+}

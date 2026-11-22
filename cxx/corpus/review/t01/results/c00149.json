@@ -1,0 +1,36 @@
+{
+  "id": "c00149",
+  "abi_functions": 46,
+  "reviewed": 46,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 23, "P6": 9, "P7": 6, "P8": 40, "P11": 1, "P15": 3},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "initialize((address,address,uint256,bytes32,address,uint8),string,uint256,uint256) (OpenZeppelin Initializable v5)",
+      "lines": "41-43 (def storage), 330-331",
+      "decompiled": "storF0C5 is uint8 at storage 0xf0c5..6a00 / storF0C5_8 is uint56 ... offset 8 / storF0C5_64 is uint8 ... offset 64  |  _1 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64",
+      "source": "InitializableStorage { uint64 _initialized; bool _initializing; } at 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00",
+      "issue": "Same as c00525/c00489: _initialized is split into uint8 + uint56 by its byte-wise write and its reads print the slot factored by 3600 (the 2 P1 lines), so the guard does not visibly read the field the modifier writes.",
+      "rule": "Never factor a slot by a time unit; take field widths from the typed reads (uint64 at offset 0).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize (TokenRemote token-multiplier computation, 10 ** decimalsDifference)",
+      "lines": "438-462",
+      "decompiled": "if _92 >= 78 and _92 >= 32: s = 10 / t = 1 / u = _92 / while u > 1: if s > -1 / s: revert with Panic(17) ... / else: _109 = 10**_92",
+      "source": "TokenRemote: tokenMultiplier = 10 ** (tokenHomeDecimals > decimals ? ... ) (solc checked_exp helper)",
+      "issue": "The compiler's checked exponentiation helper is kept as a loop (correct and readable), but its guard keeps 'and _92 >= 32', implied by '_92 >= 78'.",
+      "rule": "Drop a conjunct implied by another (x >= 78 implies x >= 32); a checked exp with base 10 and exponent >= 78 always overflows, so the branch is 'revert Panic(17)'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No explicit loop in the source of this contract. Implicit loops: the solc exp helper (446, readable while, not counted in patterns) and 6 encodings of the TeleporterMessageInput's allowedRelayerAddresses (address[], P7); bytes are copied by mcopy lines (cancun). All 46 ABI functions read (send/sendAndCall/receiveTeleporterMessage/reportBurnedTxFees/withdraw by structure). Storage: the ERC-7201 TokenRemote struct prints as stor600D_600d6a9b_2.._6 although getters (getTokenHomeAddress, getTokenMultiplier...) return them; totalMinted is named.",
+  "summary": "Faithful and fairly readable; no source loops, implicit encodings left as loops, the Initializable storage mis-split with its slot printed as a multiple of 3600, and the usual raw call buffers after the first call."
+}

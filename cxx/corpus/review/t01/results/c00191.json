@@ -1,0 +1,36 @@
+{
+  "id": "c00191",
+  "abi_functions": 45,
+  "reviewed": 45,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 16, "P4": 1, "P6": 35, "P7": 30, "P8": 100, "P11": 4},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "safeExecute(address,bytes); removeProtectedToken, addProtectedToken (inlined _protectedTokenIndex / _tokenIsProtected)",
+      "lines": "1689-1932 (safeExecute), 241-260, 807-870",
+      "decompiled": "while True: if t >= protectedTokens.length: (the call, the return-data copy, the length check, the second loop 'while True: if u >= _185: log SafeExecute(...); return memory ...' and its body: ~200 lines) ... (then the first loop's own body: the _target != token check, the copy and the balance snapshot)",
+      "source": "Agent.sol:105-144 for (i < protectedTokensLength) { require(_target != token); protectedTokens_[i] = token; balances[i] = balance(token); } bool result = _target.call(_data); ... for (j < protectedTokensLength) {...} emit SafeExecute(...); return",
+      "issue": "Because the code after each loop ends in return or revert, the decompiler prints it inside the loop as the exit branch of 'while True: if i >= n:', so the first loop's actual body appears some 200 lines after its header, after the second loop; the semantics are right but the program order is inverted.",
+      "rule": "When a loop's exit block never comes back to the loop, print 'while not exit_cond: body' followed by the exit block (the exit block dominates nothing in the body), instead of nesting the exit block in the loop head.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "safeExecute, forward, execute, canForward (solc 0.4 idioms)",
+      "lines": "1686, 1740",
+      "decompiled": "mem[_57 + 32 len 32 * protectedTokens.length] = code.data[16282 len 32 * protectedTokens.length]  |  mem[_324 + 32 len 4] = 1889567281",
+      "source": "new address[](protectedTokensLength); new uint256[](...); balance(token) -> token.staticcall(abi.encodeWithSelector(ERC20.balanceOf.selector, this))",
+      "issue": "Zeroing a new memory array by copying code from beyond the end of the bytecode (offset 16282 = code size) reads as a copy, and the balanceOf selector stored as a 4-byte slice prints in decimal.",
+      "rule": "CODECOPY from an offset >= code size yields zeros: print 'mem[a len n] = 0'; print a constant stored as a 4-byte slice in hex.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Solc 0.4.24 Aragon Agent (45 functions): execute, safeExecute, forward (EVM script runner with the CallsScript executor and its byte-copy loops), the ERC1271 isValidSignature overloads (with SignatureValidator), transfer / deposit (Vault) and the protected-token functions were reviewed by structure, the ACL helpers (canPerform, getEVMScriptExecutor...) and small functions in full. Source loops: Agent.sol:105 and :129 (safeExecute, both 'while True' with the exit inside), :316 _protectedTokenIndex (removeProtectedToken), :326 _tokenIsProtected (addProtectedToken), SignatureValidator.sol:144 memcpy ('while idx >= 32' with the masked tail, in isValidSignature); all shown. The other whiles are solc 0.4 copies of bytes and arrays (P7). 'assert u < len' bounds checks of 0.4 (invalid opcode) are kept where the loop tests imply them (P11).",
+  "summary": "Faithful and complete with all five source loops shown, but safeExecute's loops are printed with the rest of the function nested inside their exit tests, inverting the program order; the usual solc 0.4 copy loops and raw-memory call arguments add noise."
+}

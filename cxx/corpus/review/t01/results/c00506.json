@@ -1,0 +1,36 @@
+{
+  "id": "c00506",
+  "abi_functions": 67,
+  "reviewed": 67,
+  "not_reviewed": [],
+  "source_loops": 13,
+  "loops_shown": {"while": 13, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 10, "P4": 8, "P6": 2, "P7": 24, "P8": 60, "P11": 20, "P13": 360, "P17": 30, "P18": 53},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "claimWithdrawal(uint256), claimWithdrawals, claimWithdrawalsTo (and the transfer paths that move a request between owners)",
+      "lines": "2501-2517, 2248-2268, 2390-2410; def storage line 20",
+      "decompiled": "_11 = sha3(address(ownerOf[_idx].field_256), 0x4b9b...fe1f); if not stor[sha3(_idx, sha3(address(ownerOf[_idx].field_256), 0x4b9b...fe1f) + 1)]: ... stor[_11] = _30 - 1; stor1[_11][_idx] = 0 ; def storage: stor1 is fixed array of mapping of uint256 at storage 1",
+      "source": "EnumerableSet.remove on _getRequestsByOwner()[owner] (the `_positions` mapping at slot base + 1)",
+      "issue": "The `_positions` mapping at slot `_11 + 1` (_11 a hash-based slot) is written as `stor1[_11][_idx]`, a fixed array of mappings invented at slot 1, while the read in the same function prints the raw `stor[sha3(_idx, ... + 1)]` and the length is written as `stor[_11]` but read as `stor4B9B[owner].length`.",
+      "rule": "Factor `c + x` into an array access `storC[x]` only when x is a plain index, never when x contains a sha3 base or another absolute slot; print the same slot the same way for reads and writes (`stor4B9B[owner].length`, `stor4B9B[owner]._positions[_idx]`).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "prefinalize (unknowna52e9c9f), calculateFinalizationBatches, getClaimableEther, claim paths (30 lines)",
+      "lines": "913-921",
+      "decompiled": "if SafeMath.div(1000000000 * 10**18 * uint128(SafeMath.sub(uint128(ownerOf[...].field_0), mem[s + 16 len 16])), ...)",
+      "source": "WithdrawalQueueBase: E27_PRECISION_BASE = 1e27; batchShareRate = stETH * E27_PRECISION_BASE / shares",
+      "issue": "1e27 is printed as the product `1000000000 * 10**18`, and the previous batch's uint128 fields are read as 16-byte memory slices (`mem[s + 16 len 16]`, P18) instead of `uint128(mem[s])`.",
+      "rule": "Print a constant equal to 10**k as `10**k`; read a 16-byte slice at offset 16 of a 32-byte word as `uint128(word)`.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "tokenURI (2700-3411) reviewed by structure; the rest fully or nearly (the request/claim functions are 100-200 lines). All 13 source loops are shown as whiles: Strings.toHexString (`while idx > 1`, twice per onlyRole function for the AccessControl message; the '0x' prefix bytes are correctly folded into the revert literal), Strings.toString x2 (`while t: s = SafeMath.inc(s)` and the digit loop), _findCheckpointHint (`while u > v`, with the `+ 1` overflow check printed as `1 > ~SafeMath.add(u, v)`), prefinalize, calculateFinalizationBatches, claimWithdrawals, claimWithdrawalsTo, findCheckpointHints, getClaimableEther, getWithdrawalStatus, requestWithdrawals, requestWithdrawalsWstETH (also inlined in the permit variants). Implicit: 24 memory-to-memory copies for abi.encodePacked in tokenURI and the return encodings (P7). P11: bounds checks implied by the loop condition (`if idx >= 42: revert Panic(50)` in `while idx > 1` from 41). P13: `ownerOf` names the queue mapping of WithdrawalRequest structs (360 lines). P8: the memory copies of WithdrawalRequest structs (`mem[_8] = uint128(ownerOf[...].field_0)` ...) whose fields are then read back as slices. Custom errors print as raw selectors (database). No semantic error found.",
+  "summary": "Faithful, abort-free text with all 13 source loops as clear whiles (including the toHexString/toString helpers); the main problem is a misleading invented `stor1` array at slot 1 for hash-relative EnumerableSet slots, plus 1e27 printed as a product and struct fields read as memory slices."
+}

@@ -1,0 +1,69 @@
+{
+  "id": "c00327",
+  "abi_functions": 28,
+  "reviewed": 28,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P8": 9},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "asset(), decimals(), DOMAIN_SEPARATOR(), permit, deposit/mint/withdraw/redeem",
+      "lines": "1, 188-189, 214, 237, 278, 314, 330-331",
+      "decompiled": "const asset = 0; const decimals = 0; if not chainid: return 0; call 0x0.transferFrom(...)",
+      "source": "solmate ERC4626.sol asset immutable; ERC20.sol:25 decimals, :41-43 INITIAL_CHAIN_ID / INITIAL_DOMAIN_SEPARATOR immutables; :163 DOMAIN_SEPARATOR",
+      "issue": "solc immutables read as 0 in the undeployed bytecode: the asset token is address 0, decimals is 0 and DOMAIN_SEPARATOR returns 0 when chainid == 0.",
+      "rule": "None needed (artifact of the undeployed bytecode).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "permit(address,address,uint256,uint256,uint8,bytes32,bytes32)",
+      "lines": "359-381",
+      "decompiled": "_28 = sha3(mem[_26 + 32 len mem[_26]]) ... signer3 = ecrecover(sha3(mem[mem[64] + 32 len _25 - mem[64] + 290]), v, r, s); mem[_25 + 322 len min(32, return_data.size)] = ext_call.return_data[...]; _35 = mem[_25 + 334 len 20] and mem[_25 + 334 len 20] == owner; allowance[concat(Bytes(12, 0), mem[_25 + 334 len 20])][spender] = value",
+      "source": "solmate ERC20.sol:130-156 ecrecover(keccak256(abi.encodePacked(\"\\x19\\x01\", DOMAIN_SEPARATOR(), keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline)))), v, r, s); require(recovered != 0 && recovered == owner); allowance[recovered][spender] = value",
+      "issue": "Because mem[64] is 128 or 320 depending on the chainid branch, the struct hash and the EIP-712 digest stay raw memory slices; the named result `signer3` is never used and the signer is re-read as `mem[_25 + 334 len 20]`, also as the allowance key. The lines are exact (mem[64] = _25 + 224, length 66) but the digest and the signer are unreadable.",
+      "rule": "Resolve buffers relative to a symbolic base (b = mem[64] at the join) so sha3(mem[b + 32 len mem[b]]) with mem[b] = 192 becomes sha3(w1..w6) and the packed one sha3(Bytes(2, 0x1901), _22, _28). The word at the output of a STATICCALL to address 1 whose output word was zeroed before and not written since equals the recovered address (0 on empty return); substitute the named result for it.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "convertToShares, convertToAssets, preview*, maxWithdraw, deposit, mint, withdraw, redeem (FixedPointMathLib.mulDivDown/Up)",
+      "lines": "74, 83, 92, 101, 120, 129, 168, 210, 235, 259, 296",
+      "decompiled": "require (not (shares > -1 / totalAssets) * totalAssets) * totalSupply",
+      "source": "FixedPointMathLib.sol:44 if iszero(mul(denominator, iszero(mul(y, gt(x, div(MAX_UINT256, y)))))) { revert(0, 0) }",
+      "issue": "The overflow/zero-denominator check is a product of booleans and values, which reads as arithmetic; it means totalSupply != 0 and not (totalAssets != 0 and shares > max / totalAssets).",
+      "rule": "When a product is used only as a truth value and one factor is known to be 0 or 1, `b * x` equals `b and x` (no wrap is possible), so print the condition with and/or (here `require totalSupply and (not totalAssets or shares <= -1 / totalAssets)`).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "DOMAIN_SEPARATOR(), permit",
+      "lines": "190-202, 333-346",
+      "decompiled": "if not uint1(name): mem[128] = 256 * name.field_8; _5 = _1 * bool(_1) + 128 else: mem[128 len ceil32(_1)] = stor[sha3(0) len (_1 + 31) / 32]; _5 = _1 + 128 ... sha3(mem[128 len _5 - 128])",
+      "source": "solmate ERC20.sol:166-176 computeDomainSeparator: keccak256(bytes(name))",
+      "issue": "keccak256(bytes(name)) is shown as the two-armed short/long copy of the storage string and a hash of the slice; `_1 * bool(_1)` is just `_1`.",
+      "rule": "`x * bool(x) == x` for every x. When both arms of the storage byte-array decode write the array's bytes at mem[p len length], merge them into one copy line `mem[p len length] = name[all]`, so the hash prints as sha3(name[all]).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "withdraw(uint256,address,address)",
+      "lines": "252-284",
+      "decompiled": "def withdraw(uint256 shares, address to, address from): ... totalAssets = SafeMath.sub(totalAssets, shares) ... log Withdraw(..., assets=shares, shares=_3); call 0x0.transfer(to, shares)",
+      "source": "solmate ERC4626.sol withdraw(uint256 assets, address receiver, address owner)",
+      "issue": "The signature database's parameter names call the asset amount `shares`, so the text reads as if shares were subtracted from totalAssets and sent out, while _3 (the real shares) is burned.",
+      "rule": "When the parameter names of a signature entry conflict with the named event fields the parameters are emitted as (here Withdraw.assets), prefer the event's names or neutral _paramN names.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Solmate ERC4626 + ERC20 (pack had no source definitions; sources read in lib/solmate/src). No source loops; name()/symbol() return copies and the name hash copy are copy lines. All conditions, events, storage writes and SafeTransferLib checks match. deposit/mint read the success check as ext_call.return_data[0] while withdraw/redeem keep the partial copy into mem[0] (after mem[0] = owner/from); both are exact because the `return_data.size <= 31` disjunct makes the word irrelevant when it is short. P8: scratch writes for hashes printed with values (343, 347-352, 355-356). The Deposit event is printed with another contract's field names (token, user, amount, balance) from the database.",
+  "summary": "Faithful text of a solmate ERC4626 vault; immutables read as 0 (artifact). The main readability problem is permit, whose digest and recovered signer stay raw memory relative to the free-memory pointer."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "c00547",
+  "abi_functions": 13,
+  "reviewed": 13,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 12, "P6": 6, "P7": 3, "P11": 2, "P18": 7},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "createRollup(...)",
+      "lines": "640-646, 652-655 (7 call targets)",
+      "decompiled": "require ext_code.size(mem[ceil32(_1) + ceil32(_3) + ceil32(_5) + ceil32(_6) + ceil32(_7) + ceil32(_9) + ceil32(_11) + ceil32(_12) + ceil32(_14) + 2 * Mask(250, 5, cd[..]) + ..]) / call mem[ceil32(_1) + ... ] with: args address(_279), 1",
+      "source": "RollupCreator.sol:251 for (..) bridgeContracts.sequencerInbox.setIsBatchPoster(deployParams.batchPosters[i], true); (bridgeContracts = the BridgeContracts struct returned by bridgeCreator.createBridge)",
+      "issue": "The targets of the sequencerInbox/rollup calls are the fields of a struct returned by an earlier call, read back from memory at offsets that sum every previous returndata size; each call target is a several-hundred-character memory expression, and the call loses its function name (P18/P2).",
+      "rule": "Bind the fields of a decoded return struct when they are decoded (sequencerInbox = ext_call.return_data[k] or a named temporary) and use the temporary as the call target; then resolve the selector (setIsBatchPoster(address,bool)).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Getters, setTemplates, ownership functions reviewed in detail; createRollup by structure (calldata decoding of the nested Config struct, bridge creation, rollup proxy deployment, initialize calls, batch poster loop, validator loop, upgrade executor, deployHelper, event). Source loops: 2, whiles: batchPosters for (632, 'while s < _268' with 'call .. args address(_279), 1') and validators for (667, filling new bool[](n) with true, then setValidator). Implicit loops: 3 calldata decodes with validation (uint64[2], address[] x2), 2 'while idx < 2' re-encodings of uint64[2] (constant trip count), address re-encodings, 1 checked-exponentiation helper (789), 3 bytes copies (P7). P11: 'if s >= cd[..+196..]: revert Panic(50)' under 'while s < _268' with the same length (632-634), and 'if s >= mem[_293]' (668).",
+  "summary": "Faithful, with both source loops found; createRollup's calls to the freshly created bridge contracts are unreadable because their targets are fields of a returned struct read back from memory at huge computed offsets."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "c00199",
+  "abi_functions": 52,
+  "reviewed": 52,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {
+    "while": 5,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 3,
+    "P3": 1,
+    "P6": 3,
+    "P7": 2
+  },
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "tokenURI(uint256) (OZ Strings.toString inlined)",
+      "lines": "757-765",
+      "decompiled": "mem[_25 + ceil32(_2) + 192 len 1] = byte(tokenId % 10, 0x3031...) / s = _25 + ceil32(_2) + 193 / t = tokenId / while t / 10: mem[s - 2 len 1] = byte(t / 10 % 10, 0x3031...) / s = s - 1 / t = t / 10",
+      "source": "Strings.toString: while (true) { ptr--; assembly { mstore8(ptr, byte(mod(value, 10), HEX_DIGITS)) } value /= 10; if (value == 0) break; }",
+      "issue": "The do-while digit loop is rotated (P3): the first digit is written before the loop and each iteration writes the digit of the next quotient, so the loop test and the written digit are both on t / 10 and the write address is s - 2.",
+      "rule": "Recognise the do-while shape 'body; v = v / 10; if v != 0: repeat' as one loop with its body at the top (see c00159's rule); do not peel the first iteration.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against WrappedNFT.sol and the LayerZero ONFT/OApp bases (OAppCore, OAppPreCrimeSimulator, OAppOptionsType3) and OZ ERC721/ERC1155Holder/Strings. All 52 ABI functions were read; the text is short (1,597 lines) and clean. Loops: 5 source loops (lzReceiveAndRevert's _packets loop, onERC1155BatchReceived's ids loop, the wrap/unwrap tokenId loop, setEnforcedOptions' loop, Strings.toString's while(true)) all shown as while; implicit: the Origin/packet calldata decode and the string concatenation of tokenURI. Only 3 P2 lines and 3 P6 lines. No execution run.",
+  "summary": "Clean and faithful, with all 5 source loops present; the only notable defect is the rotated toString digit loop."
+}

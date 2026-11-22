@@ -1,0 +1,69 @@
+{
+  "id": "c00101",
+  "abi_functions": 55,
+  "reviewed": 55,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 1, "P2": 386, "P4": 12, "P6": 41, "P8": 2400, "P9": 100, "P10": 60, "P11": 12, "P13": 1629, "P18": 150},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "claimEarnings, withdrawFees, bond*, unbond*, rebond*, transferBond, slashTranscoder (every inlined ensureInitializedCumulativeFactorsPool)",
+      "lines": "11 (def storage), 1274-1321, 1607-1620 and 88 more lines with stor10[",
+      "decompiled": "stor10 is fixed array of uint256 at storage 10 / _253 = sha3(address(transcoderTotalStake[caller].field_512), 4) / if stor10[_253] < ext_call.return_data[0]: ... stor[_254 + 4] = stor[sha3(stor10[_253], _253 + 3) + 4]",
+      "source": "BondingManager.sol:1671-1675 uint256 lastFeeRound = t.lastFeeRound; if (lastFeeRound < _round) pool.cumulativeFeeFactor = cumulativeFactorsPool(t, lastFeeRound).cumulativeFeeFactor;",
+      "issue": "stor[sha3(t, 4) + 10] is transcoders[t].lastFeeRound (member +10 of the struct the text calls stor4[t].field_2560 elsewhere), but once the base sha3(t, 4) sits in a temporary it is read as element _253 of an invented array at slot 10, and def storage gains 'stor10 is fixed array of uint256 at storage 10' (slot 10 is really transcoderPool.size). The reader sees an unrelated array indexed by a hash; earningsPoolPerRound[lastFeeRound] (stor[sha3(stor10[_253], _253 + 3) + 4]) is not shown as a mapping either.",
+      "rule": "Resolve stor[T + c] by first expanding a temporary T that is defined as sha3(k, s): if s is a known mapping of structs, this is member c of s[k] (stor4[k].field_(256*c)), never an array at slot c indexed by the hash; only infer 'array at slot c' when the index is not itself a sha3 result.",
+      "verified": "reading only (definitions of _253/_254 at 1274-1277 in the text)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "claimEarnings, withdrawFees, delegatorStatus, bond*, unbond*, rebond*, reward*, transferBond, slashTranscoder, transcoder*",
+      "lines": "1167-1182, 1272-1276, 1346-1348, 1648-1651, 372-373 (1510 such lines in the text)",
+      "decompiled": "mem[0] = caller / mem[32] = 3 / if transcoderTotalStake[caller].field_1280 < ...: / mem[0] = caller / mem[32] = 3 / ... mem[0] = caller / mem[32] = 3 / mem[32] = 4",
+      "source": "BondingManager.sol:1770-1775 delegators[_delegator].lastClaimRound (any mapping read)",
+      "issue": "The keccak scratch writes behind every mapping access are printed (1510 lines, a quarter of the noise of this text), often twice in a row with the same values, though every sha3 that reads them is already printed with its arguments. They survive only in the functions where the free-memory pointer later becomes a phi (the P2 cause), so a later read at mem[mem[64] + k] is not proven disjoint from mem[0..63].",
+      "rule": "A store overwritten by a later store to the same address with no read in between is dead. Track the invariant mem[64] >= 128 (true when every store to mem[64] stores 128, or mem[64] plus a non-negative size below 2^64): then mem[mem[64] + k] (k >= 0) never reads [0, 64), and scratch stores whose only readers are folded sha3 are dead.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "delegatorStatus(address)",
+      "lines": "368-406",
+      "decompiled": "mem[64] = ceil32(_1) + ceil32(return_data.size) + 128 ... _7 = _6 / _8 = ceil32(_1) + ceil32(return_data.size) + 128 / else: _7 = 2 / _8 = 128 / mem[_8] = _7 / return memory from mem[64] len _8 - mem[64] + 32",
+      "source": "BondingManager.sol:1037-1052 if (del.bondedAmount == 0) return Unbonded; else if (del.startRound > currentRound()) return Pending; else return Bonded;",
+      "issue": "The enum return is printed as a memory return whose start and length are built from a phi of the free-memory pointer, instead of 'return _7'. In each arm _8 equals the value just stored in mem[64], so the length is 32 and the word is _7.",
+      "rule": "When each predecessor of a join assigns the phi _8 the same expression it stores to mem[64], fold _8 - mem[64] to 0; 'mem[p] = v; return memory from p len 32' is 'return v'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "pendingFees, pendingStake, claimEarnings and every inlined pendingStakeAndFees",
+      "lines": "804-831, 1248-1263, 232",
+      "decompiled": "if mem[c + 576] != stor[...] and 1000000000 * 10**18 > -1 / SafeMath.sub(mem[c + 576], stor[...]) / _45 = (1000000000 * 10**18 * mem[c + 576] - 1000000000 * 10**18 * stor[...]) / mem[c + 224] * field_0 / (1000000000 * 10**18)",
+      "source": "EarningsPoolLIP36.sol:128-132 PreciseMathUtils.percOf(_stake, _endPool.cumulativeFeeFactor.sub(_startPool.cumulativeFeeFactor), _startPool.cumulativeRewardFactor)",
+      "issue": "PERC_DIVISOR (10**27) prints as 1000000000 * 10**18, the checked product is distributed over the subtraction (P9), uint256.max prints as -1 in the overflow checks, and the EarningsPool memory structs are used as mem[c + 224/544/576] slices (P18). The arithmetic is exact but percPoints/percOf cannot be recognised.",
+      "rule": "Fold constant products (10**27); keep a*(b - c) factored when b - c is a named checked subtraction; print the unsigned all-ones word as 2**256 - 1 or max_uint256.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "withdrawStake, setCurrentRoundTotalActiveStake, claimEarnings, transcoder (83 lines)",
+      "lines": "317-321, 425, 443, 462-464, 591, 604",
+      "decompiled": "require ext_call.return_data[0] == ext_call.return_data[12 len 20] / call ext_call.return_data[12 len 20].trustedTransferTokens(...) / transcoderTotalStake[concat(Bytes(12, 0), ext_call.return_data[12 len 20])] / stor4[concat(Bytes(12, 0), Bytes(20, _2))]",
+      "source": "IController.getContract(...) returns address; transcoderPool.getLast() returns address",
+      "issue": "The same address cleanup prints as address(ext_call.return_data[0]) in some functions and as a byte slice or a 12+20-byte concat in others (12 of them counted as P4).",
+      "rule": "x[12 len 20] of a 32-byte word is address(x); concat(Bytes(12, 0), Bytes(20, v)) is address(v), and is v once v is known to fit in 160 bits.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Large functions (bond 1047 lines, bondWithHint, bondForWithHint 1265, rebond*, unbond*, reward*, slashTranscoder, transferBond 1800) reviewed by structure: control flow, external calls, storage writes, events (event list per function matches the source paths of tryToJoinActiveSet, resignTranscoder, updateDelegatorWithEarnings, processRebond), reverts. Read in full: the getters, setters, delegatorStatus, withdrawStake, transcoder, claimEarnings, withdrawFees (head and tail), pendingFees; no semantic error found (pendingStakeAndFees, ensureInitializedCumulativeFactorsPool and updateDelegatorWithEarnings match, including the unused stake overflow check kept in pendingFees). Same code: bond = bondWithHint = bondForWithHint with msg.sender/zero hints; rebondWithHint/rebond, rebondFromUnbonded*/rebond*, unbondWithHint/unbond, rewardWithHint/reward/rewardForTranscoder* differ only in hints or the caller check. Loops: the source loops of SortedDoublyLL (descendList, ascendList) are in the public library, reached by DELEGATECALL to the link address 0x1150a32330fd1f3eca03515f48069c69742f5164 (a link placeholder of the build, not an error), so they are not in this bytecode and not counted; no implicit loop either. 93 of the 119 library delegatecalls and most controller/minter/roundsManager calls lose their names and arguments after the first if-join (P2, 386 lines). The delegators mapping is named transcoderTotalStake after the getter of its member delegatedAmount (P13). SafeMath.sub2 is the contract's own require 'insufficient fees to withdraw' merged with the checked sub (exact). Event names TransferBond/TreasuryReward/RewardCallerSet and the library function names are not in the signature database (normal).",
+  "summary": "Faithful, but hard to read: after the first if-join the free-memory pointer is unknown, so most calls lose their names (P2), 1510 keccak scratch writes and the zeroing of memory structs stay in the text, and transcoders[t].lastFeeRound shows as an invented array stor10 indexed by a hash."
+}

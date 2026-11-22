@@ -1,0 +1,69 @@
+{
+  "id": "c00235",
+  "abi_functions": 33,
+  "reviewed": 33,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 1, "P3": 1, "P6": 42, "P7": 4, "P8": 60, "P11": 80, "P12": 300, "P15": 13},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "the 10 onlyAuthorized functions (grantRole, revokeRole, labelRole, setRoleAdmin, setRoleGuardian, setGrantDelay, setTargetAdminDelay, setTargetClosed, setTargetFunctionRole, updateAuthority)",
+      "lines": "2541-2806 (grantRole), 744-921, 923-1095, 1097-1273, 1275-1451, 1453-1641, 1825-2050, 2052-2280, 389-559, 561-742",
+      "decompiled": "_1 = 0x853551b8... == call.func_hash or 0x30cae187... == call.func_hash\n...\nif not _9: _29 = 0 ... else: require 36 <= calldata.size; _30 = uint64(stor[sha3(_param1, 0x40c6...01) + 1])\n(in setTargetAdminDelay, a dead arm even has 'require _param1 == uint64(_param1)')",
+      "source": "AccessManagerUpgradeable.sol:654-694 _getAdminRestrictions(_msgData()) called from _checkAuthorized (633-644)",
+      "issue": "Inside each function call.func_hash is the dispatched selector, but the 8-way selector chain of _getAdminRestrictions is printed in full two or three times per function, with dead arms that decode the first argument as another type. Folding it would leave one role lookup (getRoleAdmin or ADMIN_ROLE with the target delay) and cut each function from about 200 lines to about 50.",
+      "rule": "In a function body reached from the dispatcher only when calldata[0:4] == S, substitute S for call.func_hash (Mask(32, 224, cd[0])) and prune the branches this decides; this is exact for every execution of that body.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "canCall, cancel, execute, schedule, getTargetFunctionRole, getRoleAdmin, getRoleGuardian, getRoleGrantDelay, setRoleAdmin, setRoleGuardian, setGrantDelay, setTargetFunctionRole and the onlyAuthorized preludes",
+      "lines": "29, 20, 35, 96-99, 144-151, 1108, 1286, 1468, 2279",
+      "decompiled": "uint64(stor[sha3(_sig, sha3(_dst, 0x40c6c8c28789853c7efd823ab20824bbd71718a8a5915e855f6f288c9a26ad00))])\nuint64(stor[sha3(_param1, 0x40c6c8c28789853c7efd823ab20824bbd71718a8a5915e855f6f288c9a26ad01) + 1].field_64) = _param2",
+      "source": "AccessManagerUpgradeable.sol:186-188 $._targets[target].allowedRoles[selector]; :198-207 $._roles[roleId].admin / .guardian / .grantDelay",
+      "issue": "The mapping members of the TargetConfig and Role structs are printed as raw keccak arithmetic although the sibling members of the same structs are named (stor40C6[_dst].field_368, stor40C6_40c6c8c2[role][account]); these expressions are repeated up to six times per line group and push lines past 240 characters.",
+      "rule": "When stor[sha3(k, B) + i] and stor[sha3(a, sha3(k, B) + j)] occur for one base B, B is a mapping to a struct whose slot i is a member and whose member j is a nested mapping: print B[k].field_(256*i) and B[k].field_(256*j)[a].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "execute(address,bytes), schedule(address,bytes,uint48)",
+      "lines": "2437-2509, 2459-2496, 1789-1822",
+      "decompiled": "_138 = sha3(mem[_136 + 32 len mem[_136]])\nmem[_135 + ceil32(_data.length) + 160] = 0x60a299b0...; revert with memory from mem[64] len _135 + ceil32(_data.length) - mem[64] + 196\nstor40C6_40c6c8c2_3 = sha3(mem[_172 + 32 len mem[_172]])\nlog 0x82a2...: mem[mem[64] len _90 + 2 * Mask(250, 5, cd[_param2 + 4] + 31) - mem[64] + 320], ...",
+      "source": "AccessManagerUpgradeable.sol:538 hashOperation(caller, target, data); :549 _hashExecutionId(target, selector); :504 emit OperationScheduled(...); _consumeScheduledOp's custom errors",
+      "issue": "The _isExecuting branch sets mem[64] = 224 and the others leave 128, so mem[64] becomes a phi; then the operation id, the execution id, the custom-error reverts and the OperationScheduled data are printed as raw memory, while the same hash prints as 'sha3(caller, this.address, 96, calldata.size, ...)' in the onlyAuthorized functions.",
+      "rule": "Give a phi of constants its lower bound (here 128): stores at phi + k (k >= 0) cannot alias mem[64], so after 'p = mem[64]; mem[mem[64]] = v' a read of mem[p] is v and the hashed region expands to its stored words; 2 * Mask(250, 5, n + 31) is 2 * ceil32(n).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "cancel, consumeScheduledOp and the scheduled arm of every onlyAuthorized function",
+      "lines": "256-279, 231-245, 2698-2712",
+      "decompiled": "if not uint48(stor40C6_40c6c8c2_2[sha3(caller, this.address, 96, calldata.size, call.data[0 len calldata.size], Bytes(-calldata.size + ceil32(calldata.size), 0))].field_0):\n    revert with 0x60a299b0, sha3(caller, this.address, 96, ...)",
+      "source": "AccessManagerUpgradeable.sol:599-616 _consumeScheduledOp(hashOperation(...)); :566 operationId = hashOperation(caller, target, data)",
+      "issue": "The operation id is recomputed in full in about eight lines per scheduled path, so the lines are cut and the schedule record is hard to follow.",
+      "rule": "Bind a pure expression used more than once (here a keccak of calldata) to one named temporary (common-subexpression elimination).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "Time.Delay reads and writes (canCall, getAccess, hasRole, grantRole, initialize, setGrantDelay, setTargetAdminDelay, getRoleGrantDelay, getTargetAdminDelay)",
+      "lines": "147-150, 108-115, 2646-2658, 202, 2049, 2279",
+      "decompiled": "_7 = uint112(stor40C6_40c6c8c2[...][_src].field_48) / _7 = uint80(...field_80) ... return uint32(_18)\nuint112(...field_48) = Mask(48, 64, (uint48(block.timestamp) << 64) + (uint32(_152) << 64)) | uint32(_148) << 32 | _param3\nuint48(stor40C6[_param1].field_320) = uint48((uint48(block.timestamp) << 64) + (uint48(_149) << 64) >> 64)",
+      "source": "Time.sol _getFullAt (valueAfter/valueBefore are uint32), pack(valueBefore, valueAfter, effect), withUpdate",
+      "issue": "The uint32 delay values are typed uint112/uint80 because the reader keeps the higher fields until a later uint32() mask, and the packed writes keep the shifted sums.",
+      "rule": "When every use of a value applies the same mask, apply it at the definition; Mask(48, 64, (a << 64) + (b << 64)) is uint48(a + b) << 64 and uint48(((a << 64) + (b << 64)) >> 64) is uint48(a + b).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 33 ABI functions and the fallback reviewed; no semantic difference found (checked canCall, cancel, consumeScheduledOp, execute incl. _canCallSelf/_getAdminRestrictions and functionCallWithValue, schedule incl. _checkNotScheduled and the nonce, grantRole incl. withUpdate/toDelay, initialize, and the bodies of the other onlyAuthorized functions by structure). Loops: Multicall's for and setTargetFunctionRole's for are clean whiles; the latter is printed three times (self-execution, immediate and scheduled arms: P12). Implicit in multicall: the results array init as a rotated loop (P3, 'while idx - 1'), the bytes.concat copy of the empty context, the delegatecall argument copy and the bytes[] return encode (outer 'while True' with the exit test inside, and inner copy) as whiles (P7: 4). P12: each onlyAuthorized function prints its body three times and the requiredRole lookup two or three times. P11: 'if calldata.size < 4' after the ABI size check, 'require 36 <= calldata.size', the uint32 subtraction overflow test after 'a > b', the re-tested selector chain after it failed, and initialize's NotInitializing test after setting the flag. P1: the Initializable slot 0xf0c5...00 prints as '0x111f...aa0 * 3600', hiding that it is storF0C5 (_initialized, itself split into uint8 + uint56: P15). Struct deletes print as 'address(...field_0) = 0' (160-bit clear of since+delay). Nested phi copies (_11 -> _13 -> _15 -> _17) in canCall/execute could be early returns. Custom errors and events print as selectors/topics (not in the signature db). No execution run.",
+  "summary": "Faithful: every check, write, event and call matches OZ 5 AccessManager, and both source loops are clean whiles. The text is very long because call.func_hash is not folded inside each function (the admin-restriction selector chain stays, twice or thrice per function), because nested struct mappings print as raw keccak arithmetic, and because execute/schedule lose the free-memory pointer at a phi."
+}

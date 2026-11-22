@@ -1,0 +1,36 @@
+{
+  "id": "c00068",
+  "abi_functions": 23,
+  "reviewed": 23,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 10, "P6": 7, "P7": 8, "P8": 80, "P14": 312},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "createTokenBridge(address,address,uint256,uint256)",
+      "lines": "689-835 (312 lines)",
+      "decompiled": "mem[ceil32(return_data.size) + floor32(floor32(_319 + floor32(floor32(_296 + 3880) + 1981) + 2333) + 3386) + 2 * ext_code.size(stor119) + 367] = 0",
+      "source": "L1AtomicTokenBridgeCreator.createTokenBridge: creation code buffers (type(...).creationCode, template.code) and abi.encode of constructor arguments",
+      "issue": "Memory positions after several dynamic allocations are printed as nested floor32/ceil32 sums (312 lines), so the constructor-argument buffers cannot be followed.",
+      "rule": "Bind each allocation result (mem[64] after an allocation) to a named temporary and print later addresses relative to it.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "createTokenBridge(address,address,uint256,uint256)",
+      "lines": "798-800 vs 808-818",
+      "decompiled": "salt: sha3('L1R', Bytes(20, _param1))  /  mem[_408 + 32] = 0x4c31534757000000...; ... mem[mem[64] + 37] = 0; mem[mem[64] + 37] = _param1 << 96; ... _430 = sha3(mem[_428 + 32 len mem[_428]])",
+      "source": "_getL1Salt(OrbitSalts.L1_ROUTER, inbox) / _getL1Salt(OrbitSalts.L1_STANDARD_GATEWAY, inbox): keccak256(abi.encodePacked(prefix, inbox))",
+      "issue": "The same salt computation prints as sha3('L1R', Bytes(20, _param1)) for one proxy and as a hash of raw memory (with the 'L1SGW' literal in hex and a dead store) for the next, because the free-memory pointer is unknown there.",
+      "rule": "Resolve sha3(mem[p len n]) whenever the words in [p, p + n) are known, whatever p is; print the known bytes as in the first case.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No explicit loops in the source (functions and internals reached). The 10 whiles are 8 word copies of creation code / constructor arguments (P7) and 2 checked-exp loops. createTokenBridge (1,350 pack lines) reviewed by structure: create2 deployments with their salts, retryable-ticket calls, storage of the deployment, events; setTemplates / setDeployment / getters checked against the source. No semantic error found.",
+  "summary": "Complete and faithful; no source loops. createTokenBridge is hard to follow because memory buffers are addressed by nested floor32/ceil32 sums and some salts hash raw memory; copies stay loops (P7)."
+}

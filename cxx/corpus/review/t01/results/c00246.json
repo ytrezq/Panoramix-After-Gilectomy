@@ -1,0 +1,37 @@
+{
+  "id": "c00246",
+  "abi_functions": 32,
+  "reviewed": 32,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {
+    "while": 2,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 1,
+    "P3": 1,
+    "P6": 42,
+    "P7": 1,
+    "P12": 20
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "every onlyAuthorized function (grantRole, revokeRole, renounceRole, setRoleAdmin, setRoleGuardian, setGrantDelay, setTargetFunctionRole, setTargetAdminDelay, setTargetClosed, updateAuthority, labelRole, ...)",
+      "lines": "e.g. 1578-1767 (setTargetFunctionRole: the selector loop printed at 1591, 1712 and 1761); 42 lines with 0x8d6122d000...",
+      "decompiled": "if ... == 0x8d6122d00000000000000000000000000000000000000000000000000000000 ...  |  while idx < cd[_param2 + 4]: require cd[32 * idx + _param2 + 36] == Mask(32, 224, ...) ... (three copies)",
+      "source": "AccessManager.sol: onlyAuthorized -> _checkAuthorized -> _canCallSelf / _getAdminRestrictions (compares the selector with this.setTargetFunctionRole.selector, etc.); setTargetFunctionRole: for (uint256 i = 0; i < selectors.length; ++i) _setTargetFunctionRole(...)",
+      "issue": "The selector 0x08d6122d prints with 63 digits (P6) in the admin-restriction tests of every function, reading as 0x8d6122d0; and the authorization outcome paths (immediate, delayed with schedule consumption) each get their own copy of the function body, so setTargetFunctionRole prints its selector loop three times.",
+      "rule": "Print a 4-byte value shifted to the top of the word as 'sel << 224' or with all 64 digits (P6); share the continuation after the authorization check between its paths (see c00463).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against OZ 5 AccessManager.sol (with Multicall, Time, Math). All 32 ABI functions were read by structure; each inlines onlyAuthorized (_checkAuthorized, canCall/_canCallSelf, _getAdminRestrictions, _consumeScheduledOp) before its own body (170-270 lines each). execute (schedule/consume, executionId bookkeeping, the target call with value), schedule, cancel, consumeScheduledOp, hashOperation and the getters were checked. Loops: 2 source loops (multicall's delegatecall loop and setTargetFunctionRole's selector loop, the latter printed three times) shown as while; implicit: the bytes[] result allocation (P3, 'while idx - 1') and its encode (P7). The text has no aborted path and only 1 P2 line. No execution run.",
+  "summary": "Faithful and readable apart from the onlyAuthorized prologue repeated in every function, per-path copies of function bodies, and the setTargetFunctionRole selector printed with 63 digits in 42 lines."
+}

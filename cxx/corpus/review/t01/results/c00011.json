@@ -1,0 +1,47 @@
+{
+  "id": "c00011",
+  "abi_functions": 35,
+  "reviewed": 35,
+  "not_reviewed": [],
+  "source_loops": 51,
+  "loops_shown": {"while": 51, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 6, "P2": 7, "P3": 11, "P4": 22, "P6": 6, "P8": 766, "P11": 50, "P14": 60},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getTokenConfigBatch, getLaneConnectionBatch, getConnectionPolicy, getInlineConnectionConfigs, getInlineRemotePoolConfigs, getRemotePoolPolicy ... (28 lines)",
+      "lines": "1709-1711, 1700",
+      "decompiled": "mem[_59 + 32] = stor[sha3(sha3(name, 14))] / mem[_59 + 64 len floor32(-_59 + max(_59 + 64, _59 + 32 * stor14[name].field_0 + 32) - 33)] = stor[sha3(sha3(name, 14)) + 1 len ..]",
+      "source": "ConnectionPolicyStore.sol:792 s_connectionPolicies.policies[..].remoteChainSelectors.values() (EnumerableSet values: bytes32[] storage to memory)",
+      "issue": "The storage-to-memory copy of a set's values is a copy line, but with the do-while's first word peeled off and an obscure length; it is the copy of n words.",
+      "rule": "floor32(max(a + 64, a + 32n + 32) - a - 33) is 32(n - 1) for n >= 1; a word store mem[d] = stor[b] followed by 'mem[d + 32 len 32(n - 1)] = stor[b + 1 len ..]' is 'mem[d len 32n] = stor[b len n]' (guarded by 'if n').",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "applyAuthorizedCallerUpdates, applyTokenProfileUpdates, setTokenPause and other struct-array updates",
+      "lines": "862-935",
+      "decompiled": "mem[0] = Bytes(12, 0), mem[32 * s + 32 * cd[_param1 + cd[_param1 + 4] + 4] + 268 len 20] / if not stor3[concat(Bytes(12, 0), mem[32 * s + 32 * cd[_param1 + cd[_param1 + 4] + 4] + 268 len 20])]: ... / mem[X] = Bytes(12, 0), mem[..]; log 0xc380..: mem[X]",
+      "source": "AuthorizedCallers.sol:56 for (i < removedCallers.length) { address caller = removedCallers[i]; if (s_authorizedCallers.remove(caller)) emit AuthorizedCallerRemoved(caller); }",
+      "issue": "Elements of the decoded struct's address arrays are read back from their memory copy as 20-byte slices at length-dependent offsets (repeated 8 times in the loop body), and the event data is printed as the memory word just written instead of its value.",
+      "rule": "Forward reads through the preceding calldata-to-memory copy (mem[a + k] = cd[b + k]) and print concat(Bytes(12, 0), x[a + 12 len 20]) as address(x[a]); a log reading exactly the word stored just before prints that stored value.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "resolveInboundLane",
+      "lines": "4403, 4719, 4850, 4972",
+      "decompiled": "while u > 1: if s > -1 / s: revert with Panic(17) ... (checked exponentiation helper, 4 copies)",
+      "source": "ConnectionPolicyStore._calculateLocalAmount: 10 ** (localDecimals - remoteDecimals) style decimal scaling",
+      "issue": "Checked powers of ten are printed as the compiler's square-and-multiply loop (as in c00003).",
+      "rule": "As in c00003: print the helper block as a checked 'b ** e'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Loop-heavy contract (51 source loops in the reviewed functions and what they reach). Small functions, setters (setChainPause, setTokenPause, setGlobalPause), applyAuthorizedCallerUpdates, applyRemoteTokenAddressProviderUpdates, getTokenConfigBatch's loops and checkRequestedFinalityBatch reviewed in detail; the other apply*/get* batch functions and resolveInbound/OutboundLane reviewed by structure (loop heads mapped to the source fors, storage writes, events, custom errors). All 51 source loops appear as whiles (no aborts): e.g. applyConnectionPolicyConfigUpdates' 4 fors (1864, 1922 nested, 1976, 2008), _getSupportedChains' 3 fors (1715, 1773, 1783 and again in getLaneConnectionBatch), _validateRemotePool's inner 'for (i < index)' as 'while t < idx' (3444, 3791), FinalityCodec's 'for (i < 16)' (280, 2163), EnumerableSet remove swap-and-pop correct (stor3[_47] = _45, pop). Implicit loops: 11 rotated zero-inits of new T[](n) for struct arrays ('while idx - 1', P3), 4 checked-exp helpers (finding 3), ~16 return encodings (some as 'while True' with the return inside), 2 calldata decodes. P8: 766 keccak scratch writes 'mem[0] = ..; mem[32] = ..' are printed (the highest count in the batch so far). P11: ~50 Panic(50) checks implied by loop bounds (e.g. 'if s >= cd[_param1 + cd[_param1 + 36] + 4]' under 'while s < _19' with the same value). P1: the custom error selector 0x0c12fdd0 printed as '0xc12fdd00.. * 3600' (6 lines).",
+  "summary": "Good loop recovery: all 51 source loops of a loop-heavy CCIP store are whiles, and semantics match; the text is noisy with 766 dead keccak-scratch writes, address elements read back as memory slices, and peeled storage-array copies with odd lengths."
+}

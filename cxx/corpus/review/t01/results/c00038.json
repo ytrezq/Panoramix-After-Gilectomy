@@ -1,0 +1,36 @@
+{
+  "id": "c00038",
+  "abi_functions": 53,
+  "reviewed": 53,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 41, "P4": 4, "P6": 18, "P11": 3, "P18": 10},
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "unlockQueue (unknowna2ccd14f, _unlockWithdrawalRequests)",
+      "lines": "8, 1529-1545",
+      "decompiled": "stor1 is fixed array of uint256 at storage 1 / mem[0] = sha3(mem[_91 + 32 len mem[_91]]) / _99 = sha3(mem[0], 155) / ... stor157[_param1] = SafeMath.sub(stor157[_param1], stor1[_99]) / stor1[_99] = _122 / if t > t + stor[_99]: revert with Panic(17)",
+      "source": "LRTWithdrawalManager.sol:802-805 assetsCommitted[asset] -= request.expectedAssetAmount; request.expectedAssetAmount = payoutAmount; rsETHAmountToBurn += request.rsETHUnstaked;",
+      "issue": "The member expectedAssetAmount of withdrawalRequests[requestId] (slot _99 + 1) prints as element _99 of a 'fixed array at storage 1', which here coincides with the real uint256[50] __gap at slot 1, so the text reads as a write into __gap; the same block prints the same members as stor155[concat(mem[0])].field_256 and stor[_99].",
+      "rule": "For a slot h + k where h is a mapping slot sha3(key, n) (bound to a temporary or not), print the struct member stor_n[key].field_{256k}; never interpret h + k as a fixed array at slot k when h is a keccak result, and do not add such an array to def storage.",
+      "verified": "reading only (def storage line 8 and compiler layout slot 1 = __gap)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unlockQueue and the other users of getRequestId",
+      "lines": "1523-1528",
+      "decompiled": "_90 = mem[64] / mem[mem[64] + 32] = _param1 << 96 / mem[_90 + 52] = idx / _91 = mem[64] / mem[mem[64]] = _90 - mem[64] + 52 / mem[64] = _90 + 84 / mem[0] = sha3(mem[_91 + 32 len mem[_91]])",
+      "source": "LRTWithdrawalManager.getRequestId: keccak256(abi.encodePacked(asset, nonce))",
+      "issue": "The request id stays a hash of a raw memory buffer and is then used through 'concat(mem[0])' keys (P4), because the 52-byte length written at the free-memory pointer is not folded (same root cause as P2, 41 call lines here).",
+      "rule": "With the free-memory-pointer range rule (stores at mem[64] + c >= 128 never reach slot 64), '_90 - mem[64] + 52' folds to 52 and the hash to sha3(Bytes(20, _param1), idx); a mapping key held in mem[0] then prints as that hash.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loop (1): _unlockWithdrawalRequests' while (1521, 'while idx < _52', both breaks and the checked updates present; SafeMath.sub(u, _122) after 'u >= _122' is implied, P11). The order of the checked add of assetAmountToUnlock and the storage increment differs from the source but only between a revert and a store, which is not observable. Other functions (initiateWithdrawal, completeWithdrawal, instantWithdrawal, Aave integration, pause/unpause, setters) are loop-free; DoubleEndedQueue operations are inlined and match. P2: 41 call lines (lrtConfig lookups, Aave calls) with raw memory arguments.",
+  "summary": "Faithful with its single loop clear, but a struct member of withdrawalRequests is printed as an element of a fixed array at slot 1, which reads as a write into __gap; request ids stay hashes of raw memory."
+}

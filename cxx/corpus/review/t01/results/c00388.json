@@ -1,0 +1,34 @@
+{
+ "id": "c00388",
+ "abi_functions": 3,
+ "reviewed": 3,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P8": 6,
+  "P14": 12
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "callTarget(address,bytes), delegatecallTarget(address,bytes), staticcallTarget(address,bytes)",
+   "lines": "21-35, 55-69, 89-103",
+   "decompiled": "if not return_data.size: _3 = 96 else: ... mem[128] = return_data.size; mem[160 len return_data.size] = ext_call.return_data[...]; _3 = 128 / if not ext_call.success: if mem[_3]: revert with memory from _3 + 32 len mem[_3] / ... / return 32, mem[mem[64] + 32 len _6 + 32], Bytes(-_6 + ceil32(_6), 0)",
+   "source": "PrecompileCaller.sol:20-22 (bool ok, bytes memory ret) = target.call{value: msg.value}(data); if (!ok) _bubble(ret); return ret;",
+   "issue": "The returned-bytes pointer is a phi of the empty array (0x60) and a fresh copy, so every later use stays a memory read (`mem[_3]`, `mem[_3 + 32 len mem[_3]]`) although in both arms it equals return_data.size / the return data.",
+   "rule": "When a phi chooses between the zero slot 0x60 (length 0) and a fresh copy of the return data, and return_data.size is 0 in the first arm, replace `mem[_3]` by return_data.size and `mem[_3 + 32 len n]` by ext_call.return_data[0 len n]; then the bubble is `revert with ext_call.return_data[0 len return_data.size]` and the return is `return ext_call.return_data[0 len return_data.size]`.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Sei PrecompileCaller (solc 0.8.28): three forwarding functions (call with value, delegatecall, staticcall), each bubbling the revert data or reverting with 'PrecompileCaller: call failed'. No loop; all three are faithful.",
+ "summary": "Tiny, faithful forwarder; the text keeps the returned bytes as memory reads instead of return_data."
+}

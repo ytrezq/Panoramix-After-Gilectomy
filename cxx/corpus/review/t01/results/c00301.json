@@ -1,0 +1,25 @@
+{
+  "id": "c00301",
+  "abi_functions": 13,
+  "reviewed": 13,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P3": 1, "P6": 1, "P7": 4, "P8": 30},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "commitState(uint256,bytes) (0x19494a17)",
+      "lines": "430-436, 474-478",
+      "decompiled": "_214 = mem[64] / mem[mem[64]] = _213 - mem[64] - 32 / mem[64] = _213 / mem[_214 + 32 len 4] = 650460138 / call _172 with: gas 5 * 10**6 args mem[_214 + 32 len mem[_214]] ... / _245 = mem[64] / mem[mem[64]] = bool(_244) / return memory from mem[64] len _245 - mem[64] + 32",
+      "source": "StateReceiver.sol:42-45 bytes memory data = abi.encodeWithSignature(\"onStateReceive(uint256,bytes)\", stateId, stateData); success := call(txGas, receiver, 0, add(data, 0x20), mload(data), 0, 0)",
+      "issue": "The receiver call is printed as a raw memory range with its selector 0x26c53bea written in decimal (650460138), and the function's bool result as 'return memory from mem[64] len _245 - mem[64] + 32' although _245 = mem[64] (the difference is 0, so this is 'return bool(_244)').",
+      "rule": "Copy-propagate _x = mem[64] (no store to slot 64 in between, mem[64] >= 128 proven) and fold _x - mem[64] to 0; print a value stored to a 4-byte memory slice in hex and decode the call's selector and arguments from the words written before it.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "solc 0.6.12 build. All 13 ABI functions compared in full (commitState by structure: onlySystem check, RLP decoding, sequential state id check and increment, isContract test, the 5,000,000-gas call, StateCommitted event, and the failedStateSyncs bytes store, whose short-bytes branch 'stor3[_145] = 2 * len | Mask(152, 8, _172)' is exact although dead in practice). No semantic error found. Loops: all four source loops are readable whiles: RLPReader.numItems' 'while (currPtr < endPtr)' with the exact _itemLength cases, RLPReader.toList's for, RLPReader.copy's word loop ('while idx >= 32' plus the masked tail), and the merkle loop over TREE_DEPTH = 16 ('while idx < 16'). The other 5 whiles are implicit: the rotated new RLPItem[] initialisation (P3) and four bytes copies of the 0.6 ABI encoder (P7).",
+  "summary": "Faithful, with every RLP/merkle source loop readable; the receiver call and the bool return of commitState are raw memory because a copied free-memory pointer is not folded."
+}

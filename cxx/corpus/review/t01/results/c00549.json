@@ -1,0 +1,80 @@
+{
+  "id": "c00549",
+  "abi_functions": 3,
+  "reviewed": 3,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 146, "P3": 5, "P6": 27, "P8": 40, "P9": 221, "P12": 26, "P18": 10},
+  "findings": [
+    {
+      "kind": "semantics",
+      "severity": "high",
+      "function": "execute, executeWithPermit, fallback (Select.select inlined: SELECT action, also nested under executeSelected)",
+      "lines": "7680-7712 (execute, also 10101-10133); 1332-1364 and 3757-3789 (executeWithPermit); 15516-15548 (fallback)",
+      "decompiled": "call this.address with: gas (1 == n) * (gasCap ^ gas_remaining) ^ gasCap ... / t = 0 / while not ext_call.success: / if gasCap / 63 + gasCap + 8192 > gas_remaining or t + 1 == n: <bubble revert>",
+      "source": "Select.sol:153-163 _setOperatorAndTryCall(..., (!isLast).ternary(gasCap, beforeGas = gasleft())) ... if (isLast.or(beforeGas < beforeGasThreshold)) revert",
+      "issue": "The bytecode reads GAS once before the CALL (0x543b, beforeGas) and compares that stacked value with the threshold after the call fails (0x549c dup14 gt). The text prints the comparison as '> gas_remaining' after the call, so it reads as the gas left after the failed trial, which is smaller: a trial that burns its whole gasCap would, by the text, revert the transaction instead of trying the next candidate.",
+      "rule": "GAS is not a pure value: when a GAS result is used after any later instruction that consumes gas observably (CALL, another GAS read on another path, a loop back-edge), bind it to a variable at its read point (beforeGas = gas_remaining) and print that variable at each use; print gas_remaining only where the read itself happens.",
+      "verified": "pancxx disasm: single GAS at 0x543b before CALL at 0x5489; failure path 0x5497-0x549f compares dup14 (that GAS) with the threshold"
+    },
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "execute((address,address,uint256),bytes[],bytes32)",
+      "lines": "11295-11934 (17 aborts), 12135-13134",
+      "decompiled": "...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)",
+      "source": "Settler.sol:165-189 _execute: the action loop after a first action that is UNISWAPV4_VIP/BALANCERV3_VIP/EKUBOV3_VIP (copy at 11272) or the 0x562e052c attestation (copy at 11847), and the first non-VIP action's _dispatch(0, ...) (12033-13134)",
+      "issue": "The action loop is printed 4 times (one copy per outcome of the peeled first action); copies 3 and 4 and the first-action non-VIP dispatch abort in 17 places (MakerPSM tin(), UniswapV2 swap tail, DodoV2, RFQ, Basic...), losing the rest of those paths including _checkSlippageAndTransfer and the return. Every dispatch arm is still shown complete once, in loop copy 1 (6650-8569).",
+      "rule": "Merge the per-predecessor copies of a loop whose entry state differs only in variables (see the duplication finding); the budget then covers one copy instead of four.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "executeWithPermit((address,address,uint256),bytes[],bytes32,bytes)",
+      "lines": "5014-5949 (12 aborts), 6480",
+      "decompiled": "...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)",
+      "source": "Settler.sol:133-163 -> _execute: same paths as in execute (loop copies 3-4 at 4928 and 5381, first-action dispatch tail)",
+      "issue": "Same loss as execute: 13 aborted paths in the later copies of the action loop and the first-action dispatch; copy 1 (302-...) is complete.",
+      "rule": "As for execute.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "execute, executeWithPermit, fallback",
+      "lines": "e.g. 6587-6591, 6618-6622, 6642-6646, 7695-7699 (296 instances)",
+      "decompiled": "_1626 = mem[64] / mem[mem[64] len return_data.size] = ext_call.return_data[0 len return_data.size] / revert with memory / from _1626 / len return_data.size",
+      "source": "SafeTransferLib / FastLogic bubble: let ptr := mload(0x40) returndatacopy(ptr, 0, returndatasize()) revert(ptr, returndatasize())",
+      "issue": "296 five-line blocks re-revert the return data through memory at the free pointer; the text already prints the same thing as one line ('revert with ext_call.return_data[0 len return_data.size]', 294 times) when the copy goes to a constant address. Same for 'from uint24(_1201)' at 6730-6734 where _1201 = amount << 96 | uint96(mem[84 len 12]) (the shifted part cannot reach the low 24 bits).",
+      "rule": "mem[p len n] = R[0 len n] followed by 'revert with mem[p len n]' (no write in between) is 'revert with R[0 len n]' for any address p, constant or not. Mask(k) of (x << s | y) with s >= k is Mask(k) of y.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "execute, executeWithPermit, fallback",
+      "lines": "6650/9071/11272/11847 (execute), 302/2727/4928/5381 (executeWithPermit); fallback take loop at 13569, 13768, 13982, 14181, 16794 ... 21738 (24 copies)",
+      "decompiled": "s = _param4 + 68 / idx = 1 / while idx < cd[_param4 + 4]: (about 1,900 lines, printed 4 times per function)  |  idx = 1 / while idx < mem[320]: (24 copies)",
+      "source": "Settler.sol:180 for (uint256 i = 1; i < actions.length; ...); FlashAccountingCommon.sol:807 / 894 for (uint256 i = 1; i < length; ...) in Take.take / CompactTake.take",
+      "issue": "Each loop is duplicated into every predecessor branch instead of being printed once after the join: the action loop once per first-action outcome (4 per function), the take loop once per path through 'if sell amount == 0: del' and 'if !firstNote.eq(globalSell)' (4 to 8 per callback). Most of the 22,056 lines are these copies, and they push execute/executeWithPermit over the decompiler's budget (the aborts above).",
+      "rule": "When the branches of a conditional end in code that is the same up to the values of variables live at the join, emit the join once and bind those variables in each branch (phi), instead of tail-duplicating the continuation; a loop header is always a join point.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "execute, executeWithPermit, fallback (Cuid.decode / attestation)",
+      "lines": "6656-6661 and 68 lines in all",
+      "decompiled": "uint128(_param5) / 2176782336 / 2176782336 / 2176782336 % 2176782336 << 192 | uint128(_param5) / 2176782 ...",
+      "source": "Cuid.sol decode of the bytes32 zid (base-36 digits)",
+      "issue": "Chains of unsigned divisions by the same constant are kept, making each line over 1,000 characters.",
+      "rule": "For unsigned integers, (x / a) / b == x / (a * b) exactly when a * b < 2^256; fold the chain to one division by the product constant.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Very long functions (execute 6,650 lines, executeWithPermit 6,455, fallback 8,920) reviewed by structure: control flow, loops, calls, transient writes, reverts and aborts; preambles (decode, takerSubmitted payer set/clear, ConfusedDeputy, the permit length check 'require cd[_param4 + 4] and 164 <= ...') and balanceOf ('return Bytes(1, 0)') checked line by line and correct. Loop map: Settler._execute for -> 'while idx < cd[_param4 + 4]'; Select.select while(true) -> rotated 'while not ext_call.success' (P3, 5 sites); Select._runActions for -> fallback 14533; UniswapV3Fork._uniV3ForkSwap while(true) -> 'while True' (8031, 8713 and copies); DodoV1 Math.sqrt -> 'while t < u' (2 inline sites per copy); hop loops: UniswapV4 (53) -> 'while t >= 53' 19545, BalancerV3 (4) -> 'while s >= 4' 20797, EkuboV2/EkuboV3 (48) -> 'while t >= 48' 13384, 16538; Take.take / CompactTake.take -> 'while idx < mem[320]' (24 copies). The pack's reach list is wrong for this contract: it includes SettlerBase._dispatch's Velodrome (3 loops, unreachable: MainnetCommon._dispatch re-implements _dispatch without VELODROME and never calls super), and it omits DodoV1, DodoV2, MakerPSM, MaverickV2 and EkuboV2, which MainnetCommon._dispatch does reach (DodoV1.sol:149 sqrt loop and EkuboV2.sol:289 hop loop counted here). P12 counts the extra loop copies (6 action-loop copies, about 20 take-loop copies). P9: the 512-bit omul(...).unsafeDiv(BASIS) of _permitToSellAmount expanded into mulmod/addmod and the inverse -151252...087. Raw selectors such as 0xe758b8d5 (ConfusedDeputy) come from assembly reverts not in the ABI. Ekubo's 'call caller.withdraw() with: args Bytes(20,..), Bytes(20,..), mem[72 len 16]' is the real packed-calldata withdraw().",
+  "summary": "Structurally faithful: every reachable source loop is a while (one rotated), but the text is bloated by tail duplication of whole loops (action loop x4 per function, take loop x24) and 296 five-line bubble reverts, which also causes 30 aborted paths in execute/executeWithPermit. One semantic slip: a pre-call GAS reading is printed as gas_remaining after the call in Select's retry check."
+}

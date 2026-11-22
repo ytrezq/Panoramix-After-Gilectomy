@@ -1,0 +1,36 @@
+{
+  "id": "c00542",
+  "abi_functions": 48,
+  "reviewed": 48,
+  "not_reviewed": [],
+  "source_loops": 18,
+  "loops_shown": {"while": 18, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 12, "P3": 2, "P4": 51, "P6": 3, "P8": 120, "P11": 20, "P14": 40},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "applyChainUpdates, getRemotePools, addRemotePool, removeRemotePool, isRemotePool",
+      "lines": "2409-2440",
+      "decompiled": "mem[_92 + 32] = stor[sha3(sha3(uint64(cd[...]), 8) + 5)] / if stor[sha3(mem[_92 + 32 * s + 32], sha3(uint64(cd[...]), 8) + 6)]: ... stor[sha3(sha3(uint64(...), 8) + 5) + stor8[...].field_1280 - 1] = 0",
+      "source": "TokenPool.sol:686-689 s_remoteChainConfigs[selector].remotePools.values() / .remove(remotePools[j]) (EnumerableSet.Bytes32Set inside a mapping of structs)",
+      "issue": "The set's array (struct member at slot +5) and index mapping (+6) inside the mapping element are printed as raw nested sha3 slots (41 lines), while the length is shown as stor8[k].field_1280.",
+      "rule": "sha3(sha3(k, m) + c) + i is element i of the dynamic array at member offset c of mapping m's element k, and sha3(v, sha3(k, m) + c) is key v of the mapping at that member: print them as stor8[k].<member c>[i] / [v].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "applyChainUpdates, getRemotePools, getSupportedChains",
+      "lines": "2412-2414, 362",
+      "decompiled": "mem[_92 + 32] = stor[sha3(...) + 5)]; mem[_92 + 64 len floor32(-_92 + max(_92 + 64, _92 + 32 * stor8[...].field_1280 + 32) - 33)] = stor[...] / mem[s] = Bytes(24, 0), mem[t + 24 len 8]",
+      "source": "EnumerableSet.values() (storage array to memory); abi.encode of uint64[]",
+      "issue": "Same as c00075: the storage-to-memory array copy peels its first element and keeps a max/floor32 length that the guard 'length != 0' simplifies; uint64 masking prints as a byte slice (as in c00410).",
+      "rule": "As in c00075 and c00410.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (18): applyChainUpdates :678/:687/:698/:715 (2364, 2416, 2491, 2763), applyTokenTransferFeeConfigUpdates :1007/:1033, configureLockBoxes :86 (base, 854) and :93/:99/:101 (904, 917 'while True', 923), getAllLockBoxConfigs :74, getRemotePools :591, getSupportedChains :661, setRateLimitConfig :877, _applyAuthorizedCallerUpdates :56/:65, _withdrawFeeTokens :23, FinalityCodec._validateRequestedFinality 'for i < 16' (775 in getFee, 2070 in lockOrBurn: 'while idx < 16: if not _param4 >> 240 & 1 << idx', faithful) - all while; loops whose element decode check comes first print that check as their first body line. Implicit loops: calldata array decodes with per-element checks, return encodings (address[], uint64[] with byte-slice masks), rotated zero-init of bytes[] / struct arrays (P3, 2). P4: 51 one-element concat keys (stor9[concat(mem[32 * s + 160])]). releaseOrMint / lockOrBurn reviewed by structure. No semantic error found.",
+  "summary": "Complete and faithful; all 18 source loops (including nested and constant-bound ones) are while loops. Main readability issues: the EnumerableSet nested in a mapping of structs printed as raw nested sha3 slots, one-element concat keys (P4), and peeled storage-array copies."
+}

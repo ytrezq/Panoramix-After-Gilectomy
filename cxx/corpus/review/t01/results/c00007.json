@@ -1,0 +1,36 @@
+{
+  "id": "c00007",
+  "abi_functions": 50,
+  "reviewed": 50,
+  "not_reviewed": [],
+  "source_loops": 12,
+  "loops_shown": {"while": 12, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 5, "P3": 10, "P4": 8, "P6": 45, "P7": 18, "P8": 80, "P11": 10},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "fulfillRandomWords variants (unknownba2f7379, unknown330987b3): 12 loops",
+      "lines": "1769, 1948, 1979, 2009, 2018, 2370, 2549, 2580, 2610, 2628",
+      "decompiled": "idx = 0 / while idx < 2: mem[u] = mem[t] / idx = idx + 1 / t = t + 32 / u = u + 32",
+      "source": "VRF.sol / VRFCoordinatorV2Plus: abi.encodePacked / abi.encode of uint256[2] points (pk, gamma, uWitness, cGammaWitness, sHashWitness) for hashToCurve, scalarFromCurvePoints and the request id",
+      "issue": "The ABI encoding of a static uint256[2] memory array, a copy of exactly two words, is printed as a 5-line loop with a constant bound of 2, twelve times.",
+      "rule": "A word-copy loop with a constant trip count n (i = 0; while i < n: mem[d + 32i] = mem[s + 32i]) is the copy line mem[d len 32n] = mem[s len 32n] (or n assignments for small n).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "migrate(uint256,address)",
+      "lines": "1180-1190",
+      "decompiled": "mem[0] = 19 / _3 = sha3(19) / s = 0 / while -_to + address(stor[_3 + s]): if SafeMath.inc(s) >= stor19.length: revert with 0x5428d449, _to / mem[0] = 19 / _3 = sha3(19) / s = SafeMath.inc(s)",
+      "source": "VRFCoordinatorV2Plus.sol:626 isTargetRegistered: for (i < s_migrationTargets.length) if (s_migrationTargets[i] == target) return true; return false;",
+      "issue": "The inequality s_migrationTargets[s] != _to is printed as a non-zero difference, the element as raw stor[sha3(19) + s] although the same array prints as stor19[idx] in the other functions, and the slot hash is recomputed in every iteration.",
+      "rule": "A difference used only as a condition is an inequality (x - y != 0 is x != y); stor[sha3(S) + i] is element i of the array at slot S; a pure expression (sha3 of constants) is loop-invariant.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Test helper contract (ExposedVRFCoordinatorV2Plus). Source loops (12, all whiles): isTargetRegistered (131, 180, 1185: header is the 'not found' test, exit to the normal path, correct), deregisterMigratableCoordinator (293), deregisterProvingKey (387), getActiveSubscriptionIds (468), pendingRequestExists' nested loops (578/586 and copies in removeConsumer/cancel paths), removeConsumer (818), deleteSubscription (891, 1074), migrate's consumer loop (1329/1431), fulfillRandomWords' numWords loop (2646), VRF.fieldHash's 'while (x_ >= FIELD_SIZE)' (1782/1848, 2383/2449) and hashToCurve's 'while (!isOnCurve(rv))' shown readably as 'while addmod(mulmod(...), 7, ...) != mulmod(...)' (1839, 2440). Implicit whiles: 10 rotated storage-to-memory copies of the consumers array (P3), the uint256[2] copies (finding) and other memory copies (P7). The two fulfillRandomWords variants (602 and 787 lines) were reviewed by structure, the rest by reading; faithful. The consumer array of a subscription is raw stor[s + sha3(sha3(_param1, 5) + 2)] (array inside a struct of a mapping, see c00050's finding on struct-held collections).",
+  "summary": "Faithful text in which all 12 source loops, including the VRF curve loops, are found and readable; minor issues are constant 2-word copies printed as loops, rotated storage copies and a few raw storage expressions."
+}

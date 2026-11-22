@@ -1,0 +1,25 @@
+{
+  "id": "c00227",
+  "abi_functions": 20,
+  "reviewed": 20,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 5, "P6": 1, "P7": 70, "P8": 80, "P11": 15},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "every staking action inlining _dequeueUnbondingDelegation (unknown2345e7d4, unknown29e71c82, unknown31bcbcb3, unknown464d2d03, unknown569c21e3, unknowna4603a2e, unknownb61b5197)",
+      "lines": "first 'while s < stor[_8]' block (about 45 lines, repeated 8 times)",
+      "decompiled": "_8 = sha3(caller, 1) / while s < stor[_8]: if int64(uint64(stor[4 * s + sha3(_8) + 3])) <= block.timestamp: ... stor1[caller][s].field_256 = 0 ... stor[sha3(mem[_28 len -_28 + _39 + 32])] = SafeMath.sub(stor[sha3(mem[_28 len -_28 + _39 + 32])], stor[4 * s + sha3(_8) + 1])",
+      "source": "DelegationManager.sol:52-57 for (i < unbondingDelegations[msg.sender].length) { entry = unbondingDelegations[msg.sender][i]; if (completionTime <= now) { delete unbondingDelegations[msg.sender][i]; delegations[msg.sender][entry.validator] -= entry.amount; } }",
+      "issue": "The same array element is named stor1[caller][s].field_N in one line and stor[4 * s + sha3(_8) + m] in the next (the length is stor[_8]), because the data slot was bound to _8 first; the string-keyed mapping delegations[msg.sender][validator] stays a raw sha3 of memory. (The text faithfully reads the entry after its delete, as the source does.)",
+      "rule": "Recognize stor[k*s + sha3(sha3(key, slot)) + m] (also through a variable holding sha3(key, slot)) as element s of the mapping-of-arrays at slot, member m, and stor[_v] as its length; show sha3(string ++ word) keys as mapping accesses.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: _dequeueUnbondingDelegation (while s < stor[_8], inlined in 8 functions), _checkUnbondingDelegation and _cancelUnbonding (while t < stor1[caller].length etc.); all while. The delete of the struct's string member prints as a storage range clear (copy-line form with a max(...) length). via-IR build; implicit loops are memory copies of strings and ABI encodings for the staking precompile calls (P7, 70) plus ABI decoding of the precompile's returned structs. Precompile calls use raw memory in 5 places (P2).",
+  "summary": "Faithful with all three loops present; the main obscurity is the mixed raw/struct naming of the unbonding-entry slots and string-keyed mappings shown as raw hashes."
+}

@@ -1,0 +1,47 @@
+{
+  "id": "c00492",
+  "abi_functions": 48,
+  "reviewed": 48,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 27, "P3": 8, "P4": 3, "P6": 10, "P7": 31, "P8": 302, "P11": 18, "P15": 2},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "setVotingDelay, setVotingPeriod, setProposalThreshold, updateTimelock, setLateQuorumVoteExtension, relay, updateQuorumNumerator (unknown400a54f1)",
+      "lines": "232-245 (setVotingDelay), 254-267, 277-290, 299-312, 324-337, 416-429, 477-490",
+      "decompiled": "if timelock != this.address: / if int128(stor4 >> 128) <=′ int128(uint128(stor4)): revert Empty() / _12 = stor5[int128(uint128(stor4))] / stor5[int128(uint128(stor4))] = 0 / uint128(stor4) = uint128(int128(uint128(stor4)) + 1) / while _12 - sha3(call.data[0 len calldata.size]): <the same 5 lines> / continue",
+      "source": "Governor.sol:76 while (_governanceCall.popFront() != msgDataHash) {}",
+      "issue": "The popFront call of the loop test is peeled: printed once before the loop and again in the body, with the test 'while _12 - sha3(...)' on the value popped by the previous iteration (known P3, 7 copies).",
+      "rule": "Known P3: a loop whose body is exactly the code before it (equal up to renaming) and whose test uses the value that code produced is 'while True: <code>; if not test: break' (or a while with the code in its condition).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "queue, execute, cancel, castVote* (timelock and state queries)",
+      "lines": "618, 843, 1029, 1229 ('static call timelock with: args mem[...]'); execute/queue tail ('call timelock with: value call.value wei ...')",
+      "decompiled": "static call timelock with: gas gas_remaining args mem[mem[64] len ...]  |  call timelock with: value call.value wei gas gas_remaining args mem[...]",
+      "source": "GovernorTimelockControl: _timelock.isOperationPending(...), _timelock.hashOperationBatch(...), _timelock.scheduleBatch(...), _timelock.executeBatch{value: msg.value}(...)",
+      "issue": "As in c00487: the timelock calls built after an allocation lose their function and arguments, including executeBatch/scheduleBatch, the main effect of execute and queue; the bytes[] encoder of their arguments is a rotated 'while True' holding the call in its exit branch.",
+      "rule": "Same root cause as c00409 (forward stores through the free-memory pointer once it is known not to alias slot 0x40); and make a 'while True' whose first statement is 'if exit: tail' a proper while with the tail after it.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "execute (_beforeExecute), the 7 onlyGovernance functions",
+      "lines": "1586-1601",
+      "decompiled": "while s < _145: / if s >= mem[128]: revert Panic(50) / ... / stor4 = (int128(stor4 >> 128) << 128) + 0x100000000000000000000000000000000 | uint128(stor4)",
+      "source": "Governor._beforeExecute: for (i < targets.length) if (targets[i] == address(this)) _governanceCall.pushBack(keccak256(calldatas[i])); DoubleEndedQueue.pushBack: deque._end = backIndex + 1 (unchecked)",
+      "issue": "The bounds check of targets[i] is kept under the loop test on the same length, and the int128 '_end + 1' update is whole-slot arithmetic.",
+      "rule": "Drop 'if s >= n: panic' inside 'while s < n' when n is unchanged; print the store as int128(stor4.field_128) = int128(stor4.field_128) + 1 (known P11, P15).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "48 ABI functions plus the fallback reviewed. Same OZ Governor family as c00487 (propose, hashProposal, castVote*, quorum, state reviewed by structure; same decompiled shapes). Differences from c00487: the executor is the timelock, so onlyGovernance's popFront loop and _beforeExecute's pushBack loop are live and both present. Loops: 4 explicit in the bytecode, all whiles: Checkpoints._upperBinaryLookup (17 inlined copies), Governor._beforeExecute (execute), _isValidDescriptionForProposer (propose, 'while True' with the bound test first), onlyGovernance's popFront loop (7 copies, rotated: P3). Strings.toHexString is not in this bytecode (no hex alphabet) and TimelockController.scheduleBatch runs in the timelock: not counted. Implicit: 10 validating decodes, 31 encode copies (P7), the new string[](n) init (rotated, counted in P3). DoubleEndedQueue checks the pre-5.0 'end <= begin' empty test with Empty(): matches the bundled OZ version. No semantic error found.",
+  "summary": "Faithful, all 4 loops present, but the governance queue loop is printed rotated with its pop peeled, the timelock calls of execute/queue lose names and arguments after an allocation, and proposal encoding is a set of copy loops."
+}

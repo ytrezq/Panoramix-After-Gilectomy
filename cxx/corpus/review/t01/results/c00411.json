@@ -1,0 +1,38 @@
+{
+  "id": "c00411",
+  "abi_functions": 51,
+  "reviewed": 51,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {
+    "while": 2,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 12,
+    "P2": 2,
+    "P3": 4,
+    "P6": 7,
+    "P7": 4,
+    "P9": 99
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "interestAccumulator-dependent functions: the global/account accrual in computeLiquidity, batchLiquidate, addCollateral, borrow, repay, withdrawCollateral, debtDeltaForMaxOriginationLtv, accountPosition, globalState and others (about 12 inlined copies)",
+      "lines": "765-786 (first copy); 140 lines containing 3814697265625; 99 lines over 800 characters",
+      "decompiled": "_7 = (SafeMath.mul(stor6, uint40(block.timestamp - stor7_16)) / (365 * 24 * 3600) << 78) /′ 3814697265625 * ((SafeMath.mul(stor6, uint40(block.timestamp - stor7_16)) / (365 * 24 * 3600) << 78) /′ 3814697265625) - 0x162e42fefa39ef35793c76730 * (... ) ... / _17 = (0x29d9dc38563c32e5c2f6dc192ee70ef65f9978af3 * ((_8 + 0xd835ebba...) /′ ((_11 >>′ 96) + 0x5180bb14...)) >> -(((...",
+      "source": "CompoundedInterest.continuouslyCompounded: principal * expWad(interestRate * elapsed / 365 days) (solmate/solady FixedPointMathLib.expWad: x = (x << 78) / 5**18, k = ..., Remez polynomial)",
+      "issue": "expWad is inlined into each accrual and its argument (rate * elapsed / 365 days, scaled << 78 / 5**18) is never bound, so every polynomial step repeats it in full and the accrual reads as 10 lines of 1-3K characters, repeated about 12 times.",
+      "rule": "Bind a composite subexpression used more than twice to a temporary at its first evaluation (here x, then k and the polynomial terms); 3814697265625 is 5**18 and 135305999368893231589 the expWad input bound, which could print in those forms.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against MonoCooler.sol and its libraries (CompoundedInterest, DelegationRequest handling, the Olympus Kernel policy base), solc 0.8.36 with the optimizer off. All 51 ABI functions were read by structure (the largest, applyDelegations/borrow-like unknown2cf05b40, is 683 lines): access control, accrual of the global and account interest accumulators, LTV checks with custom errors, collateral/debt transfers, delegation requests, liquidation loop. Loops: 2 source loops (computeLiquidity's and batchLiquidate's loops over numAccounts) shown as while; implicit: calldata array decodes with validation, requestPermissions'/configureDependencies' fixed-size array encodes with the first element peeled (P3), zero-initialisations as 'while idx - 1'. P1: 365 * 24 * 3600 factorisations (readable, 12 lines). No execution run.",
+  "summary": "Faithful with both loops present and almost no P2; the main readability problem is the inlined expWad of the continuously compounded interest, whose unbound argument is repeated through 1-3K-character lines in about 12 copies."
+}

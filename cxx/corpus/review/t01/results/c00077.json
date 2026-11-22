@@ -1,0 +1,58 @@
+{
+  "id": "c00077",
+  "abi_functions": 55,
+  "reviewed": 55,
+  "not_reviewed": [],
+  "source_loops": 13,
+  "loops_shown": {"while": 13, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P3": 9, "P4": 2, "P6": 7, "P7": 10, "P8": 40, "P11": 10, "P12": 20, "P15": 2, "P18": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getService, getAgentInstances, getAgentParams, getUnitIdsOfService, slash, deploy, update (storage-to-memory) and create, deploy, update (memory-to-storage) copies of packed uint32[]",
+      "lines": "671-676, 134, 807, 551, 567, 944-945, 1715-1716, 1461, 1313-1325, 1918-1928, 1636-1645",
+      "decompiled": "while 32 * mapServices[serviceId].field_768 + 672 > idx + 32:\n    mem[idx + 32] = uint32(stor[t + (s + 7) / 32 + sha3(sha3(serviceId, 21) + 3)] / 256**(s - Mask(251, 5, s + 7) / 8 - s * ((s + 7) / 32) + 4))\n    t = t + (s + 7) / 32\n    s = s - Mask(251, 5, s + 7) / 8 - s * ((s + 7) / 32) + 4",
+      "source": "ServiceRegistry: Service.agentIds, mapServiceIdSetAgentIds / mapServiceIdSetComponentIds (uint32[] in storage, eight per slot) read into memory or assigned from memory",
+      "issue": "The byte offset inside the slot is printed as 's - Mask(251, 5, s + 7) / 8 - s * ((s + 7) / 32) + 4', which is (s + 4) % 32, and the slot step as (s + 7) / 32, which is 1 exactly when s wraps; the copies are also rotated (first element before the loop, P3). Ten such copies make the array handling of the service structs unreadable.",
+      "rule": "Recognise an induction variable stepped by k modulo 32 (k dividing 32) and print it as 's = (s + k) % 32' with the slot advancing when s == 0; a loop that moves element i of a packed uint32[] to word i of memory (or back) is the copy 'mem[d len 32 * n] = uint32 elements of stor[...]', printable as one copy line.",
+      "verified": "reading only (checked the step for s = 0, 4, ..., 28)"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "terminate(address,uint256)",
+      "lines": "terminate's 'while True' (after the two array deletes)",
+      "decompiled": "while True:\n    if s >= mapServices[serviceId].field_768:\n        call serviceOwner with: value uint96(mapServices[serviceId].field_0) wei ...\n        log Refund(...); log TerminateService(...)\n        stor10 = 1\n        return 1, _34\n    ... instancesForAgentId[...].length = 0\n    stor[sha3(mem[0]) len ...] = 0",
+      "source": "ServiceRegistry.sol:687-693 for (uint256 i = 0; i < service.agentIds.length; ++i) { delete mapServiceAndAgentIdAgentInstances[serviceAgent]; } then the refund and the events",
+      "issue": "The for loop is printed as 'while True' whose exit test holds the whole tail of the function (the refund call, two events, the return), and the deleted array's data area is 'sha3(mem[0])', the hash of a scratch word, instead of the mapping entry named on the line above.",
+      "rule": "When the only exit of 'while True' is a first-statement test whose arm ends the function, print 'while not test: body' followed by the arm; forward the scratch store mem[0] = slot so that sha3(mem[0]) prints as the array of that mapping entry.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "registerAgents, slash",
+      "lines": "1052-1057, 971-988",
+      "decompiled": "_35 = sha3(uint32(mem[...]) << 32 | serviceId, 14)\nmem[_36] = uint32(mapServiceAndAgentIdAgentParams[uint32(mem[...]) << 32 | serviceId].field_0)\nmem[_36 + 32] = uint96(stor[_35].field_32)\nif not uint32(stor[_35]): ...\n... mapOperatorAndServiceIdOperatorBalances[concat(Bytes(12, uint96(serviceId)), mem[12 len 20])]",
+      "source": "ServiceRegistry.sol:450 mapServiceAndAgentIdAgentParams[serviceAgent]; :625-634 mapOperatorAndServiceIdOperatorBalances[operatorService]",
+      "issue": "One storage entry is printed under two forms in consecutive lines: by mapping name and as stor[_35] with _35 = sha3(key, 14); in slash the same balance key is 'mapAgentInstanceOperators[...] | serviceId << 160' on one line and 'concat(Bytes(12, uint96(serviceId)), mem[12 len 20])' (a slice of the hashing scratch word) on the next.",
+      "rule": "A slot bound to sha3(k, B), with B a known mapping base, prints as B[k] wherever it is used; a key stored to scratch memory in pieces is the expression that was stored.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "create, update (_initialChecks), deploy",
+      "lines": "1190, 1879",
+      "decompiled": "static call 0x0.totalSupply() ... static call 0x0 with: args mem[...]",
+      "source": "address public immutable agentRegistry; IRegistry(agentRegistry).totalSupply() / calculateSubComponents(service.agentIds)",
+      "issue": "solc immutable agentRegistry reads as 0, so both registry calls go to address 0.",
+      "rule": "None: normal for this corpus.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 55 ABI functions reviewed; the long ones (create, deploy, update, registerAgents, slash, unbond, terminate) by structure (checks, writes, events, calls and loops against the source), the others in full. No semantic difference found. Source loops (13, all whiles): create's ZeroValue loop, _initialChecks, _setServiceData, update's loop, registerAgents' two loops, slash, unbond, terminate (finding), getAgentParams, getInstancesForAgentId, _getAgentInstances' nested loops. Implicit: calldata decodes of the arrays, ten packed uint32[] copies (finding; rotated P3), two rotated zero-inits 'while idx - 1' (P3), storage-to-storage slot copy in deploy, an 8-way unrolled storage-to-memory copy for calculateSubComponents, return decodes and ABI encodes (P7), array deletes as storage-range clears. The custom errors WrongAgentId/AgentNotInService print their payload as a 32-byte selector word plus a 4-byte slice ('revert with 0xaac42c2c000...0, mem[... len 4]'), exact but odd (as noted in c00133). create writes the packed slot of threshold/maxNumAgentInstances/numAgentInstances/state twice, field by field and then as whole-slot arithmetic (P15). Error(string) reverts at the free-memory pointer ('ALREADY_MINTED', WrongThreshold) print as raw memory (P2 root cause). No execution run.",
+  "summary": "Faithful; plain functions read well, but the service structs' packed uint32[] arrays are copied with unreadable offset arithmetic in ten rotated loops, and the long functions duplicate code and print one storage entry under several forms."
+}

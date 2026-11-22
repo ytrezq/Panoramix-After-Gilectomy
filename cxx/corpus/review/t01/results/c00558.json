@@ -1,0 +1,36 @@
+{
+  "id": "c00558",
+  "abi_functions": 1,
+  "reviewed": 1,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 10, "copy_line": 0, "unrolled": 0, "aborted": 1, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 17, "P7": 32, "P11": 60, "P14": 55},
+  "findings": [
+    {
+      "kind": "coverage",
+      "severity": "medium",
+      "function": "constructTokenURI(NFTDescriptor.ConstructTokenURIParams)",
+      "lines": "3407 (the text's last line)",
+      "decompiled": "idx = 6 / s = mem[172 len 3] / while idx: .. byte(s % 16, 0x3031..) .. / mem[..] = 6 / ...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)",
+      "source": "NFTDescriptor.sol:60 string memory image = Base64.encode(bytes(generateSVGImage(params))); :62-80 return string(abi.encodePacked('data:application/json;base64,', Base64.encode(bytes(abi.encodePacked('{\"name\":\"', name, ..., image, '\"}')))));",
+      "issue": "The only function stops inside generateSVGImage, right after the first tokenToColorHex (toHexStringNoPrefix of the quote token color): the other SVG parameters, NFTSVG.generateSVG, both Base64.encode calls (with Base64's Yul for loop) and the final encodePacked and return are lost, so the text never returns.",
+      "rule": "Not a rewrite issue: the function is one long straight sequence of string builders; sharing the continuation of the repeated inlined helpers (escapeQuotes, toString, fixedPointToDecimalString appear up to 6 times) would let the search finish.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "constructTokenURI",
+      "lines": "120-153 and 55 lines in all",
+      "decompiled": "mem[ceil32(cd[_param1 + cd[_param1 + 100] + 4]) + ceil32(cd[_param1 + cd[_param1 + 132] + 4]) + 704] = uint8(mem[ceil32(cd[_param1 + cd[_param1 + 100] + 4]) + ceil32(cd[_param1 + cd[_param1 + 132] + 4]) + 704] ..) / assert uint8(_577) < mem[ceil32(..) + ceil32(..) + 896]",
+      "source": "NFTDescriptor.sol:208 generateDecimalString(DecimalStringParams memory params): buffer[params.sigfigIndex--] = ...; params.sigfigs /= 10;",
+      "issue": "The memory struct DecimalStringParams and the buffer live at a base that depends on the two token symbol lengths, and that base expression is spelled out up to four times per line, so 'params.sigfigIndex--' takes a 300-character line.",
+      "rule": "Bind a memory base that is not constant (here the free-memory pointer at the struct's allocation, ceil32(len0) + ceil32(len1) + 640) to a named temporary once, and print fields as offsets from it (params + 64) or as params.field_k.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Library with a single public function (huge source: generateName, descriptions, SVG). Reviewed by structure up to the abort. Source loops: 11 = HexStrings.toHexString (2975, 3120, 3138, 3313, 3329 'while idx > 1'), HexStrings.toHexStringNoPrefix (3397 'while idx', just before the abort), escapeQuotes' two fors (159/179, 197/1518, 2871/2895, 2916/2946, 3062/3092), feeToPercentString's 'while (temp != 0)' (72, 3151, 3345 'while uint24(u)'), fixedPointToDecimalString's digit count 'while t' (382, 646, ...), generateDecimalString's for and while ('while u < uint8(_384) + 1', 'while _509' whose condition is a variable reloaded at the end of the body), Strings.toString's two whiles (3036, 3047), and Base64.encode's Yul 'for {} lt(dataPtr, endPtr) {}' which falls in the aborted tail. The others whiles are 32 memory-to-memory copies of abi.encodePacked pieces left as loops (P7). solc 0.7.6: bounds checks are asserts (102 'assert' lines, ~60 implied by the loop bound, e.g. 'assert u < mem[..+896]' under the buffer-length bound). No storage.",
+  "summary": "Loops are recovered up to the point where the decompiler gives up, but the single function aborts before the SVG, Base64 encoding and return; the rest is hard to read because the memory structs' computed base is repeated in every line."
+}

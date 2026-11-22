@@ -1,0 +1,36 @@
+{
+  "id": "c00099",
+  "abi_functions": 60,
+  "reviewed": 60,
+  "not_reviewed": [],
+  "source_loops": 6,
+  "loops_shown": {"while": 6, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 42, "P4": 31, "P6": 15, "P7": 20, "P8": 120, "P17": 20},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "onERC1155Received, onERC1155BatchReceived",
+      "lines": "1933-1971, 1982-2020, 2139-2175, 2204-2290, 2406-2442",
+      "decompiled": "while True:\n    if s >= 300:\n        ... the whole 'WrappedError::0x' + hex Error(string) revert ...\n    _4 = mem[t] / _19 = 1 / u = 256 / v = s\n    while _19:\n        ... mem[v len 1] = _27\n        _19 = v + 1 < 300 and u - 4 > 0\n        u = u - 4 / v = v + 1\n    s = v / t = t + 32",
+      "source": "HexUtils.sol:212-224 for (end = dst + nibbles; dst < end; src += 32) { word = mload(src); for (shift = 256; dst < end && shift > 0; dst++) { ... mstore8(dst, b) } }",
+      "issue": "The outer loop is 'while True' with its exit test first, and the code after the loop (building and reverting the error string) is printed inside that exit branch; the inner loop is rotated into a flag (_19 = 1 before, recomputed at the end of the body).",
+      "rule": "A 'while True' whose body starts with 'if c: T' (T ends the path) is 'while not c: ...' followed by T; a flag set to true before 'while flag' and to cond at the end of the body is 'while cond' when cond holds on entry (here dst < end and shift = 256 > 0).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "onERC1155Received, onERC1155BatchReceived, the role functions",
+      "lines": "1929, 1954, 739, 757",
+      "decompiled": "mem[160 len 4] = 3630881231 / mem[_23 + 32 len 4] = 147028384 / revert with memory from _23 + 32 len mem[_23]  |  if uint1(stor2[0][concat(mem[0])].field_36) << 36 | Mask(1, 36, _18) != 68719476736:",
+      "source": "revert(string(abi.encodePacked(\"WrappedError::0x\", hex))) via abi.encodeWithSelector(Error.selector...); EnhancedAccessControl role-bit check",
+      "issue": "4-byte selectors written into 'len 4' memory slices are decimal, including the Error(string) selector 0x08c379a0 (147028384), so the string revert is not recognised; role bits are compared against 2^36 written in decimal.",
+      "rule": "Print 'len 4' memory words in hex and a power of two as 2**n (or hex); recognise Error(string) by the 4-byte selector at the start of a bytes buffer that is reverted as 'from p + 32 len mem[p]'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 60 ABI functions and the fallback reviewed; the long ones (register, finishERC1155Migration, safe(Batch)TransferFrom, onERC1155(Batch)Received, grant/revokeRoles, unregister) by structure: role checks, the ERC1155 singleton _update with per-token loops and acceptance checks, events, migrations; no semantic error found. Names are mostly unknownXXXX (not in the DB). Loops: 6 explicit, all whiles: balanceOfBatch, ERC1155Singleton._update, PermissionedRegistry._update, LockedWrapperReceiver._migrateWrapped ('while idx < cd[_param1 + 4]'), HexUtils.unsafeHex outer and inner (finding 1). Implicit: calldata array decodes (readable), storage-bytes-to-memory copies as whiles ('while idx < _22: mem[idx + mem[64] + 68] = stor261[s]', 9 copies, P7), struct-array ABI encodes as whiles; the 42 P2 calls (stor260 / parent registry with raw args) follow a named read of mem[64] as in c00585. P4: role and token mappings keyed by concat(mem[0]). No execution run.",
+  "summary": "Faithful with all loops present; the hex-encoding loops are printed as 'while True' with the post-loop revert inside the exit test and a flag-rotated inner loop, selectors (even Error(string)) are decimal, and storage-string copies and calls stay raw."
+}

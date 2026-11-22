@@ -1,0 +1,106 @@
+{
+ "id": "c00170",
+ "abi_functions": 68,
+ "reviewed": 68,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P1": 65,
+  "P2": 119,
+  "P6": 93,
+  "P7": 15,
+  "P8": 324,
+  "P9": 1016,
+  "P11": 2,
+  "P15": 6
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "convertTo*, preview*, maxMint, maxRedeem (2), maxWithdraw (2), totalAssets, pricePerShare, deposit, mint, redeem (2), withdraw (2), report, setPerformanceFee, setPerformanceFeeRecipient, setProfitMaxUnlockTime",
+   "lines": "e.g. 1581-1588, 1616-1628, 1679-1687 (convertToAssets)",
+   "decompiled": "_47 = -6 * (lastTotalAssets / (lastTotalAssets & ~lastTotalAssets + 1)) * (2 ^ 3 * (lastTotalAssets / (lastTotalAssets & ~last ... [996 more characters]",
+   "source": "Math.mulDiv (OZ 4.9) via _convertToSharesFromTotals / _convertToAssetsFromTotals / _chargeFees",
+   "issue": "110 inlined Math.mulDiv calls are expanded into Newton-iteration polynomials of 500-2,000 characters (about 1,000 lines), so none of the share/asset conversions can be read.",
+   "rule": "Known P9: recognize the full-precision mulDiv shape (mul/mulmod 512-bit product, the 'denominator > prod1' check, the inverse by Newton steps) and print mulDiv(a, b, d), proven exact for all inputs.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "deposit, mint, redeem (both), withdraw (both), report, and the max*/preview* functions after a call",
+   "lines": "4342-4392 (deposit); 4176-4179; 9150-9213 (text lines of withdraw(4) 1150-1213); 7986-8003",
+   "decompiled": "mem[_974 + 32 len 4] = 599290589 / ... / while idx < _978: mem[idx + mem[64]] = mem[_974 + idx + 32] ... / call asset with: args mem[mem[64] len _978]  |  mem[... + 68] = 0x580ac1e2ad161ab0d634ce7679198eac50198357000000000000000000000 * 3600 / revert with memory from mem[64] len ...  |  call this.address with: args mem[mem[64] len _1006 + ceil32(return_data.size) - mem[64] + 36]",
+   "source": "TokenizedStrategy.sol:1100 _asset.safeTransferFrom(msg.sender, address(this), assets); 1186 safeTransfer; IBaseStrategy(address(this)).deployFunds(...); Math.mulDiv's require(denominator > prod1, \"Math: mulDiv overflow\")",
+   "issue": "After any call whose return size is unknown, mem[64] is symbolic and stores through it are not forwarded: the SafeERC20 transfer/transferFrom calls and the deployFunds self-call lose their names and arguments, the call data and the 'SafeERC20: low-level call failed' message are copied by while loops (12 of the 16 whiles), revert strings are raw memory (65 P1 lines are the string 'Math: mulDiv overflow'), and the Approval event value is a memory slice in one branch while the same code elsewhere is clean.",
+   "rule": "Same as c00409: the free-memory pointer is >= 0x80 and RETURNDATASIZE < 2^64, so mstore(mload(0x40) + k) never aliases slot 0x40; forward such stores, then the byte-copy loop is a copy line and the call input resolves to selector + words (transfer(receiver, assets)).",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "every function reading unlocked shares (balanceOf, totalSupply, unlockedShares and all conversions: 121 lines); report",
+   "lines": "e.g. 163, 238; report text 717-723 (dec 5147-5153)",
+   "decompiled": "_3 = (block.timestamp * storD284_d2841a5d_2 - lastReport * storD284_d2841a5d_2) / 10**12  |  _2033 = storD284_d2841a5d_3 > block.timestamp and block.timestamp * _2027 - block.timestamp * storD284_d2841a5d[this.address] - _2027 * storD284_d2841a5d_3 + storD284_d2841a5d_3 * storD284_d2841a5d[this.address]",
+   "source": "TokenizedStrategy.sol _unlockedShares: (S.profitUnlockingRate * (block.timestamp - S.lastReport)) / MAX_BPS_EXTENDED; report: (_fullProfitUnlockDate - block.timestamp) * (totalLockedShares - sharesToLock)",
+   "issue": "Unchecked products of differences are distributed into sums of products, so a one-factor formula becomes two to four terms (and the report's newProfitLockingPeriod is recomputed in two lines).",
+   "rule": "Do not distribute a multiplication over an addition/subtraction (it is exact either way modulo 2^256, so prefer the factored form a * (b - c)); bind a repeated composite subexpression to a temporary.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "def storage; emergencyAdmin(), isPaused(), isShutdown(), lastAccrual(), every nonReentrant function, initialize",
+   "lines": "25; 63-87; 279-281; 503",
+   "decompiled": "storD284_d2841a5d_6 is uint256 at storage 0xd284...bc  |  return address(storD284_d2841a5d_6)  |  if uint8(storD284_d2841a5d_6 >> 160) == 2: revert 'ReentrancyGuard: reentrant call'  |  storD284_d2841a5d_6 = uint184(storD284_d2841a5d_6) | (block.timestamp << 184) + 0xffffffffffffffffff0000000000000000000000000000000000000000000000",
+   "source": "StrategyData slot 12: address emergencyAdmin; uint8 entered; bool shutdown; bool paused; uint72 lastAccrual; initialize: S.lastAccrual = uint72(block.timestamp - 1)",
+   "issue": "The packed slot is left as one uint256 though four getters return its fields, so the name emergencyAdmin and the reentrancy flag are lost, and initialize's write is whole-slot arithmetic with an unfolded '+ (2^72 - 1) << 184' that means '- 1' in the field.",
+   "rule": "Known P15: split a slot into the fields that reads and masked writes use (bits 0-159, 160, 168, 176, 184-255) and name each after its getter; (x << k) + ((2^n - 1) << k) in an n-bit field at k is uint_n(x - 1) << k.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "naming",
+   "severity": "low",
+   "function": "withdraw(uint256,address,address), withdraw(uint256,address,address,uint256), redeem(uint256,address,address,uint256), initialize, emergencyWithdraw",
+   "lines": "7800, 8994, 6878, 455, 299",
+   "decompiled": "def withdraw(uint256 shares, address to, address from)  |  def withdraw(uint256 _id, address _sender, address _cToken, uint256 _cTokenAmount)  |  def redeem(uint256 tokenId, address cToken, address token, uint256 amount)  |  def initialize(address _NATIVE_TOKEN, string _name, address _owner, address _router, address _routerUniV3)",
+   "source": "withdraw(uint256 assets, address receiver, address owner[, uint256 maxLoss]); redeem(uint256 shares, address receiver, address owner, uint256 maxLoss); initialize(_asset, _name, _management, _performanceFeeRecipient, _keeper)",
+   "issue": "Parameter names taken from unrelated signature-DB entries with the same selector mislead: withdraw's assets argument is called 'shares', the owner is '_cToken', the performance-fee recipient is '_router'.",
+   "rule": "When the signature database has names from another project (or several name sets) for a selector, print _paramN instead of guessed names.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "report, mint/deposit, initialize, symbol",
+   "lines": "4700 (storD284_d2841a5d[57005] += _235); 4349; 517; 432",
+   "decompiled": "storD284_d2841a5d[57005] += _235  |  mem[_974 + 32 len 4] = 599290589  |  log 0xfb16...: Array(len=5, data=0x332e312e30000...)  |  mem[mem[64] + 32] = 0x7973000...",
+   "source": "DEAD_ADDRESS = 0xdead; transferFrom selector 0x23b872dd; API_VERSION '3.1.0'; \"ys\" prefix",
+   "issue": "An address key is printed in decimal, a selector in decimal, short string constants as hex words.",
+   "rule": "Print a value used as an address (mapping key of an address mapping) and a 4-byte selector store in hex; print a word whose bytes are printable ASCII followed by zeros, used with a length, as a string literal.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "artifact",
+   "severity": "low",
+   "function": "FACTORY(), report and every path through _chargeFees",
+   "lines": "1; report 171, 181",
+   "decompiled": "const FACTORY = 0 / static call 0x0.unknown5153b199(?)",
+   "source": "TokenizedStrategy.sol:415 address public immutable FACTORY; IFactory(FACTORY).protocol_fee_config()",
+   "issue": "solc immutable read as 0 in the undeployed runtime code.",
+   "rule": "none (input artifact)",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "68 ABI functions (incl. constants FACTORY, MAX_FEE, apiVersion) plus the fallback (revert) reviewed. Long functions reviewed by structure (calls, writes, events, reverts): deposit, mint, redeem (2), withdraw (2), report (each 800-1,200 lines, mostly expanded mulDiv); withdraw(uint256,address,address,uint256)'s tail and report's fee/lock tail read line by line against _withdraw, _chargeFees and report (lastTotalAssets -= assets + loss with its overflow check, maxLoss rule, burn/mint split, profitUnlockingRate/fullProfitUnlockDate) - correct. Same code: maxRedeem/maxWithdraw 1-arg = 2-arg with maxLoss = MAX_BPS; the redeem/withdraw pairs share _withdraw. No source loops (TokenizedStrategy, OZ Math/SafeERC20/Address have none); the 16 whiles are implicit: 15 memory copies (symbol's 3, and per deposit/mint/redeem/withdraw the SafeERC20 call-data copy and the revert-message copy; P7) and 1 checked-exp helper (pricePerShare's 10 ** decimals, readable). No semantic error found. P15 counted as the slot-12 reads/writes plus initialize.",
+ "summary": "Faithful on the paths checked, but the share/asset math is unreadable (110 expanded mulDiv, distributed unlock formula), the SafeERC20 and self calls lose their names after the first external call (symbolic free-memory pointer), and a packed slot with four getters stays an unnamed uint256."
+}

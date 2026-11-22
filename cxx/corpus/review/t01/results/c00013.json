@@ -1,0 +1,48 @@
+{
+  "id": "c00013",
+  "abi_functions": 60,
+  "reviewed": 60,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {
+    "while": 2,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 42,
+    "P6": 13,
+    "P7": 22,
+    "P8": 40,
+    "P11": 15
+  },
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "skim, returnFunds, postCollateral, fundLoan, repossess, closeLoan, makePayment (ERC20Helper calls); removeCollateral, drawdownFunds, closeLoan, makePayment (bytes copies)",
+      "lines": "564, 630, 724, 1371, 1597, 2446, 2657, 2893, 3199 ('while idx < 68/100'); 1010, 1426, 1656, 1999, 2071, 2602, 2809, 3132, 3434",
+      "decompiled": "while idx < 100: mem[idx + ceil32(_1) + ceil32(return_data.size) + 260] = mem[idx + ceil32(_1) + ceil32(return_data.size) + ...] / idx = idx + 32  |  while idx < _33: mem[idx + mem[64]] = mem[_30 + idx + 32]",
+      "source": "ERC20Helper._call(token, abi.encodeWithSelector(IERC20.transferFrom.selector, ...)) and the bytes arguments copied into the call buffer by the unoptimized code generator (solc 0.8.7, optimizer off)",
+      "issue": "18 memory-to-memory copies (9 of them of a constant 68 or 100 bytes, the encoded transfer/transferFrom/approve call) stay while loops, so the token calls that follow keep raw-memory arguments (P2) instead of a resolved transfer(...) call.",
+      "rule": "A loop 'mem[d + i] = mem[s + i]' for i from 0 step 32 to a bound n, with no other effect, is the copy 'mem[d len n] = mem[s len n]'; with a constant n the copied words are known and the following call's arguments resolve.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getRefinanceInterest, getNextPaymentBreakdown, acceptNewTerms, makePayment and the other inlined _scaledExponent copies",
+      "lines": "887-902, 1065, 1265, 2230, 2951, 3253",
+      "decompiled": "t = paymentsRemaining / u = ... / while Mask(255, 1, t): if u and u > -1 / u: revert with Panic(17) / if not Mask(1, 1, t): t = t / 2 ...",
+      "source": "MapleLoanInternals._scaledExponent: while ((exponent_ >>= uint256(1)) != uint256(0)) { base_ = base_ * base_ / one_; if (exponent_ & uint256(1) == uint256(1)) ... }",
+      "issue": "The loop test (exponent >> 1) != 0 prints as a mask of bits 1..255, and the odd-bit test as 'Mask(1, 1, t)' of the not-yet-shifted value; the loop is correct but its condition reads as a bit pattern.",
+      "rule": "Mask(255, 1, t) != 0 is t > 1 (t >> 1 != 0) and Mask(1, 1, t) is (t >> 1) % 2; print comparisons and shifts rather than masks when the mask covers a contiguous high or single bit range.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against MapleLoan.sol, MapleLoanInternals, MapleLoanStorage and ERC20Helper (solc 0.8.7, optimizer off). All 60 ABI functions were read, the larger ones (makePayment 637 lines, closeLoan 447, drawdownFunds 274, acceptNewTerms 270, fundLoan, repossess, proposeNewTerms, rejectNewTerms) by structure: access checks with their 'ML:...' messages (71 named reverts), refinance commitment hashing, payment breakdown with the exponentiation, token transfers through ERC20Helper with their success/return checks, storage updates and events. Loops: 2 source loops (acceptNewTerms' delegatecall loop over calls_, _scaledExponent's while) both shown as while (the exponent loop inlined 7 times); implicit: 18 memory copies as while (first finding), bytes[] encodes for proposeNewTerms/rejectNewTerms/acceptNewTerms (P7). 13 'revert with memory from mem[64]' hide messages such as 'ML:ANT:FAILED' (the P2 cause, see c00463). No execution run: no semantic suspicion remained.",
+  "summary": "Faithful on every path read with both source loops present; the unoptimized build leaves 18 memory copies as while loops, which in turn keep the ERC20Helper token calls in raw-memory form, and the exponentiation loop's condition prints as bit masks."
+}

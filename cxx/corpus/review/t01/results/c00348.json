@@ -1,0 +1,25 @@
+{
+  "id": "c00348",
+  "abi_functions": 16,
+  "reviewed": 16,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "sellGem(address,uint256), buyGem(address,uint256), hope, nope and the immutable getters",
+      "lines": "3-8, sellGem and buyGem bodies",
+      "decompiled": "const gemJoin = 0 ... / call 0x0.frob(...) with: args 0, this.address, this.address, this.address, Bytes(64, 0) / call 0x0.exit(address usr, uint256 wad) with: args address(usr), 0 / log SellGem(..., uint256 fee=0)",
+      "source": "psm.sol sellGem: gemAmt18 = mul(gemAmt, to18ConversionFactor); fee = mul(gemAmt18, tin) / WAD; vat.frob(ilk, ..., int256(gemAmt18), int256(gemAmt18)); vat.move(address(this), vow, mul(fee, RAY)); daiJoin.exit(usr, daiAmt)",
+      "issue": "All of gemJoin, vat, vow, daiJoin, ilk, dai and to18ConversionFactor are immutables, 0 before deployment: every call goes to 0x0 and, with the conversion factor 0, gemAmt18, fee and daiAmt fold to 0 (tin and tout are never read).",
+      "rule": "None needed.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loops. Checked against the source: rely/deny with Rely/Deny events, hope/nope forwarding to the vat, file with 'tin'/'tout' and 'DssPsm/file-unrecognized-param', sellGem's join/frob/move/exit sequence and SellGem event, buyGem's transferFrom with 'DssPsm/failed-transfer', join/frob/exit/move and BuyGem event; the order of calls and their arguments match the source under zero immutables.",
+  "summary": "Faithful; the zero immutables (including the decimals conversion factor) reduce every amount to 0, which the text shows consistently."
+}

@@ -1,0 +1,58 @@
+{
+  "id": "c00580",
+  "abi_functions": 61,
+  "reviewed": 61,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 411, "P6": 140, "P7": 21, "P10": 20, "P11": 6, "P14": 12, "P15": 96},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "withdrawAllToVault(), doHardWork() (the inlined _liquidateReward when sell() is false)",
+      "lines": "3770-3773, 8792-8795",
+      "decompiled": "mem[_1321 + ceil32(return_data.size)] = 1 == stor656D / mem[_1321 + ceil32(return_data.size) + 32] = 0 / log ProfitsNotCollected(bool sell, bool floor): mem[mem[64] len _1321 + ceil32(return_data.size) - mem[64] + 64]",
+      "source": "AaveFoldStrategy.sol:261-264 if (!sell()) { emit ProfitsNotCollected(sell(), false); return; }",
+      "issue": "The event's two data words are written just before the log, but the log reads them as a raw memory range from mem[64] whose length still contains mem[64], so the reader cannot see 'ProfitsNotCollected(sell(), false)'. This is the P2 cause (mem[64] = _1321 + ceil32(return_data.size) was written a few lines above) applied to a log instead of a call.",
+      "rule": "Fold mem[64] to the last value stored to it on every path (here _1321 + ceil32(return_data.size)); then a log of mem[p len 64] whose words were just stored prints its arguments.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "isRewardToken(address), rewardTokens()",
+      "lines": "504-524, 534-544",
+      "decompiled": "while s < _9: ... if s >= stor4541: revert with Panic(50) ... _9 = stor4541 / s = 0 / while True: if s >= stor4541: _20 = 0; break / if mem[32 * s + 172 len 20] != _token: s = s + 1; continue / _20 = 1; break",
+      "source": "BaseUpgradeableStrategyStorage.sol:119-124 for (uint i = 0; i < _list.length; i++) if (_list[i] == _searchValue) return true; return false; :282-284 for (...) values[i] = getAddress(bytes32(uint(slot) + 1 + i));",
+      "issue": "Both loops are found, but the search loop prints as 'while True' with its exit test first, the copy loop keeps a bounds check its own condition implies and re-reads stor4541 into _9 each turn, and the element reads as mem[32 * s + 172 len 20].",
+      "rule": "'while True: if c: S_exit' is 'while not c:' followed by S_exit; drop 'if i >= n: revert' inside a loop guarded by i < n (n unchanged in the body); x[p + 12 len 20] of a word is address(mem[p]).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "universalLiquidator(), scheduleUpgrade(address), _fallback",
+      "lines": "348-349, 448, 132-133",
+      "decompiled": "require ext_call.return_data[0] == ext_call.return_data[12 len 20] / return Bytes(12, 0), ext_call.return_data[12 len 20]  |  require calldata.size < 4 / require not calldata.size",
+      "source": "BaseUpgradeableStrategy.universalLiquidator() returns (address); receive() external payable {}",
+      "issue": "An address return prints as a 12-byte zero piece and a 20-byte slice, and the receive path keeps 'calldata.size < 4' before 'calldata.size == 0', which implies it.",
+      "rule": "concat(Bytes(12, 0), x[12 len 20]) of a word is address(x); a require implied by the next require (x == 0 implies x < 4) is dropped.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize(), initialize(address), initialize(address,...), initializeStrategy, unknown4ed65416 (OpenZeppelin initializer)",
+      "lines": "176-188, 456-493",
+      "decompiled": "_1 = stor0 / 256 or not uint8(stor0) / if stor0 / 256: _4 = 0 else: _2 = stor0 / 256; stor0 = 257; _4 = not _2 / ... uint8(stor0.field_8) = 0",
+      "source": "Initializable.initializer: require(_initializing || !_initialized); if (isTopLevelCall) { _initializing = true; _initialized = true; } _; if (isTopLevelCall) _initializing = false;",
+      "issue": "The two packed bools of slot 0 are one uint16 stor0 read as stor0 / 256 and uint8(stor0) and written as 257 and as stor0.field_8 (P15); in the else arm _2 = stor0 / 256 is known to be 0, so _4 is just 1.",
+      "rule": "Split a slot into the fields its accesses use (bytes 0 and 1 here); in the arm where 'if x' failed, x is 0, so 'not x' folds to 1 and the if/else becomes '_4 = not (stor0 / 256)'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 61 ABI functions reviewed: the getters, setters, governance checks, scheduleUpgrade/finalizeUpgrade, initialize*, receiveFlashLoan read and matched; emergencyExit (774 lines), withdrawAllToVault (2403), withdrawToVault (2623) and doHardWork (3002) reviewed by structure (loops, calls, events, storage writes). Loops: getAddressArray (isRewardToken, rewardTokens), _isAddressInList, _liquidateReward's reward-token loop ('while s < rewardTokens.length'), _depositNoFlash ('while w < s') and _redeemNoFlash ('while u > 0' with newBorrowTarget folded to 0 in emergencyExit/withdrawAllToVault, 'while v > s' elsewhere) are all whiles, with inlined copies. The 21 'while idx < _N: mem[t] = Bytes(12, 0), mem[s + 12 len 20]' / 'mem[s] = mem[t]' blocks are the ABI encoding of address[]/uint256[] memory arrays (P7); receiveFlashLoan's 'while idx < _param1 + 32 * _param1.length + 36' is the validated ABI decode of IERC20[] (implicit, readable). P2 also hides most Aave pool calls inside the loops (POOL(), withdraw, repay as raw memory); P6 is mostly Error(string) (127) plus 0x03140ff4/0x06974e8d selectors and one storage slot of def storage. receiveFlashLoan reads amounts[0]/feeAmounts[0] as memory slices of their calldata copies (P14). Event names of the ABI (ProfitLogInReward, PlatformFeeLogInReward, StrategistFeeLogInReward) are not in the signature database (normal).",
+  "summary": "Faithful and its loops are all found; readability suffers mainly from P2 (411 lines, including an event whose data is raw memory), the ABI-encoding loops left as whiles, and Initializable's packed slot handled as one uint16."
+}

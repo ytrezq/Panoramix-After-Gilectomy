@@ -1,0 +1,71 @@
+{
+  "id": "c00366",
+  "abi_functions": 16,
+  "reviewed": 16,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 1,
+    "P8": 30,
+    "P9": 4,
+    "P11": 8,
+    "P12": 32,
+    "P14": 10
+  },
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "calculateInterestRates(...), getVariableRateSlope1(), getBaseStableBorrowRate(), getMaxVariableBorrowRate(), the immutable getters",
+      "lines": "1-14, 198-298",
+      "decompiled": "const OPTIMAL_USAGE_RATIO = 0 ... const getVariableRateSlope2 = 0 ... static call 0x0.decimals() ... require mem[512] <= 0 ... if SafeMath.mul(mem[ceil32(_1) + 128], _16) <′ 0 and SafeMath.mul(mem[ceil32(_1) + 128], _16) >=′ 0: revert with Panic(17)",
+      "source": "VariableBorrowInterestRateStrategy.sol:39-54 and RateTargetKinkInterestRateStrategy.sol:17-20 immutables; rayDiv(MAX_EXCESS_USAGE_RATIO), rayDiv(OPTIMAL_USAGE_RATIO)",
+      "issue": "solc immutables read as 0: RATE_SOURCE calls go to 0x0, base rate/slope2/spread getters are const 0, both rate branches divide by a zero ratio so calculateInterestRates always reverts, and the int256 add of the zero spread leaves a contradictory overflow test.",
+      "rule": "Not a decompiler error (pre-deployment bytecode).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "semantics",
+      "severity": "medium",
+      "function": "calculateInterestRates((uint256,uint256,uint256,uint256,uint256,uint256,uint256,address,address))",
+      "lines": "251-257, 277-278, 285-289",
+      "decompiled": "_13 = mem[64]\nmem[64] = ceil32(return_data.size) + mem[64]\nrequire mem[_13] == mem[_13 + 31 len 1] ...\nmem[_13 + ceil32(return_data.size)] = 0xc89d5b8b...\nstatic call 0x0 with:\n       args mem[mem[64] len _13 + ceil32(return_data.size) - mem[64] + 4]",
+      "source": "RateTargetKinkInterestRateStrategy.sol:55 RATE_SOURCE.getAPR() * 10 ** (27 - RATE_SOURCE.decimals())",
+      "issue": "After the 'if _param5' join the free-memory pointer is unknown, so the decimals() result is read as memory slices and getAPR() loses its name and arguments in the exponent-zero arm (P2), while the other arm (277) prints the same call as 'static call 0x0.getAPR()'. The selector address and the argument start are one value printed as _13 + ceil32(return_data.size) and as mem[64].",
+      "rule": "Same root cause as c00463: bound the free-memory word so stores at mem[64] + k cannot alias slot 64; then mem[64] = ceil32(rds) + _13 forwards to the later reads, the call decodes as getAPR() and the reads as ext_call.return_data[0].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getVariableRateSlope1(), getBaseStableBorrowRate(), getMaxVariableBorrowRate(), calculateInterestRates(...)",
+      "lines": "42-81, 97-136, 152-191, 255-294",
+      "decompiled": "if -uint8(ext_call.return_data[0]) + 27 > 255: revert with Panic(17)\nif uint8(-uint8(ext_call.return_data[0]) + 27):\n    if uint8(...) >= 78 and uint8(...) >= 32:\n        s = 10 ... while u > 1: ...\n    else: _11 = 10**uint8(...)\n    [getAPR call] _16 = _11\nelse:\n    [same getAPR call] _16 = 1",
+      "source": "RateTargetKinkInterestRateStrategy.sol:55 10 ** (27 - RATE_SOURCE.decimals())",
+      "issue": "The checked-exponentiation helper's square-and-multiply loop is printed though the exponent 27 - d is at most 27 after the underflow check, so 'x >= 78' is never true (and 'x >= 32' is implied); the exponent-zero arm duplicates the whole getAPR call only to set 1 = 10**0 (P12).",
+      "rule": "Keep intervals from checks: after 'c - y > 255: revert' with y <= 255, c - y is in [0, c]; fold x >= 78 to false and drop implied conjuncts; fold 'x == 0 ? 1 : 10**x' to 10**x, then merge the identical tails of the two arms.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getVariableRateSlope1(), getBaseStableBorrowRate(), getMaxVariableBorrowRate(), calculateInterestRates(...)",
+      "lines": "82-85, 137-140, 192-195, 295-298",
+      "decompiled": "require _17 - ceil32(_1) - 128 >=′ 32\nif SafeMath.mul(mem[ceil32(_1) + 128], _16) <′ 0 and SafeMath.mul(mem[ceil32(_1) + 128], _16) >=′ 0: revert ...\n(calculateInterestRates) if _28 == _28 * mem[mem[64]] / mem[mem[64]] or not mem[mem[64]]:\n    require _28 * mem[mem[64]] <′ 0 and _28 * mem[mem[64]] >=′ 0\nrevert with Panic(17)",
+      "source": "RateTargetKinkInterestRateStrategy.sol:55-56 int256(...) + _variableRateSlope1Spread - int256(_baseVariableBorrowRate); VariableBorrowInterestRateStrategy.sol:193-194",
+      "issue": "A comparison and its negation are not folded to false, so a never-taken Panic test is printed, and in calculateInterestRates 'require <false>' plus a final 'revert with Panic(17)' that is the shared else of three nested tests stand for 'revert()' and the overflow panics. The returndata bound (rds + A) - A >= 32 is not reduced to return_data.size >= 32, and the getAPR word is read from mem[ceil32(_1) + 128] instead of ext_call.return_data[0].",
+      "rule": "Fold 'a <′ 0 and a >=′ 0' (a test and its negation) to false; cancel (r + A) - A; read a memory word copied from return data after the size check as ext_call.return_data[k]; print a failing branch with its own revert rather than inverting tests to fall into a shared one.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loops in the source; the four while blocks are solc's checked-exponentiation helper (implicit, dead here, see finding). getBaseStableBorrowRate, getMaxVariableBorrowRate and getVariableRateSlope1 print the same text (base and slope2 are immutable 0, so the checked adds vanish). calculateInterestRates: the params struct and the CalcInterestRatesLocalVars fields live at mem[128..576] (P14) with many dead stores (P8); availableLiquidityPlusDebt (_param2 - _param3 + _param5 + ext_call.return_data[0]) is recomputed 9 times and plus unbacked 4 times instead of being named; rayDiv inlined as require + (RAY * a + b / 2) / b (P9, readable); 10**27 prints as 1000000000 * 10**18. Call order decimals() before getAPR() is solc's right-operand-first evaluation - faithful. RATE_SOURCE, getVariableRateSlope1Spread and calculateInterestRates are unknown to the signature database.",
+  "summary": "Small contract whose text is dominated by immutables read as 0 (calculateInterestRates always reverts); the rest is faithful but noisy: a dead exponentiation loop and duplicated call arms, unfolded contradictions, and one getAPR() call lost to the unknown free-memory pointer."
+}

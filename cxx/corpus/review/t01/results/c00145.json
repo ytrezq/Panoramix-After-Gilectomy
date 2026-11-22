@@ -1,0 +1,25 @@
+{
+  "id": "c00145",
+  "abi_functions": 64,
+  "reviewed": 64,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 1, "P6": 2, "P9": 48, "P11": 17},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "previewRedeem, convertToAssets, previewMint, maxWithdraw, mint, redeem, previewDeposit, convertToShares, previewWithdraw, deposit, withdraw and the permit variants (every caller of _computeUpdatedAssets; 48 lines over 1000 characters)",
+      "lines": "e.g. 1717-1747 (previewRedeem)",
+      "decompiled": "if block.timestamp - lastUpdate - 1 != (-block.timestamp + block.timestamp * block.timestamp - 2 * block.timestamp * lastUpdate + lastUpdate * lastUpdate + lastUpdate) / (block.timestamp - lastUpdate) and ...   |   _26 = (-1 * block.timestamp * _3 * ((SafeMath.mul2(...) + 500000000 * 10**18) / (1000000000 * 10**18)) + _3 * (...) * lastUpdate + block.timestamp * block.timestamp * _3 * (...) - 2 * block.timestamp * _3 * (...) * lastUpdate + ...) / (...)",
+      "source": "Savings.sol:150-159 expMinusOne = exp - 1; expMinusTwo = exp > 2 ? exp - 2 : 0; basePowerTwo = (r * r + HALF_BASE_27) / BASE_27; basePowerThree = ...; secondTerm = (exp * expMinusOne * basePowerTwo) / 2; thirdTerm = (exp * expMinusOne * expMinusTwo * basePowerThree) / 6; return (currentBalance * (BASE_27 + r * exp + secondTerm + thirdTerm)) / BASE_27;",
+      "issue": "The products of differences exp * expMinusOne (exp = block.timestamp - lastUpdate) are distributed into five-term polynomials in block.timestamp and lastUpdate, and basePowerTwo/basePowerThree are re-inlined in every term, so a 10-line compounding formula becomes about 30 lines of 1,000 to 4,000 characters; BASE_27 and HALF_BASE_27 print as 1000000000 * 10**18 and 500000000 * 10**18.",
+      "rule": "Do not distribute a multiplication over a sum or difference when the factors are subexpressions already bound (or used more than once): keep (a - b) * (a - b - 1) factored and bind a repeated subexpression to a temporary; fold constant products to one power of ten (10**27, 5 * 10**26).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No loop in the source or in what it reaches. The 17 whiles are all the checked exponentiation helper of 10 ** asset.decimals() (one per conversion path; its guard 'd >= 78 and d >= 32' keeps an implied second test, P11). The ERC4626 functions were reviewed together (they share the same _computeUpdatedAssets / _convertToAssets / mulDiv code), the permit variants (unknownb394c8a4, unknown42e88319, unknown430ff897), initialize, withdraw and the small getters by reading; all faithful, including the checked-arithmetic tests (x != x * y / y forms) of the source's multiplications, which are kept but distributed like the values.",
+  "summary": "Faithful text without source loops; the checked compounding formula is distributed into multi-kilobyte polynomials in every ERC4626 path, which is its main readability problem."
+}

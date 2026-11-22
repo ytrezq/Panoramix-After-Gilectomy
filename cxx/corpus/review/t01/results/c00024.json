@@ -1,0 +1,69 @@
+{
+  "id": "c00024",
+  "abi_functions": 103,
+  "reviewed": 103,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {"while": 7, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 13, "P2": 1, "P6": 1, "P8": 10, "P9": 40, "P11": 40},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "clearBadDebt(address), repayAtMaturity (unknown3c6f317f), withdrawAtMaturity(...), liquidate(address,uint256,address) and the other users of FixedLib.clearMaturity",
+      "lines": "2866-2874, 3308-3316, 5337-5345, 6558, 6872, 7105; 6656-6661 with 7127",
+      "decompiled": "_152 = not uint1(stor210[_param1].field_289) and bool(stor210[_param1].field_289) / w = 1 / x = stor210[_param1].field_289 / while _152: _152 = not Mask(1, 1, x) / 2 and bool(x / 2); w = w + 1; x = x / 2   and   _1092 = stor210[_param1].field_288 and bool(ext_call.return_data[0]) / while _1092: ... _1092 = Mask(255, 1, t) and bool(_2128); ... t = t / 2",
+      "source": "FixedLib.sol:187 while ((packed & 1) == 0 && packed != 0) { ++range; packed >>= 1; }  Market.sol:547 while (packedMaturities != 0 && maxAssets != 0) { ... packedMaturities >>= 1; }",
+      "issue": "Loops whose condition is a conjunction print as 'while flag:' with the flag computed before the loop and recomputed in the body from the value the variable will take next (x / 2, Mask(255, 1, t)), so the condition is unreadable; single-test loops of the same contract print well ('while t:').",
+      "rule": "If the only use of a variable c is the loop condition, and the body ends with c = f(e) followed by x = e (e not reading c), with c = f(x0) before the loop, then c == f(x) at every test: print 'while f(x):' and drop c. Mask(n, 1, x) / 2 == Mask(n, 0, x / 2) and Mask(255, 1, t) != 0 iff t / 2 != 0 make f(e) visibly f applied to e.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "previewDebt(address), accountSnapshot(address), lock(address), liquidate, clearBadDebt, withdrawAtMaturity ...",
+      "lines": "1234-1235, 1691-1692, 2868-2870, 5340, 6081",
+      "decompiled": "s = uint32(stor210[_param1].field_256) / t = stor210[_param1].field_288 / x = stor210[_param1].field_289 / t = stor210[_owner].field_32",
+      "source": "Market.sol:783-785 packedMaturities = account.fixedBorrows; maturity = packedMaturities & ((1 << 32) - 1); packedMaturities = packedMaturities >> 32",
+      "issue": "Shifts of a whole-slot member (fixedBorrows at field_256, fixedDeposits at field_0) print as fields field_288, field_289, field_32, field_33 that the struct does not have (20 lines).",
+      "rule": "Print a right shift of a member wider than the remaining bits as 'member >> k' (stor210[a].field_256 >> 32); use field_N only when the extracted bits match a member's offset and width.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setMaxSupply and every onlyRole function (Strings.toHexString in the AccessControl revert)",
+      "lines": "385-398 and 26 'if idx >= N' lines",
+      "decompiled": "idx = 41 / while idx > 1: if idx >= 42: revert with Panic(50) / mem[idx + 160 len 1] = byte(s % 16, 0x3031...) ...",
+      "source": "OpenZeppelin Strings.toHexString: for (uint256 i = 2 * length + 1; i > 1; --i) buffer[i] = _HEX_SYMBOLS[value & 0xf]",
+      "issue": "The bounds check inside the hex loop can never fire: idx starts at 41 (65) and only decreases (P11). The rest of the revert is well recovered (the '0x' prefix folded into the string).",
+      "rule": "A loop counter with initial value c0 and only decrements, under 'idx > 1', stays in [2, c0]; drop a check idx >= c with c > c0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "clearBadDebt, repayAtMaturity, withdrawAtMaturity, liquidate",
+      "lines": "2874, 3316, 5345",
+      "decompiled": "_167 = SafeMath.add(s, SafeMath.mul2(w, 28 * 24 * 3600)) | 4294967296 * (stor210[_param1].field_256 >> SafeMath.add(32, w))",
+      "source": "FixedLib.sol:193-194 encoded = ((encoded >> (32 + range)) << 32); return (maturity + (range * INTERVAL)) | encoded",
+      "issue": "A left shift by 32 prints as a multiplication by 4294967296.",
+      "rule": "x * 2**k with k >= 8 whose result is used in bitwise operations (|, &) prints as x << k.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "initialize(...), initialize2(uint256), and the other functions delegating to the extension; liquidate's auditor calls",
+      "lines": "290-305, 343, 803, 6644",
+      "decompiled": "delegate 0x0 with: args call.data[0 len calldata.size] / static call 0x0.unknown216e7b58(?)",
+      "source": "Market.sol:949 address(extension).delegatecall(msg.data); auditor immutable",
+      "issue": "solc immutables (extension, auditor) read as 0.",
+      "rule": "none (pre-deployment bytecode)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Long functions (liquidate ~1,100 lines, borrowAtMaturity, lock ~760) reviewed by structure. Source loops (7), all whiles: OZ Strings.toHexString for (in every onlyRole revert, 'while idx > 1', ~20 copies), MarketBase.totalAssets for (1020 and ~45 inlined copies, condition readable with 28 * 24 * 3600), Market.previewDebt while (1237, 1693), Market.clearBadDebt while (2813), FixedLib.clearMaturity while (flag form, 6 copies), Market.liquidate while (flag form, 6661), VerifiedMarket.lock while (6083). Custom errors and FixedEarningsUpdate print as raw selectors/topics because the signature database lacks them (not a finding). P9: unchecked or checked products are distributed inside overflow checks ('(block.timestamp * penaltyRate - s * penaltyRate) / SafeMath.sub(block.timestamp, s)', mulDivUp as '(xy - 1) / d * bool(xy) + bool(xy)'). P8: the delegatecall functions keep the dead copy of calldata to memory. The pack's reach list includes Auditor and RewardsController functions that are external calls, not code of this bytecode; their loops are not counted.",
+  "summary": "Good quality: all seven source loops are whiles and storage, events and errors match; the main defects are conjunction loop conditions printed as precomputed flags, field names invented for shifted members, and distributed multiplications in overflow checks."
+}

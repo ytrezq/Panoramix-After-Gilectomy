@@ -1,0 +1,25 @@
+{
+  "id": "c00317",
+  "abi_functions": 14,
+  "reviewed": 14,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 4, "P3": 2, "P6": 6, "P7": 8, "P8": 40},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "sendFunds-type functions 0xf8aab2e6 and 0x1f35fedb",
+      "lines": "341-403, 622-685",
+      "decompiled": "mem[mem[64]] = _41 + _42 - mem[64] + 16 / mem[64] = _41 + _42 + 48 / if not _23: mem[_41 + _42 + 48] = 0x8c379a0...; ... revert with memory from mem[64] len _41 + _42 + ceil32(_47) - mem[64] + 116 ... / mem[_41 + _42 + 48] = 0xa9059cbb... / call stor3 with: args mem[mem[64] len _41 + _42 - mem[64] + 116] ... / log 0x2747583c...: mem[mem[64] len _54 + ceil32(return_data.size) - mem[64] + 32]",
+      "source": "AuthenticatedFaucet.sol: require(..., string(abi.encodePacked(\"Invalid request: \", ...))); require(block.timestamp - lastClaimed > 1 days, \"Cooldown\"); IERC20(token).transfer(to, amount); emit ...",
+      "issue": "After the string concatenation moves the free-memory pointer to _41 + _42 + 48, the ERC-20 transfer call (P2), the 'Cooldown' Error(string) revert, the dynamic-message revert and the final event are all raw memory, although mem[64] was just assigned _41 + _42 + 48 and every later store is at that address or above.",
+      "rule": "Forward 'mem[64] = X' into later reads of mem[64] once mem[64] >= 128 is proven (it only grows from 128), so stores at X + k do not alias slot 64; then decode transfer(_param1, stor9), the Error(string) reverts and the event data.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 14 ABI functions compared, the two claim functions (208 and 281 lines) in full by structure. No semantic error found: the ETH payout is 'call _param1 with value stor8, gas 2300 * (not stor8)', which is exactly payable(...).transfer's stipend rule; the cooldown uses 24 * 3600; Math.log10 is an unrolled if-chain as in the source. Loops: the only source loop, Strings.toString's 'while (true) { ptr--; ...; if (value == 0) break; }', appears in both claim functions as a readable but rotated while (first digit written before the loop, then 'while t / 10', P3). The other 8 whiles are implicit bytes/string copies of abi.encodePacked and of the dynamic revert message (P7).",
+  "summary": "Faithful small contract; the two claim functions lose the token transfer, reverts and event to the unresolved free-memory pointer after a string concatenation."
+}

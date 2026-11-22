@@ -1,0 +1,13 @@
+{
+  "id": "c00274",
+  "abi_functions": 18,
+  "reviewed": 18,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P3": 1, "P6": 4, "P7": 15},
+  "findings": [],
+  "notes": "solc 0.7.6. All 18 functions reviewed (permit* and transfer* wrappers forward to Beanstalk/tokens; pipe, etherPipe, readPipe, multiPipe, advancedPipe call the Pipeline contract; farm delegatecalls itself). The only source loop, farm's for over data, is 'while idx < cd[_param1 + 4]' (476), with OZ-style revert-reason bubbling. Implicit loops (25): farm's rotated zero-init of new bytes[](n) ('while idx - 1', P3), 15 memory-to-memory copies left as loops (P7: bytes arguments and results of the pipe calls), ABI encodings of the PipeCall[]/AdvancedPipeCall[] arguments, decodes of bytes[] results and of int96[]/address[] calldata. The Pipeline's own loops are in another contract. No new problem.",
+  "summary": "A faithful text whose single source loop (farm) is a clear while; the rest of its 26 whiles are the compiler's encoding and copy loops (15 of them unconverted memory copies)."
+}

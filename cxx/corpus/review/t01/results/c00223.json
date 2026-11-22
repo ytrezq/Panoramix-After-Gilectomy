@@ -1,0 +1,36 @@
+{
+  "id": "c00223",
+  "abi_functions": 15,
+  "reviewed": 15,
+  "not_reviewed": [],
+  "source_loops": 6,
+  "loops_shown": {"while": 6, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 8, "P3": 3, "P6": 41, "P7": 18, "P8": 20, "P16": 60},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "freePreSignatureStorage(bytes[]), freeFilledAmountStorage(bytes[]), settle, setPreSignature, invalidateOrder, preSignature(bytes), filledAmount(bytes)",
+      "lines": "118-122, 141-145; 1178-1190 (settle)",
+      "decompiled": "_4 = mem[64] / mem[mem[64] len cd[...]] = call.data[orderUids + cd[32 * idx + orderUids + 36] + 68 len ...] / mem[cd[...] + mem[64]] = 0 / mem[_4 + cd[...]] = 2 / stor[sha3(mem[mem[64] len _4 + cd[...] - mem[64] + 32])] = 0",
+      "source": "mapping(bytes => uint256) public preSignature (slot 0); mapping(bytes => uint256) public filledAmount (slot 2); freeOrderStorage: delete orderUidMapping[orderUid]; computeTradeExecution: filledAmount[orderUid] = filledAmount[orderUid].add(...)",
+      "issue": "Mappings keyed by bytes are never recognised: the key bytes and the slot word (0 or 2) are written at the free-memory pointer and the access prints as stor[sha3(mem[...])] (13 lines), after a copy loop (settle) and a dead zero store (P8); the text never says preSignature or filledAmount.",
+      "rule": "A sha3 over (bytes b of length n, followed by the 32-byte constant s) is the slot of mapping(bytes => ...) at slot s with key b: print stor_s[b] (keccak taken as collision-free).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "settle, swap (tuple-array parameters: trades, interactions, swaps)",
+      "lines": "e.g. 737, 1384, 1542 ('while idx < cd[interactions + cd[interactions + 36] + 4]')",
+      "decompiled": "while idx < cd[interactions + cd[interactions + 68] + 4]: ...",
+      "source": "executeInteractions(interactions[0]) / [1] / [2]: for (uint256 i; i < interactions.length; i++) { ... }",
+      "issue": "The three interaction phases loop over interactions[k].length printed as raw nested calldata offsets (P16); the trade and swap tuples likewise.",
+      "rule": "Print cd[a + 4 + cd[a + 4 + 32 k]] of a calldata array-of-arrays parameter a as a[k].length (and its elements by name).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops (6): getStorageAt's for (91), computeTradeExecutions' for (833), executeInteractions' for (737, 1384, 1542: the three phases), freeOrderStorage's for (111, 137), transferFromAccounts' and transferToAccounts' fors (in settle and swap). The other ~20 whiles are implicit: the uid copies that build bytes mapping keys, calldata-to-memory copies of interaction call data ('while s >= 32', 'while idx >= 32'), new BalanceTransfer[] initialisation ('while idx - 1', P3), and ABI encodings for the vault calls (P7). settle (908 pack lines) and swap (523) reviewed by structure (loops, calls, events, writes); the rest line by line.",
+  "summary": "Faithful with all six source loops present; the bytes-keyed mappings preSignature and filledAmount are never shown as mappings, and the nested tuple parameters stay raw calldata arithmetic."
+}

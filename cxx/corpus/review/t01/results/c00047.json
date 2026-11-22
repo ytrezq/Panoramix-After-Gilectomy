@@ -1,0 +1,58 @@
+{
+  "id": "c00047",
+  "abi_functions": 43,
+  "reviewed": 43,
+  "not_reviewed": [],
+  "source_loops": 11,
+  "loops_shown": {"while": 11, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 121, "P3": 31, "P6": 35, "P7": 52, "P8": 271, "P10": 26, "P11": 51},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "every wrap*/unwrap* function, gaugeDeposit, gaugeWithdraw, joinPool, exitPool, batchSwap, swap, manageUserBalance (62 sites)",
+      "lines": "1094-1098 (unwrapERC4626); 6448-6458 (joinPool); 7062-7065, 7091-7094 (exitPool)",
+      "decompiled": "mem[_76 + ceil32(return_data.size) + 32] = uint240(outputReference) / mem[_76 + ceil32(return_data.size) + 64] = 0 / mem[mem[64]] = _76 + ceil32(return_data.size) - mem[64] + 64 / stor[sha3(mem[mem[64] + 32 len mem[mem[64]]]) - 1] = _77",
+      "source": "BaseRelayerLibraryCommon.sol:141-150 _setChainedReferenceValue -> :194 keccak256(abi.encodePacked(_removeReferencePrefix(ref), _TEMP_STORAGE_SUFFIX)) - 1",
+      "issue": "Just after 'mem[64] = ceil32(return_data.size) + _76', the length word is printed as '_76 + ceil32(return_data.size) - mem[64] + 64' and the hash input as 'mem[mem[64] + 32 len mem[mem[64]]]', so 62 chained-reference writes and reads are raw 'stor[sha3(mem[...]) - 1]', while 87 others (e.g. gaugeMint, peekChainedReferenceValue) print as stor0[uint240(ref)].field_-256. The same root makes 'assert 0 < mem[_9]' stay after 'mem[mem[64]] = 1' (51 lines) and keeps the vault calls P2.",
+      "rule": "Forward the last store to mem[64] (mem[64] = e) to later reads of mem[64] when the stores in between are at addresses that cannot be 64..95: a free-memory-pointer lower bound (every value stored to mem[64] is >= 0x80, set by the dispatcher's mem[64] = 128 and only increased) proves 'e + k' (k >= 0) never aliases it; then mem[e + 32 len 64] is the two words just written.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "the 30 functions that inline _pullToken / _checkpointGaugesViaUserBalance (wrap*, unwrap*, gaugeDeposit, gaugeWithdraw, gaugeCheckpoint)",
+      "lines": "1017-1040 (unwrapERC4626), 162-185 (gaugeCheckpoint)",
+      "decompiled": "if _15: _29 = mem[64] / mem[64] = mem[64] + 160 / mem[_29] = 0 ... mem[_18 + 32] = _29 / s = _18 + 32 / idx = _15 / while idx - 1: _29 = mem[64] / ... (the same 7 lines) / idx = idx - 1",
+      "source": "BaseRelayerLibraryCommon.sol:102 IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](tokens.length) (solc allocates one zeroed struct per element)",
+      "issue": "The compiler's zero-initialisation loop of a memory array of structs is rotated: its first iteration is printed before the loop and the test is 'while idx - 1' on a down-counter (P3); the zeroed structs are then all replaced by the source loop (dead stores, P8). The arrays built with new IERC20[](1) also show 'mem[_9 + 32] = cd[calldata.size]' for the zero element.",
+      "rule": "Recognise the do-while 'body; idx = idx - 1; if idx: repeat' guarded by 'if n' as 'idx = n; while idx: body; idx = idx - 1' without peeling; cd[calldata.size] (a read at or past the end of calldata) folds to 0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setRelayerApproval and the SafeERC20 approve/transfer calls of the wrappers",
+      "lines": "119-122, and 41 lines like 'mem[_171 + 32 len 4] = 2835717307'",
+      "decompiled": "mem[176 len 16] = uint128(caller >> 32) / mem[164 len 12] = 0 / mem[160 len 4] = 4201539357 / mem[292 len 100] = Bytes(16, 0xfa6e671d000000000000000000000000), Bytes(20, caller), relayer, approved",
+      "source": "VaultActions/BaseRelayerLibrary: abi.encodeWithSelector(_vault.setRelayerApproval.selector, msg.sender, relayer, approved); SafeERC20.safeApprove",
+      "issue": "Selectors stored with 'len 4' are printed in decimal (4201539357 = 0xfa6e671d), and the abi.encodeWithSelector buffer is written as three overlapping slices that are then re-read as one 100-byte copy.",
+      "rule": "Print a 4-byte value stored with 'len 4' as hex (or as the known function name); merge adjacent byte-slice stores into one buffer before printing.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "getVault, getEntrypoint, canCallUserCheckpoint, gaugeCheckpoint, gaugeMint, gaugeSetMinterApproval, vaultPermit, all vault calls; chained-reference slots",
+      "lines": "3-5, 26-27, 39-41, 93-94, 135, 153-213",
+      "decompiled": "const getVault = 0 / call 0x0.mintManyFor(...) / call token.permit(owner, 0, ...) / stor0[uint240(ref)].field_-256",
+      "source": "immutables _vault, _entrypoint, _balancerMinter, _canCallUserCheckpoint, _TEMP_STORAGE_SUFFIX",
+      "issue": "solc immutables read as 0: the vault and minter are address 0, the permit spender is 0, _canCallUserCheckpoint is false so gaugeCheckpoint keeps only the user-balance branch (the _checkpointGaugesViaUserCheckpoint loop is dead, not counted), and the chained-reference suffix 0 makes the slots look like a mapping at slot 0 (member at -256 bits).",
+      "rule": "None (input artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 43 functions reviewed (the 30 wrap/unwrap functions share one shape: _resolveAmountPullTokenAndApproveSpender / _pullToken, the wrapper call, _setChainedReferenceValue; reviewed in full for unwrapERC4626, wrapERC4626 and wrapStETH, the others by structure and by the call/selector sequence). The 11 source loops are readable whiles: _pullTokens (inlined 30 times), gaugeClaimRewards, _checkpointGaugesViaUserBalance, batchSwap's swaps and outputReferences loops, manageUserBalance's ops and outputReferences loops, _replacedAmounts (joinPool), exitPool's three outputReferences loops (the last one rotated: index 0 printed in both arms of toInternalBalance, then 'while idx + 1 < outputReferences.length', P3). The 133 other whiles are implicit: 52 memory copies left as loops (P7: bytes copies for Address.functionCall, uint256[]/address[] re-encodings), 30 rotated struct-array zero-initialisations (P3), 30 + 8 ABI encode/decode loops of UserBalanceOp[]/SwapStep[]/assets (readable), and the gaugeMint calldata-to-memory address copy. joinPool merges the WEIGHTED and STABLE replacement paths, which compile to the same code (exact). peekChainedReferenceValue's parameter is typed uint240 from its use, though the ABI parameter is uint256 and is masked, not checked.",
+  "summary": "Faithful and its loops are all present and readable, but chained-reference slots, call buffers and array bounds are obscured by the free-memory-pointer aliasing problem (raw stor[sha3(mem[...]) - 1], 121 raw-memory calls, dominated asserts kept) and by 52 copy loops and 30 rotated zero-initialisation loops."
+}

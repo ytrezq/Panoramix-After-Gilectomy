@@ -1,0 +1,13 @@
+{
+  "id": "c00399",
+  "abi_functions": 6,
+  "reviewed": 6,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [],
+  "notes": "Library Flags with six public uint256 constants (UNWRAP_ETH = 0 ... MULTI_SEND = 5); each getter returns its constant. The names are unknownXXXXXXXX because the signature database lacks them. `payable` is right: the bytecode has no CALLVALUE check (library dispatcher); the PUSH20 0 / ADDRESS / EQ library-address guard at the start is only consulted by state-changing functions, of which there are none. getFlag/setFlag are internal and not in the runtime code.",
+  "summary": "Trivial constant library; the text is exact."
+}

@@ -1,0 +1,58 @@
+{
+  "id": "c00125",
+  "abi_functions": 59,
+  "reviewed": 59,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 1, "P11": 12, "P12": 1, "P15": 5},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "def storage; unknown456ffee0() (reinitializer v2)",
+      "lines": "56-57; 324-331",
+      "decompiled": "storB636_224 is uint32 at storage 0xb636dda9...8f89 offset 224 / storB636 is address at storage 0xb636dda9...8f8a  |  if not storB636_224: revert 'Deposit not revealed' / if storB636: revert 'Vault already set' / if stor[0xb636...8f8a].field_224: revert 'Deposit already swept' / storB636 = 0x9c07...",
+      "source": "a reinitializer that sets self.deposits[depositKey].vault for the constant depositKey 0xf3bc9cd6...c98a (logged as the indexed topic)",
+      "issue": "Slots 0xb636...8f89/8f8a are deposits[0xf3bc...c98a] (keccak(key, 70), checked with a local keccak) and its second slot, but they are printed as two unrelated top-level variables and a raw stor[...], hiding that the function edits one deposit's revealedAt/vault/sweptAt.",
+      "rule": "When a constant slot equals keccak(c . N) (+ k) for a constant c that appears in the function (here the log topic) and a known mapping slot N, print it as the mapping access N[c] (field k), and do not declare it in def storage.",
+      "verified": "keccak256(0xf3bc...c98a . 70) = 0xb636dda92bdd502dfc8401d40f340c6d76adacd527bf2418d928853396898f89 (python keccak)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "def storage, liveWalletsCount(), activeWalletPubKeyHash(), initialize",
+      "lines": "43; 81-82; 120-121; 819, 831, 832",
+      "decompiled": "def liveWalletsCount(): return uint32(stor[68].field_160)  |  def activeWalletPubKeyHash(): return stor[68] << 96  |  stor[63] = 0xf424000000000000186a000000000000007d000000000000f4240 / stor[66] = 0x6c81c71c726f1c71c71c78e38e38e3f0e8a16f510000000000a8 * 3600",
+      "source": "BridgeState.Storage slot +17: bytes20 activeWalletPubKeyHash, uint32 liveWalletsCount, uint64 walletMaxBtcTransfer; initialize sets redemption/fraud/wallet parameters field by field",
+      "issue": "Slot 68 lists only its third field in def storage although two getters return the other two (a bytes20 is read as 'stor[68] << 96'); initialize writes three packed slots as single constants (one factored by 3600) while it writes the neighbouring slots field by field (stor57 = 10**6, stor57_64 = 2000...).",
+      "rule": "Known P15: a read 'slot << 96' returned as bytes20 is the 160-bit field at offset 0; split a constant whole-slot store into the fields that other reads and masked writes of that slot use (and never factor a packed constant by a time unit, P1).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "update*Parameters, unknown1ebf670d (reinitializer v5), initializers",
+      "lines": "343, 401-405, 549-553 (12 tests); 362-370; 320, 784",
+      "decompiled": "if _param2 <= 0: revert 'Fraud challenge defeat timeout must be greater than zero'  |  if ext_code.size(_param1) <= 0: revert ...  |  if not _param1: _3 = stor80 / stor80 = _param1 / log ... else: ... _7 = stor80 / stor80 = _param1 / log ...  |  _1 = not stor50 / 256 and uint8(stor50) < 2",
+      "source": "require(x > 0, ...) on unsigned values; rebate-staking setter with an optional code check",
+      "issue": "Unsigned 'x <= 0' tests stay instead of 'not x'; both arms end with the same 3 statements; 'not stor50 / 256' reads as (not stor50) / 256.",
+      "rule": "Fold unsigned x <= 0 to not x; hoist a common tail out of an if; parenthesize the operand of a prefix 'not' when it is a binary expression.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all functions forwarding to the Deposit, DepositSweep, Redemption, MovingFunds, Fraud, Wallets libraries (23 delegatecalls)",
+      "lines": "e.g. 190-195, 273, 467",
+      "decompiled": "require ext_code.size(0x115d3310179fc7acab5c3485c49df3b767068e63) / delegate 0x115d3310179fc7acab5c3485c49df3b767068e63.unknown9b69e71d(?) with: args 51, _param1",
+      "source": "external library calls self.resetMovingFundsTimeout(...) etc. (linked libraries)",
+      "issue": "The bytecode is unlinked: the library addresses are placeholders filled with 0x11... values, and the library selectors (with a 'BridgeState.Storage storage' parameter) are not in the signature DB. The text shows the delegatecalls and their arguments faithfully (51 is the storage pointer).",
+      "rule": "none (input artifact)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "59 ABI functions plus the fallback reviewed; the whole text (1,040 lines) read. Most functions are thin wrappers that DELEGATECALL the linked libraries, so the source loops the pack lists (BTCUtils, BitcoinTx, ValidateSPV, DepositSweep, MovingFunds, Redemption, Fraud, BytesLib, Bank, RebateStaking) run in other code and are not in this bytecode: source_loops = 0. The 6 whiles are implicit validating decodes of uint32[]/bytes20[] calldata arrays (readable, not P7). Inlined library code checked against the source: Wallets.notifyWalletClosingPeriodElapsed (uint32 overflow check of closingStartedAt + walletClosingPeriod, state 3 -> 4, event, closeWallet call), the update*Parameters validations, the three initializers (OZ initializer/reinitializer flag handling), the gas-refund arithmetic of submitMovingFundsCommitment. No semantic error found. Event names are raw topics (not in the signature DB).",
+  "summary": "Small and faithful: wrappers forward to unlinked libraries with correct arguments; the main problems are a hard-coded mapping element shown as two unrelated storage variables, packed slots left unsplit (slot 68, initialize's constants) and unsigned '<= 0' tests."
+}

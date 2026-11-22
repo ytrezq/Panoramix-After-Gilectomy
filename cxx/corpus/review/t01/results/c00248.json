@@ -1,0 +1,70 @@
+{
+  "id": "c00248",
+  "abi_functions": 39,
+  "reviewed": 39,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 219,
+    "P2": 1,
+    "P6": 3,
+    "P8": 2,
+    "P10": 212
+  },
+  "findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "renounceLockExemptionAdmin (0x1bf54443), unlockAndRenounceUnlocker, renounceInflationAdmin, renounceInflationBeneficiary, setLockExemption, changeInflation, distributeInflation",
+      "lines": "26-33, 125-155, 190-202, 956-957, 963-965",
+      "decompiled": "storAD46 is address at storage 0xad46a584c12dee19dd3315865dd8f658321644e2fc0d8ec87376d55e731dfd9c / stor2CFE is address at storage 0x2cfeb242.. / ... / if storAD46 != caller: revert with 'Not role holder.' / storAD46 = 0 / stor2CFE = 0",
+      "source": "mapping(bytes32 => address) public roleHolder; mapping(bytes32 => address) public pendingRoleHolder; ... roleHolder[LOCK_EXEMPTION_ADMIN] = address(0); pendingRoleHolder[LOCK_EXEMPTION_ADMIN] = address(0);",
+      "issue": "roleHolder[ROLE] and pendingRoleHolder[ROLE] for the four constant roles are declared as eight separate state variables at their hashed slots (storAD46 = stor8[LOCK_EXEMPTION_ADMIN], storB521 = stor8[INFLATION_ADMIN], storEF99 = stor8[INFLATION_BENEFICIARY], storFE18 = stor8[UNLOCKER], and the stor9 twins), while acceptRole / changeRoleHolder / roleHolder() use stor8[_param1] / stor9[_param2]. The text hides that acceptRole and changeRoleHolder write exactly these variables.",
+      "rule": "A constant slot equal to keccak(key . n) where n is a mapping's slot is that mapping's entry: print stor_n[key] (with the key's constant name if known) instead of declaring a new variable at the hashed slot.",
+      "verified": "keccak256(role . 8 / 9) computed for the four role constants: all eight slots match"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "cap (0x355274ea), distributeInflation (0xc373fee3), changeInflation (0x5cfd8a65)",
+      "lines": "380-663, 669-952, 969-1252",
+      "decompiled": "if SafeMath.sub(block.timestamp, stor11) != (block.timestamp * stor12 - stor11 * stor12) / stor12 and stor12: revert with Panic(17) / if not Mask(8, 56, ((block.timestamp * stor12 - stor11 * stor12) / (365 * 24 * 3600) << 64) / 10**18): _48 = 0x8000.. / else: if not Mask(1, 63, ((block.timestamp * stor12 - stor11 * stor12) / (365 * 24 * 3600) << 64) / 10**18): ...",
+      "source": "uint256 timeElapsed = block.timestamp - lastMintCapacityIncrease; uint256 supplyFactor = PowUtil.exp2((inflationFactor * timeElapsed) / 365 days); ... x = (x << 64) / 1e18; if (x & 0xFF00000000000000 > 0) { if (x & 0x8000000000000000 > 0) result = (result * 0x16A09E667F3BCC909) >> 64; ...",
+      "issue": "exp2's argument x is never bound: the expression ((block.timestamp * stor12 - stor11 * stor12) / (365 * 24 * 3600) << 64) / 10**18, with inflationFactor * timeElapsed distributed into two products, is repeated in all 72 byte and bit tests and the final shift (219 times in three copies of exp2), and every one-armed 'if bit: result = ..' becomes a two-armed SSA copy. The 64 factors (checked against the source) and the bit order are right.",
+      "rule": "Bind a non-trivial expression used more than once (here timeElapsed and x) to a variable at its definition, keep a product of a difference as a * (b - c), and print a one-armed conditional update as 'if cond: r = f(r)'.",
+      "verified": "reading; the 64 multipliers and bit positions compared with Powutil.sol by script"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "permit (0xd505accf)",
+      "lines": "336-348",
+      "decompiled": "_10 = mem[64] / mem[mem[64]] = 0 / mem[64] = mem[64] + 32 / mem[_10 + 32] = sha3(Bytes(2, 0x1901), _7, sha3(..)) / mem[_10 + 64] = v / mem[_10 + 96] = r / mem[_10 + 128] = s / signer = ecrecover(mem[mem[64] len _10 - mem[64] + 160]) / .. if mem[mem[64] - 20 len 20]: _14 = mem[mem[64] - 32]",
+      "source": "ECDSA.tryRecover(hash, v, r, s): address signer = ecrecover(hash, v, r, s); if (signer == address(0)) return (address(0), RecoverError.InvalidSignature, bytes32(0));",
+      "issue": "The ecrecover arguments are raw memory although digest, v, r and s were stored on the four lines before, and the recovered signer is read back as mem[mem[64] - 32]: after the store at mem[_10 + 32] the decompiler no longer knows that mem[64] is _10 + 32.",
+      "rule": "mem[64] only ever holds 0x80 plus non-negative bounded sizes, so stores at mem[64] + k (k >= 0) never change it; with that, the call folds to ecrecover(sha3(0x1901, ..), v, r, s) and the signer to its return word.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "unlockTime, isUnlocked, transfer, transferFrom, DOMAIN_SEPARATOR, eip712Domain, permit",
+      "lines": "4, 106-123, 247, 282, 320-331",
+      "decompiled": "const unlockTime = 0 / _1 = block.timestamp > 0 or not locked / _1 = not this.address and not chainid / _3 = not _1 and sha3(0x8b73c3c6.., Bytes(64, 0), chainid, this.address)",
+      "source": "uint256 public immutable unlockTime; EIP712 immutables _cachedDomainSeparator, _cachedChainId, _cachedThis, _hashedName, _hashedVersion, _name, _version",
+      "issue": "The immutables read as 0: the token counts as unlocked whenever block.timestamp > 0, the EIP-712 domain uses zero name / version hashes and the cached-separator test compares with this == 0 and chainid == 0, and eip712Domain returns empty strings. Not a decompiler error.",
+      "rule": "None (corpus artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 39 ABI functions (8 constants) and the fallback reviewed; no semantic error found. No source loops (exp2 is unrolled in the source). cap / distributeInflation / changeInflation reviewed by structure plus a script check of the 64 exp2 multipliers (first one folded into 0xb504f333f9de6484800..), the bit order 63..0 and the final 10**18 * r >> (191 - (x >> 64)), SafeMath.mul / sub / add. ERC20 paths (lock check with lockExemption[from] && from == msg.sender, _spendAllowance, ERC6093 errors) match. Events the decompiler's list lacks print as hex topics (RoleChangeCompleted, InflationDistributed ...). P1 counts the 365 * 24 * 3600 occurrences, P10 the two-armed SSA copies of exp2.",
+  "summary": "Faithful, including all 64 exp2 factors; the main readability problems are eight invented state variables that are really roleHolder / pendingRoleHolder entries, and exp2's argument repeated 219 times instead of being bound to a variable."
+}

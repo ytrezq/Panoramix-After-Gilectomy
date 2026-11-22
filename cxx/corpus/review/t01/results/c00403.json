@@ -1,0 +1,19 @@
+{
+ "id": "c00403",
+ "abi_functions": 0,
+ "reviewed": 0,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {},
+ "findings": [],
+ "notes": "ERC1967Proxy runtime (solc 0.8.19, 136 bytes, 14-line text). The ABI has only fallback and receive, both payable, both _fallback -> _delegate(_implementation()); the text's single payable _fallback (which also serves empty calldata, i.e. receive) delegates call.data[0 len calldata.size] to the EIP-1967 implementation slot 0x3608...2bbc, reverts with the return data on failure and returns it otherwise: exact. The slot prints as stor3608; with no getter it could still be named from the well-known EIP-1967 implementation slot (it is named implementation in c00023, where a getter exists).",
+ "summary": "Exact decompilation of a minimal ERC1967 proxy fallback; nothing to report."
+}

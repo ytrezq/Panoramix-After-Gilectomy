@@ -1,0 +1,83 @@
+{
+  "id": "c00469",
+  "abi_functions": 100,
+  "reviewed": 100,
+  "not_reviewed": [],
+  "source_loops": 6,
+  "loops_shown": {
+    "while": 6,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 10,
+    "P2": 1,
+    "P6": 12,
+    "P8": 141,
+    "P9": 359,
+    "P10": 296,
+    "P11": 28
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "previewFloatingAssetsAverage, setDampSpeed, deposit, mint, withdraw, redeem, seize, withdrawAtMaturity, borrowAtMaturity, liquidate (10 inlined expWad); totalAssets, previewDebt and every mulDivDown/mulWadDown site",
+      "lines": "1885-1900 (and 1948, 3446, 3677, 3912, 4185, 4519, 4891, 5449, 6701); 1006-1007; 1229-1233",
+      "decompiled": "_2 = (-302231454903657293676544 * block.timestamp * _1 + 302231454903657293676544 * _1 * stor218_72) /′ 3814697265625 * ((-302231454903657293676544 * block.timestamp * _1 + ...) /′ 3814697265625) - 0x162e42fefa39ef35793c76730 * (...) ... / _5 = (the same expression as _2)  |  require (block.timestamp - f768 == (block.timestamp * f512 - f512 * f768) / f512 or not f512) and idx - f768",
+      "source": "MarketBase updateFloatingAssetsAverage: 1e18 - (-int256(dampSpeed * (block.timestamp - lastAverageUpdate))).expWad(); solmate FixedPointMathLib.expWad: x = (x << 78) / 5**18; ... ; MarketBase.sol:191 pool.unassignedEarnings.mulDivDown(block.timestamp - lastAccrual, maturity - lastAccrual)",
+      "issue": "Products are distributed over differences ('(bt - s) * r' becomes 'bt * r - s * r', '(x << 78)' becomes '2^78 * bt * _1 - 2^78 * _1 * t'), so the expWad argument x is never named and each of the 10 inlined expWad bodies spans dozens of 1,000-character lines, with identical subexpressions recomputed (_2 and _5 are the same y); the mulDiv overflow checks are rewritten against the distributed product.",
+      "rule": "Do not distribute multiplication over addition/subtraction when building expressions (keep a * (b - c)); conversely factor a*b - a*c into a * (b - c) when printing. Bind an expression used more than once (the expWad argument, its polynomial terms) to one variable, and print c * 2^k with c the shifted operand as (c << k).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "liquidate(address,uint256,address)",
+      "lines": "5813 (_14 = sha3(_param1, 210)), 6344; def storage line 10",
+      "decompiled": "_14 = sha3(_param1, 210) ... _1164 = v and bool(stor2[_14])  |  def storage: stor2 is fixed array of uint256 at storage 2",
+      "source": "Market.sol:575 if (maxAssets != 0 && account.floatingBorrowShares != 0) (account = accounts[borrower], member 2 of MarketBase.Account at slot 210)",
+      "issue": "accounts[borrower].floatingBorrowShares, read through a variable holding the struct's hash, is printed as element _14 of a fixed array 'stor2' at slot 2 (inside the __gap), and def storage gains that bogus array. The slot is the same, but the reader sees a read of slot 2's array at a huge index; previewDebt prints the same field as stor210[_param1].field_512.",
+      "rule": "Before naming a storage access, substitute variables bound to sha3(key, slot): stor[v + k] with v = sha3(key, slot) is member k of slotvar[key]; never interpret a keccak value as an index into a fixed array at a small slot.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "liquidate, clearBadDebt, withdrawAtMaturity, repayAtMaturity (FixedLib.clearMaturity and the maturity loops)",
+      "lines": "5815-5822, 6338-6343; 6313-6321; 3125-3133",
+      "decompiled": "_1163 = stor210[_param1].field_288 and bool(ext_call.return_data[0]) / while _1163: ... _1163 = Mask(255, 1, t) and bool(_2281) / t = t / 2  |  _2245 = not uint1(x0) and bool(x0) / while _2245: _2245 = not Mask(1, 1, x) / 2 and bool(x / 2) / w = w + 1 / x = x / 2 / ... | 4294967296 * (stor210[_param1].field_256 >> SafeMath.add(32, w))",
+      "source": "Market.sol:547 while (packedMaturities != 0 && maxAssets != 0) {... packedMaturities >>= 1; maturity += INTERVAL;}; FixedLib.sol:187 while ((packed & 1) == 0 && packed != 0) { ++range; packed >>= 1; }; ((encoded >> (32 + range)) << 32)",
+      "issue": "The loop tests are flags computed from the values before the shift ('Mask(255, 1, t)' for 't / 2 != 0', 'Mask(1, 1, x) / 2' for '(x / 2) & 1'), so the condition is not visible in the while header; '<< 32' prints as '4294967296 *'.",
+      "rule": "When a loop's condition variable is assigned at the end of the body from expressions of variables updated in the same block, rewrite it in terms of the updated values and inline it in the header: Mask(255, 1, t) != 0 is (t >> 1) != 0, i.e. the new t != 0; x * 2^k prints as x << k.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "clearBadDebt(address), refund, repay (event Repay); def SafeMath",
+      "lines": "3342-3346; 59-70",
+      "decompiled": "log Repay(address indexed borrower=caller, address indexed repaid=_param1, uint256 creditOut=_429, uint256 amountIn=_404)  |  def mul(a, b): require b == a * b / a or not a  /  def mul2(a, b): ... revert with Panic(17)",
+      "source": "MarketBase/Market: event Repay(address indexed caller, address indexed borrower, uint256 assets, uint256 shares); solmate mulDivDown reverts with empty data",
+      "issue": "The event's parameter names come from another contract with the same signature, so the caller is labelled 'borrower' and the borrower 'repaid'. SafeMath.mul (empty revert, solmate's check) sits next to mul2/mul3 (Panic(17)) under the same name family, which hides that their revert data differ.",
+      "rule": "Use event parameter names only from an exact, unambiguous signature entry; name helper variants after what they revert with (e.g. mul_or_revert vs checked mul).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "transfer, transferFrom, initialize, initialize2 (delegate to extension); clearBadDebt/seize auditor checks; DOMAIN_SEPARATOR; liquidate's auditor calls",
+      "lines": "281-299, 321-374, 376-402 (delegate 0x0); 3038-3039 (clearBadDebt: if caller: revert NotAuditor); 303-304 (DOMAIN_SEPARATOR); 5802-5806 (liquidate)",
+      "decompiled": "delegate 0x0 with: args call.data[0 len calldata.size]  |  if caller: revert with 0x5d5a323c  |  if not chainid: _11 = 0  |  static call 0x0.unknown216e7b58(?)",
+      "source": "Market immutables: extension, auditor, INITIAL_CHAIN_ID, INITIAL_DOMAIN_SEPARATOR, asset",
+      "issue": "solc immutables read as 0: the extension delegatecall target, the auditor (so 'msg.sender != auditor' is 'caller != 0'), the asset token, and the cached domain separator / chain id.",
+      "rule": "None (input artifact).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "The 100 ABI functions: getters, ERC20/AccessControl/Pausable/permit and the admin setters were read line by line; liquidate (1,140 lines), withdrawAtMaturity, borrowAtMaturity, clearBadDebt, repayAtMaturity, deposit/mint/withdraw/redeem, seize were reviewed by structure (loops, calls, storage writes, events). The 6 source loops are all readable whiles: MarketBase.totalAssets' maturity for-loop (inlined 44 times with the bound recomputed in the header), previewDebt's and clearBadDebt's 'while t', liquidate's packed-maturity loop, FixedLib.clearMaturity (5 inlined copies) and OpenZeppelin StringsUpgradeable.toHexString in _checkRole (2 per onlyRole function: for DEFAULT_ADMIN_ROLE the role loop is constant-folded to writing '0' 64 times and its length require is removed, which is exact). The loops listed in the pack for Auditor/RewardsController are in other contracts (external calls). No semantic error found. getRoleAdmin and onlyRole read the RoleData.adminRole member as raw stor[sha3(role, 101) + 1] (same as c00290). PAUSER_ROLE / EMERGENCY_ADMIN_ROLE members are storBDA7 / storBFE9 because solc folded keccak(role, 101) into constants. P10: the mulDiv/divWadUp results are phis with SSA copies in one arm; P8: keccak scratch stores (mem[0] = s, mem[32] = 208...) kept beside the symbolic accesses.",
+  "summary": "Faithful, with every loop readable, but the arithmetic is very hard to read: products are distributed over differences everywhere and the 10 inlined expWad bodies are unnamed 1,000-character expressions; one storage access (accounts[borrower].floatingBorrowShares) is misnamed as stor2[_14]."
+}

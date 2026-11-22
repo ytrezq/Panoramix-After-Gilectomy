@@ -1,0 +1,25 @@
+{
+  "id": "c00538",
+  "abi_functions": 64,
+  "reviewed": 64,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 1, "P8": 30, "P11": 45, "P15": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "the 18 limit setters (unknown5de9a49b ... unknown04953605), grantRole, revokeRole",
+      "lines": "203-206, 216-218",
+      "decompiled": "_3 = _param1 > 65535 / if _3: revert with 0x9014ed10, _param1, 0, 65535 / if _param1 > 65535: revert with 'SafeCast: value doesn't fit in 16 bits' ... while idx > 1: if idx >= 42: revert with Panic(50)",
+      "source": "_checkLimitValue(value, 0, type(uint16).max); SafeCast.toUint16(value); Strings.toHexString loop for (i = 2 * length + 1; i > 1; --i) buffer[i] = ...",
+      "issue": "The SafeCast check is dominated by the custom-error range check just before it, and the toHexString loop keeps a bounds check idx >= 42 that the loop range (idx from 41 down to 2) excludes (P11, two per function).",
+      "rule": "Fold a test implied by a dominating identical-or-stronger test; with an induction variable known to stay in [2, 41], drop the bound check idx >= 42.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: Strings.toHexString (inlined twice per role check: account and role), _findWindowBaselineIndex (while True), _calcWindowDiff (while idx <= SafeMath.sub(stor2.length, 1)), _checkCLBalancesConsistency and _calculateTotalActivatedInClByModules (while idx < cd[_param1 + 4], unknown91aab94d); all present. One implicit decode loop in unknown6a84f2fd. The AccessControl revert message is composed readably ('AccessControl: account 0x', mem[162 len 40], ' is missing role 0x', ...). Packed limits read as uint16 fields (stor1...) without names (P15, database lacks the getters).",
+  "summary": "A clean, faithful text with all loops readable; only dominated range and bounds checks remain."
+}

@@ -1,0 +1,35 @@
+{
+  "id": "c00303",
+  "abi_functions": 25,
+  "reviewed": 25,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {
+    "while": 0,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P6": 1,
+    "P7": 2,
+    "P11": 10
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "name(), symbol()",
+      "lines": "130-184",
+      "decompiled": "mem[0] = 5 / mem[160 len ceil32(_1)] = stor[0x36b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db0 len (_1 + 31) / 32] / ... mem[64] = floor32(_3 - 97) + 128 / ... / while idx < _1: mem[idx + floor32(_3 - 97) + 192] = mem[idx + 160] / idx = idx + 32",
+      "source": "ERC20.name()/symbol(): return _name / _symbol (string in slots 5 and 6)",
+      "issue": "The long-string data slot is printed as the folded keccak constant (with 63 digits, P6) instead of sha3(5) / sha3(6), the allocation size of the returned copy is the obscure 'floor32(_3 - 97) + 128', and the memory-to-memory copy into the return buffer stays a while loop (P7).",
+      "rule": "Keep keccak(slot) symbolic for a storage string's data (print stor5[0 len n]); a loop 'mem[d + i] = mem[s + i]' step 32 to n is a copy line; floor32(x + 160 - 97) for x = 32 * k + 160 is ceil32 arithmetic that can fold to the string's padded size.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against FarmingPool.sol, FarmAccounting/UserAccounting libraries, 1inch SafeERC20 and OZ ERC20/Ownable (via-IR build). All 25 ABI functions were read (690 lines): deposit/withdraw/claim/exit with the farmed-amount checkpointing, transfer/transferFrom with the per-user checkpoints, startFarming/stopFarming with their distributor checks and reward transfers, rescueFunds. The pack lists no source loop and the text has only the two string copies of name/symbol as while loops (P7). Immutable staking/rewards tokens read as 0 (artifact, const STAKING_TOKEN/REWARDS_TOKEN = 0). No execution run.",
+  "summary": "Clean and faithful; only the string getters show defects (folded keccak data slot, opaque allocation size, a copy left as a while loop)."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "c00546",
+  "abi_functions": 55,
+  "reviewed": 55,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {"while": 2, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 3, "P3": 2, "P6": 2, "P7": 3, "P8": 10},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "inboundNonce(address,uint32,bytes32) (unknowna0dd43fc) and its copy in unknownd70b8902",
+      "lines": "204-210, 395-405",
+      "decompiled": "_11 = sha3(uint64(stor1[_param1][_param2][_param3] + 1), sha3(_param3, sha3(_param2, sha3(_param1, 2)))) / s = stor1[_param1][_param2][_param3] / while stor[_11]: _11 = sha3(uint64(s + 2), sha3(_param3, sha3(_param2, sha3(_param1, 2)))); s = s + 1",
+      "source": "MessagingChannel.sol:59 while (_hasPayloadHash(_receiver, _srcEid, _sender, nonceCursor + 1)) { unchecked { ++nonceCursor; } } with _hasPayloadHash = inboundPayloadHash[...][nonce] != EMPTY_PAYLOAD_HASH",
+      "issue": "The loop is right but its condition is a raw 'stor[_11]': the slot of inboundPayloadHash[receiver][srcEid][sender][nonce + 1] is computed into a variable before the loop and recomputed for s + 2 at the end of the body, so the mapping (printed stor2[..][..][..][..] in clear() at 770) is not recognised and the test is shifted by one iteration.",
+      "rule": "stor[v] with v = sha3(k4, sha3(k3, sha3(k2, sha3(k1, s)))) through an SSA variable is the mapping access s[k1][k2][k3][k4]; a variable that only caches an expression of the loop counter for the next test is substituted back into the condition: 'while stor2[_param1][_param2][_param3][uint64(s + 1)]: s = s + 1'.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small functions line by line; send/quote (unknown2637a450, unknownddc28c58), lzReceive, clear, skip, nilify, burn, setConfig, the library-manager setters by structure. Source loops (2): inboundNonce's while (206, 398) and _clearPayload's for (770 in clear, 951 in the other caller), both whiles. Implicit: the EnumerableSet values copy and return encoding of getRegisteredLibraries (304 rotated, 314) and the SetConfigParam[] re-encoding of setConfig (906): P7. No semantic problem found.",
+  "summary": "Clean, complete and faithful; the only blemish is inboundNonce's loop condition written as a raw keccak slot cached in a variable instead of the named nested mapping."
+}

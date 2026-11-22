@@ -1,0 +1,47 @@
+{
+  "id": "c00587",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 411, "P6": 140, "P7": 21, "P8": 250, "P9": 18, "P11": 5, "P12": 300},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "emergencyExit, withdrawAllToVault, withdrawToVault, doHardWork (the _redeemNoFlash and _depositNoFlash loops, 7 renderings)",
+      "lines": "1622-1630, 1881-1883 (emergencyExit); 5220-5229 (withdrawToVault redeem); 6003-6014 (withdrawToVault deposit); 9587, 9111 (doHardWork)",
+      "decompiled": "s = storA170 / t = stor4E92 / u = _80 / v = _77 / w = storA170 / x = pendingFee + 1 / y = stor8CDE / while u > 0: ...   |   s = (...) / t = storA170 / u = borrowTargetFactorNumerator / v = stor4E92 / w = _988 / x = _984 / y = storA170 / z = -_988 + (...) / a = (...) / b = borrowTargetFactorNumerator / c = stor4E92 / while w < s:",
+      "source": "AaveFoldStrategy.sol:497 while (borrowed > newBorrowTarget) { ... borrowed = debtToken.balanceOf(this); supplied = aToken.balanceOf(this); }; :475 while (borrowed < borrowTarget) { ... }",
+      "issue": "The loops are found, with readable conditions, but each carries 7 to 11 loop variables of which several are never read (w, x = pendingFee + 1 and y in emergencyExit) or always equal to another (t = y = storA170, u = b, v = c, a = s in the deposit loop; t = x = z = a = storA170 and y = s in the redeem loop), so the reader must track a dozen names to find the two that change (borrowed, supplied).",
+      "rule": "Drop a loop-carried variable that no instruction reads; replace one whose initial value equals another's and whose update is the same (or absent) by that other variable; a variable never updated in the loop is its initial expression.",
+      "verified": "reading only (uses of s..y checked in 1630-1884)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "every SafeERC20 path (withdrawAllToVault, withdrawToVault, doHardWork, emergencyExit, salvage, receiveFlashLoan...)",
+      "lines": "e.g. 5293 (47 lines)",
+      "decompiled": "mem[_620 + 32 len 4] = 157198259",
+      "source": "SafeERC20.safeApprove / safeTransfer: abi.encodeWithSelector(token.approve.selector, spender, value)",
+      "issue": "Selectors written into a 4-byte slice print in decimal (157198259 = 0x095ea7b3 approve, 2835717307 = 0xa9059cbb transfer); with the call itself undecoded (P2) this is the only trace of which function is called.",
+      "rule": "Print a constant written to mem[a len n] with n < 32 as Bytes(n, 0x...), as copy lines already do.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "scheduleUpgrade, finalizeUpgrade, withdraw paths (address checks); isRewardToken, rewardTokens, flash-loan paths (zero fills)",
+      "lines": "448, 1251, 5251 (14 lines); 503, 533, 3846-3850 (22 lines); 520, 551",
+      "decompiled": "require ext_call.return_data[0] == ext_call.return_data[12 len 20]   |   require mem[_466] == mem[_466 + 12 len 20]   |   mem[160 len 32 * stor4541] = call.data[calldata.size len 32 * stor4541]   |   mem[_2273 + 32] = cd[calldata.size]   |   if mem[32 * s + 172 len 20] != _token",
+      "source": "abi.decode of an address return value; new address[](n); _isAddressInList: _list[i] == _searchFor",
+      "issue": "The same address range check prints as 'x == address(x)' in most places and as 'x == x[12 len 20]' in 14 others; zero fills read calldata past its end; an array element is compared as a 20-byte memory slice.",
+      "rule": "w[a + 12 len 20] used as a word is address(w[a]); call.data[calldata.size len n] (and cd[calldata.size]) is n zero bytes, like code.data past the code end.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source loops: getAddressArray (for, shown in isRewardToken 506 and rewardTokens 536, with the two checked additions slot + 1 + i merged correctly into one test), _isAddressInList ('while True' with two breaks, 516), _liquidateReward (2902, 7924), _depositNoFlash (6014, 9111), _redeemNoFlash (1630 with the target folded to 0, 4092, 5229, 6538, 9587). Implicit whiles: 20 ABI encodings of the Balancer flashLoan address[]/uint256[] arguments (pairs like 3872/3884), the encoding of rewardTokens()'s return (550) - 21 P7 - and the validated ABI decoding of receiveFlashLoan's address[] (942, readable). Byte copies use MCOPY (cancun) and print as copy lines. doHardWork (3003 lines), withdrawToVault (2623) and withdrawAllToVault (2403) were reviewed by structure (loops, calls, storage writes, events, reverts); receiveFlashLoan, emergencyExit's loop, isRewardToken, rewardTokens, the governance setters, scheduleUpgrade, shouldUpgrade and toggleMerklOperator line by line, all faithful. The eternal-storage array of rewardTokens() (length at slot 0x45418d...63c, elements at +1+i) is typed as stor4541 plus 'fixed array of address' at the next slot, which reads acceptably. P11: 'if s >= stor4541: Panic(50)' under 'while s < stor4541' (3), fallback 'require calldata.size < 4' before 'require not calldata.size'. P12: the SafeERC20 tail and reward-swap code repeated per branch of the flash/no-flash paths (estimate).",
+  "summary": "Faithful text whose five source loops are all found as whiles with readable conditions; readability is hurt by 411 undecoded call lines, decimal selectors, and the fold loops' piles of dead or duplicate loop variables."
+}

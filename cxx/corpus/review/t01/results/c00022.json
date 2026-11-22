@@ -1,0 +1,124 @@
+{
+  "id": "c00022",
+  "abi_functions": 78,
+  "reviewed": 78,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {"while": 5, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 5, "P2": 3, "P3": 3, "P4": 4, "P6": 3, "P7": 32, "P8": 200, "P9": 14, "P10": 6, "P11": 16, "P12": 51, "P13": 75, "P14": 40, "P15": 2, "P18": 2},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "hashProposal(address[],uint256[],bytes[],bytes32), execute(address[],uint256[],bytes[],bytes32)",
+      "lines": "1288-1310 (hashProposal), 1546-1627 (execute)",
+      "decompiled": "while True: / if s >= mem[32 * targets.length + 32 * values.length + 192]: <rest of the function: hash, state checks, ProposalExecuted, _execute calls, return _30> / mem[w] = ...; while idx < _27: <copy> ...; s = s + 1 ... continue",
+      "source": "GovernorUpgradeable.sol:hashProposal keccak256(abi.encode(targets, values, calldatas, descriptionHash)); execute() continues after hashProposal",
+      "issue": "The bytes[] encoding loop of abi.encode is printed as 'while True' whose exit test is the first statement, and the whole tail of the function (in execute, 65 lines: state checks, storage write, event, two external calls, return) is nested inside that exit branch of the loop.",
+      "rule": "A 'while True' whose body starts with 'if c: <block ending in return/revert/stop>' and has no other exit is 'while not c: <rest of body>' followed by the block; hoist the tail out of the loop.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "createElection(), addContender(uint256,bytes), castVoteWithReasonAndParamsBySig(...), updateQuorumNumerator(uint256), initialize(...)",
+      "lines": "2178-2186, 2154-2159, 2453, 1196-1201, 1881-1887, 704-711, 1402-1409",
+      "decompiled": "_126 = mem[64] / mem[mem[64]] = 0x25446e50... / mem[_126 + 4] = block.timestamp / mem[_126 + 36] = ... / revert with memory from mem[64] len _126 - mem[64] + 68 ; log ProposalCreated(...): mem[mem[64] len t + ceil32(_277) - mem[64] + 32]",
+      "source": "SecurityCouncilNomineeElectionGovernor.sol:171 revert CreateTooEarly(block.timestamp, thisElectionStartTs); :243 revert AccountInOtherCohort(otherCohort(), signer); ElectionGovernor.sol:50 revert VoteAlreadyCast(...); SafeCast toUint32 revert; Governor ProposalCreated event",
+      "issue": "Custom-error reverts, a SafeCast Error(string) and the ProposalCreated event are printed as raw memory, although the reads of mem[64] equal a value assigned just before (_126 = mem[64] with no store to slot 64 in between; mem[64] = _70 + ceil32(rds)); even '_126 - mem[64]' (always 0) is left. The same reverts print properly elsewhere (includeNominee line 759).",
+      "rule": "Prove mem[64] >= 128 on every path (set to 128 at entry, later only increased under the Panic(65) bounds), so stores at mem[64] + k, k >= 0, never alias slot 64; then forward the last store/read of mem[64] into later reads and decode 'revert/log memory from P len n' whose words were all written at P..P+n.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "semantics",
+      "severity": "medium",
+      "function": "castVoteWithReasonAndParams(uint256,uint8,string,bytes), castVoteWithReasonAndParamsBySig(...)",
+      "lines": "1786-1792, 2026-2032",
+      "decompiled": "log VoteCastWithParams(... uint256 weight=_7, string reason=Array(len=reason.length, data=reason[all], Bytes(ceil32(reason.length) - reason.length, 0), params.length, params[all], Bytes(...)), bytes params=ceil32(reason.length) + 192)",
+      "source": "GovernorUpgradeable.sol:537 emit VoteCastWithParams(account, proposalId, support, weight, reason, params)",
+      "issue": "The event's two dynamic fields are split at the wrong place: 'reason' carries both tails (reason and params) and 'params' shows the head offset of params, a number. The log bytes are the same, but read as named fields the text says params = ceil32(reason.length) + 192.",
+      "rule": "When decoding event (or return) data with several dynamic fields, map each head word that is an offset into the tail to its own field (length word + data at that offset) instead of letting the first Array absorb the rest of the tail.",
+      "verified": "reading only (text_check passes, so the bytes agree; the field labelling is the problem)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getProposeArgs(uint256), createElection(), quorum-free functions using new arrays",
+      "lines": "900, 903, 910, 912, 951, 954, 2046, 2049, 2061, 2064, 2075, 2118, 2121, 2202, 2205",
+      "decompiled": "mem[288] = cd[calldata.size] ... return 128, 192, 256, 384, 1, address(cd[calldata.size]), 1, cd[calldata.size], 1, 32, 32, _param1, 28, 0x5365...",
+      "source": "ElectionGovernor.sol:getProposeArgs returns (new address[](1), new uint256[](1), electionData, description)",
+      "issue": "Zero-initialised array elements (filled by calldatacopy from calldatasize) are read back as cd[calldata.size] / address(cd[calldata.size]) instead of 0, so the zero address and the zero value look like calldata reads.",
+      "rule": "A calldata read at an offset >= calldata.size is 0 for every execution: fold cd[calldata.size] (and any word of call.data[calldata.size len n]) to 0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "state(uint256), electionIndexToDescription(uint256), getProposeArgs(uint256), hashProposal(...), createElection()",
+      "lines": "474-477, 829-831, 985-987, 1292-1295, 2455-2459",
+      "decompiled": "if ...: mem[64] = 192; ...; _6 = 192 else: _6 = 160 / mem[_6] = _5 / return memory from mem[64] len _6 - mem[64] + 32",
+      "source": "GovernorUpgradeable.sol:151 state() returns ProposalState; hashProposal returns uint256(keccak256(...)); createElection returns proposalId",
+      "issue": "Single-word returns are printed as a memory range whose start is mem[64], although mem[64] == _6 on both arms and the word was just written (state() is 'return _5'; createElection 'mem[mem[64]] = _214; return memory from mem[64] len 32' is 'return _214').",
+      "rule": "Treat mem[64] as a phi of the values stored on each arm; when the phi equals the phi of the store address, 'return memory from A len 32' after 'mem[A] = x' is 'return x'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "quorum(uint256), castVoteWithReasonAndParams(...), castVoteWithReasonAndParamsBySig(...)",
+      "lines": "1016-1080, 1702-1766, and the same block in the BySig function",
+      "decompiled": "two identical arms each calling getPastVotes/getPastTotalSupply ... _40 = ceil32(_1) + 192 ... _44 = mem[_40] / if _44 != _43 and _42 > -1 / SafeMath.sub(_44, _43): revert Panic(17) / return (-1 * _42 * _43 + _42 * _44) / 10000",
+      "source": "ArbitrumGovernorVotesQuorumFractionUpgradeable.quorum: getPastCirculatingSupply(b) * quorumNumerator(b) / quorumDenominator()",
+      "issue": "The getPastTotalSupply result is read back as mem[_40] (a phi of the two return-data buffers) instead of ext_call.return_data[0], the two arms differ only in the numerator but repeat both calls (P12), and numerator * (supply - excluded) is distributed into -1*a*b + a*c (P9).",
+      "rule": "A load of A after 'mem[A len min(32, rds)] = ext_call.return_data[0 len ...]' with rds >= 32 required is ext_call.return_data[0], also through a phi of such A; sink the common suffix of both arms after the branch; do not distribute a product over a difference that the code computes as one checked subtraction.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "castVoteWithReasonAndParams(...), castVoteWithReasonAndParamsBySig(...), execute(...)",
+      "lines": "1673-1679, 1766-1785, 1606",
+      "decompiled": "require mem[160] == mem[172 len 20] / if not uint8(stor[sha3(Bytes(12, 0), mem[172 len 20], sha3(proposalId, 658))]): revert with Bytes(16, 0xa5c0125d000000000000000000000000), mem[172 len 20] ... args mem[mem[32 * targets.length + 32 * values.length + 224] + 32]",
+      "source": "Counting.sol:78 (address contender, uint256 votes) = abi.decode(params, (address, uint256)); :81 revert NotEligibleContender(contender); _execute: extractElectionIndex(callDatas)",
+      "issue": "Values decoded from a calldata bytes argument copied to memory are shown as memory slices (contender = mem[172 len 20], votes = mem[192]) in some 20 lines, and the custom error is printed as a 16-byte selector fragment followed by an address slice.",
+      "rule": "Forward loads through a recorded copy 'mem[a len n] = call.data[b len n]' (with n >= offset + 32 proven by the length check) to cd[b + offset]; print 'Bytes(12, 0), mem[x + 12 len 20]' as address(mem[x]) and a revert of selector + one word as 'revert with sel, word'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "castVoteWithReasonAndParamsBySig(uint256,uint8,string,bytes,uint8,bytes32,bytes32)",
+      "lines": "1870-1888",
+      "decompiled": "_48 = mem[64] / mem[mem[64]] = 52 / mem[64] = mem[64] + 84 / _50 = sha3(mem[_48 + 32 len mem[_48]]) / if stor604[sha3(mem[_48 + 32 len mem[_48]])]: ...",
+      "source": "ElectionGovernor.sol:46 bytes32 replayHash = keccak256(bytes.concat(dataHash, bytes20(voter))); if (usedNonces[replayHash]) revert ...; usedNonces[replayHash] = true",
+      "issue": "The usedNonces key is left as a hash of raw memory: mem[64] is a phi of the ECDSA error arms, but every arm other than the success arm sets a nonzero error code that the following 'if _26: if _26 == 1..4: revert' chain turns into a revert.",
+      "rule": "Value-set analysis of the error variable (assigned only 0, 1, 3, 4) shows the fall-through of the 'if _26' chain implies _26 == 0, so only the success arm reaches the code after it; resolve mem[64] from that arm, which gives sha3(dataHash, Mask(160, 96, signer) ...).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "includeNominee, excludeNominee, addContender, castVote* (nested members of the two mappings of structs), renounceOwnership, transferOwnership, initialize, setNomineeVetter",
+      "lines": "75, 83, 96, 104, 124, 538-542, 738, 762-763, 1159, 1192; 282, 317, 375, 1443",
+      "decompiled": "stor[sha3(_param2, sha3(_param1, 304) + 3)] / address(stor[_21 + sha3(sha3(_param1, 304) + 2)]) = _param2 / _1 = stor[504]",
+      "source": "_elections[proposalId].isNominee[account]; .nominees.push(account); _owner",
+      "issue": "Mappings and the dynamic array inside the structs of stor304/stor658 are printed as raw sha3 arithmetic (45 lines), although the array length is already named stor304[_param1].field_512; and whole-slot reads of slots named in def storage print as stor[504]/stor[654] instead of owner/stor654.",
+      "rule": "sha3(k2, sha3(k1, S) + m) is member m of S[k1] used as a mapping, and sha3(sha3(k1, S) + m) + i is element i of the array member m; print a read of a named slot by its name.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "electionIndexToDescription, getProposeArgs, createElection, initialize",
+      "lines": "787, 791, 811, 936, 940, 2054, 2230, 1362-1363, 1434",
+      "decompiled": "mem[t + 159 len 1] = (u % 10 << 248) + 0x3000...0 >> 248 / mem[ceil32(s) + 192] = 0x536563757269747920436f756e63696c20456c656374696f6e20230000000000 / 24 * 3600 * (Mask(249, 2, (_param1 - (_param2 < 3)) % 400) / 4)",
+      "source": "StringsUpgradeable.toString: bytes1(uint8(48 + uint256(value % 10))); abi.encodePacked(\"Security Council Election #\", ...); _name = \"SecurityCouncilNomineeElectionGovernor\"; DateTimeLib shr(2, yoe)",
+      "issue": "Small cosmetic misses: ((a << 248) + (0x30 << 248)) >> 248 is 48 + a; ASCII words written to memory or to a string's storage print as hex; Mask(249, 2, x) / 4 of x < 400 is x / 4 (electionToTimestamp prints the same term as '% 400 / 4').",
+      "rule": "Fold ((a << k) + (b << k)) >> k to a + b when a + b < 2^(256-k); print words made only of printable ASCII bytes that are stored into a string's data as a string literal; Mask(n, k, x) / 2^k is x / 2^k when x < 2^(n+k).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "All 78 ABI functions compared (54 small getters/setters/reverting stubs read in full; createElection, the two castVote*Params functions, execute, hashProposal, initialize, quorum read in full but summarised). No semantic error found: all checks, custom errors, Panic codes, storage writes, events and calls agree with the source (state() relies on _quorumReached/_voteSucceeded returning true, so Succeeded = 4 is correct; propose/castVote*/addContender(uint256) are revert stubs as in the source). Loops: 5 live source loops - CheckpointsUpgradeable.getAtBlock binary search (4 inlined copies, readable while), filterAddressesWithExcludeList's two for loops (compliantNominees, while), StringsUpgradeable.toString's two while loops (8 copies). Not counted: GovernorUpgradeable.onlyGovernance 'while (_governanceCall.popFront() != msgDataHash) {}' and _beforeExecute's for loop, which are dead in the source because _executor() == address(this) and are absent from the bytecode. The other 41 text whiles are implicit: 2 rotated storage->memory copies of nominees (P3), 6 ABI-decoding loops of address[]/bytes[] parameters (propose keeps a dead induction variable 's' and one dead padding write), 32 memory copies / ABI encodings (P7), and the new string[](n) initialisation in createElection (rotated, 'while idx - 1', P3). P8 is an estimate (430 memory-write lines, most of them dead: EIP-712 buffers, call argument buffers, struct parameter copies). P11 includes the getAtBlock bounds checks implied by mid < high <= length, the two onlyInitializing checks after 'if not stor0_8: stor0_8 = 1', and 'require calldata.size < 4' before 'require not calldata.size' in the fallback. P13: _proposals is named proposalSnapshot (75 lines). P15: the checkpoint push written as stor355[_10] = 4294967296 * _8.",
+  "summary": "Faithful on every path checked, including rare ones (SafeCast reverts, ECDSA errors, empty-history quorum), with all source loops shown as readable whiles; readability suffers from the unresolved free-memory pointer (raw-memory reverts, a call and the ProposalCreated event), an abi.encode loop printed as 'while True' that swallows execute's whole tail, cd[calldata.size] for zero, and a mis-split VoteCastWithParams event."
+}

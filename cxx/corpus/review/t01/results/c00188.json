@@ -1,0 +1,36 @@
+{
+  "id": "c00188",
+  "abi_functions": 59,
+  "reviewed": 59,
+  "not_reviewed": [],
+  "source_loops": 4,
+  "loops_shown": {"while": 4, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 4, "P2": 12, "P3": 1, "P4": 9, "P6": 1, "P7": 14, "P8": 40, "P11": 6},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "returnFunds, slash, claimRewards, claimRewardsOnBehalf, stake, redeem, redeemOnBehalf, claimRewardsAndRedeem(OnBehalf) (11 transfers)",
+      "lines": "272-288 (returnFunds), 431-446 (slash), 590-605, 1007-1022, 1432-1447 ...",
+      "decompiled": "mem[164] = caller / mem[196] = this.address / mem[228] = _value / mem[128] = 100 / mem[64] = 260 / mem[176 len 16] = uint128(caller >> 32) / mem[164 len 12] = 0 / mem[160 len 4] = 599290589 / idx = 0 / while idx < 100: mem[idx + 260] = mem[idx + 160]; idx = idx + 32 / mem[360] = 0 / call 0x0 with: args mem[260 len 100]",
+      "source": "SafeERC20.safeTransferFrom(STAKED_TOKEN, msg.sender, address(this), amount) / safeTransfer(to, amount) (abi.encodeCall then a low-level call)",
+      "issue": "Every token transfer builds its calldata at constant addresses but the copy into the call buffer is a constant-bound while (100 or 68 bytes) and the selector is a 4-byte integer piece, so all eleven transfer/transferFrom calls print as 'call 0x0 with: args mem[260 len 100]'.",
+      "rule": "A word-copy loop with constant source, destination and bound is the copy line mem[260 len 100] = mem[160 len 100]; constant byte-range writes over a word merge into the word (mem[160 len 4] = 0x23b872dd with the following words); the buffer then decodes as transferFrom(caller, this.address, _value).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all functions using STAKED_TOKEN / REWARD_TOKEN / REWARDS_VAULT",
+      "lines": "e.g. 285, 443",
+      "decompiled": "call 0x0 with: args mem[260 len 100]",
+      "source": "StakeToken immutables STAKED_TOKEN, REWARD_TOKEN, REWARDS_VAULT",
+      "issue": "solc immutables read as 0 before deployment.",
+      "rule": "none (build artifact)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Small functions line by line; stake, stakeWithPermit, redeem(OnBehalf), claimRewards(OnBehalf), claimRewardsAndRedeem(OnBehalf), slash, returnFunds, initialize, configureAssets by structure. Source loops (4): configureAssets' for and _configureAssets' for (1247, 1256), _getUnclaimedRewards' for in getTotalRewardsBalance (483), RoleManager._initAdmins in initialize (750, after a rotated count-down allocation loop 'while idx - 1' at 724). Implicit: the constant-bound buffer copies (7 'while idx < 100', 4 'while idx < 68'), the tuple[] decode of configureAssets (1228) and the permit/string copies (1176, 2205, 2510): P7. No semantic problem found.",
+  "summary": "Complete and faithful with all source loops as whiles; the main problem is that every SafeERC20 transfer copies its calldata through a constant-bound while from byte-piece writes, so the eleven token transfers lose their function and arguments."
+}

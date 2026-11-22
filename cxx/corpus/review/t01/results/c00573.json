@@ -1,0 +1,47 @@
+{
+  "id": "c00573",
+  "abi_functions": 33,
+  "reviewed": 33,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 2, "P2": 123, "P3": 1, "P6": 1, "P9": 30, "P15": 3},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "borrow, deposit, withdraw, redeemUnderlying, repay, liquidate, canLiquidate, canRebalance, rebalance, maxRelease, checkVaultStatus, collateralForBorrower, teleport, handleExternalLiquidation (85 lines)",
+      "lines": "1165-1171, 1204 ...",
+      "decompiled": "if (-10000 * (stor1 ^ (_45 < stor1) * (stor1 ^ _45)) + 10000 * stor1) / (-(stor1 ^ (_45 < stor1) * (stor1 ^ _45)) + stor1) != 10000 and stor1 != stor1 ^ (_45 < stor1) * (stor1 ^ _45): revert with Panic(17)  |  mem[..] = _62 ^ (-_51 + stor1 < _62) * (_62 ^ -_51 + stor1)",
+      "source": "EulerCollateralVault._handleExcessCredit / _invariantCollateralAmount: Math.min(...) (OpenZeppelin 5: ternary(a < b, a, b) = b ^ ((a ^ b) * SafeCast.toUint(a < b))) and mulDiv(.., Rounding)",
+      "issue": "OpenZeppelin's branchless ternary is printed raw, so every Math.min/Math.max reads as an xor-multiply formula, and products involving it are then distributed (P9), giving lines of several hundred characters for '(totalAssets - min(..)) * 10000' style expressions.",
+      "rule": "For a boolean c (0 or 1), b ^ (c * (a ^ b)) equals 'a if c else b'; with c = (a < b) it is min(a, b) and with c = (a > b) max(a, b). Recognize it before distributing products, and bind the result once.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize(address,address,uint256,address)",
+      "lines": "460-470; def storage 18-20",
+      "decompiled": "_1 = not uint64(stor[0x111f1c4ef852e9433227dc389e1db954d7e8c1b044c81dd7b558acb37e7aa0 * 3600]) and not storF0C5_64 / storF0C5 = 1 / storF0C5_8 = 0   (def storage: storF0C5 is uint8 .., storF0C5_8 is uint56 .. offset 8, storF0C5_64 is uint8 .. offset 64)",
+      "source": "OpenZeppelin Initializable (ERC-7201 slot 0xf0c57e16..6a00): InitializableStorage { uint64 _initialized; bool _initializing; } and the initializer modifier",
+      "issue": "The P1 factoring (0x111f..aa0 * 3600 == 0xf0c57e16..6a00) hits a storage slot, so the read of _initialized is not matched to the slot named storF0C5 on the same line; the uint64 _initialized is also split into uint8 + uint56 fields because the write '_initialized = 1' is printed as two field writes.",
+      "rule": "Never factor a constant used as a storage slot (or any keccak-shaped 256-bit constant); match slots by value. A field read as uint64 at offset 0 and written as two adjacent narrower fields in the same statement is one uint64 field: print storF0C5 = 1.",
+      "verified": "reading only (0x111f1c4e..aa0 * 3600 = 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00 checked with python)"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "all EVC-gated functions",
+      "lines": "e.g. 1032-1042",
+      "decompiled": "if caller: call 0x0.unknown1f8b5215(?) with: value call.value wei, args this.address, caller, call.value, Array(len=calldata.size, data=call.data[0 len calldata.size])",
+      "source": "EVCUtil callThroughEVC modifier with the immutable evc",
+      "issue": "solc immutables (evc, target vault, factory) read as 0.",
+      "rule": "none (not a decompiler error)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No source loops. The two whiles are implicit: teleport's zero-initialization of new IEVC.BatchItem[](3) (rotated, first element before 'idx = 3; while idx - 1', P3; a constant trip count that could be unrolled) and the ABI encoding of the batch. borrow reviewed in detail against CollateralVaultBase.borrow (EVC routing, borrower check, pause state, nonReentrant via stor9B77, createVaultSnapshot via transient storage, _handleExcessCredit, borrow, requireAccountAndVaultStatusCheck, T_Borrow event): matches. Other state-changing functions reviewed by structure (same prologue, calls into the intermediate and target vaults, events). P2: 123 'args mem[..]' lines (calls to the intermediate vault stor6 such as 'static call stor6 with: args mem[mem[64] len _41 + ceil32(return_data.size) - mem[64] + 36]'). 162 uint16 range checks print as 'require ext_call.return_data[0] == ext_call.return_data[30 len 2]' (rule as in c00600).",
+  "summary": "No loops to find and semantics match, but the vault math is unreadable: OpenZeppelin's branchless min/max is never recognized (85 lines) and then distributed, and 123 calls lose their arguments to the unknown free-memory pointer."
+}

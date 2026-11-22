@@ -1,0 +1,13 @@
+{
+  "id": "c00299",
+  "abi_functions": 11,
+  "reviewed": 11,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P6": 1, "P7": 1, "P14": 3},
+  "findings": [],
+  "notes": "Sky StarGuard (unoptimized build), no source loops. All 11 functions reviewed; exec matches the source (unplotted/codehash/expiry/isExecutable checks, delete spellData, subProxy.exec(addr, execute selector), the subProxy owner check, Exec event, return). The one while copies the bytes returned by subProxy.exec in memory (P7). The struct copy spellDataCopy is kept as mem[128..192] (P14).",
+  "summary": "A small, faithful text without source loops; only a compiler copy loop and a memory struct copy remain."
+}

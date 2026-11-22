@@ -1,0 +1,85 @@
+{
+  "id": "c00579",
+  "abi_functions": 62,
+  "reviewed": 62,
+  "not_reviewed": [],
+  "source_loops": 5,
+  "loops_shown": {
+    "while": 5,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P2": 411,
+    "P6": 140,
+    "P7": 21,
+    "P8": 150,
+    "P9": 30,
+    "P11": 45,
+    "P12": 20,
+    "P14": 10,
+    "P15": 96
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "doHardWork, withdrawAllToVault, withdrawToVault, emergencyExit, receiveFlashLoan, salvage (every inlined SafeERC20 / onlyNotPausedInvesting / _redeemPartial require and _notifyProfitInRewardToken event)",
+      "lines": "e.g. 8796-8805 (doHardWork), 4964-4970 (withdrawToVault), 1101-1106 (receiveFlashLoan), 7514-7518 and 8792-8795 (logs); 126 'revert with memory from mem[64]', 20 logs with 'mem[mem[64] len ...]' data",
+      "decompiled": "_3312 = mem[64] / mem[mem[64]] = 0x8c379a0... / mem[_3312 + 36] = 52 / mem[_3312 + 68] = 0x416374696f6e20626c6f636b6564... / revert with memory from mem[64] len _3312 - mem[64] + 132  |  log 0x1072be0f...: mem[mem[64] len _314 + ceil32(return_data.size) - mem[64] + 96], indexed address(storA170)",
+      "source": "BaseUpgradeableStrategy.sol:33 require(!pausedInvesting(), \"Action blocked as the strategy is in emergency state\"); AaveFoldStrategy.sol:229 require(..., \"Unable to withdraw the entire amountUnderlying\"); SafeERC20 messages; BaseUpgradeableStrategy.sol:151 emit ProfitLogInReward(_rewardToken, 0, 0, block.timestamp)",
+      "issue": "Besides the 411 P2 call lines, the same unresolved free-memory region hides the reason of 126 reverts (SafeERC20 x87, 'Address: call to non-contract' x34, 'Action blocked...' x3, 'Unable to withdraw...' x2) and the data of 20 of the 26 events, although every word is written with a constant or known value just before. The same revert at a constant address prints as revert with 'SafeERC20: ERC20 operation did not succeed' (718).",
+      "rule": "Same as c00463: bound the free-memory word (a constant >= 96 plus nonnegative sizes kept below 2^64), so writes at mem[64] + k do not alias it; '_x - mem[64]' then folds to a constant and the revert/log ranges decode like constant-address ones (Error(string) -> revert with 'msg').",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "doHardWork, withdrawAllToVault, withdrawToVault, emergencyExit (_accrueFee); withdrawToVault, doHardWork (_redeemWithFlashloan / _depositWithFlashloan borrow targets)",
+      "lines": "1525-1527 (emergencyExit), 2328, 4732, 7354; 4875-4883, 9077-9083",
+      "decompiled": "if _16 + _15 + ext_call.return_data[0] != (-1 * _6 * _16 - _6 * _15 - _6 * ext_call.return_data[0] + _17 * _16 + _17 * _15 + _17 * ext_call.return_data[0] - _16 * storedBalance - _15 * storedBalance - ext_call.return_data[0] * storedBalance) / (-_6 + _17 - storedBalance) and -_6 + _17 - storedBalance: revert with Panic(17) / _59 = SafeMath.div(<the same 9 products>, _18)",
+      "source": "AaveFoldStrategy.sol:121-122 balanceIncrease = currentBalance().sub(storedBalance()); fee = balanceIncrease.mul(totalFeeNumerator()).div(feeDenominator()); :426 newBalance.mul(_borrowTargetFactorNumerator).div(...)",
+      "issue": "The product (a - d - s) * (p + q + r) is distributed into 9 products, printed twice (overflow check and quotient), so the fee formula is unrecognisable; the borrow-target product is distributed the same way.",
+      "rule": "Do not distribute a multiplication over a sum or difference when an operand is a composite expression; keep x * y with x = a - d - s bound to a temporary, and the checked-mul test becomes 'require x == 0 or x * y / x == y'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize(), initialize(address), initialize(address x6), initializeBaseStrategy, initializeStrategy",
+      "lines": "459-493, 606-659, 729-820, 826-927; def storage line 9",
+      "decompiled": "if stor0 / 256: _4 = 0 / else: _2 = stor0 / 256 / stor0 = 257 / _4 = not _2 / _5 = stor0 / 256 or not uint8(stor0) / if not _5: revert ... (repeated 2-6 times) ... if _8: uint8(stor0.field_8) = 0",
+      "source": "Initializable.sol:31-45 modifier initializer (nested through ControllableInit / GovernableInit / ReentrancyGuardUpgradeable / BaseUpgradeableStrategy / AaveFoldStrategy initializers)",
+      "issue": "After the outer check, stor0 / 256 is nonzero on both paths (it was nonzero, or stor0 was just set to 257), so each inner check always passes and its flag is 0, making its final 'uint8(stor0.field_8) = 0' dead; up to 45 such lines per initializer. _2 is printed although it is known 0, and slot 0's two bools are one 'stor0 is uint16' (P15).",
+      "rule": "Propagate the value of a storage slot after a write on each path; at the join, a predicate true on every incoming path (stor0 / 256 != 0) folds the later tests that depend on it, and an SSA copy of a value known on that path is replaced by the constant.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "receiveFlashLoan, emergencyExit, withdrawAllToVault, withdrawToVault, doHardWork",
+      "lines": "1132, 1282, 1939 and 21 more 'if -...' tests",
+      "decompiled": "if -mem[32 * _param1.length + 192] - mem[32 * _param1.length + 32 * _amounts.length + 224]:  |  if -mem[_213] + pendingFee + 1:",
+      "source": "AaveFoldStrategy.sol:346 if (amountUnderlying == 0) return; with amountUnderlying = amounts[0] + feeAmounts[0] (:457) or supplied - (pendingFee() + 1) (:380)",
+      "issue": "The test 'amount != 0' is printed as the truth value of its negation (-a - b), which reads like an arithmetic mistake.",
+      "rule": "-(e) is nonzero exactly when e is nonzero: print 'if -(e)' / 'if c - e' with c the negated terms as 'if e' / 'if e != c' (here 'if a + b', 'if supplied - pendingFee - 1').",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "emergencyExit, withdrawAllToVault, withdrawToVault, doHardWork (the _redeemNoFlash and _depositNoFlash loops); salvage, receiveFlashLoan and every safeApprove/safeTransfer; initializeStrategy",
+      "lines": "1622-1629, 1660, 1887, 1924 (emergencyExit); 9846, 9857 (doHardWork); 686, 1078 ('len 4] = 2835717307'); 925",
+      "decompiled": "s = storA170 / t = stor4E92 / u = _80 / v = _77 / w = storA170 / x = pendingFee + 1 / y = stor8CDE / while u > 0: ... static call address(s) ... / static call address(y)  |  mem[_292 + 32 len 4] = 2835717307  |  stor[sha3(4) + 1 len -sha3(4) + max(sha3(4) + 1, _41 + sha3(4)) - 1] = 0",
+      "source": "AaveFoldStrategy.sol:489-517 _redeemNoFlash (_underlying = underlying() before the loop), :364-381 (_aToken); SafeERC20 abi.encodeWithSelector; ZerolendFoldStrategyMainnet_cbBTC.sol:30 rewardTokens = [zero]",
+      "issue": "Loop-invariant values (underlying, aToken, the denominator) are carried as loop variables named s, t, w, y, z, the names the text uses for pointers elsewhere, so 'static call address(s)' hides 'underlying.balanceOf(this)'; selectors written to memory print in decimal (47 lines); the storage-array shrink is an opaque max() range.",
+      "rule": "A value assigned before a loop and never reassigned in it is a plain local, not a loop variable, and may keep its definition (storA170); a 4-byte value stored with 'len 4' prints in hex; the clear of a shrunk storage array is 'delete arr[new_len:old_len]' (a range of slots from data + new_len to data + old_len).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed against AaveFoldStrategy.sol, BaseUpgradeableStrategy(.Storage).sol, GovernableInit/ControllableInit, the OZ Initializable/SafeERC20/Address code and ZerolendFoldStrategyMainnet_cbBTC.sol. doHardWork (3,000 lines), withdrawToVault (2,600) and withdrawAllToVault (2,400) were reviewed by structure (control flow, loops, calls, storage writes, events, reverts); emergencyExit and receiveFlashLoan by reading. The external-call order in totalFeeNumerator (profitSharing, platform, strategist) and in currentBalance (debt before aToken) is the reverse of the source text but matches solc's legacy evaluation of internal library calls (arguments before the bound self), so it is faithful. Loops: 5 source loops (_liquidateReward for, _depositNoFlash while, _redeemNoFlash while - constant-folded to 'while u > 0' when the borrow target is 0 -, _isAddressInList, getAddressArray) all shown as while, each inlined copy present (redeem loop x5, deposit loop x2, liquidate loop x2); implicit loops: 21 address[]/uint256[] ABI encodes for flashLoan/claimAllRewards/rewardTokens() as while (P7), one calldata address[] decode. Tail duplication: the continuation of _redeemWithFlashloan's flash / no-flash paths and of _depositWithFlashloan's _redeemPartial(0) paths is printed 2-3 times (the deposit flashLoan block 3 times in doHardWork 9897/10005/10089 and in withdrawToVault 6848/6980/7064); see the c00463 rule (P12 count). 24 of 26 events print as topic hashes (ProfitLogInReward etc. are in the ABI but not in the event database) - not a decompiler error. P11: in-loop and fixed-length Panic(50) checks (assets = new address[](2): 'if 0 >= mem[...]' with the length just written), SafeMath.sub checks after the comparison that implies them (investedUnderlyingBalance 376, 3799, 1934). P8: SafeERC20's error string (47) and encodeWithSelector buffers written to memory before the resolved calls. No execution run: no semantic suspicion after reading.",
+  "summary": "Faithful on every path read, with all 5 loops (and each inlined copy) present; the text is long and hard to read because memory at the free pointer stays unresolved (411 P2 lines, 126 hidden revert reasons, 20 events with raw data), the fee arithmetic is distributed into 9-term polynomials, and nested initializers and flash-loan continuations are repeated."
+}
