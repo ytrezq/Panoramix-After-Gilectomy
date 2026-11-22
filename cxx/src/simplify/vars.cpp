@@ -271,9 +271,12 @@ private:
 
     // v's value may stand for it where it's read: not reading v itself, not
     // past MAX_EXP_SIZE, nothing that may fail, no memory moved where msize
-    // is read
+    // is read, no read of the gas left (the read is where the code reads it,
+    // its variable read wherever its value is used: lot 10 puts it in the
+    // one line that uses it right after it)
     static bool movable(Value name, Value v) {
         const EffectSummary& vs = summary(v);
+        if (vs.reads & S_GAS) return false;
         if (vs.reads & S_VARS) {
             if (vs.reads_any & S_VARS) return false;
             if (!vs.var_reads.nil())
@@ -457,8 +460,11 @@ private:
                 if (is_var(l[0]) && !live.has(index(l[0]))) {
                     const EffectSummary& vs = summary(l[1]);
                     // (where msize is read, a read of memory moves it; a
-                    // read of msize itself changes nothing)
-                    const bool droppable = !(vs.control & C_FAILS) && !(run_flags().msize && (vs.reads & S_MEM));
+                    // read of msize itself changes nothing; a read of the
+                    // gas left stays where the code reads it, read or not:
+                    // every GAS instruction is a read of its own)
+                    const bool droppable = !(vs.control & C_FAILS) && !(run_flags().msize && (vs.reads & S_MEM)) &&
+                                           !(vs.reads & S_GAS);
                     if (droppable) return Value();
                 }
                 live.remove(index(l[0]));

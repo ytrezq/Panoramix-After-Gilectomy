@@ -73,7 +73,8 @@ Vendored in `third_party/` at pinned versions, each with a NOTICE (origin,
 version, license, local changes): doctest v2.5.3; evmone v0.24.0 with the
 evmc of its tree (ABI 19) and intx v0.15.0, for the validation only (never
 in `pancxx` or the module; one local change, `EVMONE_FIXED_GAS`: GAS
-pushes a constant, the one the trace machine reads); sha256-simd (commit
+pushes what the validation's Session says, the gas left the trace machine
+and the text's interpreter read too); sha256-simd (commit
 df94ecd9, the repository's only one),
 whose Go assembly `src/sha256_*.S` translates into GNU as - nothing of it
 is compiled.
@@ -600,8 +601,12 @@ call's results are `Leaf(CALL_SUCCESS, id)`, `Leaf(RETURNDATASIZE, id)`,
 whose last calls differ merge and the return data is read after, a
 `CallMerge` sets a temporary on each path and a copy becomes an IF on the
 id. State reads an SSTORE, TSTORE or call may change are snapshotted into
-variables before it; an expression past 150 nodes gets a variable; GAS
-reads are numbered; a CODECOPY of at most 1024 known bytes is read from
+variables before it; an expression past 150 nodes gets a variable; each GAS
+read is numbered and a variable set where the code reads it (the gas left
+changes with every instruction: nothing may move it, merge it with another
+or take it for loop invariant - every line consumes gas for the effect
+summaries), but the gas of a call made by the next instruction (`GAS
+CALL`), the call line's operand; a CODECOPY of at most 1024 known bytes is read from
 the code; a push past 1024 words is `INVALID(STACK_OVERFLOW)`;
 `--verbose` adds ASM lines. A recursive internal function (a jump to an
 ancestor's start with its return address on the stack) is decompiled
@@ -781,7 +786,11 @@ result read where another call may have run since, and a gas read printed
 with or after another, get a variable (python's snapshots: `_1 =
 ext_call.return_data[0]`) - a read of more than 32 bytes a variable per
 word, the read their concatenation (a variable holds a word, the trace
-machine's and the text's; python's VM snapshots the stack's words); an if
+machine's and the text's; python's VM snapshots the stack's words); after
+lot 8's SafeMath, a gas read the next line uses once (where every run of the
+line evaluates it: not a loop's condition, a branch, the right of an `and`,
+a call's gas) and no other line is printed in that line (`require
+gas_remaining >= 5000`), elsewhere its variable stays; an if
 whose branches differ only by call ids is its lines; every
 `UNDEFINED(UNFINISHED, pc)` is one line. The ast stays executable:
 REQUIRE, ASSERT, LAND, LOR, MERGED_IF are IR ops.
@@ -895,7 +904,13 @@ first, light failures, a call to no code a success, precompiles
 0x01-0x09 and 0x100 computed with evmone's code, CREATE addresses from
 the nonce, SELFDESTRUCT per EIP-6780; not modelled: the caller paying,
 address collisions, re-entrance). `EvmRunner`: evmone's baseline
-interpreter, Osaka, 100M gas, GAS 30,000,000 on both sides. `compare()`:
+interpreter, Osaka, 100M gas; GAS on both sides (evmone's local change,
+the trace machine's `Host::gas()`, the text's `gas_remaining`) is the
+Session's `gas()`: 30,000,000 at the first read, lower by 10 at every read
+and by 1,000 at every external call (not a precompile's), creation and log -
+a read moved past a call, merged with another or taken out of a loop gives
+another value (a GAS right before a call is that call's gas, which neither
+interpreter evaluates: no read). `compare()`:
 same, different or inconclusive over the end, the storage diff and the
 order of logs, calls, creations; exhausted is inconclusive. The calls:
 selectors scanned (Ragel) and probed (the dispatcher run in evmone with a
@@ -1328,10 +1343,15 @@ stagechecks above: 0 different at every stage they ran):
   Storage copy loops: 32 left in the corpus, the asm's 185.
 - **Call results and gas reads kept apart in the text** (lot 10, triage
   issues 3 and 9): a call's result read where another call may have run
-  since, and a gas read printed with or after another, get a variable, as
-  python's VM snapshots did; where the asm, whose IR equates two gas reads,
-  prints `return 0`, NoDelegateCallTest, HooksTest_2 and TickMathTest print
-  `return SafeMath.sub(_1, gas_remaining)`. Over the corpus (lot 10's
+  since gets a variable, as python's VM snapshots did; where the asm, whose
+  IR equates two gas reads, prints `return 0`, NoDelegateCallTest,
+  HooksTest_2 and TickMathTest print `return SafeMath.sub(_1, gas_remaining)`.
+  Since the review of November 2026 (its c00460, c00384, c00465, c00523,
+  c00549, c00069, c00171, c00059, c00159) every gas read is a variable set
+  where the code reads it (lot 5), not only those printed with another: a
+  read was placed as early as the text allowed, out of its loop (multicall's
+  gasUsed read as cumulative), after a call it preceded, or taken for loop
+  invariant (Optimism's Burn.gas loop lost, a Panic printed instead). Over the corpus (lot 10's
   count) lines mixing two calls' results went from 894 in 60 contracts to
   0, lines printing two gas reads from 289 in 16 to 0; the 36 reads left
   (9 contracts) are lot 5's per-path dispatch, each branch its own call's.

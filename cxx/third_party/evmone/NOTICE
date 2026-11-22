@@ -27,7 +27,10 @@ they work as they are (evmone has no floating point).
 
 Local changes:
   - lib/evmone/instructions.hpp (gas) and lib/evmone/advanced_instructions.cpp
-    (op_gas): when EVMONE_FIXED_GAS is defined, GAS pushes it instead of the
-    gas left, so that gas never matters in the validation by execution
-    (cxx/validate/world.hpp: fixed_gas, the same value). Marked
-    "local change" in the code.
+    (op_gas): when EVMONE_FIXED_GAS is defined, GAS pushes what the
+    embedder's hook of the thread says (lib/evmone/fixed_gas.hpp, a file of
+    ours: the validation's Session, a gas left that goes down read by read
+    and event by event, cxx/validate/session.hpp), EVMONE_FIXED_GAS without
+    one (cxx/validate/world.hpp: fixed_gas, the same value); the baseline
+    interpreter's GAS right before a call is that call's gas, not a read
+    (the hook told so). Marked "local change" in the code.

@@ -444,7 +444,7 @@ struct Live {
         // (an assignment whose value reads memory also moves msize: a range
         // reading msize isn't the same bytes before it - but every write is
         // then kept anyway, msize being read after it: the msize rule)
-        if ((s.writes & ~S_MSIZE) == S_VARS && assignments(line, names, values)) {
+        if ((s.writes & ~(S_MSIZE | S_GAS)) == S_VARS && assignments(line, names, values)) {
             assign(names, values);
             return;
         }

@@ -334,6 +334,9 @@ private:
     std::pair<Value, Value> call_data(Value arg_start, Value arg_len);
     bool code_switch(u32 pc);
     Value code_bytes(Value pos, Value len) const;
+    // the instruction after the GAS at pc is a call (CALL, CALLCODE,
+    // DELEGATECALL, STATICCALL): the read is that call's gas, nothing else's
+    bool gas_of_next_call(u32 pc) const noexcept;
 
     // --- the rounds ---
     bool should_quit();

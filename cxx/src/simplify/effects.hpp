@@ -19,8 +19,8 @@
 //    EXTCODESIZE, EXTCODEHASH, SELFBALANCE, EXTCODE_BYTES S_ACCOUNT;
 //    Leaf(CALL_SUCCESS | CREATE_ADDRESS | RETURNDATASIZE, id),
 //    RETURNDATA_BYTES(id, ...) S_CALLRES (the id; RETURNDATASIZE 0 is a
-//    constant); GAS S_GAS (numbered reads, never written: python inlined
-//    them anywhere); names S_VARS (the Name; a PARAM is calldata);
+//    constant); GAS S_GAS (each read numbered, a variable's value set where
+//    the code reads it: vm.hpp); names S_VARS (the Name; a PARAM is calldata);
 //    CALLDATALOAD, CALLDATA_BYTES, CALLDATASIZE, PARAM S_CALLDATA; the
 //    context leaves S_CTX. A SAFEMATH may fail (C_FAILS).
 //  - lines write: SETVAR its name (and S_MSIZE when its value reads memory:
@@ -33,7 +33,10 @@
 //    their id (and PRECOMPILED its result variable); SELFDESTRUCT accounts;
 //    INTERNAL everything anywhere (memory, storage, calls...) and its result
 //    names, and may end the call; WHILE / CONTINUE / GOTO / LABEL their
-//    setvars' names; IF / WHILE / MERGED_IF / LOOP_PATH their parts'.
+//    setvars' names; IF / WHILE / MERGED_IF / LOOP_PATH their parts'. Every
+//    line but ASM and UNDEFINED writes S_GAS: its instructions consume gas,
+//    so what reads the gas left (a GAS read) is changed by any line - never
+//    moved past one, never loop invariant (python: STATE_SYMBOLS' gas).
 //  - LEAVE reads all memory (the caller goes on with it); RETURN / REVERT /
 //    LOG / SHA3 / calls read the memory of their bytes.
 //  - control: C_HALTS (STOP RETURN SELFDESTRUCT), C_FAILS (REVERT INVALID
@@ -65,7 +68,7 @@ inline constexpr u32 S_STORAGE = 1u << 2;    // storage (places: STORAGE(size, o
 inline constexpr u32 S_TRANSIENT = 1u << 3;  // transient storage (places: keys)
 inline constexpr u32 S_ACCOUNT = 1u << 4;    // balances, accounts' code
 inline constexpr u32 S_CALLRES = 1u << 5;    // numbered call results (places: call ids, small ints)
-inline constexpr u32 S_GAS = 1u << 6;        // gas left (read only: numbered reads)
+inline constexpr u32 S_GAS = 1u << 6;        // gas left (numbered reads; every line consumes it)
 inline constexpr u32 S_VARS = 1u << 7;       // variables (places: Names)
 inline constexpr u32 S_LOG = 1u << 8;        // logs (written only)
 inline constexpr u32 S_CALLDATA = 1u << 9;   // calldata, params (read only)
@@ -138,8 +141,9 @@ bool changes(const EffectSummary& w, const EffectSummary& r);
 bool changes(const EffectSummary& w, const EffectSummary& r, const alg::Facts* facts);
 
 // Can a and b (lines) run in either order with the same effects: neither
-// writes what the other reads or writes, and neither may end a path
-// (control): the folder's hoisting (lot 10), the loops' motion (lot 6).
+// writes what the other reads or writes (the gas both consume aside: only a
+// read of it sees their order), and neither may end a path (control): the
+// folder's hoisting (lot 10), the loops' motion (lot 6).
 bool independent(Value a, Value b);
 
 // Every path through v (a line or a trace) ends in it: nothing after it in

@@ -203,6 +203,7 @@ struct Machine::Impl {
     std::vector<std::unique_ptr<Frame>> frames;
     usize depth = 0;
     GenTable<Word256> memo;
+    bool gas_read = false;  // a read of the gas left in what ev_expr computes: not remembered
     std::vector<std::unique_ptr<Bytes>> pool;
     usize pool_used = 0;
     Value cur_line;
@@ -575,13 +576,17 @@ struct Machine::Impl {
     }
 
     Word256 ev_expr(Value v) {
-        // MSIZE moves with every access of the memory: never remembered
+        // MSIZE moves with every access of the memory, GAS with every read
+        // of it (the host's gas()): never remembered
         const bool remember = !v.has_flags(F_MSIZE);
         if (remember)
             if (const Word256* w = memo.find(v.raw())) return *w;
         check_stack();
+        const bool outer = gas_read;
+        gas_read = false;
         const Word256 r = compute(v);
-        if (remember) memo.put(v.raw(), r);
+        if (remember && !gas_read) memo.put(v.raw(), r);
+        gas_read = gas_read || outer;
         return r;
     }
 
@@ -731,7 +736,10 @@ struct Machine::Impl {
             case Op::BLOBBASEFEE: return e.blobbasefee;
             case Op::SELFBALANCE: return host->balance(e.address);
             case Op::MSIZE: return Word256::of(mem.size());
-            case Op::GAS: return e.gas;
+            case Op::GAS:
+                // (each read its own: the host's gas left there)
+                gas_read = true;
+                return host->gas();
             case Op::RETURNDATASIZE:
                 if (v.leaf_n() == 0) return Word256{};
                 return Word256::of(record(v.leaf_n()).output.size());

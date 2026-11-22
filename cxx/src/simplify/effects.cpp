@@ -220,6 +220,10 @@ EffectSummary storage_region_read(Value region, Value operands_of) {
     return s;
 }
 
+// the lines whose run takes gas: all but the --verbose comments and the
+// VM's giving up (no instruction of the code)
+bool consumes_gas(Op op) noexcept { return has(op, LINE) && op != Op::ASM && op != Op::UNDEFINED; }
+
 // what a line that touches memory does to msize
 void touch(EffectSummary& s) {
     if ((s.reads | s.writes) & S_MEM) s.writes |= S_MSIZE;
@@ -465,7 +469,15 @@ EffectSummary compute(Value v) {
         }
         return s;
     }
-    if (v.is_expr()) return expr_summary(v);
+    if (v.is_expr()) {
+        EffectSummary s = expr_summary(v);
+        // every instruction consumes gas: a line changes the gas left, so a
+        // read of it is never moved past one, taken for loop invariant or
+        // kept known across one (two lines that only consume it run in
+        // either order: independent())
+        if (consumes_gas(v.op())) s.writes |= S_GAS;
+        return s;
+    }
     return EffectSummary{};
 }
 
@@ -643,8 +655,9 @@ bool independent(Value a, Value b) {
     const EffectSummary& sb = summary(b);
     if ((sa.control | sb.control) & C_MAY_END) return false;
     if (changes(sa, sb) || changes(sb, sa)) return false;
-    // both write the same place: their order is seen
-    return !classes_meet(sa.writes, sa.writes_any, true, sa, sb.writes, sb.writes_any, true, sb);
+    // both write the same place: their order is seen (but the gas both
+    // consume: what isn't read in between sees no order)
+    return !classes_meet(sa.writes & ~S_GAS, sa.writes_any, true, sa, sb.writes & ~S_GAS, sb.writes_any, true, sb);
 }
 
 Tri storage_may_alias(Value a, Value b) {

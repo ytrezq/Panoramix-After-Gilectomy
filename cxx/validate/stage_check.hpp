@@ -55,6 +55,7 @@ public:
     explicit SessionHost(Session& session);
 
     const pan::exec::CallEnv& env() override;
+    pan::Word256 gas() override;  ///< the Session's: lower at every read
     pan::Word256 sload(const pan::Word256& slot) override;
     void sstore(const pan::Word256& slot, const pan::Word256& value) override;
     pan::Word256 tload(const pan::Word256& key) override;

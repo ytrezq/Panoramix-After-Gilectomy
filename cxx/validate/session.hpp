@@ -11,7 +11,8 @@
 //   create  SELFDESTRUCT selfdestruct (then finish(End::stop()))
 //   ADDRESS address()  CODESIZE/CODECOPY code()  CALLER ORIGIN CALLVALUE
 //   GASPRICE CALLDATA* context()  NUMBER TIMESTAMP COINBASE PREVRANDAO
-//   GASLIMIT CHAINID BASEFEE BLOBBASEFEE block()  GAS fixed_gas
+//   GASLIMIT CHAINID BASEFEE BLOBBASEFEE block()  GAS gas() (a call's own
+//   gas, the GAS right before it, gas_left(): neither side reads it)
 //
 // and ends with finish(end), which commits the call's changes to the State
 // when it succeeded (stop, return) and drops them otherwise.
@@ -81,6 +82,17 @@ public:
 
     const std::vector<Event>& events() const noexcept { return events_; }
 
+    /// GAS: the gas left, as both sides read it (each read asks once):
+    /// fixed_gas, lower by gas_read_cost at every read and by gas_event_cost
+    /// at every event the comparison orders (an external call but a
+    /// precompile's, a creation, a log), 0 at the least. A read moved past
+    /// another or past such an event, taken for another, or out of a loop,
+    /// reads another value; a loop waiting for the gas to run low ends.
+    Word gas();
+    /// The gas left without a read: the gas of a call that reads it right
+    /// before (`GAS CALL`), which the decompiled result never evaluates.
+    Word gas_left() const noexcept;
+
     /// The events a call may make (a memory limit): past it they're not
     /// recorded, and the call ends `exhausted`.
     std::size_t max_events = 100'000;
@@ -100,6 +112,8 @@ private:
     std::map<Word, std::uint64_t> nonces_;  // the nonces changed by the call
     std::set<Word> created_;
     std::vector<Event> events_;
+    std::uint64_t gas_reads_ = 0;   // the reads of the gas left so far
+    std::uint64_t gas_events_ = 0;  // the events that consume gas so far
     bool too_many_events_ = false;
     bool finished_ = false;
 };

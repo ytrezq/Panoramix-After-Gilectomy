@@ -684,27 +684,24 @@ TEST_CASE("output: make_ast's passes")
                    " {(if (lt tmp2 3) {(log0 None) (undefined 1 20)} {(return (sized 32 tmp2))})})}") ==
           "  if _1:\n      if _2 >= 3:\n          return _2\n  log\n"
           "  ...  # Decompilation aborted, sorry: (\"decompilation didn't finish\",)\n");
-    // a gas read printed with a later one, or after a later one's line: a
-    // variable, set as early as the read can be
-    CHECK(ast_text("{(if (lt tmp1 3) {(revert None)} {(return (sized 32 (sub (gas 1) (gas 2))))})}") ==
-          "  _2 = gas_remaining\n  require _1 >= 3\n  return _2 - gas_remaining\n");
-    CHECK(ast_text("{(log0 (sized 32 (gas 1))) (call 1 (gas 3) caller 0 None None)"
-                   " (return (sized 32 (sub (gas 2) (gas 4))))}") ==
-          "  log gas_remaining\n  _1 = gas_remaining\n  call caller with:\n       gas gas_remaining\n"
-          "  return _1 - gas_remaining\n");
-    // printed again after a line that printed another
-    CHECK(ast_text("{(call 1 (gas 1) caller 0 None None) (call 2 (gas 2) caller 0 None None)"
-                   " (log0 (sized 32 (gas 1)))}") ==
-          "  _1 = gas_remaining\n  call caller with:\n       gas _1\n  call caller with:\n       gas gas_remaining\n"
-          "  log _1\n");
-    // the VM's numbers out of the paths' order (its loops, its merges): no
-    // variable for that alone; one needed, right before its first use
-    CHECK(ast_text("{(call 1 (gas 5) caller 0 None None) (call 2 (gas 3) caller 0 None None)}") ==
-          "  call caller with:\n       gas gas_remaining\n  call caller with:\n       gas gas_remaining\n");
-    CHECK(ast_text("{(call 1 (gas 5) caller 0 None None) (call 2 (gas 3) caller 0 None None)"
-                   " (return (sized 32 (sub (gas 4) (gas 6))))}") ==
-          "  call caller with:\n       gas gas_remaining\n  call caller with:\n       gas gas_remaining\n"
-          "  _1 = gas_remaining\n  return _1 - gas_remaining\n");
+    // the gas reads: the VM's variables, set where the code reads them (but a
+    // call's own gas), stay where they are - make_ast moves none of them
+    // (the review of November 2026: a read placed before its loop, after the
+    // call it preceded); inline_gas_reads, the last display rewrite, prints
+    // in its line a read the next line alone uses, once
+    const char* reads = "{(setvar tmp1 (gas 1)) (call 1 (gas 2) caller 0 None None) (setvar tmp2 (gas 3))"
+                        " (return (sized 32 (sub tmp1 tmp2)))}";
+    CHECK(ast_text(reads) ==
+          "  _1 = gas_remaining\n  call caller with:\n       gas gas_remaining\n  _2 = gas_remaining\n"
+          "  return _1 - _2\n");
+    {
+        FunctionInfo fn;
+        fn.kind = FunctionInfo::Kind::Fallback;
+        fn.trace = V(reads);
+        fn.entry.entry_lines = V("{}");
+        CHECK(print_trace(inline_gas_reads(make_ast(fn)), TraceContext{&fn}) ==
+              "  _1 = gas_remaining\n  call caller with:\n       gas gas_remaining\n  return _1 - gas_remaining\n");
+    }
 }
 
 TEST_CASE("output: a call's return data bytes in a byte element, read after another call")

@@ -2,6 +2,7 @@
 #include "session.hpp"
 
 #include <limits>
+#include <variant>
 
 namespace validate
 {
@@ -86,8 +87,29 @@ Word Session::blob_hash(const Word& index) const
     return hashes[static_cast<std::size_t>(index)];
 }
 
+Word Session::gas_left() const noexcept
+{
+    const auto used = static_cast<std::uint64_t>(gas_read_cost) * gas_reads_
+                      + static_cast<std::uint64_t>(gas_event_cost) * gas_events_;
+    const auto start = static_cast<std::uint64_t>(fixed_gas);
+    return used >= start ? Word{0} : Word{start - used};
+}
+
+Word Session::gas()
+{
+    const Word g = gas_left();
+    ++gas_reads_;
+    return g;
+}
+
 void Session::record(Event e)
 {
+    // (the events both sides make in the same order: a call to a precompile
+    // the decompiled result may not make - its output unused - aside)
+    if (std::holds_alternative<Log>(e) || std::holds_alternative<Creation>(e))
+        ++gas_events_;
+    else if (const auto* c = std::get_if<ExternalCall>(&e); c && !c->precompile)
+        ++gas_events_;
     if (events_.size() < max_events)
         events_.push_back(std::move(e));
     else

@@ -107,6 +107,15 @@ struct AstStageOptions {
 // budget.
 void ast_stage(std::span<const FunctionInfo> in, std::vector<FunctionInfo>& out, const AstStageOptions& opts = {});
 
+// The last display rewrite of an ast, on cx() (after lot 8's SafeMath, whose
+// calls may leave a check's read used once): a read of the gas left (a
+// variable set where the code reads it: vm.hpp) that the next line uses once
+// where every run of the line evaluates it, and no other line, printed in
+// that line - `require gas_remaining >= 5000` - the same read at the same
+// place. Equivalent (the trace machine runs both alike, a gas left that
+// changes at every read included); the trace itself when there's none.
+Value inline_gas_reads(Value trace);
+
 // ---- 2. text ---------------------------------------------------------------------------
 
 struct PrintOptions {

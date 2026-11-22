@@ -186,8 +186,9 @@ const Instruction* op_pc(const Instruction* instr, AdvancedExecutionState& state
 
 const Instruction* op_gas(const Instruction* instr, AdvancedExecutionState& state) noexcept
 {
-#ifdef EVMONE_FIXED_GAS  // local change (cxx/third_party/evmone/NOTICE): GAS gives a constant
-    state.stack.push(int64_t{EVMONE_FIXED_GAS});
+#ifdef EVMONE_FIXED_GAS  // local change (cxx/third_party/evmone/NOTICE): GAS gives the embedder's gas left
+    // (the baseline interpreter alone tells a call's gas apart: this one reads)
+    state.stack.push(fixed_gas_read(true));
 #else
     const auto correction = state.current_block_cost - instr->arg.number;
     const auto gas = static_cast<uint64_t>(state.gas_left + correction);

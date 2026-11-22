@@ -4,6 +4,9 @@
 #pragma once
 
 #include "baseline.hpp"
+#ifdef EVMONE_FIXED_GAS
+#include "fixed_gas.hpp"  // local change (NOTICE)
+#endif
 #include "constants.hpp"
 #include "execution_state.hpp"
 #include "instructions_traits.hpp"
@@ -798,15 +801,23 @@ inline void msize(StackTop stack, ExecutionState& state) noexcept
     stack.push(state.memory.size());
 }
 
+#ifdef EVMONE_FIXED_GAS  // local change (cxx/third_party/evmone/NOTICE): GAS gives the embedder's gas left
+inline code_iterator gas(StackTop stack, ExecutionState& /*state*/, code_iterator pos) noexcept
+{
+    // (the code is padded: the next byte is there) a call right after GAS
+    // takes it as its gas: not a read of its own
+    const auto next = pos[1];
+    const bool call = next == OP_CALL || next == OP_CALLCODE || next == OP_DELEGATECALL || next == OP_STATICCALL;
+    stack.push(fixed_gas_read(!call));
+    return pos + 1;
+}
+#else
 inline Result gas(StackTop stack, int64_t gas_left, ExecutionState& /*state*/) noexcept
 {
-#ifdef EVMONE_FIXED_GAS  // local change (cxx/third_party/evmone/NOTICE): GAS gives a constant
-    stack.push(int64_t{EVMONE_FIXED_GAS});
-#else
     stack.push(gas_left);
-#endif
     return {EVMC_SUCCESS, gas_left};
 }
+#endif
 
 inline void tload(StackTop stack, ExecutionState& state) noexcept
 {
