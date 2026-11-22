@@ -621,12 +621,28 @@ setvars)` with `CONTINUE(id, setvars)`: `while True` with the exits inside
 test the first IF after the label with a branch looping back, the lines
 before it rotated only when they set no loop variable, hold no jump and
 change nothing a setvar reads (a copied call keeps its id), and only
-when they are few (`max_rotated`: two statements, a check one, a SETVAR
-none - a test at the end of the iteration, a do-while or Vyper's range
-loop, would print the whole first iteration before the loop: `while True`
-then, the iteration once, the test at its end and what follows the loop
-after it), the exit's merge variables renamed or the exit run after the
-loop, a loop left only by a failing check `while not check`. A GOTO outside its LABEL is
+when what each copy before a CONTINUE prints is little (`max_rotated`: two
+statements; a SETVAR none, a check one - none when no line of the
+iteration changes what it reads: the copy before the loop decides those
+before the continues, the simplifier drops them -, a write at a constant
+place the next lines hash none: the words of a mapping's key) - a test at
+the end of the iteration, a do-while or Vyper's range loop, would print the
+whole first iteration before the loop. Such a test, when it tests the
+values the next iteration starts with (its counters stepping by constants:
+`t - 1`, `i + 1 != N`) and holds at the first head (by constants, or by
+the conditions known at the LABEL - make_whiles carries the enclosing
+IFs' and the checks', the guard a compiler puts before a loop whose test
+it moved to the end), is made the loop's head: `while h:` with h the test
+read a step back, the exit reading the variables a step back too, nothing
+copied (`head_test`; solc's zero-filling of a new array of structs, c00088's
+`while idx - 1`). Else `while True`, the iteration once, the test at its
+end and what follows the loop after it; the exit's merge variables
+renamed or the exit run after the loop, a loop left only by a failing
+check `while not check` - but not by a check whose branch only fails (a
+Panic's, an Error's data made in memory) where the loop has an exit test
+of its own, unless it tests a counter against a bound (a search that
+reverts past the end): c00134's `while u >= t`, a subtraction's check,
+printed its real bound as an exit inside the body, `continue loop1`. A GOTO outside its LABEL is
 Unsupported, as python failed. `summary(while)` gives a loop's variables,
 names set, effects, the memory an iteration may write and read, breaks;
 `induction()` is python's parse_counters as a proof (a counter, a
