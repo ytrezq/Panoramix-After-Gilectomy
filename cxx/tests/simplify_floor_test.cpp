@@ -576,6 +576,32 @@ TEST_CASE("floor: the backward memory pass drops what the floors place apart fro
     CHECK(count_op(u, Op::SETMEM) == 4);
 }
 
+TEST_CASE("floor: the backward memory pass asks for the floors of each place a shared list is at") {
+    Fixture fx;
+    // one list (hash-consed) at two places: after a join that keeps the
+    // word at least 128, and after one where it may be 0. Its write at the
+    // word's value is read by nothing where the word is at least 128 (the
+    // return reads the word and 32 bytes past where it points): dropped
+    // there - the floors of the other place, where the write may move the
+    // word, don't hold there (the floors both places had: none)
+    const std::string block =
+        "{(setmem (range (mem (range 64 32)) 32) (sized 32 5)) "
+        "(return (data (sized 32 5) (mem (range (add 32 (mem (range 64 32))) 32))))}";
+    const std::string text =
+        "{(setmem (range 64 32) (sized 32 128)) (if (calldataload 100) "
+        "{(if (calldataload 4) {(setmem (range 64 32) (add 160 (and 65504 (calldataload 36))))} {}) "
+        "(if (calldataload 132) " + block + " {(stop)})} "
+        "{(if (calldataload 4) {(setmem (range 64 32) (sized 32 0))} {}) "
+        "(if (calldataload 132) " + block + " {(stop)})})}";
+    Value u = check_pass(text.c_str(), S::cleanup_mems);
+    REQUIRE(u.is_list());
+    const Value outer = last(u);
+    REQUIRE(outer.is(Op::IF));
+    // the place the floors keep apart: the write is gone; the other keeps it
+    CHECK(count_op(outer[1], Op::SETMEM) == 1);  // (the join's own write)
+    CHECK(count_op(outer[2], Op::SETMEM) == 2);
+}
+
 TEST_CASE("floor: cleanup_conds keeps a condition across a write the floors place apart") {
     Fixture fx;
     // the pointer p >= 128 (taken from the word): a write at 0 doesn't change
