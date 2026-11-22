@@ -317,6 +317,10 @@ private:
         if (r != l) cx().pcs.inherit(r, l);
         forget(st, summary(r));
         fl = floor_transfer(fl, r);
+        // a variable set to a read of memory nothing knows holds it: a write
+        // that may change those bytes keeps the pieces reading them as the
+        // variable (MemState::alias)
+        if (r.is(Op::SETVAR, 2) && r[1].is(Op::MEM, 1) && keeps(r[1][0], Value())) st.alias(r[0], r[1]);
         return r;
     }
 

@@ -242,10 +242,18 @@ TEST_CASE("floor: joins and loops") {
     CHECK(S::floor_join(alg::Facts{}, before, e, t).floor_of(64) == V("(add 292 tmp1)"));
     // a branch without a floor: none after
     CHECK(S::floor_join(alg::Facts{}, before, t, alg::Facts{}).floor_of(64).nil());
-    // floors that can't be ordered: the one before, when it is below both
+    // floors that can't be ordered: the one before, when it is below both;
+    // else the least of the constants each is at least (tmp1 + 292 >= 292,
+    // tmp2 + 300 >= 300: the word is at least 292 after the join)
     const alg::Facts e2 = S::floor_transfer(before, V("(setmem (range 64 32) (add 300 tmp2))"));
-    CHECK(S::floor_join(alg::Facts{}, before, t, e2).floor_of(64).nil());
+    CHECK(S::floor_join(alg::Facts{}, before, t, e2).floor_of(64) == Value::small(292));
     // (before's floor tmp1 + 100 is below t's, not provably below e2's)
+    // the constants read the branches' floors: tmp1 >= 128 there
+    const alg::Facts t3 = t.with_floor(V("tmp1"), Value::small(128));
+    CHECK(S::floor_join(alg::Facts{}, before, t3, e2).floor_of(64) == Value::small(300));
+    // a branch whose floor says nothing more than 0: none
+    const alg::Facts e4 = S::floor_transfer(before, V("(setmem (range 64 32) (sized 32 tmp2))"));
+    CHECK(S::floor_join(alg::Facts{}, before, t, e4).floor_of(64).nil());
     // a loop that writes where the floor places away from the word: kept;
     // one that may write anywhere: gone
     const alg::Facts f128 = S::floor_transfer(alg::Facts{}, V("(setmem (range 64 32) (sized 32 128))"));
@@ -263,15 +271,16 @@ TEST_CASE("floor: a walk through branches doesn't use the facts their lines may 
     Fixture fx;
     // tmp1 > 300 before the IF, the word >= 250; the then branch sets tmp1
     // to 0 and the word to tmp1 + 5 = 5, the else branch the word to 260:
-    // after the IF, no floor (above 5) holds on both paths - the condition
-    // isn't true in the then branch any more
+    // after the IF, no floor above 5 holds on both paths - the condition
+    // isn't true in the then branch any more (5: the least constant the two
+    // branches' floors are at least, tmp1 + 5 and 260)
     alg::Facts f = alg::Facts{}.with_cond(V("(lt 300 tmp1)"));
     f = S::floor_transfer(f, V("(setmem (range 64 32) (sized 32 250))"));
     REQUIRE(f.floor_of(64) == Value::small(250));
     const alg::Facts after = S::floor_walk(
         f, V("(if (calldataload 4) {(setvar tmp1 0) (setmem (range 64 32) (add 5 tmp1))} {(setmem (range 64 32) "
              "(sized 32 260))})"));
-    CHECK(after.floor_of(64).nil());
+    CHECK(after.floor_of(64) == Value::small(5));
     // the facts other than floors come back as they were given (the caller
     // forgets what the IF changes)
     CHECK(after.without_floors() == f.without_floors());
@@ -442,6 +451,107 @@ TEST_CASE("floor: the forward memory pass places a write at a pointer taken from
         "(setmem (range tmp12 32) (sized 32 (calldataload 36))) (return (mem (range 64 32)))}",
         S::cleanup_mems);
     CHECK(has_op(last(u), Op::MEM));
+}
+
+TEST_CASE("floor: the forward memory pass finds a write at the word's value by the variable that read it") {
+    Fixture fx;
+    // p = mload(0x40); mstore(mload(0x40), selector); a read at p: nothing
+    // places the word (the write may overwrite it), but the write is where
+    // p is - p read the word before it: the read at p is the selector
+    Value u = check_pass(
+        "{(setvar tmp1 (mem (range 64 32))) "
+        "(setmem (range (mem (range 64 32)) 32) "
+        "(sized 32 0xb60d428800000000000000000000000000000000000000000000000000000000)) "
+        "(return (mem (range tmp1 4)))}",
+        S::cleanup_mems);
+    CHECK(!has_op(last(u), Op::MEM));
+    // p set again between: the read stays
+    u = check_pass(
+        "{(setvar tmp1 (mem (range 64 32))) (setmem (range (mem (range 64 32)) 32) (sized 32 7)) "
+        "(setvar tmp1 (and 255 (calldataload 4))) (return (mem (range tmp1 4)))}",
+        S::cleanup_mems);
+    CHECK(has_op(last(u), Op::MEM));
+    // the word written between p's read and the write where it points: the
+    // write isn't at p
+    u = check_pass(
+        "{(setvar tmp1 (mem (range 64 32))) (setmem (range 64 32) (sized 32 (and 255 (calldataload 4)))) "
+        "(setmem (range (mem (range 64 32)) 32) (sized 32 7)) (return (mem (range tmp1 32)))}",
+        S::cleanup_mems);
+    CHECK(has_op(last(u), Op::MEM));
+    // after a join the word is unknown but at least 160: p = mload(0x40);
+    // mstore(mload(0x40), 68); mstore(0x40, mload(0x40) + 100): the piece
+    // where the word pointed stays as at p, the word is p + 100
+    u = check_pass(
+        "{(if (calldataload 4) {(setmem (range 64 32) (sized 32 160))} {(setmem (range 64 32) (sized 32 192))}) "
+        "(setvar tmp1 (mem (range 64 32))) (setmem (range (mem (range 64 32)) 32) (sized 32 68)) "
+        "(setmem (range 64 32) (add 100 (mem (range 64 32)))) "
+        "(return (data (mem (range tmp1 32)) (mem (range 64 32))))}",
+        S::cleanup_mems);
+    CHECK(!has_op(last(u), Op::MEM));
+    // the word lowered in a branch to where the write lands on it: the read
+    // stays
+    u = check_pass(
+        "{(if (calldataload 4) {(setmem (range 64 32) (sized 32 160))} {(setmem (range 64 32) (sized 32 64))}) "
+        "(setvar tmp1 (mem (range 64 32))) (setmem (range (mem (range 64 32)) 32) (sized 32 68)) "
+        "(setmem (range 64 32) (add 100 (mem (range 64 32)))) "
+        "(return (data (mem (range tmp1 32)) (mem (range 64 32))))}",
+        S::cleanup_mems);
+    CHECK(has_op(last(u), Op::MEM));
+}
+
+namespace {
+
+// the first line of op in a trace, its nested lists searched (NIL: none)
+Value find_line(Value v, Op op) {
+    if (!(v.is_expr() || v.is_list())) return Value();
+    if (v.is_expr() && v.op() == op) return v;
+    for (Value a : v.args())
+        if (Value r = find_line(a, op); !r.nil()) return r;
+    return Value();
+}
+
+}  // namespace
+
+TEST_CASE("floor: a call whose data is built where the word points keeps its function and arguments") {
+    Fixture fx;
+    // after a join the word is unknown (at least 160): p = mload(0x40);
+    // mstore(mload(0x40), selector); mstore(p + 4, x); call(..., p, 36) -
+    // the selector and the argument are read back where they were written
+    Value u = check_pass(
+        "{(setmem (range 64 32) (sized 32 128)) "
+        "(if (calldataload 4) {(setmem (range 64 32) (add 160 (and 4064 (calldataload 36))))} "
+        "{(setmem (range 64 32) (add 192 (and 4064 (calldataload 68))))}) "
+        "(setvar tmp1 (mem (range 64 32))) "
+        "(setmem (range (mem (range 64 32)) 32) "
+        "(sized 32 0xa9059cbb00000000000000000000000000000000000000000000000000000000)) "
+        "(setmem (range (add 4 tmp1) 32) (sized 32 (calldataload 100))) "
+        "(call 1 gas 0xdead 0 (mem (range tmp1 4)) (mem (range (add 4 tmp1) 32))) (stop)}",
+        whole);
+    const Value call = find_line(u, Op::CALL);
+    REQUIRE(!call.nil());
+    CHECK(!has_op(call, Op::MEM));
+}
+
+TEST_CASE("floor: a copy from a buffer allocated where the word points is no loop") {
+    Fixture fx;
+    // a string of 64 bytes allocated at p = mload(0x40) (its length written
+    // where the word points, then the word moved past it), copied word by
+    // word to the next allocation: the length is known, the loop a copy
+    Value u = check_pass(
+        "{(setmem (range 64 32) (sized 32 128)) "
+        "(if (calldataload 4) {(setmem (range 64 32) (add 160 (and 4064 (calldataload 36))))} {}) "
+        "(setvar tmp1 (mem (range 64 32))) (setmem (range (mem (range 64 32)) 32) (sized 32 64)) "
+        "(setmem (range 64 32) (add 96 (mem (range 64 32)))) "
+        "(setmem (range (add 32 tmp1) 32) (sized 32 (calldataload 100))) "
+        "(setmem (range (add 64 tmp1) 32) (sized 32 (calldataload 132))) "
+        "(setvar tmp2 (mem (range 64 32))) "
+        "(while (lt loop1 (mem (range tmp1 32))) "
+        "{(setmem (range (add loop1 tmp2) 32) (mem (range (add 32 loop1 tmp1) 32))) "
+        "(continue loopid1 [(setvar loop1 (add 32 loop1))])} "
+        "loopid1 [(setvar loop1 0)]) "
+        "(return (mem (range tmp2 64)))}",
+        whole);
+    CHECK(!has_op(u, Op::WHILE));
 }
 
 TEST_CASE("floor: the backward memory pass drops what the floors place apart from every read") {
@@ -619,6 +729,56 @@ TEST_CASE("floor: a loop that allocates (the word only grows) keeps the word's f
         "loopid1 [(setvar loop1 0)]) "
         "(setvar tmp28 (mem (range 64 32))) (setmem (range tmp28 32) (sized 32 (calldataload 36))) "
         "(setmem (range 0 32) (sized 32 7)) (return (mem (range tmp28 32)))}",
+        S::cleanup_mems);
+    CHECK(has_op(last(u), Op::MEM));
+}
+
+TEST_CASE("floor: a join of floors no one of which is below the other keeps a constant below both") {
+    Fixture fx;
+    // two branches setting the word from two lengths: neither floor is
+    // proven below the other, but both are at least 160 - above the piece
+    // at 96, which a write where the word points then can't touch
+    Value u = check_pass(
+        "{(setmem (range 96 32) (sized 32 7)) "
+        "(if (calldataload 4) {(setmem (range 64 32) (add 224 (and 4064 (calldataload 36))))} "
+        "{(setmem (range 64 32) (add 160 (and 4064 (calldataload 68))))}) "
+        "(setmem (range (mem (range 64 32)) 32) (sized 32 9)) (return (mem (range 96 32)))}",
+        S::cleanup_mems);
+    CHECK(!has_op(last(u), Op::MEM));
+    // a branch that may lower the word onto the piece: the read stays
+    u = check_pass(
+        "{(setmem (range 96 32) (sized 32 7)) "
+        "(if (calldataload 4) {(setmem (range 64 32) (add 224 (and 4064 (calldataload 36))))} "
+        "{(setmem (range 64 32) (add 64 (and 4064 (calldataload 68))))}) "
+        "(setmem (range (mem (range 64 32)) 32) (sized 32 9)) (return (mem (range 96 32)))}",
+        S::cleanup_mems);
+    CHECK(has_op(last(u), Op::MEM));
+}
+
+TEST_CASE("floor: a loop allocating from a pointer it took from the word keeps the word's floor") {
+    Fixture fx;
+    // p = mload(0x40); mstore(p, i); mstore(0x40, p + 64) in each iteration
+    // (via-IR's allocations: the new value is the pointer plus the size, not
+    // the word plus it): the word is at least 512 at every head, the writes
+    // at p miss the word at 288
+    Value u = check_pass(
+        "{(setmem (range 64 32) (sized 32 512)) (setmem (range 288 32) (sized 32 5)) "
+        "(while (lt loop1 (and 7 (calldataload 4))) "
+        "{(setvar tmp1 (mem (range 64 32))) (setmem (range tmp1 32) (sized 32 loop1)) "
+        "(setmem (range 64 32) (add 64 tmp1)) (continue loopid1 [(setvar loop1 (add 1 loop1))])} "
+        "loopid1 [(setvar loop1 0)]) "
+        "(return (mem (range 288 32)))}",
+        S::cleanup_mems);
+    CHECK(!has_op(last(u), Op::MEM));
+    // the pointer lowered in the loop (onto the word at 288 at the second
+    // iteration): the read stays
+    u = check_pass(
+        "{(setmem (range 64 32) (sized 32 512)) (setmem (range 288 32) (sized 32 5)) "
+        "(while (lt loop1 (and 7 (calldataload 4))) "
+        "{(setvar tmp1 (mem (range 64 32))) (setmem (range tmp1 32) (sized 32 loop1)) "
+        "(setmem (range 64 32) (add -224 tmp1)) (continue loopid1 [(setvar loop1 (add 1 loop1))])} "
+        "loopid1 [(setvar loop1 0)]) "
+        "(return (mem (range 288 32)))}",
         S::cleanup_mems);
     CHECK(has_op(last(u), Op::MEM));
 }

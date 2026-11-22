@@ -419,3 +419,35 @@ What is left:
   (the bytes getter's check, its worlds), aave311_BorrowLogic 2.1 times
   (1.40 s against 0.66 s), ENS' TestRRUtils 1.75 times, 0x032_Exchange
   0.79 times.
+
+## The free memory pointer unknown: calls, copies (22 November)
+
+The manual review (tranche 1) found the most frequent loss where the word at
+64 is unknown: calls printed `args mem[mem[64] len ...]`, copies left as
+loops, reverts and events as raw memory. Three causes, each fixed by what the
+trace proves:
+
+1. **A read held by a variable** (`mem/memory.hpp`, `MemState::alias`). The
+   VM names an unknown `mload(0x40)` (`_1 = mem[64]`) and keeps `_1` on the
+   stack; `cleanup_vars` puts `mem[64]` back where it is still valid, so the
+   store reads `mem[mem[64]] = x` while the call reads `mem[_1 len 4]`. The
+   store may overwrite the word itself (nothing places it), so its piece was
+   dropped, and a piece at `mem[64] + 36` went with the next allocation
+   `mem[64] = mem[64] + 100`. The forward pass now records that `_1` holds
+   what `mem[64]` reads, until a write may change those bytes or `_1` is set
+   again; when a write may change what a piece's range or value, or its own,
+   reads there, the read is taken as `_1` instead - the same bytes, the write
+   evaluating them before it writes. The lines are printed as they were.
+2. **A join of floors none of which is below the other** (`floor_join`): the
+   least of the constants each branch's floor is at least (their ranges, the
+   branch's floors read), for a word or a variable (the VM's merge variables).
+3. **A loop whose word's floor changes form** (`loop_floors_of`): a
+   candidate stays where the floor there is proven at least it (via-IR's
+   `mem[64] = p + n`, `p` taken from the word, isn't `mem[64] + n`); a
+   candidate spoiled, or weakened before the loop to what says less, is
+   replaced by the least constant it and the floors where it failed are at
+   least, and the body walked again.
+
+On eight reviewed contracts (c00585, c00217, c00054, c00005, c00557, c00366,
+c00376, c00600): `args mem[` lines 524 -> 75, copy loops 361 -> 194, `while`
+lines 557 -> 398, printed lines 57,546 -> 48,483.
