@@ -212,9 +212,70 @@ TEST_CASE("output: numbers")
     CHECK(E("18000") == "5 * 3600");
     CHECK(E("-1") == "-1");
     CHECK(E("0xffffffffffffffffffffffffffffffffffffffff") == "0xffffffffffffffffffffffffffffffffffffffff");
-    // below 8**30 as decimal, past it hex
+    // below 8**30 as decimal, past it hex (in whole bytes)
     CHECK(E("1237940039285380274899124223") == "1237940039285380274899124223");
-    CHECK(E("1237940039285380274899124225") == "0x40000000000000000000001");
+    CHECK(E("1237940039285380274899124225") == "0x040000000000000000000001");
+}
+
+TEST_CASE("output: review t01 - numbers: whole bytes of hex, durations")
+{
+    Fixture f;
+    // P6: a word whose top digit is 0 in whole bytes - 0x01ffc9a7 << 224,
+    // not 0x1ffc9a70... whose first 8 digits read as another selector
+    const std::string w = "0x01ffc9a7" + std::string(56, '0');
+    CHECK(E(w) == w);
+    CHECK(E("(sized 1048576 0x123)") == "Bytes(1048576, 0x0123)");
+    // P1: days and hours only when they read as a duration, fewer than
+    // 2**32 of them - a slot, a mask or 0.9e18 that 3600 divides is a number
+    CHECK(E("31536000") == "365 * 24 * 3600");
+    CHECK(E("315360000000") == "3650000 * 24 * 3600");
+    // (python's 0x3d5815...00 * 3600, the selector 0x35ea6a75's word; and
+    // 0x111f...aa0 * 3600, OpenZeppelin's Initializable slot)
+    const std::string sel = "0x35ea6a75" + std::string(56, '0');
+    CHECK(E(sel) == sel);
+    CHECK(E("(storage 64 0 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00)") ==
+          "uint64(stor[0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00])");
+}
+
+TEST_CASE("output: review t01 - ABI arrays: empty, several")
+{
+    Fixture f;
+    // an empty array (c00144's reason ''), alone or among others
+    CHECK(L("{(return (data (arr 0)))}") == "  return ''\n");
+    CHECK(L("{(return (data (sized 32 caller) (arr 0)))}") == "  return caller, Array(len=0, data='')\n");
+    // two arrays, each its own argument
+    CHECK(L("{(return (data (arr 3 (sized 3 0x616263)) (arr 2 (sized 2 0x6465))))}") ==
+          "  return Array(len=3, data='abc'), Array(len=2, data='de')\n");
+    // a word of an ABI string past its text: not the literal (whose encoding
+    // is shorter)
+    CHECK(L("{(return (data (arr 5 (sized 32 0x68656c6c6f000000000000000000000000000000000000000000000000000000) "
+            "(sized 32 0))))}")
+              .find("'hello'") == std::string::npos);
+}
+
+TEST_CASE("output: review t01 - an unknown function's params are named by their places")
+{
+    Fixture f;
+    // the words it reads - the second and the fourth: _param2, _param4
+    // (python's numbered them as read: _param1, _param2)
+    FunctionInfo fn;
+    fn.kind = FunctionInfo::Kind::Selector;
+    fn.selector = 0x12345678;
+    ParamInfo a;
+    a.calldata_offset = 36;
+    a.kind = AbiKind::Address;
+    ParamInfo b;
+    b.calldata_offset = 100;
+    fn.params = {a, b};
+    fn.trace = V("{(return (data (sized 32 param0) (sized 32 param1)))}");
+    PrintOptions o;
+    o.color = false;
+    const std::string t = pan::output::detail::function_text(nullptr, fn, o).s;
+    CHECK(t.starts_with("def unknown12345678(address _param2, uint256 _param4)"));
+    CHECK(t.ends_with("return _param2, _param4"));
+    // the fallback's too
+    fn.kind = FunctionInfo::Kind::Fallback;
+    CHECK(pan::output::detail::function_text(nullptr, fn, o).s.ends_with("return _param2, _param4"));
 }
 
 TEST_CASE("output: expressions")
@@ -298,9 +359,9 @@ TEST_CASE("output: review 2026-11-02 F1 - a Bytes(n, v) of a large n prints its 
     // python pads the value to 2n hex digits (a width of 1 MiB: 2 MiB of
     // zeroes, at every use of the node); past four words the value is its
     // significant digits alone - the width says the rest, as Bytes(n, 0)'s
-    CHECK(E("(sized 1048576 1)") == "Bytes(1048576, 0x1)");
+    CHECK(E("(sized 1048576 1)") == "Bytes(1048576, 0x01)");
     CHECK(E("(sized 16777216 0x1234)") == "Bytes(16777216, 0x1234)");
-    CHECK(E("(sized 129 1)") == "Bytes(129, 0x1)");
+    CHECK(E("(sized 129 1)") == "Bytes(129, 0x01)");
     CHECK(E("(sized 1048576 0)") == "Bytes(1048576, 0)");
     // up to four words, python's padded form
     CHECK(E("(sized 12 0x2b)") == "Bytes(12, 0x00000000000000000000002b)");

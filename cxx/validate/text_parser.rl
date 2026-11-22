@@ -1803,6 +1803,12 @@ void Parser::s_def(std::uint32_t name_tok, std::uint32_t comment_tok)
         p.name = std::string(span(sp.name));
         p.type = std::move(sp.type);
         p.position = at;
+        // (an unknown function's _paramN is the N-th word: the words it
+        // doesn't read leave their numbers out - side information places
+        // them anyway)
+        if (f.places_unknown && p.type.words == 1)
+            if (const auto n = param_number(p.name); n && *n >= 1 && *n <= 65536)
+                p.position = 4 + 32 * (*n - 1);
         at += p.type.words * 32;
         param_names_.emplace(span(sp.name), static_cast<std::uint32_t>(f.params.size()));
         f.params.push_back(std::move(p));
@@ -2434,10 +2440,20 @@ bool place_params(Program& program, std::optional<std::uint32_t> selector, std::
         if (selector ? f.kind != Function::regular || f.selector != *selector : f.kind != Function::fallback)
             continue;
         // only where the text doesn't say: a signature without its params
-        // (?) has those the text uses, by number
-        if (!f.places_unknown
-            || (f.unknown_params ? f.params.size() > places.size() : f.params.size() != places.size()))
+        // (?) has those the text uses, by number - _paramN the N-th word,
+        // typed by the place of that offset (none: a word it reads that
+        // side information doesn't name)
+        if (!f.places_unknown || (!f.unknown_params && f.params.size() != places.size()))
             return false;
+        if (f.unknown_params)
+        {
+            for (auto& p : f.params)
+                for (const auto& pl : places)
+                    if (pl.offset == p.position && !p.typed && pl.type)
+                        p.type = *pl.type;
+            f.placed = true;
+            return true;
+        }
         for (std::size_t i = 0; i < f.params.size(); ++i)
         {
             auto& p = f.params[i];

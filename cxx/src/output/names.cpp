@@ -156,6 +156,15 @@ bool builtin_name(std::string_view name) noexcept
     return std::binary_search(std::begin(kBuiltins), std::end(kBuiltins), name);
 }
 
+std::string word_param_name(const ParamInfo& p)
+{
+    // (an offset not of a word, or below the head: python's count can't be
+    // told from it either - its offset then, as the head's words are)
+    if (p.calldata_offset >= 4 && (p.calldata_offset - 4) % 32 == 0)
+        return std::format("_param{}", (p.calldata_offset - 4) / 32 + 1);
+    return std::format("_param_at_{}", p.calldata_offset);
+}
+
 namespace {
 
 // python's hex(n) of a slot: its digits, no leading zero
@@ -308,7 +317,7 @@ FnEnv::FnEnv(const FunctionInfo* fn, const sigdb::Database* db, Value trace, con
                 params_.push_back(Param{"", std::format("_param{}", k + 1)});
         } else if (fn->kind == FunctionInfo::Kind::Selector) {
             for (usize k = 0; k < fn->params.size(); ++k)
-                params_.push_back(Param{abi_kind_text(fn->params[k]), std::format("_param{}", k + 1)});
+                params_.push_back(Param{abi_kind_text(fn->params[k]), word_param_name(fn->params[k])});
         }
     }
     // python's _names["taken"]: the builtins, the storage's names, the params'
@@ -443,12 +452,16 @@ const std::string& FnEnv::name_text(Value name) const
         case NameKind::PARAM:
             // FunctionInfo::params[id]: a word of the head of the calldata -
             // a known function's by the name of that word (python's
-            // calldata_params: desc.srcToken, amounts[2]), else _param<k+1>
+            // calldata_params: desc.srcToken, amounts[2]), an unknown one's
+            // _paramN by its place, the N-th word (python's numbered the
+            // words read: the third of them, the 7th word, was _param3)
             if (known_) {
                 const ParamWord* w = word_of_param(id);
                 t = w ? w->name : std::format("_param{}", id + 1);
             } else if (id < params_.size()) {
                 t = params_[id].name;
+            } else if (fn_ && fn_->kind != FunctionInfo::Kind::Internal && id < fn_->params.size()) {
+                t = word_param_name(fn_->params[id]);
             } else {
                 t = std::format("_param{}", id + 1);
             }

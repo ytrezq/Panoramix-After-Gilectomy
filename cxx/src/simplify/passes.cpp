@@ -441,67 +441,222 @@ Value readability(Value trace) { return readability_trace(trace, Ids{}, Ids{}); 
 
 namespace {
 
-// an ABI-encoded array in a DATA - its offset among the head words, then at
-// that offset its length and its content in whole words - as ARR(len,
-// content...) in the offset's place (python rewriter.postprocess_exp): the
-// same bytes (the machine encodes an ARR so: its offset in the head, its
-// length and content, padded to whole words, after the heads)
-Value abi_array(Value d) {
-    if (!d.is(Op::DATA) || d.size() < 3) return d;
-    const u32 n = d.size();
-    auto word_const = [](Value e) -> std::optional<i64> {
-        if (e.is(Op::SIZED, 2) && is_int(e[0], 32) && e[1].is_small() && e[1].small_val() >= 0) return e[1].small_val();
-        return std::nullopt;
-    };
-    // the offset: the one constant multiple of 32 among the words before what it points at
-    i64 at = -1, loc = -1;
-    for (u32 i = 0; i < n; ++i) {
-        auto c = word_const(d[i]);
-        if (!c || *c % 32 != 0 || *c == 0) continue;
-        if (at >= 0) return d;  // several: ambiguous
-        at = i;
-        loc = *c / 32;
+// ---- ABI-encoded data: its arrays (python rewriter.postprocess_exp) ---------------------
+
+// The most elements of a data read as an ABI encoding, and of head words
+// that point at its tails (the readings are quadratic in them)
+constexpr u32 ABI_MAX_ELEMENTS = 1024, ABI_MAX_OFFSETS = 64;
+
+// a word element's value: SIZED(32, v)'s v (NIL for any other element)
+Value word_of(Value e) { return e.is(Op::SIZED, 2) && is_int(e[0], 32) ? e[1] : Value(); }
+
+// v's normal form (NIL past the algebra's caps: equal to nothing)
+Value normal(Value v) {
+    try {
+        return alg::normalize(v);
+    } catch (const SizeLimit&) {
+        return Value();
+    } catch (const DepthLimit&) {
+        return Value();
     }
-    if (at < 0 || loc <= at || loc + 1 >= i64(n)) return d;
-    for (i64 i = 0; i <= loc; ++i) {
-        auto w = mem::width_u64(d[u32(i)]);
-        if (!w || *w != 32) return d;
-    }
-    Value lenw = d[u32(loc)];
-    if (!lenw.is(Op::SIZED, 2)) return d;
-    Value len = lenw[1];
-    // the content: whole words (its width a multiple of 32 for every value)
-    SmallVec<Value, 8> content;
-    u64 total = 0;
-    bool known = true;
+}
+
+// The tail of an ABI encoding at the elements [m, end) of a data - the
+// length word d[m], then the content - when it is one: the content whole
+// words for every value, as long as the length says - a bytes of len bytes
+// (ceil32(len) bytes), len elements of k words (32 k len), or (constants
+// only) len offsets and the tails they point at (64 len and more) -: where
+// both are constants, those numbers; where both are expressions, provably
+// (the same normal forms); never where one is a constant and the other not
+// (they don't agree for every value). No content only for a length 0.
+// 0: no tail; 2: an exact one (ceil32(len) bytes, len words, or provably
+// so); 1: one of constants of k > 1 words an element, or of offsets
+int abi_tail(std::span<const Value> d, u32 m, u32 end) {
+    const Value len = word_of(d[m]);
+    if (len.nil()) return 0;
     SmallVec<Value, 8> widths;
-    for (u32 i = u32(loc) + 1; i < n; ++i) {
-        auto w = mem::width_of(d[i]);
-        if (!w) return d;
-        widths.push_back(*w);
-        if (auto k = mem::width_u64(d[i]))
-            total += *k;
-        else
-            known = false;
-        content.push_back(d[i]);
+    for (u32 i = m + 1; i < end; ++i) widths.push_back(*mem::width_of(d[i]));
+    if (widths.empty()) return is_int(len, 0) ? 2 : 0;
+    const Value w = normal(alg::add(widths.span()));
+    if (w.nil() || alg::low_zero_bits(w) < 5) return 0;
+    const Value l = normal(len);
+    if (l.nil() || w.is_int() != l.is_int()) return 0;
+    if (!w.is_int()) {
+        if (w == normal(alg::mask(251, 5, 0, alg::add(small(31), l)))) return 2;
+        for (i64 k = 1; k <= 16; ++k)
+            if (w == normal(alg::mul(small(32 * k), l))) return 2;
+        return 0;
     }
-    if (known ? total % 32 != 0 : alg::low_zero_bits(alg::add(widths.span())) < 5) return d;
-    // without the zeroes past its length, when they're only that
-    if (known && len.is_small()) {
-        u64 kept = total;
-        usize k = content.size();
-        while (k > 0 && content[k - 1].is(Op::SIZED, 2) && is_int(content[k - 1][1], 0)) {
-            kept -= *mem::width_u64(content[k - 1]);
-            --k;
+    const EvmInt wi(w), li(l);
+    if (li.sign() < 0 || li.bit_length() > 64 || wi.bit_length() > 64) return 0;
+    const EvmInt per = EvmInt(i64(32)) * li;
+    if (wi == floordiv(li + EvmInt(i64(31)), EvmInt(i64(32))) * EvmInt(i64(32)) || wi == per) return 2;
+    if (li.is_zero()) return 0;
+    return (!(wi < per) && pymod(wi, per).is_zero()) || !(wi < EvmInt(i64(2)) * per) ? 1 : 0;
+}
+
+// One reading of a data's elements d as an ABI encoding whose head is its
+// first h elements (words): the head words that are offsets, each with the
+// element its tail starts at
+struct AbiReading {
+    struct Offset {
+        u32 head, tail;
+    };
+    SmallVec<Offset, 4> offsets;
+};
+
+// The readings with a head of h words: a head word is an offset when its
+// value is, for every value, the place (from the data's start: places, in
+// normal forms) of an element at h or after, a word (the length); the
+// offsets, in the head's order, point at tails one after the other, the
+// first at h, the last up to the data's end, each one a tail (abi_tail). Of
+// the readings, those with the most offsets (a head word equal to the place
+// of a tail is its offset, unless no reading has it so); nullopt when there
+// is none, or several of them (ambiguous: two head words the offset of one
+// tail).
+std::optional<AbiReading> abi_reading(std::span<const Value> d, std::span<const Value> places, u32 h, int least) {
+    const u32 n = u32(d.size());
+    // the candidates: (head word, the element at its value)
+    SmallVec<AbiReading::Offset, 8> cand;
+    for (u32 i = 0; i < h; ++i) {
+        const Value v = word_of(d[i]);
+        if (v.nil()) continue;
+        const Value nv = normal(v);
+        if (nv.nil()) continue;
+        std::optional<u32> at;
+        for (u32 m = h; m < n; ++m) {
+            if (places[m] != nv || word_of(d[m]).nil()) continue;
+            if (at) return std::nullopt;  // (the place of two elements: one of no width)
+            at = m;
         }
-        if (i64(kept) == len.small_val() && (kept + 31) / 32 * 32 == total)
-            while (content.size() > k) content.pop_back();
+        if (at) cand.push_back({i, *at});
+        if (cand.size() > ABI_MAX_OFFSETS) return std::nullopt;
     }
-    SmallVec<Value, 8> arr;
-    arr.push_back(len);
-    for (Value c : content) arr.push_back(c);
+    // the chains of candidates from the end: most[j] the most offsets of a
+    // reading of the tails from cand[j]'s on, count[j] how many readings
+    // have them (1, or 2 for more)
+    const usize k = cand.size();
+    std::vector<u32> most(k, 0), count(k, 0), next(k, u32(-1));
+    for (usize j = k; j-- > 0;) {
+        if (abi_tail(d, cand[j].tail, n) >= least) {
+            most[j] = 1;
+            count[j] = 1;
+        }
+        for (usize q = j + 1; q < k; ++q) {
+            if (count[q] == 0 || cand[q].tail <= cand[j].tail) continue;
+            if (abi_tail(d, cand[j].tail, cand[q].tail) < least) continue;
+            if (most[q] + 1 > most[j]) {
+                most[j] = most[q] + 1;
+                count[j] = count[q];
+                next[j] = u32(q);
+            } else if (most[q] + 1 == most[j]) {
+                count[j] = std::min<u32>(2, count[j] + count[q]);
+            }
+        }
+    }
+    // the first tail at h
+    std::optional<usize> first;
+    u32 best = 0, ways = 0;
+    for (usize j = 0; j < k; ++j) {
+        if (cand[j].tail != h || count[j] == 0) continue;
+        if (most[j] > best) {
+            best = most[j];
+            ways = count[j];
+            first = j;
+        } else if (most[j] == best) {
+            ways = std::min<u32>(2, ways + count[j]);
+        }
+    }
+    if (!first || ways != 1) return std::nullopt;
+    AbiReading r;
+    for (usize j = *first;; j = next[j]) {
+        r.offsets.push_back(cand[j]);
+        if (next[j] == u32(-1)) break;
+    }
+    return r;
+}
+
+// The arrays of an ABI-encoded data - its head words, some of them the
+// offsets (from the data's start) of tails after the head, each tail a
+// length word and its content in whole words - each as ARR(len, content...)
+// in its offset's place (python rewriter.postprocess_exp, for any number of
+// them): the same bytes, which the machine encodes so - each ARR's offset in
+// its place, its length and content padded to whole words after the head,
+// in the ARRs' order. Only on a proven layout: the offsets equal to their
+// tails' places for every value (normal forms), the tails one after the
+// other from the end of the head to the end of the data; one reading of the
+// data only (abi_reading, of every head size a head word's constant value
+// gives), else the data as it is.
+Value abi_array(Value d) {
+    if (!d.is(Op::DATA) || d.size() < 2 || d.size() > ABI_MAX_ELEMENTS) return d;
+    const std::span<const Value> els = d.args();
+    const u32 n = u32(els.size());
+    // the places of the elements (normal forms), places[n] the data's end
+    SmallVec<Value, 16> places;
+    places.push_back(small(0));
+    for (u32 i = 0; i < n; ++i) {
+        const auto w = mem::width_of(els[i]);
+        if (!w) return d;
+        places.push_back(normal(alg::add(places[i], *w)));
+        if (places.back().nil()) return d;
+    }
+    // the head sizes: h words, the value 32 h of one of them (its first tail's place)
+    SmallVec<u32, 4> heads;
+    for (u32 i = 0; i < n; ++i) {
+        const Value v = word_of(els[i]);
+        if (!v.is_small() || v.small_val() <= 0 || v.small_val() % 32 != 0) continue;
+        const i64 h = v.small_val() / 32;
+        if (h <= i64(i) || h >= i64(n)) continue;
+        bool words = true;
+        for (i64 k = 0; k < h && words; ++k) words = mem::width_u64(els[u32(k)]) == std::optional<u64>(32);
+        if (words && std::find(heads.begin(), heads.end(), u32(h)) == heads.end()) heads.push_back(u32(h));
+    }
+    // (of exact tails only, else with the weak ones: c00600's 128 bytes, not
+    // a head of 4 words and an array of one element of 3 words)
+    std::optional<AbiReading> reading;
+    u32 head = 0;
+    for (int least = 2; least >= 1 && !reading; --least)
+        for (u32 h : heads) {
+            poll();
+            auto r = abi_reading(els, places.span(), h, least);
+            if (!r) continue;
+            if (reading) return d;  // (two readings: not proven)
+            reading = std::move(r);
+            head = h;
+        }
+    if (!reading) return d;
     SmallVec<Value, 8> out;
-    for (i64 i = 0; i < loc; ++i) out.push_back(i == at ? mk(Op::ARR, arr.span()) : d[u32(i)]);
+    for (u32 i = 0; i < head; ++i) out.push_back(els[i]);
+    const auto& offs = reading->offsets;
+    for (usize j = 0; j < offs.size(); ++j) {
+        const u32 m = offs[j].tail, end = j + 1 < offs.size() ? offs[j + 1].tail : n;
+        const Value len = word_of(els[m]);
+        SmallVec<Value, 8> content;
+        u64 total = 0;
+        bool known = true;
+        for (u32 i = m + 1; i < end; ++i) {
+            if (auto k = mem::width_u64(els[i]))
+                total += *k;
+            else
+                known = false;
+            content.push_back(els[i]);
+        }
+        // without the zeroes past its length, when they're only that
+        if (known && len.is_small()) {
+            u64 kept = total;
+            usize k = content.size();
+            while (k > 0 && content[k - 1].is(Op::SIZED, 2) && is_int(content[k - 1][1], 0)) {
+                kept -= *mem::width_u64(content[k - 1]);
+                --k;
+            }
+            if (i64(kept) == len.small_val() && (kept + 31) / 32 * 32 == total)
+                while (content.size() > k) content.pop_back();
+        }
+        SmallVec<Value, 8> arr;
+        arr.push_back(len);
+        for (Value c : content) arr.push_back(c);
+        out[offs[j].head] = mk(Op::ARR, arr.span());
+    }
     return mk(Op::DATA, out.span());
 }
 

@@ -145,10 +145,15 @@ enum Prec : int { P_NONE = 0, P_OR = 1, P_AND, P_NOT, P_CMP, P_BOR, P_BXOR, P_BA
 // python's str() / hex() of an int
 std::string int_dec(const EvmInt& x);
 std::string int_hex(const EvmInt& x);
+// hex() in whole bytes, the text's hex constants (an even number of digits:
+// 0x01ffc9a7 << 224 is 0x01ffc9a700..., never 0x1ffc9a700... whose first 8
+// digits read as another selector)
+std::string hex_bytes(const EvmInt& x);
 // python's padded_hex(x, n): "0x" + n digits ("?" * n when it has more)
 std::string padded_hex(const EvmInt& x, u32 digits);
 // python's pretty_num(x) (ints only): hex past 8**50, 10**k * m, decimal
-// below 8**30 as a word, hex else (or its negative decimal)
+// below 8**30 as a word, hex else (or its negative decimal) - hex in whole
+// bytes (hex_bytes)
 std::string pretty_num(const EvmInt& x);
 // python's num_precedence of pretty_num's text
 int num_precedence(std::string_view text) noexcept;
@@ -270,6 +275,11 @@ private:
 
 // the names the text has for what the EVM gives (python BUILTIN_NAMES)
 bool builtin_name(std::string_view name) noexcept;
+
+// the name of a param of a function the database doesn't know: _paramN for
+// the N-th word of the calldata's head, its place (4 + 32 (N - 1)) - the
+// words it doesn't read leave their numbers out
+std::string word_param_name(const ParamInfo& p);
 
 // python's known_fname(sel): the function (or error) of a selector as printed
 // after an address (its params' types gray, their names but the _paramN
