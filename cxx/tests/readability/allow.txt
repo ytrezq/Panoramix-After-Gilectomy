@@ -1,0 +1,4 @@
+# Readability regressions `make readability` accepts: NAME FUNCTION RULE  # why
+# (NAME a text of the corpus, FUNCTION a def of it, RULE one of tools/readability.py's;
+# `*` matches any). One only where the old text was readable because it was inexact,
+# or where exactness needs the new form - with the proof.
