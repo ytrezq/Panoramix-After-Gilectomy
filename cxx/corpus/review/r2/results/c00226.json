@@ -1,0 +1,29 @@
+{
+  "id": "c00226",
+  "text_changed": true,
+  "lines_old": 2813,
+  "lines_new": 2739,
+  "changed_functions": 4,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "_expandMsgXmd's implied 'if uint8(t) - 2 > 255' / '- 1 > 255' checks and the 4-term memory bases are unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown57262e7f, unknown7abab0f3, unknownf1faff00 (registerValidatorSet, verifyICMMessage, verifyMessage)",
+      "lines": "774, 798, 822, 846, 1607, 1631, 1655, 1679, 2525, 2549, 2573, 2597",
+      "decompiled": "_325 = gas_remaining / mod_exp = bigModExp(64, 32, 64, mem[... + 164 len 64], 1, 0x1a01..., 0x6477...) # precompiled",
+      "old": "mod_exp = bigModExp(mem[_324], 32, 64, _319, _322, 1, ...) # precompiled",
+      "source": "BLST.sol modexp precompile staticcall(gas(), 0x05, ...)",
+      "issue": "Each GAS read is now its own variable, but the precompile line does not show its gas argument. So 12 '_N = gas_remaining' lines are printed and never read.",
+      "rule": "Drop an assignment whose variable no printed line reads, or print the call's gas argument with that variable.",
+      "verified": "reading only (no later use of each variable in its function)"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Rotated zero-initialisation loops (P3) are now do-whiles without a peeled iteration. Two Panic(17) checks in unknownf1faff00 ('34 > len + 52n + len2 + 198'), which the allocation bounds make impossible, are dropped exactly. Values resolve: the sha256 input copy length is '_309 + 33', b[i - 1] = hash4, the Array length of the attestation call is '20 * _21 + 52 * _30 + _45 + 164', and the revert selectors and 0x01... constants show whole bytes.",
+  "patterns": {"P1": 0, "P2": 15, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 2,260 lines, read by function (4 changed). Calls, events and storage writes are unchanged. whiles 35 -> 41: in each of the three big functions, two zero-initialisations of a 2-element struct array that the old text unrolled are now do-whiles with 'u = 2' (neutral, the bytecode's loop). Pointer differences with two names for one pointer remain, as before (sha256 'len _308 + _309 - _311 + 33', the 0x11 call 'len _373 - _374 + 128'). unknowneb97cd2c's addresses grow into closed forms of _5/_11 (neutral).",
+  "summary": "One low regression: 12 unused '_N = gas_remaining' lines before the bigModExp precompile calls. Otherwise improvements: P3 loops re-rolled, two impossible Panic(17) checks dropped, several lengths and values resolved."
+}

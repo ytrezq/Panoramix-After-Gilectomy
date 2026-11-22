@@ -1,0 +1,27 @@
+{
+  "id": "c00056",
+  "text_changed": false,
+  "lines_old": 124,
+  "lines_new": 124,
+  "changed_functions": 0,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "artifact",
+      "status": "still",
+      "note": "Text unchanged."
+    },
+    {
+      "n": 2,
+      "kind": "simplification",
+      "status": "still",
+      "note": "Text unchanged."
+    }
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "None: the text did not change.",
+  "patterns": {},
+  "notes": "No diff file. The new text is byte-identical to round 1's, so every round-1 finding stands.",
+  "summary": "Text unchanged since round 1; no regression, and the round-1 findings remain."
+}

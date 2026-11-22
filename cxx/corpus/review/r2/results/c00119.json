@@ -1,0 +1,23 @@
+{
+  "id": "c00119",
+  "text_changed": true,
+  "lines_old": 11675,
+  "lines_new": 5518,
+  "changed_functions": 21,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "voteOnBehalfOf: the VOTING_CANNOT_VOTE allocation is no longer peeled (now at the top of the body), so 'while s:' became 'while True: ... if s: ... continue / break'; the bound is still 'if u + 1 >= _voters.length: stop' inside a 2,200-line body, voter 0's balanceOfAt is still hoisted into both arms of 'if _3', and the exit is still the raw message revert."},
+    {"n": 2, "kind": "loop", "status": "partly", "note": "canVoteOnBehalfOf: iteration 0's test is now inside the loop ('while True' with return 0 / return 1), and s and t are read; voter 0's balanceOfAt is still before the loop, once per arm, and _voters[u + 1] is still raw cd[32 * u + _voters + 68]."},
+    {"n": 3, "kind": "naming", "status": "still", "note": "stor6 / stor8 still declared and used (35 / 212 lines); castVotes still raw stor[sha3(caller, sha3(_disputeId, 4) + 8)]."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "_castVote branches still unjoined: 90 CastVote copies (6 in vote, 84 in voteOnBehalfOf). The bodies are shorter now (vote 933 lines, was 3,840; voteOnBehalfOf 2,292, was 4,760) because the revert loops fold."},
+    {"n": 5, "kind": "simplification", "status": "still", "note": "The packed Setting copy in the six setters is unchanged."},
+    {"n": 6, "kind": "simplification", "status": "partly", "note": "Revert-message loops fold to 'revert with MSG' in the view functions, vote, voteOnBehalfOf and executeVote's checks (whiles 331 -> 34). Still raw: 32 message loops (newVote, forward, executeVote's script path, voteOnBehalfOf's VOTING_CANNOT_VOTE exit) and the phi-merged literal reverts of transferToVault and the setters."},
+    {"n": 7, "kind": "simplification", "status": "still", "note": "Same 12 P2 lines: kernel calls, execScript delegatecall (selector still decimal 664594997), StartVote/ScriptResult data. Only the selector constants now show whole bytes (0x04bf2a7f...)."},
+    {"n": 8, "kind": "simplification", "status": "still", "note": "'0 >= x' / 'x <= 0' down from 336 to 23 lines, mostly because the revert loops went; the remaining ones (e.g. 'if 0 >= _voters.length: stop') are unchanged."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "The text is half as long (11,675 -> 5,518 lines). Every MATH*/VOTING_* revert reached through a symbolic free-memory pointer now folds to 'revert with MSG', and its dead allocation lines are gone (vote, voteOnBehalfOf, canExecute, canVote, canClose, canChallenge, isVoteOpenForVoting, executeVote). Overflow checks now go through SafeMath.add (151 uses, was 24). A second mul check that cannot fail is dropped exactly: same yea operand, inside 'if yea'. hasPermission's bytes argument decodes as Array(len=0|32|64, data=...), which matches auth / authP(arr(...)) through dangerouslyCastUintArrayToBytes. Selectors and hex words show whole bytes (P6 gone), and the executor's revert-bubbling and EVMRUN_EXECUTOR_INVALID_RETURN revert fold.",
+  "patterns": {"P1": 0, "P2": 12, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 12,152 lines, reviewed by structure for vote and voteOnBehalfOf; the other 19 changed functions read hunk by hunk. In vote and voteOnBehalfOf the effects are unchanged, old vs new: balanceOfAt 16/19, CastVote 6/84, QuietEndingExtendVote 4/4, ProxyVoteFailure 1, 344 storage writes each, asserts 22/20, requires 32/38. Every old revert message is still there, folded or inside SafeMath.add/mul. Read line by line: the _castVote arms (Yea->Nay, Yea->Yea and others, the sub check before the add check), vote's tail (final stop dropped at the function end), and the voteOnBehalfOf and canVoteOnBehalfOf loops. P7 estimate: 32 revert-message loops. Not run by execution: no suspicion left after the structural counts.",
+  "summary": "No regression. The text is halved: the symbolic-pointer revert loops fold to messages, SafeMath.add is used throughout and hasPermission's bytes argument is decoded. The unjoined _castVote copies, stor6/stor8 naming, raw kernel and script calls, and the voteOnBehalfOf loop shape remain."
+}

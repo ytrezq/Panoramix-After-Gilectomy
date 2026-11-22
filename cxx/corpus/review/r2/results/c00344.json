@@ -1,0 +1,26 @@
+{
+ "id": "c00344",
+ "text_changed": true,
+ "lines_old": 481,
+ "lines_new": 470,
+ "changed_functions": 2,
+ "old_findings": [],
+ "regressions": [],
+ "new_findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "TuringTx(string,bytes) (unknown2f7adf43)",
+   "lines": "205-207",
+   "decompiled": "call stor1.GetResponse(uint32, string, bytes) with: args 1, 96, ceil32(cd[_param1 + 4]) + 128, cd[_param1 + 4], mem[ceil32(cd[_param1 + 4]) + ceil32(cd[_param2 + 4]) + 324 len ceil32(cd[_param1 + 4]) + ceil32(cd[_param2 + 4]) + 32]",
+   "source": "TuringHelper.TuringTx: Self.GetResponse(1, _url, _payload) (uint32, string, bytes)",
+   "issue": "The call data is now listed word by word in the right order. The old form showed 'Array(len=L1, ...)' before the second offset, which was out of order. But the two dynamic arguments are still not decoded: the url and the payload (with its length word) are one memory slice after two raw offsets.",
+   "rule": "When the head holds offsets 96 and ceil32(L1) + 128 to well-formed tails, print each tail as Array(len=..., data=...) in place of its offset.",
+   "verified": "reading only"
+  }
+ ],
+ "improvements": "P6 14 -> 0 (the Error(string) selector prints as 0x08c379a0...). In TuringTx, the two memory copies of the response into the event data and the return data are copy lines instead of loops (5 -> 3 whiles), and the call's argument words are listed in their real order.",
+ "patterns": {},
+ "notes": "The diff is 186 lines; I read both changed functions (GetErrorCode's function only changed hex display). No source loop; the 3 whiles left are string/bytes copies (P7), as in round 1.",
+ "summary": "No regression. Display gains (whole-byte hex), 2 copy loops became copy lines, and the TuringTx call words are in order, though still not decoded as two dynamic arguments."
+}

@@ -1,0 +1,59 @@
+{
+  "id": "c00350",
+  "round1": true,
+  "abi_functions": 4,
+  "reviewed": 4,
+  "not_reviewed": [],
+  "source_loops": 3,
+  "loops_shown": {"while": 3, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P2": 2, "P7": 4, "P8": 10, "P11": 5, "P18": 2},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "checkDA(uint256,uint256,bytes32,bytes,uint256) (unknown381c3f13)",
+      "lines": "131-152, 279-309 (24 lines)",
+      "decompiled": "if cd[_param4 + 4] < (Mask(8, 248, cd[_param4 + 100]) >> 243) + 65: ... t = cd[_param4 + 4] - (Mask(8, 248, cd[_param4 + 100]) >> 243) - 66",
+      "source": "CalldataDA.sol:71-77 BLOB_DATA_OFFSET + 32 * blobsProvided; blobsProvided = uint8(_operatorDAInput[64])",
+      "issue": "32 * blobsProvided is printed as Mask(8, 248, x) >> 243 in every length and offset, while the same byte is printed as cd[_param4 + 100] >> 248 elsewhere in the function.",
+      "rule": "Mask(8, 248, x) >> 243 equals (x >> 248) * 32: a right shift of a top-aligned mask by less than its offset is the extracted field times 2^(offset - shift).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "checkDA (unknown381c3f13), publishBlobs(bytes) (unknown73c58a2d)",
+      "lines": "159-171, 197-211, 295-306, 320-342; 56-68, 84-98",
+      "decompiled": "_407 = mem[64] ... _408 = mem[64] ... static call 0xa with: args mem[_408 + 224 len _407 - _408 + 192]; _150 = mem[64] ... revert with memory from mem[64] len _150 - mem[64] + 100; if cd[_param4 + 68] != sha3(mem[mem[64] len 64 * _param5 + ... - mem[64] + 190])",
+      "source": "_pointEvaluationPrecompile staticcall(precompileInput) and PointEvalFailed; _processCalldataDA InvalidPubdataHash; checkDA BlobHashCommitmentError",
+      "issue": "Reads of mem[64] with no write to mem[64] between them are not unified (nor is the value written before a zero-fill join), so the precompile arguments stay raw although stored on the line before, the calldata branch's pubdata hash and its InvalidPubdataHash/BlobHashCommitmentError reverts are raw memory (the same revert is decoded in the blob branch), and PointEvalFailed is raw.",
+      "rule": "Two reads of mem[64] with no store to mem[64] between them are equal, and a join whose arms leave mem[64] at the same value keeps it; cancel _407 - _408 and _150 - mem[64] and resolve data written at mem[64] + k like constant addresses.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "checkDA (unknown381c3f13)",
+      "lines": "246-278, 343-377",
+      "decompiled": "mem[mem[64] + 128] = mem[224] / while idx < _363: mem[t] = mem[s] ... / return memory from mem[64] len 32 * _388 + t - mem[64] + 32",
+      "source": "returns (L1DAValidatorOutput memory output) {stateDiffHash, blobsLinearHashes, blobsOpeningCommitments}",
+      "issue": "The returned struct is encoded by two element-copy loops into raw memory in each branch (P7 x4, P18), with an uncancelled _358 - mem[64] in the second offset.",
+      "rule": "An ABI encoding loop copying a memory bytes32[] word by word into the return buffer is a copy of the array: print return cd[_param4 + 36], Array(len=..., data=...), Array(...).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "checkDA (unknown381c3f13)",
+      "lines": "145-146, 234-237, 312-315",
+      "decompiled": "if 176 * (cd[_param4 + 100] >> 248) / (cd[_param4 + 100] >> 248) != 176 and Mask(8, 248, cd[_param4 + 100]): revert with Panic(17); while idx < _param5: if idx >= mem[224]: revert with Panic(50) / if idx >= mem[32 * _param5 + 256]: revert with Panic(50)",
+      "source": "_blobsProvided * BLOB_DA_INPUT_SIZE (blobsProvided < 256); for (i < _maxBlobsSupported) blobsLinearHashes[i], blobCommitments[i]",
+      "issue": "A multiplication overflow check that cannot fail (a byte times 176) and bounds checks against two arrays whose length is the loop bound _param5 are kept (P11).",
+      "rule": "x * c cannot overflow when x < 2^8 and c < 2^248; a bounds check i >= len inside 'while i < n' where len = n was stored before the loop and not overwritten is dominated.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed checkDA in full against CalldataDA._processL2RollupDAValidatorOutputHash/_processCalldataDA and RollupL1DAValidator._processBlobDA/_getPublishedBlobCommitment/_pointEvaluationPrecompile: every check, custom error (0x885ae069, 0xbeb96791, 0xd2531c15, 0x53e6d04d, 0xfc7ab1d3, 0x8d5851de, 0xc771423e, 0x92290acc, 0xafd53e2f, 0x5717f940, 0x04e05fd1, 0x2dc9747d, 0x9044dff9), slice bound, the BLS modulus test and BLOB_EXPIRATION_BLOCKS = 65536 are faithful. Source loops: publishBlobs (52), _processBlobDA (153), checkDA's commitment check (233 and 311, one loop inlined in both pubdata-source branches); the 4 other whiles are the output encoding copies (P7). Since the old text: parameters renumbered by calldata word (_param3/_param4/_param5), the blob branch now decodes BlobHashCommitmentError and the commitment hash as sha3(blobhash(s), call.data[u len 48]), publishBlobs' key likewise; the calldata branch's raw lines were already raw. No regression.",
+  "summary": "Faithful text with all three source loops as whiles; readability suffers from 32 * blobsProvided printed as Mask(8, 248, x) >> 243, raw precompile calls and calldata-branch reverts where free-pointer reads are not unified, and the output struct returned as raw memory."
+}

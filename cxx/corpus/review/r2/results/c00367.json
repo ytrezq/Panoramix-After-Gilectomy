@@ -1,0 +1,40 @@
+{
+ "id": "c00367",
+ "text_changed": true,
+ "lines_old": 304,
+ "lines_new": 257,
+ "changed_functions": 3,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "getCurrentLiveBalances, getTokens and getTokenInfo now return 'Array(len=.., data=..)' values instead of 'return memory from mem[64] len ..'; getAggregateFeePercentages (unchanged) still returns a 64-byte memory slice"
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "the address re-encoding is still 'mem[t] = Bytes(12, 0), mem[s + 12 len 20]'; the range checks are unchanged"
+  },
+  {
+   "n": 3,
+   "kind": "artifact",
+   "status": "still",
+   "note": "calls to 0x0 (_vault immutable)"
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "The three array getters' returns are decoded: getCurrentLiveBalances returns the decoded uint256[] directly (its re-encoding loop is gone), getTokens returns 'Array(len=_2, ..)', and getTokenInfo returns its four arrays as Array(..) values, with two re-encoding loops (balancesRaw, lastBalancesLiveScaled18) gone. Whiles 12 -> 9.",
+ "patterns": {
+  "P1": 0,
+  "P2": 0,
+  "P3": 0,
+  "P4": 0,
+  "P5": 0,
+  "P6": 0
+ },
+ "notes": "Diff of 239 lines, read whole (unknownb156aa0a only moved and lost its encode loop). getTokenInfo's return checked: tokens and TokenInfo[] re-encoded at the written addresses (head offsets 128 and 32 * _2 + 160), balancesRaw = mem[_22 + 32 len 32 * _19] with mem[_22] = _19 from the decode, lastBalances likewise with _27.",
+ "summary": "No regression. The three array getters now return decoded Array values instead of raw memory, and three re-encoding loops are gone. The address-cleaning loops and getAggregateFeePercentages' raw return remain."
+}

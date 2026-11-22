@@ -1,0 +1,17 @@
+{
+  "id": "c00232",
+  "text_changed": true,
+  "lines_old": 672,
+  "lines_new": 596,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "vat/daiJoin immutables still 0x0"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "RAY still printed as 1000000000 * 10**18 (17 lines)"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "In exec the three raw calls are decoded: vat debt(), the pool's maxDeposit() and the plan call unknown8715d710(_v) on ilks[_ilk].field_256 (raw args 3 -> 0); their 66 call-buffer stores are gone, 76 fewer lines. Everything else is renumbered temporaries.",
+  "patterns": {},
+  "notes": "Diff 376 lines, all in exec(bytes32): control-statement diff shows only the three calls; conditions, storage writes, events and reverts unchanged.",
+  "summary": "No regression; exec's three remaining raw calls are now decoded and their buffer stores dropped."
+}

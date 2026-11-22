@@ -1,0 +1,17 @@
+{
+  "id": "c00298",
+  "text_changed": true,
+  "lines_old": 277,
+  "lines_new": 277,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "still", "note": "The signer array is still split between stor1[i].field_0 and raw stor[2 * i]."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "The Initializable slot is no longer factored by 3600 (0xf0c57e16..00). The uint8 + uint56 split of _initialized is unchanged."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "P1 is gone (the Initializable slot, 2 lines), and P6 is gone (3 Error selector stores now 0x08c379a0..).",
+  "patterns": {},
+  "notes": "Diff 40 lines, read in full: display changes only.",
+  "summary": "No regression: the P1 slot and whole-byte hex fixes only."
+}

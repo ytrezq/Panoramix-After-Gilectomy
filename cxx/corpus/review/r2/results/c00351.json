@@ -1,0 +1,17 @@
+{
+  "id": "c00351",
+  "text_changed": true,
+  "lines_old": 255,
+  "lines_new": 255,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "immutables still 0; latestRoundData still ends in Panic(18)"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "roundId still written to memory and read back; '365 * 24 * 3600' / '1095 * 24 * 3600' and the distributed product unchanged"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "P6 (1) gone: the stEthPerToken() selector word prints with whole bytes (0x035faf82...).",
+  "patterns": {},
+  "notes": "Diff of 11 lines: one hex constant in latestRoundData; nothing else changed.",
+  "summary": "No regression; only a hex display fix. Round-1 findings unchanged."
+}

@@ -1,0 +1,23 @@
+{
+  "id": "c00326",
+  "text_changed": true,
+  "lines_old": 315,
+  "lines_new": 315,
+  "changed_functions": 1,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "getRoleMembers' peeled copy and its length expression are unchanged."
+    }
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "supportsInterface shows 0x01ffc9a7 with whole bytes (P6 1 -> 0).",
+  "patterns": {
+    "P6": 0
+  },
+  "notes": "Diff (11 lines): one hex display change.",
+  "summary": "No regression; only a hex constant's display changed."
+}

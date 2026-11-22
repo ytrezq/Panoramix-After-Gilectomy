@@ -1,0 +1,46 @@
+{
+ "id": "c00227",
+ "text_changed": true,
+ "lines_old": 2978,
+ "lines_new": 2842,
+ "changed_functions": 16,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "The unbonding entries are still named stor1[caller][s].field_N in one line and stor[4 * s + sha3(_8) + m] in the next, string-keyed delegations still raw sha3 of memory; worse in unknowna4603a2e (regression 1)."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "loop",
+   "severity": "medium",
+   "function": "unknowna4603a2e(array,uint256,uint256) (_cancelUnbonding)",
+   "lines": "955-1002 of the new text",
+   "decompiled": "mem[0] = sha3(caller, 1)\n_53 = mem[64]\n...\nmem[mem[64]] = _56\nif not uint1(stor[4 * s + sha3(mem[0])]):\n    ...\nelse:\n    mem[0] = 4 * s + sha3(mem[0])\n    idx = 0\n    t = 0\n    while idx < _56:\n        mem[idx + mem[64] + 32] = stor[t + sha3(mem[0])]\n        idx = idx + 32\n        t = t + 1\n        continue\n    t = (_56 + 31) / 32 + sha3(mem[0])",
+   "old": "if not uint1(stor1[caller][s].field_0):\n    mem[_53 + 32] = 256 * stor1[caller][s].field_8\nelse:\n    mem[0] = 4 * s + sha3(sha3(caller, 1))\n    mem[_53 + 32 len ceil32(_56)] = stor[sha3(4 * s + sha3(sha3(caller, 1))) len (_56 + 31) / 32]",
+   "source": "DelegationManager.sol _cancelUnbonding: UnbondingDelegation memory entry = unbondingDelegations[msg.sender][i] (copy of the string validator to memory), keccak256(bytes(entry.validator)) == keccak256(bytes(validator))",
+   "issue": "The write mem[mem[64]] = _56 is now taken as possibly overwriting mem[0], so mem[0] = sha3(caller, 1) is no longer forwarded: the storage string copy becomes a while loop with raw stor[t + sha3(mem[0])] addressing, the element reads lose their stor1[caller][s] name, a dead 't = ...' line follows the loop, and dead mem[0]/mem[32] writes reappear.",
+   "rule": "A loop-carried mem[64] keeps the constant floor it has on entry (here at least 0x80) when every update adds a nonnegative amount, so a write at [mem[64], mem[64] + 32) cannot touch the scratch words 0..63: keep forwarding mem[0] and mem[32] past it.",
+   "verified": "text_check run --per-selector 16: 0 different (35 + 288 calls); readability only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "unknowna4603a2e(array,uint256,uint256)",
+   "lines": "1023-1029 of the new text",
+   "decompiled": "if stor1[caller][t].field_256 < _param2:\n    mem[_53 + ceil32(_74) + floor32(-_53 + _62 + 31)] = 0x08c379a0...\n    mem[mem[64] + 4] = 32\n    mem[mem[64] + 36] = 37\n    mem[mem[64] + 68] = 0x616d6f756e74...\n    revert with mem[mem[64] len 100], 0x6d6f756e74000...\nstor1[caller][t].field_256 = SafeMath.sub(stor1[caller][t].field_256, _param2)",
+   "old": "stor1[caller][t].field_256 = SafeMath.sub2(stor1[caller][t].field_256, _param2)   # sub2: if a < b: revert with 'amount exceeds unbonding entry amount'",
+   "source": "DelegationManager.sol: require(entry.amount >= amount, \"amount exceeds unbonding entry amount\"); entry.amount -= amount",
+   "issue": "The require is no longer folded into a helper and is not recognized as a string revert either: the selector is written at '_53 + ...' and the rest at 'mem[64] + ...', which the matcher does not see as one buffer, so a one-line 'revert with ...' became five lines of raw memory. The function's final 'Unbonding delegation does not exist' revert also grew to five raw lines (it was raw in round 1 too).",
+   "rule": "Same as c00144: while '_N = mem[64]' holds, mem[64] and _N name the same address; unify them before matching 'selector 0x08c379a0, 32, len, text' as revert with 'text'.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "12 ABI-encoding copy loops became copy lines (whiles 87 -> 75: getValidator 14 -> 7, unknown570467ac 8 -> 5, unknown455b8551 6 -> 4, unknowncf2753cf 2 -> 1). The staking precompile calls are named (0x800.unknown53266bbb(?) ...) with decoded string arguments (P2 5 -> 0, P6 1 -> 0). Return-data reverts and results are direct, string lengths resolve (2 * mem[128] + 1), 'if success: stop else: revert' became guards.",
+ "patterns": {},
+ "notes": "Reviewed by structure (2308-line diff, 16 functions, some moved in the text: compared by body). Storage writes unchanged apart from SafeMath helper renames (old sub2 split out, sub3 -> sub2) and resolved string lengths. getValidator and other ABI-decoding functions now spell buffers as long constant-offset sums instead of _8/_16 variables: exact, but longer lines. The pack lists no regex pattern.",
+ "summary": "Regression (medium) in unknowna4603a2e only: mem[0] is no longer forwarded past a write at mem[64], so a storage string copy is a while loop again and a require that was readable is now a raw-memory revert. Elsewhere copies became copy lines and the precompile calls are named."
+}

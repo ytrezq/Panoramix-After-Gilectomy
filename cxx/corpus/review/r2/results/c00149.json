@@ -1,0 +1,54 @@
+{
+  "id": "c00149",
+  "text_changed": true,
+  "lines_old": 2484,
+  "lines_new": 2358,
+  "changed_functions": 7,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "The P1 factoring is gone: the guard reads uint64(stor[0xf0c57e16...6a00]), visibly the slot of storF0C5 (330-331). _initialized is still split into storF0C5 (uint8) + storF0C5_8 (uint56) and read raw."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "'if _92 >= 78 and _92 >= 32' kept (442)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "reportBurnedTxFees(uint256) (unknown55538c8b), registerWithHome((address,uint256)) (unknownb8a46d02), sendAndCall(...) (unknown6e6eef8d, 2 sites)",
+      "lines": "641-668, 907-937, 1991-2018, 2304-2331",
+      "decompiled": "_76 = mem[64] / mem[mem[64]] = 0x62448850... / ... while idx < _84: mem[s] = ... / mem[mem[64] + 228] = _76 + 32 * _84 - mem[64] + 256 / call address(_5) with: args mem[mem[64] len _76 + 32 * _84 + ceil32(_89) - mem[64] + 324]",
+      "old": "mem[mem[64] + 228] = 32 * _84 + 256 / call address(_5).unknown62448850(?) with: args 32, mem[mem[64] + 36 len 160], 224, 32 * _84 + 256, mem[mem[64] + 260 len 32 * _84 + _89 + 64], Bytes(-_89 + ceil32(_89), 0)",
+      "source": "TeleporterRegistryApp._sendTeleporterMessage: teleporterMessenger.sendCrossChainMessage(TeleporterMessageInput{...allowedRelayerAddresses, message})",
+      "issue": "The Teleporter sendCrossChainMessage call loses its selector name and decoded arguments and becomes a raw memory call (P2) at 4 of its 6 sites. The pointer read _76 = mem[64] before the allowedRelayerAddresses copy loop is no longer identified with mem[64] after that loop, so '_76 - mem[64]' remains in every address. The loop stores nothing to mem[64].",
+      "rule": "A loop whose body never stores to mem[64] leaves mem[64] equal to its value at loop entry: after the loop, use that exact value (here _76), not only a constant floor. The same rule fixes c00040's acceptNewTerms.",
+      "verified": "reading only (new 641-668: no mem[64] store inside the while)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "receiveTeleporterMessage(bytes32,address,bytes) (unknownc868efaa)",
+      "lines": "1007-1100",
+      "decompiled": "totalMinted = SafeMath.add(totalMinted, mem[ceil32(return_data.size) + ceil32(_14) + ceil32(cd[_param3 + 4]) + 384]) ... if eth.balance(this.address) < mem[ceil32(_1) + ceil32(_14) + ceil32(cd[_param3 + 4]) + 384]: ... log 0xb9eaeae3...: mem[ceil32(_1) + ceil32(_14) + ceil32(cd[_param3 + 4]) + 384], indexed mem[...]",
+      "old": "_30 = mem[64] ... _50 = mem[_30 + 128] / totalMinted = SafeMath.add(totalMinted, mem[_30 + 128]) ... if eth.balance(this.address) < _50: ... log 0xb9eaeae3...: _50, indexed address(_69)",
+      "source": "TokenRemote._receiveTeleporterMessage: SingleHopSendMessage memory payload = abi.decode(...); _withdraw(payload.recipient, payload.amount) / _handleSendAndCall(...)",
+      "issue": "The decoded message struct is now addressed by the full pointer sum at every field use, where the old text had a base _30 and locals (_50 amount, _56/_57 addresses). The amount alone appears about 10 times as a 4-term memory address, in conditions, logs and call values. Exact, but much harder to read.",
+      "rule": "Bind a struct allocated at the free-memory pointer to one variable at its allocation (_p = mem[64] before the bump) and print fields as mem[_p + k], keeping single-use loads as named locals.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "reportBurnedTxFees, registerWithHome, send, sendAndCall (SafeERC20.forceApprove)",
+      "lines": "615-618, 881-884 and 4 more",
+      "decompiled": "mem[_46 + 36 len 28] = uint128(_5 >> 32) / mem[_46 + 32 len 4] = 157198259 / call this.address.approve(address spender, uint256 amount) with: args Bytes(28, uint128(_5 >> 32)), Bytes(4, uint32(_5)), 0",
+      "source": "SafeERC20.forceApprove: _callOptionalReturn(token, abi.encodeCall(token.approve, (spender, 0)))",
+      "issue": "The approve(spender, 0) call is now named (it was raw memory), but the spender word prints as a 28-byte slice plus a 4-byte slice, the halves of the memcpy that builds the call data. Its write mem[_46 + 36 len 28] is also printed though unused.",
+      "rule": "Merge adjacent pieces of one source word: Bytes(28, uint128(x >> 32)) followed by Bytes(4, uint32(x)) is x (here address(_5)).",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "P1 fixed (the Initializable slot prints whole). P6 9 -> 0 (address constants print 40 hex digits). Revert strings decoded: 'SafeERC20TransferFrom: balance not increased', 'TeleporterRegistryApp: Teleporter sending paused', 'TeleporterRegistryApp: zero fee token address'. transferFrom, allowance and approve are named, and receiveTeleporterMessage's user call is decoded (unknown2c3625fe with value and gas). send's enum check 'mem[_N] >= 5 -> Panic(33)' is dropped, correctly: the encoded value is the constant 3. A pointer bump is folded (mem[64] = _33 + 256). Raw-memory calls 23 -> 13.",
+  "patterns": {"P1": 0, "P2": 13, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 1,492 lines, read hunk by hunk. Calls, logs and storage writes are unchanged in number in all changed functions. send's 2 fewer reverts are the constant-folded Panic(33) checks. Both regressions share the cause in c00040: the free-memory pointer is not kept exact across a loop or join that does not store it. The 2 Teleporter calls in send were already raw in round 1.",
+  "summary": "Many calls and revert strings are now decoded and P1/P6 are fixed. But 4 of the 6 Teleporter sendCrossChainMessage calls lose their decoded arguments (medium), and receiveTeleporterMessage's struct fields lose their locals (low)."
+}

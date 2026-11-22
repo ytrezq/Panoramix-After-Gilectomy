@@ -1,0 +1,17 @@
+{
+  "id": "c00347",
+  "text_changed": true,
+  "lines_old": 258,
+  "lines_new": 256,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "oracles() unchanged."},
+    {"n": 2, "kind": "artifact", "status": "still", "note": "Immutables still 0, but the two calls in trigger are now named (getConfiguration, setReserveBorrowing) with arguments."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "trigger (unknown6f6ff405): getConfiguration(asset) and setReserveBorrowing(asset, false) decoded instead of raw memory, and the configuration flags read ext_call.return_data[0] instead of a memory copy; P2 2 -> 0.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 47 lines read in full.",
+  "summary": "No regression; trigger's two pool-configurator calls are now named with their arguments."
+}

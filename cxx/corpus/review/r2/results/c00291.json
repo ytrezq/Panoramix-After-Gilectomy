@@ -1,0 +1,46 @@
+{
+  "id": "c00291",
+  "text_changed": true,
+  "lines_old": 567,
+  "lines_new": 441,
+  "changed_functions": 4,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "loop",
+      "status": "partly",
+      "note": "8 of the 12 word-wise bytes copies are gone: the encodings of getOutboundCalldata, createRetryableTicket's data and TxToL2's data are now resolved values. The 2 decoding copies of _data per function remain as word loops (new 290-293, 316-319 and the same in outboundTransferCustomRefund)."
+    },
+    {
+      "n": 2,
+      "kind": "simplification",
+      "status": "fixed",
+      "note": "The Initializable slot now prints as stor[0xf0c57e16...6a00] instead of a multiple of 3600."
+    }
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "outboundTransfer(address,address,uint256,uint256,uint256,bytes), outboundTransferCustomRefund(address,address,address,uint256,uint256,uint256,bytes)",
+      "lines": "createRetryableTicket args and log TxToL2 in both functions (5 lines)",
+      "decompiled": "args Bytes(64, 0), _23, _to, address(_20), _maxGas, _gasPriceBid, 256, 324, '.V{6', _l1Token, address(_20), _to, _amount, 160, 128, 64, 96, Bytes(92, 0)",
+      "source": "L1ArbitrumGateway.getOutboundCalldata: abi.encodeWithSelector(ITokenGateway.finalizeInboundTransfer.selector, _l1Token, _from, _to, _amount, abi.encode(emptyBytes, _data))",
+      "issue": "The 4-byte selector 0x2e567b36 inside the bytes argument is printed as the string literal '.V{6' because its bytes happen to be printable. The rest of the newly resolved encoding is exact (324 bytes, inner abi.encode(bytes(''), bytes('')) as 160, 128, 64, 96 and 92 zero bytes).",
+      "rule": "Print a 4-byte (or any short) constant chunk of a byte string as a string literal only when it is part of a longer run of printable text. Print a lone 4-byte word piece as hex (0x2e567b36).",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "outboundTransfer and outboundTransferCustomRefund lost 4 copy loops each and about 60 lines. The bridge call shows its bytes data field by field. TxToL2 is printed with named fields (_from, _to=0, _seqNum, _data). The return is Array(len=32, data=ext_call.return_data[0]) instead of 'return 32, 32, ..'. Dead escrow transferFrom buffer writes dropped (the call is named). P1 2 -> 0, P6 1 -> 0.",
+  "patterns": {
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff of 229 lines over 4 functions, read in full. The resolved finalizeInboundTransfer calldata was checked byte by byte against the source (selector, 4 words, offset 160, inner length 128, offsets 64/96, two zero lengths and 28 bytes of padding = Bytes(92, 0)). 'to' = 0 and the call target 0x0 are the solc immutables counterpartGateway and inbox reading as 0 (artifact, unchanged; round 1 did not record it).",
+  "summary": "No regression. Most of the bytes-copy loops are replaced by exact resolved encodings, and the Initializable slot is fixed. One display wart: the finalizeInboundTransfer selector prints as the text '.V{6'."
+}

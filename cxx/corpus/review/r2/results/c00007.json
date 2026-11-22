@@ -1,0 +1,78 @@
+{
+  "id": "c00007",
+  "text_changed": true,
+  "lines_old": 2836,
+  "lines_new": 2322,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "still 12 'while idx < 2' copies: the pk copy became 'mem[_218 + 160 len 64] = call.data[4 len 64]' in both variants, but 330987b3 gained two (see regression 2)"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "migrate's isTargetRegistered loop unchanged ('while -_to + address(stor[_3 + s])', '_3 = sha3(19)' recomputed)"}
+  ],
+  "regressions": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "unknownba2f7379 and unknown330987b3 (fulfillRandomWords variants), VRF.fieldHash in hashToCurve",
+      "lines": "ba2f7379 new 216-223; 330987b3 new 215-222",
+      "decompiled": "s = 0 / while s + sha3(1, call.data[4 len 64], _162) >= 0xffff...fc2f: mem[mem[64] + 32] = s + sha3(1, call.data[4 len 64], _162) ... s = sha3(s + sha3(1, call.data[4 len 64], _162)) - sha3(1, call.data[4 len 64], _162) / s = s + sha3(1, call.data[4 len 64], _162)",
+      "old": "s = sha3(mem[_228 + 32 len mem[_228]]) / while s >= 0xffff...fc2f: ... s = sha3(mem[_236 + 32 len mem[_236]])",
+      "source": "VRF.sol fieldHash: x_ = uint256(keccak256(b)); while (x_ >= FIELD_SIZE) { x_ = uint256(keccak256(abi.encodePacked(x_))); }",
+      "issue": "Now that the initial hash is decoded, the loop variable is rewritten as an offset from it: s starts at 0, the test and body use 's + h0', the step is 'sha3(s + h0) - h0', and 's = s + h0' follows the loop. Exact, but the simple 'while x >= FIELD_SIZE: x = sha3(x)' loop of round 1 is now hard to recognise.",
+      "rule": "Normalise a loop variable to an offset (s - start) only when its update is affine (s + c); for any other update (hash, multiply, call result) keep the variable as the value itself, initialised to the start value.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "unknownba2f7379 and unknown330987b3 (verifyVRFProof after hashToCurve)",
+      "lines": "330987b3 new 296-412 (e.g. 298, 406); ba2f7379 new ~297-407",
+      "decompiled": "if not mem[192]: revert with 'zero scalar' ... idx = 0 / s = mem[128] / t = _312 + 576 / while idx < 2: mem[t] = mem[s] ... / if mem[192] != sha3(2, mem[_312 + 512 len 192], mulmod(_369, mem[384], ...), mulmod(_370, mem[384], ...), mem[300 len 20]): revert with 'invalid proof'",
+      "old": "if not _param5: revert with 'zero scalar' ... mem[_336 + 480 len 64] = mem[416 len 64] / mem[_336 + 544 len 64] = mem[480 len 64] / if _param5 != sha3(2, ..., mulmod(_368, _param13, ...), ..., Bytes(20, _param8)): revert with 'invalid proof'",
+      "source": "VRF.verifyVRFProof(pk, gamma, c, s, seed, uWitness, cGammaWitness, sHashWitness, zInv): ecmulVerify, linearCombination, scalarFromCurvePoints; 'invalid proof'",
+      "issue": "After the while (!isOnCurve(rv)) loop, whose writes use a loop-varying free pointer, the decoded proof words (mem[192] = _param5, mem[288] = _param8, mem[384] = _param13, mem[128] = 416, mem[160] = 480) are no longer forwarded: the checks read raw mem[192] / mem[384] / mem[300 len 20], and in 330987b3 two fixed-address copy lines became pointer-chasing 'while idx < 2' loops (mem[192..384] reads 3 -> 12 lines). The old text forwarded all of them.",
+      "rule": "Inside a loop, the free pointer is at least its value at loop entry (it only grows: every update is mem[64] + size), so stores at mem[64] + k in the loop cannot reach words below the entry value; keep that symbolic floor through the loop, not only a constant one.",
+      "verified": "reading only (old text forwards right after the same loop: 'if not _param5'; new 'if not mem[192]')"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "unknown330987b3 (fee calculation: LINK/ETH feed and Arbitrum L1 fee precompile)",
+      "lines": "330987b3 new 482-484, 545-547",
+      "decompiled": "mem[mem[64]] = 0xfeaf968c00... / static call LINK_ETH_FEED.mem[mem[64] len 4] with: gas gas_remaining  |  static call 0x6c.mem[mem[64] len 4] with:",
+      "old": "static call LINK_ETH_FEED with: gas gas_remaining / args mem[mem[64] len _442 - mem[64] + 4]",
+      "source": "LINK_ETH_FEED.latestRoundData(); ArbGasInfo(0x6c).getCurrentTxL1GasFees()",
+      "issue": "The argument size now folds to 4, but the selector is not read back from the word just stored at mem[mem[64]], and the memory slice is printed in the function-name position. That is not a name and may not parse; 26 texts of the corpus have '.mem[mem[64] len 4]'.",
+      "rule": "Read a 4-byte selector from mem[a len 4] by forwarding the word stored at a (its top 4 bytes: 0xfeaf968c = latestRoundData()); when the selector stays unknown, print the call unnamed with its raw arguments, never an expression as the name.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown41af6c87 (pendingRequestExists), unknowncb631797, unknown0ae09540, migrate",
+      "lines": "new 606, 824, 934, 1114",
+      "decompiled": "mem[mem[64]] = 128 / mem[64] = mem[64] + 160 / mem[_54 + 192] = stor15[idx] / mem[_54 + 224] = sha3(stor15[idx], address(_48), _param1, uint64(...)) / mem[_55 + 160] = _54 - _55 + 64 / if not stor16[sha3(mem[_55 + 192 len _54 - _55 + 64])]:",
+      "old": "_57 = sha3(mem[_55 + 32 len mem[_55]]) / ... / if not stor16[sha3(stor15[idx], _57)]:",
+      "source": "computeRequestId: preSeed = keccak256(abi.encode(keyHash, sender, subId, nonce)); requestId = keccak256(abi.encode(keyHash, preSeed)); s_requestCommitments[requestId]",
+      "issue": "The text treats both reads _54 and _55 as the current mem[64] (it folds '_54 - _55 + 128' to 128 and prints 'mem[64] + 160'), yet leaves '_54 - _55' in the second encoding, so the inner preSeed is now decoded but the mapping key, decoded in round 1, is a raw memory hash in all 4 copies.",
+      "rule": "Two reads of mem[64] with no store to slot 64 between them are one value: substitute one for the other everywhere (a - b = 0), not only where an address is printed.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknownba2f7379, unknown330987b3 (getBlockhash fallback)",
+      "lines": "2 lines, e.g. 'revert with Bytes(28, 0x175dadad...), Bytes(8, uint64(cd[_param14 + 4]))'",
+      "decompiled": "if not ext_call.return_data[0]: revert with Bytes(28, 0x175dadad000000000000000000000000000000000000000000000000), Bytes(8, uint64(cd[_param14 + 4]))",
+      "source": "revert BlockhashNotInStore(blockNum) with blockNum a uint64",
+      "issue": "Custom-error reverts are decoded now, but with a uint64 argument the selector and the argument's zero high bytes are fused into one 28-byte constant, unlike 'revert with 0x79bfd401, _param1, _param2' elsewhere.",
+      "rule": "Decode revert data as a 4-byte selector followed by 32-byte words; print each word as its value (uint64(...)) even when its known width is smaller than 32 bytes.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "requestRandomWords' commitment hash and its RandomWordsRequested data are now exact and its dead memory writes dropped; custom errors decode (0x79bfd401 InvalidConsumer with args, InsufficientBalance()); two logs show their data; LINK.transfer's result check is readable; return-memory epilogues fold ('return 0'); storage keys name their mappings (stor4[address(_95)][_projectId]); migration data encoding is resolved; one uint256[2] copy per variant is a copy line; raw-argument calls 5 -> 2; P6 (45) gone. Text 514 lines shorter.",
+  "patterns": {"P2": 2, "P4": 8},
+  "notes": "Per-function diffs (functions reordered). Small functions read in full; the two fulfillRandomWords variants (ba2f7379 446 and 330987b3 800 changed lines) by structure plus their loops: calls 4/4 and 8/8, reverts 40/40 and 63/63, requires and the event unchanged; whiles 10 -> 9 and 10 -> 11 (pk copy -> copy line; +2 copy loops in 330987b3). The fieldHash offset rewrite, the lost forwarding and the selector-as-name all come from the free-pointer change around loops and joins. Semantics stay exact in every case checked (s + h0 invariant; mem[192] equals _param5 at run time).",
+  "summary": "Four regressions: two medium (the VRF fieldHash loop rewritten as an offset from its initial hash; proof fields no longer forwarded to parameters after hashToCurve, with 2 more copy loops) and two low (a memory slice printed as the function name of 2 calls; the requestId mapping key now a raw hash). Elsewhere improved: requestRandomWords' commitment and event, custom errors and logs decoded, dead writes dropped, P6 gone."
+}

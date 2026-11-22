@@ -1,0 +1,61 @@
+{
+ "id": "c00144",
+ "text_changed": true,
+ "lines_old": 6081,
+ "lines_new": 5842,
+ "changed_functions": 24,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "loop",
+   "status": "fixed",
+   "note": "All 7 onlyGovernance loops are now 'while True: <popFront>; if _12 != sha3(call.data[0 len calldata.size]): continue; break' (no peeled copy, != instead of a difference)."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "The 6 VoteCast/VoteCastWithParams logs are decoded with named arguments (reason=Array(len=0, data='')). ProposalQueued (2) and ProposalCreated (2) are still raw memory. The 9 ProposalExecuted/ProposalCanceled logs got worse (regression 1)."
+  },
+  {
+   "n": 3,
+   "kind": "simplification",
+   "status": "still",
+   "note": "The 15 new bytes[]/string[] inits still peel one 'mem[p + 32] = 96' before 'while idx - 1:' (a one-statement rotation, within the new two-statement limit)."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "execute(address[],uint256[],bytes[],bytes32), queue(address[],uint256[],bytes[],bytes32), execute(uint256), queue(uint256), cancel(uint256), propose(address[],uint256[],bytes[],string), propose(address[],uint256[],string[],bytes[],string)",
+   "lines": "e.g. 1890-1940, 1980-2092 (execute); 3255-3330, 3491-3515 (cancel); propose 4007+",
+   "decompiled": "mem[64] = t\n...\nif uint8(proposalSnapshot[concat(mem[0])].field_512):\n    mem[t] = 0x08c379a0...\n    revert with memory from mem[64] len t - mem[64] + 132\n...\nmem[mem[64]] = 0x8e539e8c...\nstatic call 0x0 with:\n    args mem[mem[64] len 36]\n...\nlog ProposalCanceled(uint256 id=mem[mem[64]])\nmem[mem[64]] = 0xc4d252f5...; mem[mem[64] + 4] = stor[sha3(mem[0 len 64])]\ncall timelock with:\n    args mem[mem[64] len 36]",
+   "old": "if uint8(proposalSnapshot[sha3(mem[_23 + 32 len mem[_23]])].field_512):\n    revert with 'Governor: proposal not successful'\nstatic call 0x0.getPastTotalSupply(uint256 blockNumber) with:\n    args uint64(proposalSnapshot[_25].field_0)\nlog ProposalCanceled(uint256 id=_155)\ncall timelock.cancel(bytes32 id) with:\n    args stor12[_155]",
+   "source": "Governor.sol execute/cancel: hashProposal(...) then state(proposalId) (require ... 'Governor: proposal not successful' / 'not active'), quorum -> getPastTotalSupply, _cancel -> _timelock.cancel(_timelockIds[proposalId]); propose: getVotes(msg.sender, block.number - 1) after _storeProposal's hashProposal",
+   "issue": "Everything after the inlined hashProposal encode loops is now addressed from an unknown mem[64]. The write 'mem[64] = t' (t is the loop's exit value) is not forwarded to later reads, and '_N = mem[64]' is not identified with mem[64]. Result in these 7 functions: 34 string reverts became raw memory; getPastTotalSupply, getPastVotes, isOperationDone and the state-changing timelock.cancel lost names and arguments (P2 +34 lines); mapping keys became concat(mem[0]) (P4 +19) or raw stor[sha3(mem[0 len 64]) + 1]; 9 events print id=mem[mem[64]]; the guard 'if s != 4: revert' became an if/else nest; a dominated 'Checkpoints: block not yet mined' check and dead mem[0]/mem[32] writes reappear. Functions grew by 50-80 lines each.",
+   "rule": "A write 'mem[64] = e', for any expression e including a loop's exit value, gives every later read of mem[64] the value e until the next write to mem[64]. A variable assigned mem[64] equals mem[64] until then, so '_N - mem[64]' is 0. Apply this before matching Error(string) reverts, ABI call arguments, mapping keys written through mem[0], and event data.",
+   "verified": "text_check run --per-selector 16 on the new text: 0 different in 787+787 calls, so the text is still exact; the regression is readability (compare old 2073-2110 with new 1890-1940)"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "hashProposal(address[],uint256[],bytes[],bytes32), getActions(uint256), and the same encode prefix in the 7 functions above",
+   "lines": "787, 822-825; getActions ~1500",
+   "decompiled": "_8 = mem[64] ... mem[mem[64] + 64] = _8 + 32 * _9 - mem[64] + 160\n_24 = mem[64]\nmem[mem[64]] = t - mem[64] - 32\nmem[64] = t\nmem[t] = sha3(mem[_24 + 32 len mem[_24]])\nreturn memory from mem[64] len t - mem[64] + 32",
+   "old": "mem[mem[64] + 64] = 32 * mem[128] + 160\nmem[mem[64]] = v - mem[64] - 32\nmem[v] = sha3(mem[mem[64] + 32 len mem[mem[64]]])\nreturn memory from v len 32",
+   "source": "Governor.sol hashProposal: return uint256(keccak256(abi.encode(targets, values, calldatas, descriptionHash)))",
+   "issue": "Same cause on a small scale: the offset words of the encoding keep '_8 - mem[64]', and the return reads mem[64] right after 'mem[64] = t'.",
+   "rule": "As above: forward 'mem[64] = t' to the reads after it and fold '_N - mem[64]' to 0 while no write to mem[64] intervenes.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "castVoteBySig 380 -> 145 lines (ECDSA reverts as strings, getPastVotes named, P2 -6). state, proposals and the castVote family lose their dead memory and mapping-scratch writes (138 -> 87, 217 -> 157, 161 -> 106 lines), isOperationPending is named in 6 functions, 'if not s: x = 0 else: ...' became 's and ...', and the always-reverting arm of castVote* is flattened. relay's error-message revert is now a string. VoteCast/VoteCastWithParams decoded. onlyGovernance loops fixed (finding 1).",
+ "patterns": {
+  "P2": 45,
+  "P4": 42
+ },
+ "notes": "Reviewed by structure (5617-line diff, 24 functions changed, 1 display-only; several functions only moved in the text: compared by body). Calls, logs and storage writes per function unchanged; the 2 removed string reverts in castVote* merged with an identical revert at the end of their arm. P2 23 -> 45 and P4 23 -> 42 come entirely from regression 1 (P2 -12 elsewhere).",
+ "summary": "Regression (medium): in the 7 functions that inline hashProposal's encode loop, the free-memory pointer is lost after the loop, so reverts, the getPastTotalSupply/getPastVotes/isOperationDone/timelock.cancel calls, mapping keys and ProposalExecuted/Canceled events print as raw memory. Elsewhere the text improved: castVoteBySig, state, proposals and castVote* are much shorter, VoteCast events are decoded and the onlyGovernance loop is a clean do-while."
+}

@@ -1,0 +1,16 @@
+{
+  "id": "c00336",
+  "text_changed": true,
+  "lines_old": 237,
+  "lines_new": 237,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The sqrt radicand and Newton steps are still distributed into giant lines; 'if -x' unchanged."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "exec's pair.swap now shows its empty bytes argument as Array(len=0, data='') instead of the head words '128, 0'; one constant shows whole bytes (0x0100..00).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 20 lines, read in full; 2 changed lines in exec (unknownf873cb91), no control-flow change.",
+  "summary": "No regression; two small display improvements, and the sqrt arithmetic is unchanged."
+}

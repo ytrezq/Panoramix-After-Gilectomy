@@ -1,0 +1,14 @@
+{
+  "id": "c00081",
+  "text_changed": true,
+  "lines_old": 2616,
+  "lines_new": 2378,
+  "changed_functions": 8,
+  "old_findings": [],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Custom errors decode: ZeroAddress(), ZeroValue(), 0x32b2baa3(caller), 0xec0db698(requestId), 0x1d9f5a5f(...), 0x02d51bb2(...). 'revert with memory' 45 -> 5; the 5 left are unchanged selector-only lines whose length '_92 - mem[64] + 4' is not folded. getOperator, isValidSignature and the karma/balance-tracker calls are named, and ecrecover's digest is shown. Raw-memory calls 27 -> 9. The EIP-712 domain key shows sha3(Array(len=5, data='1.1.0')) instead of a local. The two-array events of setMechFactoryStatuses/setPaymentTypeBalanceTrackers decode both arrays. create returns address(_N) instead of memory. Request ids are read from the array (stor13[concat(mem[array + 32 * idx])]) instead of the scratch word (P4 12 -> 0). Dominated Panic(50) re-checks are dropped (P11). In request, the abi.encode copy of the one-element requestIds array is written directly (whiles 33 -> 32). P6 11 -> 0.",
+  "patterns": {"P1": 0, "P2": 9, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 2,491 lines, reviewed by structure plus the loop regions. Calls, logs and storage writes are unchanged in number in all 8 changed functions. A first count seemed to show missing stor13 writes, but their keys now contain 'Array(len=5, ...)'; all writes are present (e.g. 763-767). The 7 source loops are unchanged; the one removed while is an implicit abi.encode copy whose length (1) is now known. The 3 fewer reverts in deliverMarketplaceWithSignatures(…,uint256[],bytes) are inner Panic(50) checks dominated by the same check earlier in the iteration; the request-already-delivered check (0xec0db698) is kept at 1404/1460.",
+  "summary": "No regression. Custom errors, named calls, two-array events and returns are decoded, a dominated bounds check is dropped, and raw memory reverts fall from 45 to 5."
+}

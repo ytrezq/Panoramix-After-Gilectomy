@@ -1,0 +1,16 @@
+{
+  "id": "c00103",
+  "text_changed": true,
+  "lines_old": 1974,
+  "lines_new": 1940,
+  "changed_functions": 62,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "The encodePacked chains no longer carry temporaries ('mem[mem[64]] = _10 + 20', 'mem[64] = _10 + mem[64] + 52'), and the returns fold to 'return Array(len=_6, data=...)' ('return memory' 8 -> 2, '- mem[64]' 24 -> 4). The dead zero store before each appended address remains, and 4 pointer differences remain in exec (0x2213bc0b)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Free-memory-pointer temporaries are gone from the abi.encodePacked accumulations, and bytes returns print as Array(...) or ''. Unknown functions' parameters are named by calldata word; e.g. exec(address,address,uint256,address,bytes) now has _param4/_param5 for words 4 and 5 (the old _param3/_param4 named the wrong words). Hex constants show whole bytes (0x0100..., 0x01000000000000000000000000).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 1,618 lines, read by function (62 changed, mostly renames and return folding). Calls, events, reverts, storage writes and control-flow skeletons are identical in every changed function. The 10 source loops are unchanged.",
+  "summary": "No regression. The pointer temporaries and raw returns of the encodePacked decoders are resolved, unknown parameters are named by calldata word, and constants show whole bytes."
+}

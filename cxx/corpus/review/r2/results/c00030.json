@@ -1,0 +1,16 @@
+{
+  "id": "c00030",
+  "text_changed": true,
+  "lines_old": 4974,
+  "lines_new": 4316,
+  "changed_functions": 9,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "still", "note": "def storage still declares stor1/stor3 fixed arrays; request members still print as stor1[t]."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "args-mem lines 21 -> 2; the 2 left are decoded one-word args (unknowna95371a4 args mem[_235 + ceil32(..) + 512]), not raw ranges. In unknowne1bece85/unknown2dd2f137 balanceOf, transfer, decimals, unknown6691bc04 and unknown2b37269c are named, and their targets forwarded to stor5DFE_5dfed237_4. Transfer/FeeCollected values decoded. Dead memory writes are dropped: selector and argument stores before decoded calls, 224-byte struct zero-inits, and the in-memory copies of the decoded _param2 struct and of stor5DFE_* (86d58cd5, e1bece85). Length reads forwarded (_145 = _2 instead of mem[ceil32(..) + 576]). '25 * 10**13 * 3600' now '9 * 10**17'. P6 5 -> 0. Text 4974 -> 4316 lines.",
+  "patterns": {"P1": 0, "P2": 2, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 4125 lines, reviewed by structure. The functions were reordered, so each of the 9 changed functions was cut from both texts. Call, storage-write, log and loop sequences are identical; while/if/require/revert/stop counts are equal in every changed function (only args-mem lines differ). Checked: FeeCollected/Transfer now use ext_call.return_data[0] for the old _30 = mem[_27]; no call intervenes, so it is still totalSupply(). The decimals target mem[_57 + 364 len 20] is the address in the word mem[_57 + 352] = stor5DFE_5dfed237_4 (not forwarded, as before). The two-word return of unknown6691bc04 maps to the old _4/_6. Dropped mem[64] bumps in 86d58cd5 are never read afterwards. The rotated loops of processDeposits and processWithdrawalRequests are unchanged ('while True' with the test before and at the bottom; the regex finds no P3). 0 aborted.",
+  "summary": "No regression. Calls, logs and memory forwarding improved, dead memory writes are gone, and the text is 13% shorter; the rotated loops and the stor1/stor3 naming are unchanged."
+}

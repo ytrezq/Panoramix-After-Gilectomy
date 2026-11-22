@@ -1,0 +1,17 @@
+{
+  "id": "c00191",
+  "text_changed": true,
+  "lines_old": 1979,
+  "lines_new": 1968,
+  "changed_functions": 12,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "safeExecute changed only by whole-byte hex; its loops still nest the rest of the function in their exit tests (addProtectedToken / removeProtectedToken loops unchanged too)"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "code.data zeroing copies and decimal selectors remain (e.g. 'mem[_120 + 32 len 4] = 371636862')"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "The ACL hasPermission calls of presignHash, removeProtectedToken, addProtectedToken, setDesignatedSigner and transfer decode their 'bytes how' argument as Array(len=32, data=address(_token)) / Array(len=96, data=address(_from), address(_to), _value) instead of '128, 32, x'. execute and forward bubble return data as 'revert with ext_call.return_data[0 len return_data.size]' / 'return ext_call.return_data[...]', and forward's 'EVMRUN_EXECUTOR_INVALID_RETURN' is decoded. In isValidSignature the GAS read is now bound where gasleft() runs ('_122 = gas_remaining' after the call data is built, then 'gas min(250000, _122)'), which is exact where round 1 moved it into the call. addProtectedToken's shared revert gets constant per-branch lengths (29, 21) instead of memory reads. P6 (35) gone.",
+  "patterns": {"P2": 16, "P4": 1},
+  "notes": "Per-function diffs (hex-padding-only pairs filtered): 12 functions changed, 5 of them only by hex; substantive diffs (2 to 45 lines) read in full. isValidSignature's other changes are renumbering after the new GAS variable. No call, event, loop or storage write changed.",
+  "summary": "No regression. Small exact gains: ACL 'how' arrays decoded, bubbled returns simplified, one more revert message, and the GAS read placed where the code reads it. P6 gone; the two round-1 findings remain."
+}

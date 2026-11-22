@@ -1,0 +1,16 @@
+{
+  "id": "c00302",
+  "text_changed": true,
+  "lines_old": 368,
+  "lines_new": 368,
+  "changed_functions": 3,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "canPerform unchanged: returns still 'return memory from mem[64] len .. - mem[64] + ..' and the kernel call input is a byte-copy loop."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "transfer's kernel.hasPermission now shows its bytes argument as Array(len=96, data=address(_from), address(_to), _value) instead of the head words '128, 96, ...' (the TRANSFER_ROLE params array cast to bytes). P6 7 -> 0 (Error selector 0x08c379a0, 0x04bf2a7f).",
+  "patterns": {"P1": 0, "P2": 3, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 74 lines, read in full: 9 whole-byte hex fixes (_fallback, getEVMScriptExecutor, transfer) and the hasPermission argument. No control-flow change.",
+  "summary": "No regression; whole-byte hex and an exactly decoded dynamic argument. canPerform's raw returns are unchanged."
+}

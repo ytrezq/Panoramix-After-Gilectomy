@@ -1,0 +1,66 @@
+{
+ "id": "c00027",
+ "text_changed": true,
+ "lines_old": 6678,
+ "lines_new": 5384,
+ "changed_functions": 25,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "The ensureNotInVaultContext copy is still 'while idx < 36' with 'static call 0x0 with: args mem[196 len 36]'. It now shows a constant bound in 6 places (800, 867, 1178, 1533, 2876, 3294); 4 of those had a variable bound before."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "Token keys still print as concat(Bytes(12, 0), mem[... len 20]) and repeat in every use (92 lines; old: 90)."
+  },
+  {
+   "n": 3,
+   "kind": "artifact",
+   "status": "still",
+   "note": "solc immutables still read as 0 (Vault 0x0, pool id 0, pause window), so pause/unpause always revert BAL#403/BAL#401."
+  },
+  {
+   "n": 4,
+   "kind": "simplification",
+   "status": "still",
+   "note": "Zero-initialisation is still shown as call.data[calldata.size len n] (32 lines)."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "getScalingFactors, getNormalizedWeights, getGradualWeightUpdateParams, onSwap, onJoinPool, onExitPool, queryJoin, queryExit, addToken, removeToken, updateWeightsGradually",
+   "lines": "752, 984, 1339 (allocation checks); 3470, 4981 (copy pointers); lines over 240 chars: 102 -> 175",
+   "decompiled": "require 32 * _2 + ceil32(return_data.size) + 32 * mem[mem[160] + 128] + 192 >= 32 * _2 + ceil32(return_data.size) + 160 and 32 * _2 + ceil32(return_data.size) + 32 * mem[mem[160] + 128] + 192 <= 18446744073709551615  |  u = _311 + 160 * _318 + 32 * _328 + 32 * _573 + 32 * _583 + ceil32(return_data.size) + 356",
+   "old": "require mem[64] + 32 * mem[mem[160] + 128] + 32 >= mem[64] and mem[64] + 32 * mem[mem[160] + 128] + 32 <= 18446744073709551615 (old 391)",
+   "source": "abi.decode of getPoolTokens' IERC20[] return and the new uint256[] allocations (ManagedPoolSettings._getNormalizedWeights, _scalingFactors...)",
+   "issue": "Each allocation check, copy pointer and kept store now spells out the free-memory pointer as a sum of every earlier allocation. Lines over 240 characters went from 102 to 175, and lines with 3 or more ceil32 terms from 13 to 132, although the text is 1294 lines shorter.",
+   "rule": "When the free-memory pointer is written, bind the new value to one named variable and print later addresses relative to it, instead of expanding the sum again. In 'x + a >= x + b' with the same x on both sides, keep x as a variable.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "updateWeightsGradually(uint256,uint256,address[],uint256[]) (unknown819c70f3)",
+   "lines": "2074, 2123, 2127, 2142",
+   "decompiled": "_87 = cd[_param3 + 4] == _72 - 1 and _72 - 1 == mem[32 * cd[_param3 + 4] + 160] / assert s < mem[32 * cd[_param3 + 4] + 160]",
+   "old": "_87 = ... and mem[...] == cd[_param4 + 4] / assert s < cd[_param4 + 4] (old 2765, 2820)",
+   "source": "ManagedPoolSettings.updateWeightsGradually: InputHelpers.ensureInputLengthMatch(tokens.length, endWeights.length); endWeights[i]",
+   "issue": "endWeights.length is no longer forwarded from its store (1897: mem[32 * cd[_param3 + 4] + 160] = cd[_param4 + 4]), so the length check and the bounds assert read the memory copy instead of the calldata length the old text showed.",
+   "rule": "Keep a symbolic lower bound for mem[64] across joins (each predecessor's pointer, which is at or above the end of the arrays copied at entry). Then stores relative to a later pointer cannot alias the earlier array, and the load forwards the stored value.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "P2 34 -> 10 and P6 4 -> 0. The Vault/authorizer calls (canPerform with sha3(0, Bytes(4, sig)), getPoolTokenInfo), the library delegatecalls of addToken/removeToken/onSwap/setCircuitBreakers and the log data (Transfer value, GradualWeightUpdateScheduled, setCircuitBreakers, protocol fee cache) are decoded. The owner-only action-id chain lost its memory writes, so pause/unpause/setSwapEnabled/... went from ~130 to ~35 lines. 11 memory copy loops became copy lines (117 -> 106 whiles). Bounds asserts implied by the loop bound or by 'require cd[request + 4] < 2' were dropped (onSwap assert 20 -> 6). The BAL#000/BAL#001 checks now precede the delegatecalls they guard, in the old order. The text is 1294 lines shorter.",
+ "patterns": {
+  "P2": 10
+ },
+ "notes": "The diff is 6809 lines, so I reviewed it by structure: normalized per-function diffs of control flow, calls with arguments, loops, storage writes, events and reverts for all 25 changed functions. All 11 source loops are still whiles (only memory copy loops were removed, checked by loop body, and no nested loops reuse a counter name). The remaining P2 lines are the 6 vault-context guard calls and 4 calls whose buffers are built by P7 copy loops (2425, 2711, 3815, 4166). The flattened SafeERC20-style checks are fine. updateWeightsGradually still keeps the action-id memory writes that pause() lost.",
+ "summary": "Two low regressions: longer, fully expanded memory addresses (lines over 240 chars 102 -> 175) and one array length no longer forwarded from its store. Otherwise improved: most calls and events decoded, the auth chains shortened, 11 copy loops are copy lines, and implied asserts dropped."
+}

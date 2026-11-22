@@ -1,0 +1,44 @@
+{
+  "id": "c00173",
+  "text_changed": true,
+  "lines_old": 3513,
+  "lines_new": 2747,
+  "changed_functions": 12,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "The fee-on-transfer loop is still 'while True: if s >= mem[317] - 1: <balanceOf check> stop' wrapping the function's tail (665, 876)."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "Raw-memory calls 17 -> 0 (P2 108 -> 0) and 'revert with memory' 91 -> 0: balanceOf, getReserves, swap, transfer and transferFrom are named, and revert strings are shown. Long strings inside loops print as 'Error(string reason), 32, n, ..., mem[... len k]', which is exact. See regression 1 for the transferFrom arguments."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "path[i]/path[i+1] are still re-read as 20-byte slices, and 'assert s + 1 < len' is still kept (677-681)."},
+    {"n": 4, "kind": "artifact", "status": "still", "note": "WETH/factory immutables read as 0."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "swapTokensForExactTokens, swapExactTokensForTokens, swapTokensForExactETH, swapExactTokensForETH (TransferHelper.safeTransferFrom)",
+      "lines": "1345-1347, 1587-1589, 2329-2331, 2600-2602",
+      "decompiled": "call address(path[0]).transferFrom(address sender, address recipient, uint256 amount) with: args caller, address(sha3(mem[_162 + 104 len _161 - _162 + 85])), mem[32 * path.length + 192 len 28], Bytes(4, uint32(mem[32 * path.length + 220 len 4]))",
+      "old": "_171 = mem[32 * path.length + 192] ... call address(path[0]).transferFrom(...) with: args caller, address(_167), _171",
+      "source": "UniswapV2Router02.sol swapTokensForExactTokens: TransferHelper.safeTransferFrom(path[0], msg.sender, pairFor(factory, path[0], path[1]), amounts[0])",
+      "issue": "The amount argument (amounts[0], one word) is printed as a 28-byte slice plus a 4-byte tail, the two pieces of the masked memcpy that builds the call data. The old text printed _171. The no-op 'mem[_161 + 421 len 28] = uint224(mem[_161 + 421 len 28])' of that copy is still printed.",
+      "rule": "Merge adjacent slices of one source word: mem[a len k] followed by mem[a + k len 32 - k] (or a uint of it) is mem[a]. Drop a masked store that writes back the bytes it reads.",
+      "verified": "reading only (old 1316-1345 vs new 1323-1347)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getAmountsIn/Out and the path loops of all swaps (inlined pairFor)",
+      "lines": "65 lines, e.g. 1345, 712, 729",
+      "decompiled": "static call address(sha3(mem[_74 + 104 len _73 - _74 + 85])).getReserves() / args ..., address(sha3(mem[_162 + 104 len _161 - _162 + 85])), ...",
+      "old": "_167 = sha3(mem[_161 + 104 len mem[_161 + 72]]) (mem[_161 + 72] = 85) ... static call address(_167).getReserves()",
+      "source": "UniswapV2Library.pairFor: address(uint(keccak256(abi.encodePacked(hex'ff', factory, keccak256(abi.encodePacked(token0, token1)), hex'96e8...'))))",
+      "issue": "The CREATE2 pair address is now inlined at every use, with the length left as '_161 - _162 + 85'. _161 and _162 are both reads of mem[64] with no store between them, so the length is 85. Lines with 'len _a - _b + 85': 0 -> 65.",
+      "rule": "Two loads of mem[64] with no store to mem[64] between them are one value (fold _161 - _162 to 0). Bind a hash used more than once to a variable, or show its decoded input as removeLiquidity does (sha3(Bytes(21, 0xff..), sha3(...), 0xe18a..)).",
+      "verified": "reading only (new 1323-1336: no mem[64] store between _161 = mem[64] and _162 = mem[64])"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P7 copies resolved (whiles 29 -> 25): addLiquidity's memcpy and the three fee-on-transfer swaps' bytes copy. The pair swap now reads 'swap(_107, _108, to, Array(len=0, data=''))', and addLiquidity shows both transferFrom calls. Every call is named (args mem 17 -> 0, P2 108 -> 0). All 91 memory reverts decode to their strings, and returns are decoded ('return 32, len, mem[...]'). The ds-math-sub-underflow check merges into SafeMath.sub. A dominated bounds assert on amounts[0] is dropped (P11). P6 112 -> 0. The text is 22% shorter.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 3,050 lines, reviewed by structure. Calls, logs and storage writes are unchanged in number in all 12 changed functions. The three source loops (two 'while True', one 'while s < _126 - 1') and getAmountsIn/Out's path loops are intact; only P7 copy loops were removed. getAmountsOut now asserts the denominator before the amounts[i + 1] bounds assert, the source's evaluation order (both INVALID in 0.6), at the cost of repeating the denominator. 'Error(string reason), 32, 43, ..., mem[mem[64] + 111 len 21]' inside the loop matches the old model (the string is written with len 43, revert length 132). The tail bytes are unknown memory inside the loop and are printed exactly. def SafeMath is unchanged.",
+  "summary": "No semantic regression. Calls, revert strings and returns are decoded and four P7 copies are resolved. But the four getAmounts-first swaps print transferFrom's amount as a 28+4-byte split (medium), and the pair address is now inlined with an unfolded '_a - _b + 85' length (low)."
+}

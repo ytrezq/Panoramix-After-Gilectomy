@@ -1,0 +1,19 @@
+{
+  "id": "c00113",
+  "text_changed": true,
+  "lines_old": 6096,
+  "lines_new": 6088,
+  "changed_functions": 16,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "Branch-free min() bit formula still repeated (e.g. mem[64 len 96] = .., (a < b) * (b ^ a) ^ b)."},
+    {"n": 2, "kind": "loop", "status": "partly", "note": "The 3 rotated loops with a peeled first iteration (unknown2d9caa4e, unknown577db316, unknownfd129e63) now start at s = 0 with no copy before the loop ('while True: ... if s + 1 != stor5: s = s + 1; continue / break'); the strategy call targets are values (_105 = mem[32 * s + 928]) instead of mem[1568]/mem[1344]. The maxWithdraw/redeem 'while True' loops with repeated increments are unchanged."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "max_loss = 0 not propagated; unchanged."},
+    {"n": 4, "kind": "naming", "status": "still", "note": "Signature-database parameter names unchanged."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Rotation fix: three DynArray loops lose their peeled first iteration (the merged body compares with mem[64], the Vyper local holding _param1, never written in the loop). In 12 maxWithdraw/maxRedeem/redeem/withdraw variants the strategy calls (balanceOf, convertToAssets) target the loaded value instead of a memory word.",
+  "patterns": {"P1": 0, "P2": 30, "P3": 0, "P4": 48, "P5": 0, "P6": 0},
+  "notes": "Diff 439 lines, read whole (grouped by normalised line): only the two changes above. P4 49 -> 48 (one rotated copy gone).",
+  "summary": "No regression: three rotated Vyper loops are now single loops from index 0 and strategy call targets are named values; the min() formulas and other round-1 issues remain."
+}

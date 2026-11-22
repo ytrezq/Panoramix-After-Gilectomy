@@ -1,0 +1,45 @@
+{
+  "id": "c00157",
+  "text_changed": true,
+  "lines_old": 5737,
+  "lines_new": 5611,
+  "changed_functions": 22,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "still", "note": "proposalSnapshot/receipt names and raw receipt arithmetic unchanged"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "deque fields still undeclared, stor2/stor3 whole-slot arithmetic"},
+    {"n": 3, "kind": "loop", "status": "fixed", "note": "the 7 onlyGovernance popFront loops are now one while True with no peeled iteration"},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "propose's struct members and clearing loops unchanged"},
+    {"n": 5, "kind": "artifact", "status": "still", "note": "token immutable still 0"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "execute (both), queue (both), cancel, propose (both), hashProposal",
+      "lines": "execute 1695-1842, queue 1950-2352, execute#2 2353-2793, cancel 2794-3209, queue#2 3210-3686, propose 3687-5611, hashProposal 880-886",
+      "decompiled": "mem[64] = t / revert with memory from mem[64] len t - mem[64] + 132; proposalSnapshot[concat(mem[0])]; mem[0] = _29 / mem[32] = 12 / ... / if ... >= uint64(stor[sha3(mem[0 len 64])]); static call 0x0 with: args mem[mem[64] len 36]; log ProposalExecuted(uint256 id=mem[mem[64] len _v + ceil32(return_data.size) - mem[64] + 32]); static call timelock.mem[mem[64] len 4]; return memory from mem[64] len v - mem[64] + 32",
+      "old": "revert with 'Governor: proposal not successful'; proposalSnapshot[sha3(mem[_v + 32 len mem[_v]])]; if ... >= stor12[_29]; static call 0x0.getPastTotalSupply(uint256 blockNumber) with: args uint64(proposalSnapshot[_v].field_0); log ProposalExecuted(uint256 id=_v); timelock.getMinDelay(); return memory from v len 32",
+      "source": "Governor.execute/queue/cancel -> state(), quorum(), timelock.isOperationDone/isOperationPending/getMinDelay/cancel, emit ProposalExecuted/ProposalCanceled; propose -> getVotes; hashProposal = keccak256(abi.encode(...))",
+      "issue": "After mem[64] is set to the pointer left by the abi.encode loop of hashProposal, a read of mem[64] is neither that value nor above a floor, so writes through it may alias everything: Governor string reverts become raw (decoded 82 -> 58), the timelock/token calls lose names and args (P2 15 -> 38 lines), the events take memory slices, and mapping reads lose their keys (29 stor[sha3(mem[0 len 64])], P4 23 -> 42). The old text resolved all of these.",
+      "rule": "After mem[64] = x, a read of mem[64] is x until the next write to mem[64], even for a loop-carried x; a pointer that starts at or above a constant floor and only grows keeps the floor, so writes at mem[64] + k (k >= 0) cannot alias [0, 64) or memory below the floor.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "execute (both), queue (both)",
+      "lines": "1781-1842 (execute)",
+      "decompiled": "if _v == 4: <timelock checks, log ProposalExecuted> ... else: revert with memory from mem[64] len ... + 132",
+      "old": "if _v != 4: revert with 'Governor: proposal not successful' / body at the outer level",
+      "source": "Governor.sol execute: require(status == Succeeded || status == Queued, 'Governor: proposal not successful')",
+      "issue": "A guard revert became an else arm at the end, nesting the body under the opposite test.",
+      "rule": "Print a branch that ends every path (revert) first, as a guard clause, and keep the rest at the outer level.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P6 fixed. P3 fixed in the 7 onlyGovernance functions. castVoteBySig and castVoteWithReasonAndParamsBySig: getPastTotalSupply, getPastVotes, isOperationDone, isOperationPending named; ECDSA and Bravo reverts decoded; VoteCast/VoteCastWithParams decoded; return weight. In castVoteBySig the empty reason/params are now known, so the dead VoteCastWithParams arm and its zero-length copy loops are gone (407 -> 140 lines). castVote shares the 'vote not currently active' revert tail and loses a meaningless require; the other castVote* events are decoded.",
+  "patterns": {"P2": 38, "P4": 42},
+  "notes": "Diff 4817 lines, reviewed by structure: per-function effects and control-statement diffs for all 22 changed functions, with execute, hashProposal, castVote, castVoteBySig and setVotingDelay read in detail. The regression is one cause (lost free-pointer value/floor after a loop) seen in 7 functions; queue also prints a call as timelock.mem[mem[64] len 4].",
+  "summary": "Medium regression: in execute, queue, cancel, propose and hashProposal the free pointer is lost after the hashing loop, so Governor reverts, timelock/token calls, events and mapping keys that the old text decoded are raw again (P2 15 -> 38, P4 23 -> 42). Gains: rotated popFront loops fixed, castVote*BySig fully decoded and much shorter."
+}

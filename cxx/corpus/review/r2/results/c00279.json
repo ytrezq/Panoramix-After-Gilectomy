@@ -1,0 +1,39 @@
+{
+  "id": "c00279",
+  "text_changed": true,
+  "lines_old": 460,
+  "lines_new": 463,
+  "changed_functions": 10,
+  "old_findings": [],
+  "regressions": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "def storage; implementationOf(uint256), defaultImplementation(), migratorForPath(uint256,uint256), setDefaultVersion, enableUpgradePath, disableUpgradePath, registerImplementation, upgradeInstance, createInstance",
+      "lines": "4, 6, 30, 34, 37, 61, 106, 136, 175, 181, 190, 250, 271-274, 298-313, 431-443",
+      "decompiled": "implementationOf is mapping of struct of 1 slot at storage 0 / migratorForPath is mapping of mapping of struct of 1 slot at storage 2 / return address(implementationOf[version_].field_0) / ... / mem[_29 + 36 len 28] = uint128(implementationOf[toVersion_].field_32)",
+      "old": "implementationOf is mapping of address at storage 0 / migratorForPath is mapping of mapping of address at storage 2 / return implementationOf[version_] / migratorForPath[fromVersion_][toVersion_] = migrator_",
+      "source": "MapleProxyFactory: mapping(uint256 => address) public implementationOf; mapping(uint256 => mapping(uint256 => address)) public migratorForPath",
+      "issue": "The selector merge of each abi.encodeWithSelector(..., implementationOf[v]) now prints its low-28-byte rewrite as a read of bits 32..160 of the storage value ('uint128(implementationOf[toVersion_].field_32)', 3 lines). That phantom field turns both address mappings into 'struct of 1 slot', so every read, write and getter becomes 'address(x.field_0)' and def storage misdescribes the layout.",
+      "rule": "Drop a store that writes back bytes already in memory (the merge keeps the low 28 bytes of the word just stored) before typing storage; and derive a storage field only from accesses that read storage itself, never from a value re-derived from a memory copy of a storage word.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "upgradeInstance(uint256,bytes)",
+      "lines": "new 298-313",
+      "decompiled": "_47 = mem[ceil32(_1) + ceil32(_2) + 128] / mem[mem[64] + 100] = mem[ceil32(_1) + ceil32(_2) + 128] / idx = 0 / while idx < _47: mem[idx + mem[64] + 132] = mem[idx + ceil32(_1) + ceil32(_2) + 160] ... / if idx > _47: ...",
+      "old": "mem[mem[64] + 100] = arguments_.length / mem[mem[64] + 132 len ceil32(arguments_.length)] = arguments_[all], mem[... len ceil32(arguments_.length) - arguments_.length]",
+      "source": "MapleProxyFactory.upgradeInstance -> _upgradeInstance: migrator_ call with abi.encodeWithSelector(IProxied.migrate.selector, migrator_, arguments_)",
+      "issue": "The copy of arguments_ into the migrate call buffer, a copy line from calldata in round 1, is now a word-copy loop from the memory copy with an unresolved length. The memory copy (mem[ceil32(_1) + ceil32(_2) + 128] = arguments_.length, data = arguments_[all]) is no longer forwarded past the implementation() staticcall and the setImplementation call, whose buffers sit at a free pointer joined from 'if return_data.size'. createInstance's identical copy is still a copy line.",
+      "rule": "Keep a symbolic lower bound of the free pointer through joins (the max of the arms' bounds, each >= the value before the branch), so stores at mem[64] + k after the join cannot reach memory allocated before it; the forwarded copy then stays a copy line.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "upgradeInstance's setImplementation copy loop and call now have constant sizes ('while idx < 36', 'args mem[_29 + 68 len 36]') and their return-data handling resolved addresses. Otherwise the text changed only in the two regressions above.",
+  "patterns": {"P2": 3, "P4": 5},
+  "notes": "Diff of 208 lines read in full. 'static call caller.mem[... + 196 len 4]' (the implementation() call printed with a memory slice as its name) is in the old text too, so it is not a change, but it is the same defect counted as a regression in c00007 and c00168. P4 count 4 -> 5 per the new pack header.",
+  "summary": "Two medium regressions. A phantom storage field from the selector-merge store retypes both address mappings as structs ('address(implementationOf[v].field_0)' everywhere), and upgradeInstance's arguments_ copy line became a memory copy loop because forwarding is lost after a joined free pointer. Little improved."
+}

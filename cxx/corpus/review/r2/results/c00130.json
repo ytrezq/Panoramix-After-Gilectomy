@@ -1,0 +1,17 @@
+{
+  "id": "c00130",
+  "text_changed": true,
+  "lines_old": 3955,
+  "lines_new": 3754,
+  "changed_functions": 15,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "ens and registrar still read 0."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "256 * names[..].field_8, the stor1[concat(mem[0])] keys, and 65536 * uint1(field_176) != 65536 are unchanged."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "The 14 'revert with memory' in setSubnodeOwner/setSubnodeRecord are now named reverts: the ERC1155 receiver messages, Error(string) bubbling, OperationProhibited, and LabelTooLong with label[all]. NameWrapped and TransferSingle logs show their arguments, and returns are values (return bool(_79), return sha3(parentNode, sha3(label[all]))). The second _addLabel's LabelTooShort/LabelTooLong checks are folded; they are dominated by the same checks on label.length on the same path. Scratch and free-pointer bookkeeping lines are gone, and P6 36 -> 0.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 7, "P5": 0, "P6": 0},
+  "notes": "Reviewed by structure (2086-line diff, 15 functions): whiles, calls, logs and requires are equal in number in every function. The 2 source loops (balanceOfBatch, safeBatchTransferFrom) and the recursive internal_0x3bc5 changed only in display. The only revert-count change (setSubnodeOwner 49 -> 47) is the dominated label checks. uri's return now prints the length and data as one slice (return 32, mem[... len ceil32(_2) + 32]) instead of a length word plus data. That is not less clear, so I count it neutral.",
+  "summary": "No regression. Reverts, events and returns in setSubnodeOwner/setSubnodeRecord/wrap are now decoded, dominated label checks are folded, and both source loops are unchanged."
+}

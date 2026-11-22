@@ -1,0 +1,41 @@
+{
+  "id": "c00293",
+  "text_changed": true,
+  "lines_old": 600,
+  "lines_new": 592,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "balanceOf / withdrawFromStream / cancelStream / createStream unchanged (implied underflow check, mem[416] local, concat keys)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "approve(address,address,uint256)",
+      "lines": "243",
+      "decompiled": "mem[_5 + 36 len 28] = uint128(who >> 32); mem[_5 + 32 len 4] = 157198259",
+      "old": "mem[_5 + 32 len 4] = 157198259",
+      "source": "SafeERC20.safeApprove: abi.encodeWithSelector(token.approve.selector, spender, value)",
+      "issue": "The masked selector store is printed as two partial stores, the first rewriting 28 bytes with the value they already hold (same as c00244).",
+      "rule": "Drop a partial store whose bytes equal the bytes already in memory there; print the selector store in hex.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "approve(address,address,uint256)",
+      "lines": "248-251",
+      "decompiled": "mem[_5 + 164 len 68] = Bytes(4, 0x095ea7b3), Bytes(28, uint128(who >> 32)), Bytes(4, uint32(who)), amount ... call erc20.approve(address spender, uint256 amount) with: args Bytes(28, uint128(who >> 32)), Bytes(4, uint32(who)), amount",
+      "source": "Collector.sol approve -> IERC20(token).safeApprove(recipient, amount)",
+      "issue": "The call is now named, but its spender argument is printed as the two pieces the selector store split it into instead of 'who'.",
+      "rule": "Recombine adjacent byte slices that together form one word: Bytes(28, x >> 32), Bytes(4, uint32(x)) is the word x.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "SafeERC20.safeApprove's call is named (erc20.approve) with its arguments; 'SafeERC20: low-level call failed' decodes; the failure path is printed first as early reverts; the return-data buffer has constant offsets from _5.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 8, "P5": 0, "P6": 0},
+  "notes": "Diff of 70 lines read in full; old and new branch structures of approve compared case by case (call failed with/without return data, succeeded with/without return data): equivalent.",
+  "summary": "A small regression (a no-op partial store) and an odd split argument in approve, whose SafeERC20 call and error are otherwise newly decoded."
+}

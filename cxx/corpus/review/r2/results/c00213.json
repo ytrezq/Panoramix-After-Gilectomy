@@ -1,0 +1,29 @@
+{
+  "id": "c00213",
+  "text_changed": true,
+  "lines_old": 1025,
+  "lines_new": 905,
+  "changed_functions": 7,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "getModulesPaginated/getModules did not change."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "execTransactionFromModuleReturnData(address,uint256,bytes,uint8)",
+      "lines": "414",
+      "decompiled": "return bool(_4), 64, _5, mem[_5 + ceil32(data.length) + 288 len floor32(_5) + 32]",
+      "old": "return bool(_3), Array(len=_4, data=mem[_4 + ceil32(data.length) + 288 len floor32(_4) + 32])",
+      "source": "GnosisSafe.sol execTransactionFromModuleReturnData: returns (bool success, bytes memory returnData)",
+      "issue": "In the unaligned-length branch, the dynamic bytes return is now printed as its raw ABI words (offset 64, length, padded data) instead of Array(len=..., data=...). The aligned branch already used the raw form, so the two arms now agree, but on the less readable form.",
+      "rule": "When returned data has the head/tail layout of one dynamic bytes value (offset word = head size, then length n, then ceil32(n) bytes with zero padding), print it as Array(len=n, data=...) in every arm.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "GAS fix applied correctly. requiredTxGas reads startGas after the authorized check (it was hoisted above the calldata checks) and passes a separate gasleft() to the call. execTransaction now has gasUsed = _40, the conditional gas _60, gasUsed.sub(gasleft()) as _84, handlePayment's checks on _40 - _84 + baseGas and transfer gas _119 - 10000, each its own read, as in the source. The same holds for the calls in execTransactionFromModule(ReturnData) and setup. isValidSignature now has the source's if/else with one shared return. ecrecover arguments are decoded, including the eth_sign-prefixed hash. Revert strings, the ExecutionSuccess/ExecutionFailure events, the gas token transfer and execTransaction's 'return bool(_81)' are decoded. P6 19 -> 0, P2 4 -> 3.",
+  "patterns": {"P1": 0, "P2": 3, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 911 lines, read hunk by hunk. Calls, logs and storage writes are unchanged in number. isValidSignature's 'return' 2 -> 1 is the merged return after the if/else. The four source loops are unchanged. Long revert strings inside the signature loop print 'Error(string reason), 32, n, ..., mem[mem[64] + k len m]', which is exact (as in c00173). The EIP-1271 static call to contract signers is still raw memory (P2).",
+  "summary": "No semantic regression. The GAS fix makes every gasleft() use exact, isValidSignature's structure follows the source, and events, reverts and calls are decoded. One low cosmetic loss: a dynamic bytes return printed as raw words."
+}

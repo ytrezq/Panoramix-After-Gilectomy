@@ -1,0 +1,58 @@
+{
+  "id": "c00028",
+  "text_changed": true,
+  "lines_old": 6678,
+  "lines_new": 5384,
+  "changed_functions": 22,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "max(block.timestamp, startTime) still distributed and repeated (GradualWeightUpdateScheduled data in unknown819c70f3)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "concat(Bytes(12, 0), mem[... len 20]) keys repeated per line; removeToken/addToken's old concat(mem[0]) now also take this form."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "def storage unchanged; whole-slot updates such as 'stor10 = block.timestamp << 60 | stor10 >> 92 << 92 | uint60(stor10)' remain."},
+    {"n": 4, "kind": "loop", "status": "still", "note": "prependZeroElement copy still a while with 'assert s < _47' and 'assert s + 1 < _47 + 1' (onJoinPool init path)."},
+    {"n": 5, "kind": "simplification", "status": "still", "note": "'-1 * _47 * ext_call.return_data[0] + totalSupply + 0x8000..' etc."},
+    {"n": 6, "kind": "artifact", "status": "still", "note": "Immutables read as 0 (getAuthorizer on 0x0, pause window, owner)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "onJoinPool, onExitPool, queryJoin, queryExit, removeToken(address,uint256), unknown34a36df8",
+      "lines": "e.g. onJoinPool 4288-4292, 4353-4365; removeToken 3116-3131",
+      "decompiled": "_92 = not mem[32 * _21 + 32 * _31 + 32 * idx + ceil32(return_data.size) + ceil32(userData.length) + 32 * balances.length + 288] or mem[...] * mem[32 * _21 + 32 * _31 + 32 * _47 + 32 * idx + ... + 320] / mem[...] == ...",
+      "old": "5471: _92 = not mem[_49 + 32 * idx + 32] or mem[_49 + 32 * idx + 32] * mem[_57 + 32 * idx + 32] / mem[_49 + 32 * idx + 32] == mem[_57 + 32 * idx + 32]",
+      "source": "ManagedPool/BasePool _onInitializePool: _upscaleArray(amountsIn, scalingFactors) and the other array helpers",
+      "issue": "Array bases that were variables holding a mem[64] read (_49, _57, _212) are now replaced by their full closed-form sums of 7-9 terms at every element access, so lines get 3-4 times longer: lines over 400 characters 32 -> 68, onJoinPool +23% characters with fewer lines, removeToken +29%.",
+      "rule": "When a free-memory-pointer value is worked out to a sum of more than a few terms, keep it as one named base per allocation and print accesses as base + 32 * idx + k; substitute only short (constant or one-term) bases.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "onJoinPool(bytes32,address,address,uint256[],uint256,uint256,bytes)",
+      "lines": "4298-4300, 4353, 4360",
+      "decompiled": "if block.timestamp > uint32(stor9): ... _107 = block.timestamp == uint32(stor9) or (10**18 * block.timestamp - 10**18 * uint32(stor9)) / (block.timestamp - uint32(stor9)) == 10**18; if not _107: revert 'BAL#005'  |  while idx < _47: assert idx < _47 ... assert idx < _47",
+      "old": "_123 = SafeMath.mul(block.timestamp - uint32(stor9), 10**18, 'BAL#005') / (...)  |  while idx < mem[_49]: assert idx < mem[_57]",
+      "source": "FixedPoint.divDown (DIV_INTERNAL); loops over amountsIn",
+      "issue": "One SafeMath.mul with 'BAL#005' (15 others stay helpers) is expanded into a distributed 3-line check with an a == 0 test the enclosing 'if' excludes; two asserts equal to the loop condition are printed.",
+      "rule": "Fold a*b/a == b with a known non-zero into the mul helper as elsewhere; drop an assert implied by the enclosing while test when the index is not written in between.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "pause, unpause, enableRecoveryMode, setSwapEnabled, setJoinExitEnabled, addAllowedAddress, removeAllowedAddress, unknownb62c1f06 and the other authenticated functions (15)",
+      "lines": "330-340 (pause) and the same 11 lines in each",
+      "decompiled": "_4 = sha3(0, Bytes(4, call.func_hash >> 224)) == sha3(0, Bytes(4, 0x819c70f3)) or ... _49 = _44 or ... == sha3(0, Bytes(4, 0xf885a4bb)); if not _49: <authorizer> else: _57 = not caller",
+      "source": "BasePool._canPerform: _isOwnerOnlyAction(actionId) ? account == getOwner() : authorizer.canPerform(...)",
+      "issue": "Now that the prologue is compact it shows that each comparison is constant: inside a function reached by the dispatcher, call.func_hash >> 224 is that function's selector, so with keccak taken as collision-free every term is false (pause) or one is true (unknown7b749c45).",
+      "rule": "Inside a function body reached through the selector dispatch, substitute call.func_hash >> 224 by the dispatched selector; sha3(p, Bytes(4, a)) == sha3(p, Bytes(4, b)) folds to a == b.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "Owner-only prologue 100 lines of memory writes -> 11 lines and canPerform decoded (15 functions, each 130 -> 34 lines). Delegatecalls to the linked libraries now carry their arguments (onSwap unknown874b4782 x2, addToken/removeToken, f885a4bb); unknown90043a58's two dynamic arrays decoded; TokenAdded, GradualWeightUpdateScheduled and the fee-cache event show their data; removeToken/addToken keys are the token address instead of concat(mem[0]); SafeMath checks moved before the extcodesize require as in the bytecode; implied BAL#103 check and bounds asserts dropped (asserts 77 -> 52); P2 34 -> 10.",
+  "patterns": {"P1": 0, "P2": 10, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 6,809 lines reviewed by function: calls and events identical in count everywhere; owner-only setters, onSwap, onJoinPool init path and removeToken read against the source. Hunk headers are misleading where functions moved (getActualSupply moved). onJoinPool BAL#000 1 -> 0 is the explicit check now SafeMath.add (same message); BAL#103 3 -> 2 drops a check implied by the first one.",
+  "summary": "Clear improvement in the owner-only prologue, library delegatecalls and dynamic-array calls, but array accesses in the join/exit/token functions now spell out the whole free-memory-pointer sum, making those lines 3-4 times longer; plus a few new redundant checks."
+}

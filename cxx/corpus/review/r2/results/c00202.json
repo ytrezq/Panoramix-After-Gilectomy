@@ -1,0 +1,29 @@
+{
+  "id": "c00202",
+  "text_changed": true,
+  "lines_old": 1934,
+  "lines_new": 1725,
+  "changed_functions": 12,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The StableMath products are still distributed and the Newton steps unnamed. computeInvariant (0x72c98186) changed only in hex display, and computeBalance's loop keeps its 250+-character quotients."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getStablePoolDynamicData() 0xcbd4e280, getStablePoolImmutableData() 0x5c1e6259, getTokenInfo(), getTokens()",
+      "lines": "e.g. getStablePoolDynamicData's allocation checks and its return (last 12 lines)",
+      "decompiled": "if 32 * _2 + 32 * _9 + 32 * _13 + ceil32(_3) + ceil32(_4) + ceil32(_5) + ceil32(_6) + ceil32(_7) + ceil32(return_data.size) + 1248 < ...  |  bool(mem[32 * _2 + 32 * _9 + 32 * _13 + ceil32(_3) + ... + ceil32(return_data.size) + 1152])",
+      "old": "if _25 + ceil32(_3) + ceil32(return_data.size) + 576 < _25 + ceil32(_3) + ceil32(return_data.size) + 256 or ...",
+      "source": "StablePool.sol getStablePoolDynamicData: data.balancesLiveScaled18 = ...; (data.isPoolInitialized, ...) = ...getPoolConfig(...)",
+      "issue": "Allocation bases the old text named (_7, _25) are now printed as absolute sums of every earlier allocation and return-data size, the same change as in c00150. Lines with 4+ pointer terms went 40 -> 124, with 8+ terms 26 -> 63, and lines over 240 characters 56 -> 74.",
+      "rule": "Bind a free-memory-pointer value that is a sum of several symbolic sizes to a variable at the allocation and address its contents from it. Substitute only constants or single terms.",
+      "verified": "reading only (counts by regular expression)"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Returns decode as Array(...) and struct fields (getTokens, b156aa0a, getStablePoolDynamicData: 3 -> 11 Array forms). The Vault event call c8088247 is decoded in start/stopAmplificationParameterUpdate ('AmpUpdateStarted', Array(len=128, data=uint64(...), ...)), and totalSupply(this) and 4f037ee7(this) in getStablePoolDynamicData. permit's ecrecover takes (digest, v, r, s), and its dropped mem[64] bump is compensated (mem[64] - 32 -> mem[64]). Dead memory writes are dropped. P2 4 -> 0, P6 13 -> 0, 40 -> 34 whiles (return copies).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "I read the 12 changed defs' diffs. supportsInterface, eip712Domain (84b0196e) and computeInvariant changed only by the whole-byte hex display. computeBalance (16a0b3e0) has a new explicit Panic(17) check, the overflow of 2w + b, where the old text had SafeMath.add(SafeMath.mul3(2, w), b) inside the next comparison. Both revert Panic(17), and the SafeMath.div inside only recomputes b, which was computed and checked before the loop: neutral. All six source loops are still whiles. text_check run --per-selector 16, both worlds: 611 + 48 guessed-param calls same, 0 different.",
+  "summary": "One medium regression: free-pointer memory addressed by long absolute sums (124 lines with 4+ terms, 40 before). Otherwise improved: returns and the Vault event calls decoded, ecrecover decoded, P2 and P6 gone. The StableMath readability finding stays."
+}

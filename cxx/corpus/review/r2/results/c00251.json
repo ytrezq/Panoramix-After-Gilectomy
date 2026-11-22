@@ -1,0 +1,16 @@
+{
+  "id": "c00251",
+  "text_changed": true,
+  "lines_old": 620,
+  "lines_new": 567,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The DepositRequest fields are still byte slices of the memory copy (e.g. 10**10 * mem[ceil32(_2) + 184 len 8] in the events)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "finalizeDeposit (unknown46d9d49a): the gas read at entry is now a variable (_1 = gas_remaining, line 2 of the function) and the refund uses it (SafeMath.sub(_1, _146), refund(_1 + _145 - _146 + stor204, caller)); the old text re-read gas_remaining at the refund, which was wrong. reimbursementPool.refund/e25b5345, tbtcToken.allowance/approve named with arguments; 'tBTC token not initialized', 'Invalid StarkNet address', 'Insufficient L1->L2 message fee' decoded; the SafeERC20 call-data copy is a copy line; 309 -> 255 lines.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 632 lines read hunk by hunk; unknown6da5658a only moved (it already had its gas read at entry). Event argument changes are renumberings (_1 -> _2, _68 -> _69) caused by the new gas variable.",
+  "summary": "No regression; the GAS fix corrects finalizeDeposit's gas refund, which the old text computed from a gas read at the wrong place, and its calls and messages are decoded."
+}

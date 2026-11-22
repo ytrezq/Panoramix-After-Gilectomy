@@ -1,0 +1,34 @@
+{
+ "id": "c00161",
+ "text_changed": true,
+ "lines_old": 3684,
+ "lines_new": 3121,
+ "changed_functions": 13,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "naming",
+   "status": "still",
+   "note": "def storage unchanged ('stor1 is address[9] at storage 1', stor158/stor180/stor181 typing)"
+  },
+  {
+   "n": 2,
+   "kind": "loop",
+   "status": "still",
+   "note": "BytesLib.slice word-copy while and the 19 raw toAddress/slice reverts of pathToRoute/rewardV3ToNative/addRewardV3 unchanged (only their hex constants now show whole bytes)"
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "Calls decoded with arguments: exchange_multiple(address[9], uint256[3][4], uint256, uint256), exactInput((bytes,address,uint256,uint256,uint256)) with its full tuple, WETH deposit()/balanceOf, getFees(this), SafeERC20 transfer/approve (P2 58 -> 8). Reverts decoded ('SafeERC20: low-level call failed', 'Address: call to non-contract', 'Pausable: paused'...; 'revert with memory' 58 -> 29). Logs decoded (StratHarvest tvl=SafeMath.add(..), Withdraw amount=SafeMath.add(..)). Implicit copy loops became copy lines (7 per harvest variant, getAllFees' string encoding; harvest 14 -> 7 whiles). The inlined fee multiply check is folded into SafeMath.mul. The 2 rotated zero-inits are un-rotated (P3), P6 53 -> 0. initialize's parameters are named by calldata word (_param22 = minAmount after the 21 words of address[9] and uint256[3][4], _param23.._param28 = CommonAddresses), which matches the source.",
+ "patterns": {
+  "P1": 0,
+  "P2": 8,
+  "P3": 0,
+  "P4": 0,
+  "P5": 0,
+  "P6": 0
+ },
+ "notes": "Diff of 3190 lines reviewed by function: 13 changed. harvest/harvest(address)/beforeDeposit by structure. Their call count rises only because decoded revert strings contain 'call'. The removed whiles are the path-bytes and SafeERC20 argument copies. The two Panic(17) removed from each are now inside SafeMath.mul (fee amount) and SafeMath.add (the tvl in the StratHarvest log, still after both balanceOf calls). getAllFees' return matches the ABI encoding of AllFees (offsets 32/96, deposit 0, withdrawFee 'not paused and stor157', the four fee words, label, active).",
+ "summary": "No regression. Calls, reverts and logs are decoded, implicit copy loops became copy lines, rotations and P6 are fixed, and initialize's parameters are named by calldata word. The storage naming and BytesLib findings remain."
+}

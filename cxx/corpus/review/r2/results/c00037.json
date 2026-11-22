@@ -1,0 +1,18 @@
+{
+  "id": "c00037",
+  "text_changed": true,
+  "lines_old": 4799,
+  "lines_new": 3855,
+  "changed_functions": 17,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The interest accrual polynomials are still distributed (201 P9 lines). They are 3% longer in characters: repay now repeats ext_call.return_data[0] where it had _29."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "The ErrorsLib string reverts are decoded (Error(string) 40 -> 1, raw 'revert with mem[_x len 4], ..' 21 -> 0, quoted reverts 100 -> 160). The one left follows a join of two 12-char messages. AccessControlUnauthorizedAccount is still printed as 'caller >> 32 | 0xe2517d3f.., Bytes(4, uint32(caller)), role' (14 sites)."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "EnumerableSet / _positions accesses still raw stor[sha3(account, sha3(id, 8) + 1)] (57 lines)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Text 4799 -> 3855 lines, and 553 KB -> 518 KB. 60 more reverts print as quoted strings ('max uint128 exceeded', 'transfer reverted', 'no code', 'invalid broker'...). Token calls are named with decoded args (_param1.transfer / transferFrom, _param3.peek, _param1.decimals; 'mem[140 len 20]' resolved to _param1), as are the repay callback (unknown5b66a68d(?)) and the setMarketBroker log arguments. setMarketBroker's duplicated 'log ..; stop' arms are merged into one log after the join, and batchToggleLiquidationWhitelist's 'if equal: loop else revert' is flattened to 'if != : revert' then the loop. The dominated 'mem[64] > 2^64-1' Panic(65) checks after callbacks (bound already checked before the call) are dropped. Keccak-scratch stores 635 -> 429; P1, P2, P4 and P6 are gone.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 3640 lines, reviewed function by function with a comparison of the call/log/store/revert/return sequences and control skeletons. Every difference is one of: a decoded revert, a named call, a merged duplicate tail (setMarketBroker: one log after the join instead of one per arm, so no log is lost), a flattened if/revert, or a dropped dominated Panic(65). Allocation offsets were checked in flashLoan, supplyCollateral and repay: new 'mem[64] + 128/192/288/352' and '_11 + ceil32(rds) + 320' match the old chained allocations with mem[64] at the first string's base. In liquidate one dominated check is kept after the callback (line 3713, implied by line 3693) while the one after broker.liquidate is dropped (P11). The decoded reverts leave two dead string writes each (P8). Loops unchanged (8 whiles).",
+  "summary": "No regression. String reverts, token calls and callback arguments are decoded, and duplicated tails are merged. P9 polynomials, the AccessControl custom-error pieces and raw EnumerableSet slots remain."
+}

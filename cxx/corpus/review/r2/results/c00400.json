@@ -1,0 +1,21 @@
+{
+ "id": "c00400",
+ "round1": true,
+ "text_changed": false,
+ "abi_functions": 1,
+ "reviewed": 1,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {},
+ "findings": [],
+ "notes": "SimpleStorage (solc 0.8.15): getExampleData() returns StorageLibrary.addData(42) = 42 + 123, printed as 'const unknownb5bc337e = 165' (pure function folded to a constant; name unknown to the signature database). The fallback is a bare revert, as the source has no fallback or receive. Text identical to round 1's.",
+ "summary": "A 12-line text that is exact: the single pure getter is the constant 165 and the fallback reverts."
+}

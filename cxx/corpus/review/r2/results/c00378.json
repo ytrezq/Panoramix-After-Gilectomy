@@ -1,0 +1,23 @@
+{
+ "id": "c00378",
+ "text_changed": false,
+ "lines_old": 100,
+ "lines_new": 100,
+ "changed_functions": 0,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "Text unchanged."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "None (no diff).",
+ "patterns": {
+  "P2": 1
+ },
+ "notes": "No diff file, and the new text is byte-identical to round 1's.",
+ "summary": "Text unchanged; the round-1 finding stands."
+}

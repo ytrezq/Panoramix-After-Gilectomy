@@ -1,0 +1,16 @@
+{
+  "id": "c00194",
+  "text_changed": true,
+  "lines_old": 966,
+  "lines_new": 949,
+  "changed_functions": 9,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "Immutables read as 0: send/quote paths still end in Panic(18) right after decoding."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Parameters named by calldata word: isComposeMsgSender (_param4, _param5 after the 3-word Origin), send (_param1, _param4), lzReceive / lzReceiveSimulate (_param1, _param2, _param4.._param7, the unused nonce word skipped), quote functions (_param4.._param8). setEnforcedOptions returns Array(len=_17, data=..) instead of a raw list, its struct pointers resolved (_18 + 96 instead of _46 = mem[64]), its revert shows the length word. lzReceiveAndRevert names the callback (caller.unknown8e9e7099), bubbles reverts as revert with ext_call.return_data and gives the custom error selector (0x8351eea7). P6 1 -> 0.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 328 lines over 9 functions, read in full. Neutral changes: setEnforcedOptions' EnforcedOptionSet log is now one slice mem[mem[64] len v - mem[64]] instead of three raw pieces. In lzReceiveAndRevert the pointer copies (_13, _20) are replaced by mem[64], which no longer moves because the dead free-pointer updates are dropped. The offsets are adjusted consistently, but 'mem[mem[64] + mem[mem[64]]]' reads slightly worse than 'mem[_13 + mem[_13]]'. Both loops (lzReceiveAndRevert's and _setEnforcedOptions') are unchanged.",
+  "summary": "No regression. Parameter names now follow calldata words, and returns, selectors and bubbled reverts are decoded. The immutable artifact remains."
+}

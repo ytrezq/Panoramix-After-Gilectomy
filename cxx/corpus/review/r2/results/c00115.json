@@ -1,0 +1,15 @@
+{
+  "id": "c00115",
+  "round1": true,
+  "text_changed": false,
+  "abi_functions": 2,
+  "reviewed": 2,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [],
+  "notes": "ProposalPayloadStkAave (solc 0.8.38, optimizer on), 24-line text, reviewed whole against the source. STK_AAVE is the right constant. execute(): the StakedAaveV3 creation is 'create contract with 0 wei / code: code.data[569 len 21902], ...' followed by the 6 constructor arguments in source order, each checked against the address book: AAVE_UNDERLYING twice (0x7fc6...dae9), UNSTAKE_WINDOW 172800 shown as '2 * 24 * 3600', ECOSYSTEM_RESERVE 0x25f2...6491, SHORT_EXECUTOR 0xee56...a8d5, DISTRIBUTION_DURATION 3155692600. A failed create bubbles its revert data. Then come the extcodesize check and the call to PROXY_ADMIN_ETHEREUM_LONG (0x86c3...b517).upgradeAndCall(STK_AAVE, create.new_address, Array(len=4, data=0x8129fc1c...)): abi.encodeWithSignature('initialize()'), no value, success checked. The fallback reverts (no receive or fallback in the source). The reached ProxyAdmin/TransparentUpgradeableProxy/Address code runs in other contracts, so there is nothing more to compare; no loop in this bytecode. The text did not change since round 1 (no diff).",
+  "summary": "Exact and minimal: the implementation deployment with all constructor arguments and the upgradeAndCall with its initialize() payload match the source. No finding."
+}

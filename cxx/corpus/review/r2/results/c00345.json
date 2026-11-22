@@ -1,0 +1,17 @@
+{
+  "id": "c00345",
+  "text_changed": false,
+  "lines_old": 295,
+  "lines_new": 295,
+  "changed_functions": 0,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "still", "note": "text unchanged"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "text unchanged"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "none (text unchanged)",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "No diff file; old and new texts are byte-identical.",
+  "summary": "Text unchanged; both round-1 findings stand, no regression."
+}

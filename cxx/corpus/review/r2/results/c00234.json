@@ -1,0 +1,65 @@
+{
+  "id": "c00234",
+  "text_changed": true,
+  "lines_old": 968,
+  "lines_new": 954,
+  "changed_functions": 4,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "artifact",
+      "status": "still",
+      "note": "Immutables still 0; freeze/unfreeze loops dead."
+    },
+    {
+      "n": 2,
+      "kind": "simplification",
+      "status": "still",
+      "note": "Proposal tuple still raw calldata arithmetic (P16)."
+    },
+    {
+      "n": 3,
+      "kind": "simplification",
+      "status": "fixed",
+      "note": "The Initializable slot prints whole: stor[0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00]."
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown4523da36 (executeEmergencyUpgrade), the inlined _unfreeze loop",
+      "lines": "874-890 (function lines +74 to +92)",
+      "decompiled": "_65 = mem[u + mem[u + 160] + 160] / mem[u + ceil32(return_data.size) + 160] = mem[u + mem[u + 160] + 160] / ... / while idx < _65: / if idx >= mem[u + ceil32(_1) + 160]: revert with Panic(50)",
+      "old": "while s < mem[u + ceil32(_1) + 160]: (no bounds check)",
+      "source": "ProtocolUpgradeHandler._unfreeze: uint256[] memory ids = BRIDGE_HUB.getAllZKChainChainIDs(); for (uint256 i = 0; i < ids.length; ++i) {...} (dead here: the immutable hub is 0, artifact)",
+      "issue": "The loop test now uses the decoded length _65 while the index check reads the stored copy of it at mem[u + ceil32(_1) + 160]; the store is written with ceil32(return_data.size) and the read with ceil32(_1) (_1 = return_data.size, no call between), so the two are not identified and the implied Panic(50) check comes back. The loop itself is dead code because of the immutables.",
+      "rule": "Identify a saved return_data.size (_1) with return_data.size while no call intervenes, and forward a stored word to a later load of the same address; then the check i >= len under the test i < len is dropped.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknowna1dcb9b8, unknown4523da36 (proposal state checks)",
+      "lines": "e.g. unknowna1dcb9b8 +40-70",
+      "decompiled": "_7 = sha3(mem[_5 + 32 len -_5 + u - 32]) / ... / mem[u + 32] = uint48(stor3[sha3(mem[_5 + 32 len -_5 + u - 32])].field_48) (x 15 and x 8)",
+      "source": "ProtocolUpgradeHandler: bytes32 id = keccak256(abi.encode(_proposal)); upgradeStatus[id]...",
+      "issue": "The old P4 keys stor3[concat(mem[0])] now show the proposal hash (better), but the hash, already bound to _7, is re-expanded at every access, including two that read stor3[_7] before.",
+      "rule": "Reuse the variable bound to an expression for later equal expressions with no intervening write to their operands (here no memory write in [_5, u)).",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "P4 19 -> 5 (proposal keys resolved), P1 2 -> 0 (finding 3), P6 2 -> 0; storage fields read back from memory (mem[u + 26 len 6]) now print as their source uint48(stor3[..].field_0); unknown9c5392da's call shows the bytes length as a value.",
+  "patterns": {
+    "P1": 0,
+    "P2": 2,
+    "P3": 0,
+    "P4": 5,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff 195 lines; all 4 changed functions read as per-function diffs.",
+  "summary": "Keys and constants are better resolved; in executeEmergencyUpgrade's (dead) _unfreeze loop a stored length is no longer forwarded to its load, so an implied Panic(50) check returns (low), and the proposal hash is re-expanded instead of using _7."
+}

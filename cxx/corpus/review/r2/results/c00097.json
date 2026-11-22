@@ -1,0 +1,67 @@
+{
+  "id": "c00097",
+  "text_changed": true,
+  "lines_old": 10180,
+  "lines_new": 7756,
+  "changed_functions": 5,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "receiveFlashLoan still reads amounts[0]/fees[0] as mem[32 * _param1.length + 192] / mem[... + 224] (16 uses)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "No SafeMath.mul; 30 raw 'x != x * y / y and y' tests remain, some distributed polynomials."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "_depositNoFlash/_redeemNoFlash loops still carry 11 mostly invariant variables (t = y = storA170, u = b, v = c)."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "47 'len 4] = 2835717307 / 157198259' selector writes still decimal."},
+    {"n": 5, "kind": "naming", "status": "still", "note": "stor8CDE, stor29E4, storA170, storEFD7 still uint256 and anonymous."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "emergencyExit, withdrawToVault, withdrawAllToVault, doHardWork, receiveFlashLoan (memory writes)",
+      "lines": "e.g. 4197-4232, 6077-6092, 1396-1408 of withdrawAllToVault",
+      "decompiled": "mem[_130 + ceil32(_21) + ceil32(_23) + ... (22 terms) ... + ceil32(return_data.size) + 356] = ...",
+      "old": "_2280 = mem[64] / mem[_2280 + 132] = ...",
+      "source": "SafeERC20 / abi.encode buffers built at the free-memory pointer",
+      "issue": "With the free-memory value now spelled out, memory-write lines carry it as a sum of up to 25 ceil32 terms: 703 lines with 3+ ceil32 terms (49 before), 163 lines over 240 chars (11), longest 711 chars (308). The calls these writes feed are now decoded, so the writes are pure noise, and longer than before.",
+      "rule": "Omit memory writes whose every reader is now printed with the value substituted (a decoded call, log or revert); otherwise bind a free-memory sum used by several writes to one variable and print offsets from it.",
+      "verified": "reading only (grep counts)"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "withdrawAllToVault, doHardWork (_notifyProfitInRewardToken of _handleFee)",
+      "lines": "4212, 4238, 6092, 6118",
+      "decompiled": "_789 = P / mem[64] = P + ceil32(return_data.size) / static call address(_796) with: args mem[P + ceil32(return_data.size) len -_130 + _789 - ceil32(_21) - ... ]",
+      "source": "BaseUpgradeableStrategy.sol:139-141 rewardForwarder = IController(controller()).rewardForwarder(); IERC20(_rewardToken).safeApprove(rewardForwarder, 0)",
+      "issue": "The last 4 P2 lines: a variable bound to the free-memory value (_789 = P, _836 = P) is not substituted where P is spelled out, so the call length -_130 + _789 - ceil32(_21) - ... never folds to 4 (and the bytes length to 68); rewardForwarder() and the following approve stay unnamed.",
+      "rule": "When a variable is bound to an expression E, substitute it (or rewrite E as the variable) before simplifying sums that mix both, so v - E folds to 0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "receiveFlashLoan, emergencyExit, withdrawToVault, withdrawAllToVault, doHardWork (11 safeApprove calls)",
+      "lines": "1078-1086, 1693-1697, 4531-4535, 7567-7571 ...",
+      "decompiled": "mem[_198 + 36 len 28] = uint128(_3 >> 32) / call address(_111).approve(address spender, uint256 amount) with: args Bytes(28, uint128(_3 >> 32)), Bytes(4, uint32(_3)), min(...)",
+      "source": "SafeERC20.safeApprove: abi.encodeWithSelector(token.approve.selector, spender, value)",
+      "issue": "Decoded now, but the spender prints as two byte slices instead of address(_3), and the selector insertion's read-modify-write adds a no-op line rewriting the 28 bytes already there. A constant address is merged correctly (transfer to 0xba12...f2c8).",
+      "rule": "Concatenated slices Bytes(k, x >> 8(32-k)) , Bytes(32-k, x mod 2^(8(32-k))) of one word x are x; a memory write of the bytes the location already holds is dropped.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "flashLoan calls in emergencyExit, withdrawToVault, withdrawAllToVault, doHardWork (11)",
+      "lines": "withdrawToVault 1371-1376; doHardWork 1741; all 11 flashLoans",
+      "decompiled": "mem[X + 32] = address(storA170) / mem[X + 96] = borrowTarget - _62 / flashLoan(...) args this.address, Array(len=1, data=Bytes(12, 0), mem[X + 44 len 20]), Array(len=1, data=mem[X + 96]), Array(len=32, data=0)",
+      "source": "AaveFoldStrategy.sol:409-412 tokens[0] = _underlying; amounts[0] = borrowDiff; IBVault(bVault).flashLoan(address(this), tokens, amounts, userData)",
+      "issue": "Decoded array elements read memory written just before instead of the value: tokens[0] is address(storA170), amounts[0] is the value just stored (elsewhere forwarded, e.g. data=_99).",
+      "rule": "Forward a word written at a known address to later reads of it, including sub-word reads (mem[a + 12 len 20] after mem[a] = v is address(v)), when no write in between may alias.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "P2 411 -> 4: almost every call is named with decoded arguments (balanceOf, POOL, withdraw, supply, repay, borrow, approve, allowance, transfer, swap, notifyFee, claimAllRewards, flashLoan, controller getters). 20 logs with raw-memory data are decoded and match _notifyProfitInRewardToken; raw Error(string) reverts print as messages. P6 140 -> 0 (incl. the pendingFee slot). 18 encoding loops of the fixed-size flash-loan arrays and 22 constant-index Panic(50) checks are gone (whiles 34 -> 16). Two dominated mul checks (P11) and the dead value == 0 arm of safeApprove under _repay's nonzero guard are dropped. In _redeemNoFlash, supplied.sub(requiredCollateral) (whose div can Panic(18)) is now checked before amount.add(toRepay), as in the bytecode. Text 10180 -> 7756 lines.",
+  "patterns": {"P1": 0, "P2": 4, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 12846 lines, reviewed by structure: withdrawToVault and withdrawAllToVault swapped places, so each function was cut from both texts and compared. The call, storage-write, log and loop sequences per function are identical old vs new (receiveFlashLoan 17, emergencyExit 63, withdrawAllToVault 151/149, withdrawToVault 188/180, doHardWork 199/191), except calls now named and the removed fixed-size encoding loops. All source loops are kept: while u > 0, while s < rewardTokens.length, while w < s, while v > s x3. Requires are unchanged. Removed ifs are all accounted for: Panic(50), the P11 repeats, the dead safeApprove arm, and revert-string branches folded. Spot-checked the flashLoan amounts against _redeemWithFlashloan/_depositWithFlashloan: amounts [0] occur only after _redeemPartial(0) sets borrowDiff = 0, which is correct. 0 aborted.",
+  "summary": "No semantic regression. The free-memory fix decodes nearly all calls, logs and revert strings, drops the fixed-size encoding loops and Panic(50) checks, and cuts the text by a quarter. The cost is very long ceil32 sums in memory-write lines; 4 raw calls remain (an unsubstituted variable), and approve spenders print as split byte slices."
+}

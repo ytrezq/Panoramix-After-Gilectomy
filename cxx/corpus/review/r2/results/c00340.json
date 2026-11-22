@@ -1,0 +1,21 @@
+{
+  "id": "c00340",
+  "text_changed": false,
+  "lines_old": 211,
+  "lines_new": 211,
+  "changed_functions": 0,
+  "old_findings": [],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "None: no diff (the new text is byte-identical to the old).",
+  "patterns": {
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "No diff file; old and new texts compared byte for byte (identical). Round-1 findings carried over unchanged.",
+  "summary": "Text unchanged since round 1, which had no findings (only an implied division-by-zero check, P11)."
+}

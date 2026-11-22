@@ -1,0 +1,34 @@
+{
+ "id": "c00335",
+ "text_changed": false,
+ "lines_old": 224,
+ "lines_new": 224,
+ "changed_functions": 0,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "text unchanged (no diff)"
+  },
+  {
+   "n": 2,
+   "kind": "artifact",
+   "status": "still",
+   "note": "text unchanged (no diff)"
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "",
+ "patterns": {
+  "P1": 0,
+  "P2": 0,
+  "P3": 0,
+  "P4": 0,
+  "P5": 0,
+  "P6": 0
+ },
+ "notes": "No diff file; the new text is byte-identical to round 1's.",
+ "summary": "Text unchanged; every round-1 finding stands."
+}

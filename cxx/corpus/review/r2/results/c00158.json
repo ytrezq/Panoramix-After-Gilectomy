@@ -1,0 +1,29 @@
+{
+  "id": "c00158",
+  "text_changed": true,
+  "lines_old": 1148,
+  "lines_new": 1146,
+  "changed_functions": 3,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "setReserveInterestRateStrategyAddress still prints the shared revert tail of '77' and '82' once after the join, through _20 and a string-copy loop. Its final revert now shows the length word: revert with mem[mem[64] len 36], _21, mem[mem[64] + 68 len ceil32(_21)]."},
+    {"n": 2, "kind": "artifact", "status": "still", "note": "ADDRESSES_PROVIDER still reads as 0. Not a decompiler error."}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "semantics",
+      "severity": "high",
+      "function": "getReserveNormalizedIncome(address) 0xd15e0053 (pre-existing: the old text is identical here and outside the diff)",
+      "lines": "810-817",
+      "decompiled": "if reserveData[asset].field_384 and SafeMath.sub(block.timestamp, uint40(reserveData[asset].field_896)) > -1 / reserveData[asset].field_384: revert with Panic(17) / require ... / _2 = (... * uint128(field_256) + 10**27 * uint128(field_256) + 5 * 10**26) / 10**27",
+      "source": "MathUtils.calculateLinearInterest: uint256 result = rate * (block.timestamp - uint256(lastUpdateTimestamp)); (checked 0.8 subtraction, then multiplication)",
+      "issue": "The bytecode checks block.timestamp - lastUpdateTimestamp for underflow unconditionally, before the multiplication's overflow test. The text puts that SafeMath.sub inside the right operand of 'rate and ...', so with currentLiquidityRate == 0 and lastUpdateTimestamp > block.timestamp the text returns the liquidity index where the bytecode reverts with Panic(17).",
+      "rule": "Never move an operation that can revert into the right operand of a short-circuit and/or whose left operand can skip it. A checked operation the bytecode evaluates on every path is printed as its own check (if b > a: revert) before the guarded test, as getReserveNormalizedVariableDebt does (line 1119).",
+      "verified": "text_check run --per-selector 16 --random --call 298 --verbose: 'evm: revert Panic(0x11); text: return 0x...01'. The old text gives the same difference, so it is not a regression."
+    }
+  ],
+  "improvements": "The Error(string) selector prints with whole bytes (0x08c379a0). SECONDS_PER_YEAR squared now prints as 994519296 * 10**6 instead of the time-factored '133225 * 24 * 3600 * 24 * 3600' (the value is equal; checked). A shared revert shows its length explicitly.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "I read the whole diff (67 lines: setConfiguration, setReserveInterestRateStrategyAddress, getReserveNormalizedVariableDebt), only display changes. text_check run --per-selector 16: empty world 899 + 32 same; random world 897 same, 1 different, 1 inconclusive. The different call is the getReserveNormalizedIncome finding above, which the old text has too. The same Aave ReserveLogic code is in c00117 (round 1 said 'same structure'), which may share this bug. The source loop (getReservesList) is still a while.",
+  "summary": "No regression: only display changes (whole-byte hex, SECONDS_PER_YEAR² no longer time-factored). Execution shows a pre-existing high-severity semantic error: getReserveNormalizedIncome skips the timestamp-underflow revert when the rate is 0."
+}

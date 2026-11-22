@@ -1,0 +1,29 @@
+{
+  "id": "c00006",
+  "text_changed": true,
+  "lines_old": 3942,
+  "lines_new": 3751,
+  "changed_functions": 16,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "mint (unknown328ebaf7) basket loop still rotated around the overflow check: 'while d <= b + d:' (3658)"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "Solady success test still literal (12 lines)"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification", "severity": "low",
+      "function": "getWeights()",
+      "lines": "858-873, 881-896",
+      "decompiled": "_36 = mem[64] / mem[mem[64]] = 32 / _42 = mem[128] / ... / return memory from mem[64] len _36 + 32 * _42 - mem[64] + 64",
+      "old": "return memory from mem[64] len 32 * mem[128] + 64",
+      "source": "HoneyFactory getWeights() returns (uint256[] memory w)",
+      "issue": "The raw return length gains a '_36 - mem[64]' term: the pointer read from mem[64] is not identified with mem[64] though nothing writes mem[64] in between (the same term disappeared elsewhere: such lengths 9 -> 6 in the whole text).",
+      "rule": "Between 'p = mem[64]' and the next write to mem[64], mem[64] equals p; fold 'p - mem[64]' to 0.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P2 85 -> 32: the vault calls (balanceOf, convertToAssets, totalSupply, paused) and the price-oracle calls are named; return values read as ext_call.return_data instead of memory; 4 'return memory' became values; in unknowned596315 the two getWeights copy loops in the 'registeredAssets.length == 0' branch (zero trips) are gone and the return decodes as Array(len=..., data=...); P6 37 -> 0.",
+  "patterns": {"P1": 0, "P2": 32, "P3": 0, "P4": 1, "P5": 0, "P6": 0},
+  "notes": "Diff of 2,482 lines; 16 functions changed, compared by effect totals (equal except getWeights' extra early return and unknowned596315's 2 zero-trip copy loops) and by hand where totals moved. The P4 line (stor7[concat(mem[0])]) was already in the old text. All 10 source loops still whiles.",
+  "summary": "An improvement: most raw vault and oracle calls are named and several memory returns became values; the one regression is low (getWeights' raw return length now carries an unfolded 'p - mem[64]'). The round-1 findings (rotated mint loop, literal Solady test) are unchanged."
+}

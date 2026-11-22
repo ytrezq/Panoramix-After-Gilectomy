@@ -1,0 +1,65 @@
+{
+ "id": "c00042",
+ "text_changed": true,
+ "lines_old": 9621,
+ "lines_new": 8413,
+ "changed_functions": 15,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "naming",
+   "status": "still",
+   "note": "epochEndDate (0x75d1497b) is still def render(...) with 5 phantom parameters, and slot 290 is still 'render' (29 lines)."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "Constants in short memory slices still print in decimal (37 lines: 2835717307 x28, 599290589 x4, 157198259 x2, 'Pareto ' 22625142093147936, 'pBB_' 1883390559, 'Pareto BB ' 379586895927435046568480). Now cosmetic, because every call is decoded."
+  },
+  {
+   "n": 3,
+   "kind": "simplification",
+   "status": "fixed",
+   "note": "Every SafeERC20 call is decoded (P2 190 -> 0) and the copy loops became copy lines (52 whiles -> 2). Both tranches' names and symbols are built with copy lines, and the AA create now shows its decoded name and symbol."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "startEpoch(), initialize (unknown9638529c), depositAA/BB, depositDuringEpoch (unknownc61e3faa), finalizeDefault, requestWithdraw, stopEpoch (unknownd48099ad), stopEpochWithDuration (unknownc88e8447)",
+   "lines": "1785-1812, 1868-1883 (startEpoch); 2335-2393 (initialize); 95 lines in all",
+   "decompiled": "mem[_82 + ceil32(_3) + ceil32(_5) + ceil32(_9) + ceil32(_10) len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)]",
+   "old": "mem[mem[64] len min(32, return_data.size)] = ext_call.return_data[0 len min(32, return_data.size)] (old 1663)",
+   "source": "IdleCDOEpochVariant.sol:271-282 _strategy.totEpochDeposits(); sendInterestAndDeposits(_toSend); _pendingInstant(); _contractTokenBalance(token)...",
+   "issue": "After a join where mem[64] is unknown (_82), each later memory address prints as _82 plus one ceil32(return_data.size) per earlier call. 95 lines have 4 or more such terms (old: 20), and 19 have 7. Most of these lines are stores nothing reads (a decoded call's selector and argument words, return-data copies), so the noise grew while the meaning stayed the same.",
+   "rule": "Drop memory stores read only by a call already printed with decoded arguments, and return-data copies that nothing reads. When an address sum is used again, bind it to a variable once, where mem[64] is written, instead of expanding it again.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "depositDuringEpoch(uint256,address) (unknownc61e3faa)",
+   "lines": "4627-4641",
+   "decompiled": "require ext_call.return_data[0] == ext_call.return_data[12 len 20] / call token.transfer(address recipient, uint256 amount) with: args Bytes(12, 0), ext_call.return_data[12 len 20], _param1",
+   "source": "IdleCDOEpochVariant.sol:656 depositDuringEpoch -> _transferUnderlyings(_borrower(), _amount) -> safeTransfer(borrower, amount)",
+   "issue": "The newly decoded transfer gets three arguments for its two parameters. The recipient word (borrower(), masked) prints as Bytes(12, 0) plus a 20-byte slice, so a reader pairs the amount with the wrong value. The same masked word prints as ext_call.return_data[12 len 20] in 19 lines (require x == x[12 len 20]), where other lines print address(ext_call.return_data[0]).",
+   "rule": "A word made of 12 zero bytes followed by bytes 12..31 of a word w equals w & (2^160-1): fold it to address(w), and print one argument per ABI word. Do the same for comparisons.",
+   "verified": "reading only (the bytes are exact; the display misleads)"
+  }
+ ],
+ "improvements": "All 190 raw-memory calls are decoded, with names and arguments that match the source (safeTransfer/transferFrom/approve, try this.getFundsFromBorrower/sendFundsToBorrower, strategy calls, mint, burn, both tranche creates). 50 of 52 whiles are gone. Revert data are explicit (NotAllowed(), 0x1a8bb96e, 0xc9c61e20, SafeERC20/Address messages instead of 'revert with memory from mem[64]'). Returns are explicit in getCurrentAARatio, getApr (2 returns), depositAA/BB, depositDuringEpoch and requestWithdraw. The tranche-price Panic(18) is now explicit before each mint. P6 23 -> 0; 365 * 10**18 * 24 * 3600 -> 31536000 * 10**18 (75 lines); 1208 lines shorter.",
+ "patterns": {
+  "P1": 0,
+  "P2": 0,
+  "P3": 0,
+  "P4": 0,
+  "P5": 0,
+  "P6": 0
+ },
+ "notes": "The diff is 7926 lines, so I reviewed it by structure. For each of the 15 changed functions I checked control flow, calls and their arguments, loops, storage writes, events, reverts and returns against the source, using normalized per-function diffs. stopEpoch and stopEpochWithDuration change the same way. The pack header lists no P1-P6, but by hand 76 lines still show 36500000 * 24 * 3600 (3153600000000, P1): the duration display still applies to a count of 36500000 days. Two whiles remain: the symbol() string ABI-decode copy in initialize (2323, P7) and the 10**decimals exp helper. The flattened SafeERC20 blocks test 'if not mem[_N]:' twice in a row, which could merge. The try body is still printed in both arms of 'if not stor240' in both stopEpoch variants (P12).",
+ "summary": "One low regression: kept memory stores now print long ceil32 address sums (95 lines). Otherwise a large improvement: every call is decoded (P2 190 -> 0), 50 copy loops are gone, and returns and revert data are explicit. One new medium finding: a transfer is shown with three arguments."
+}

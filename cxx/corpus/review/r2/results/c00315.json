@@ -1,0 +1,30 @@
+{
+  "id": "c00315",
+  "text_changed": true,
+  "lines_old": 232,
+  "lines_new": 230,
+  "changed_functions": 10,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "The inner hash is now sha3(val, age, 'ethusd') (196) and LogMedianPrice shows val and age; but the outer hash given to ecrecover got worse (regression 1)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "Signer re-read as memory slices and '16 * Mask(251, 1, val_.length)' unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "poke(uint256[],uint256[],uint8[],bytes32[],bytes32[])",
+      "lines": "197, 201, 205",
+      "decompiled": "mem[_9 + 128] = _8 - _9 + 60 ... mem[_8 + 252] = sha3(mem[_9 + 160 len _8 - _9 + 60]) ... signer2 = ecrecover(sha3(mem[_9 + 160 len _8 - _9 + 60]), uint8(v[i]), r[i], s[i])",
+      "old": "mem[_8 + 128] = 60 ... signer2 = ecrecover(sha3(Bytes(28, 0x19457468657265756d205369676e6564204d6573736167653a0a3332), _11), uint8(v[i]), r[i], s[i])",
+      "source": "median.sol recover: ecrecover(keccak256(abi.encodePacked('\\x19Ethereum Signed Message:\\n32', keccak256(abi.encodePacked(val_, age_, wat)))), v, r, s)",
+      "issue": "The message given to ecrecover was the decoded prefix hash; it is now a raw memory range whose length keeps '_8 - _9' (0: both are mem[64] read with only stores at mem[64] + 32..96 in between), although the same function now folds '_8 - mem[64]' to 0 two lines earlier.",
+      "rule": "Two reads of mem[64] separated only by stores at mem[64] + k (k >= 32, above the constant floor 128) are equal; fold _8 - _9 to 0, then mem[_8 + 160 len 60] decodes as Bytes(28, prefix), sha3(val, age, 'ethusd').",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "The nine LibNote anonymous logs show their data as Array(len=224, data=call.data[0 len 224]) instead of '32, 224, ...'; poke's inner message hash reads sha3(val, age, 'ethusd') and LogMedianPrice is printed with its two arguments.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 126 lines read in full.",
+  "summary": "Events decoded better (LibNote logs, LogMedianPrice) and poke's inner hash resolved, but the ecrecover message regressed from the decoded prefix hash to a raw memory sha3 with an unsimplified '_8 - _9'."
+}

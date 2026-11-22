@@ -1,0 +1,36 @@
+{
+ "id": "c00110",
+ "text_changed": true,
+ "lines_old": 1690,
+ "lines_new": 1637,
+ "changed_functions": 9,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "In claimRedeem the loop's requires now print 'unknown request' / 'epoch not settled', the transfers are asset.transfer(..) with arguments, SafeERC20FailedOperation is 'revert with 0x5274afe7, _146'. Still: epochs[concat(mem[0])] keys (P4 25) and recipients split as 'Bytes(28, ..), Bytes(4, uint32(..))'."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "getUserWithdrawalRequests(address)",
+   "lines": "its return-encoding loop and return (about +22..+40)",
+   "decompiled": "_5 = mem[64]\n...\nwhile s < mem[128]:\n    ...\nreturn memory from mem[64] len _5 - mem[64] + 128 * stor4[_address].length + 64",
+   "old": "while idx < stor4[_address].length:\n    ...\nreturn memory from mem[64] len 128 * stor4[_address].length + 64",
+   "source": "returns the caller's withdrawal requests (struct array copied from storage to memory, then ABI-encoded)",
+   "issue": "mem[128] = stor4[_address].length is no longer forwarded past the copy loop, whose writes all lie at or above mem[64] (at least 160), so the encode loop tests a memory word; and '_5 - mem[64]' (0) is left in the return length.",
+   "rule": "A loop-carried mem[64] that starts at a known floor and only grows keeps that floor, so stores through it cannot reach lower constant addresses; and a variable holding mem[64] equals mem[64] until the next write to word 64 (fold the difference).",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "claimRedeem (unknown2370e069) 143 -> 89 lines: string reverts in the loop, named asset.transfer calls with arguments, custom error with its argument, the event data as values, direct return-data reverts, dead writes gone (P2 2 -> 0). unknownb26b9efc's Initializable slot prints as 0xf0c57e16...00 instead of a constant times 3600 (P1 2 -> 0). P6 12 -> 0.",
+ "patterns": {
+  "P4": 25
+ },
+ "notes": "Reviewed function by function (247-line diff, 9 functions, 6 display-only). Calls, logs, requires and storage writes unchanged.",
+ "summary": "One low regression (getUserWithdrawalRequests reads the array length back from memory and keeps an unfolded '_5 - mem[64]'); claimRedeem is much clearer and the P1/P2/P6 patterns are gone."
+}

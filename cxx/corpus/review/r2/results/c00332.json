@@ -1,0 +1,47 @@
+{
+  "id": "c00332",
+  "text_changed": true,
+  "lines_old": 740,
+  "lines_new": 670,
+  "changed_functions": 1,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "artifact",
+      "status": "still",
+      "note": "Immutables still 0; refreshTopology still always ends in 'DOC bucket not found' (now printed as that revert)."
+    },
+    {
+      "n": 2,
+      "kind": "simplification",
+      "status": "worse",
+      "note": "The hash inputs are now resolved (no raw sha3(mem[...])), but the rebase now hits the inner running hash u too: 'u = 0' / 'u = sha3(u + c, provider) - c' / 'u = u + c' after the loop, with c = sha3(t + sha3(Bytes(64, 0), _1), address(_3), _6). The outer t is still rebased (t = u - sha3(Bytes(64, 0), _1))."
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "refreshTopology() (unknown043ac3c8)",
+      "lines": "97-117",
+      "decompiled": "u = 0 / while idx < _6: ... u = sha3(u + sha3(t + sha3(Bytes(64, 0), _1), address(_3), _6), address(ext_call.return_data[32])) - sha3(t + sha3(Bytes(64, 0), _1), address(_3), _6) / ... / u = u + sha3(t + sha3(Bytes(64, 0), _1), address(_3), _6)",
+      "old": "u = sha3(mem[_55 + 32 len mem[_55]]) / while idx < _51: ... mem[... + 32] = u / mem[... + 64] = address(_76) ... u = sha3(mem[_87 + 32 len mem[_87]])",
+      "source": "PriceProviderUsdRifUsd.sol:181-187 newTopologyHash = keccak256(abi.encode(newTopologyHash, bucketAddress, peggedCount)); for (...) newTopologyHash = keccak256(abi.encode(newTopologyHash, priceProvider));",
+      "issue": "Exact modulo 2^256, but the inner loop's running hash is now printed as an offset from its loop-invariant initial value. Each update is a 230-character expression that adds and subtracts that constant, instead of 'u = sha3(u, provider)' after 'u = sha3(t, bucket, count)'.",
+      "rule": "Do not rebase a loop-carried variable by a loop-invariant term: when it is initialised to c and every use is v + c and every update v = e - c, print w = v + c (w = c before the loop, w = sha3(w, provider) in it).",
+      "verified": "reading only (traced: u + c equals the running hash at every point)"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "All raw calls in refreshTopology are decoded: buckets(s), unknownfe6b92c1 (peggedTokensCount), unknown4b746001(idx) and getPriceInfo() (P2 19 -> 15). The four require messages fold to 'revert with ...'. Return values print as ext_call.return_data[0/32] and address(...) instead of memory slices, and the dead selector, mapping-key and buffer writes are gone (162 -> 92 lines).",
+  "patterns": {
+    "P1": 0,
+    "P2": 15,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff of 270 lines, one function (refreshTopology). Calls (raw -> named, same count), storage writes and reverts are unchanged. The other 4 source loops (getPriceInfo / peek) are untouched.",
+  "summary": "One low regression: refreshTopology's inner running hash is now rebased by a loop-invariant term like the outer one (finding 2 worse). Otherwise its calls and reverts are fully decoded and the dead memory writes dropped."
+}

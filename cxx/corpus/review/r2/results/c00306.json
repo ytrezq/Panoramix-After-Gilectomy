@@ -1,0 +1,17 @@
+{
+  "id": "c00306",
+  "text_changed": true,
+  "lines_old": 282,
+  "lines_new": 282,
+  "changed_functions": 3,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "partly", "note": "the slot is no longer printed as 'K * 3600': initialize reads uint64(stor[0xf0c57e16...6a00]), visibly the slot of storF0C5, but not by name, and the uint64 field is still split into storF0C5 (uint8) / storF0C5_8 (uint56) (P15)"},
+    {"n": 2, "kind": "artifact", "status": "still", "note": "immutables still 0"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "bridgeERC20 / bridgeERC20To: sendMessage(address, bytes, uint32) now decodes exactly as '0, Array(len=..., data=<encodeCall of finalizeBridgeERC20>), _gasLimit' instead of flat ABI head words; initialize: P1 2 -> 0.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 31 lines, read in full: initialize's two slot reads and the two sendMessage argument lines; the gas limit is correctly the third argument after the bytes array.",
+  "summary": "Two small exact improvements (sendMessage's bytes argument decoded, the Initializable slot no longer factored by 3600); no regression."
+}

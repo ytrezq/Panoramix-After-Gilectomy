@@ -1,0 +1,16 @@
+{
+  "id": "c00358",
+  "text_changed": true,
+  "lines_old": 192,
+  "lines_new": 192,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "The immutables (pool, masterChef) still read as 0. Not a decompiler error."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "None of substance. The only change is the whole-byte hex display of 2**128 in accumulateReward's two inlined FullMath.mulDiv copies: 0x100000000000000000000000000000000 -> 0x0100000000000000000000000000000000.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "I read the whole diff (28 lines, one function, unknown214a6fe2 = accumulateReward). The change is display only and neutral. For a power of two, '2**128' would read better than either hex form. No loops.",
+  "summary": "No regression: display only (2**128 now printed with whole bytes). The immutable artifact remains."
+}

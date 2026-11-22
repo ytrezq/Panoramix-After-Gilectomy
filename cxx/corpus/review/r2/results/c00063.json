@@ -1,0 +1,79 @@
+{
+  "id": "c00063",
+  "text_changed": true,
+  "lines_old": 12388,
+  "lines_new": 11235,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "Loop body of 7b672c9a: balanceOf now named with its argument, all 71 unresolved inner hashes resolve (sha3(sha3(Array(len=11, data='POOL_AMOUNT')), ...)), the 20 raw-memory reverts decode, the sums use the captured return values (_8 + _9 + ...). Addresses still carry many ceil32 terms (1,032 lines over 4)."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "The 4-call tail of updateCumulativeBorrowingFactor is still printed 7 times (7 setUint UPDATED_AT, 6 stop); the copies now differ only by SSA name, the market is _param3 everywhere (no more 'Bytes(12, 0), mem[140 len 20]')."},
+    {"n": 3, "kind": "artifact", "status": "still", "note": "require this.address x4 (library address immutable)."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "line 152 'if -_5 + ext_call.return_data[0] > ext_call.return_data[0]' still not SafeMath.sub."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "updateFundingState 0xd2ab7dc0 (4), getPoolValueInfo 0xf2e2a4f5 (15), getMarketTokenPrice 0x7d494dc3 (15)",
+      "lines": "3215-3233, 3240-3255, 3283, 3308; 5251-5408, 5964, 6698-6857; 8497...",
+      "decompiled": "_368 = mem[64] ... _374 = mem[64]; mem[mem[64]] = 96; mem[64] = mem[64] + 128; ... mem[_374 + 128] = _368 - _374 + 128 ... static call _param1.getUint(bytes32 key) with: args sha3(mem[_374 + 160 len _368 - _374 + 128])",
+      "old": "mem[_368 + 128] = 128 ... args sha3(mem[_368 + 160], _param3, _param6, 1)",
+      "source": "Keys.sol:1314 openInterestKey: keccak256(abi.encode(OPEN_INTEREST, market, collateralToken, isLong)) (also openInterestInTokensKey), via MarketUtils.getOpenInterest",
+      "issue": "_368 and _374 are two reads of mem[64] with no store to mem[64] between them, so they are equal; the old text knew it and showed the key's words. Now they are distinct symbols, the hash length stays '_368 - _374 + 128' and the key loses all its parts (34 call args, 68 lines with the hash). The same shape is in 16 new texts of the corpus and in no old text.",
+      "rule": "Reads of mem[64] with no store to mem[64] between them on every path hold the same value: give them one symbol (or fold their difference to 0). The 128-byte hash then decodes into sha3(sha3(Array(...)), a, b, c).",
+      "verified": "text_check run --per-selector 32: 966 calls, 0 different (readability only); grep over r2/dec and t01/dec"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "updateFundingState 0xd2ab7dc0 (73 lines), getMarketTokenPrice 0x7d494dc3 (119 lines, 52 before)",
+      "lines": "3352-3811 (e.g. 3357, 3379, 3754)",
+      "decompiled": "_669 = mem[64]; mem[mem[64]] = 0 ... mem[mem[64] + 160] = 0; ... mem[mem[64] + 64] = ext_call.return_data[0] ... if mem[mem[64] + 64]: ... (line 3813) mem[_669 + 32] = ext_call.return_data[0]",
+      "old": "_669 = mem[64]; mem[64] = mem[64] + 192; mem[_669] = 0 ... mem[_669 + 64] = ext_call.return_data[0] ... if mem[_669 + 64]:",
+      "source": "MarketUtils.sol getNextFundingAmountPerSize: a cache struct allocated in memory, its fields read and written",
+      "issue": "The struct's allocation (mem[64] += 192) and the following pointer writes are dropped as dead, and the struct is addressed through 'mem[64]', which now stands for the pointer's past value, while '_669' names the same struct elsewhere. The text stays exact, but the allocation disappears and one struct gets two spellings.",
+      "rule": "Once a variable holds a read of mem[64], print addresses based on that value with the variable; print 'mem[64]' only for the pointer's value at that point of the code.",
+      "verified": "text_check run --per-selector 32: 0 different; reading"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getPoolValueInfo 0xf2e2a4f5, getMarketTokenPrice 0x7d494dc3",
+      "lines": "6169-6171, 6526-6534 (32 lines)",
+      "decompiled": "if _49 / _3728 * mem[mem[ceil32(_2) + ceil32(_4) + 1792]] <= ...; _4899 = -6 * (_49 / _3728 * mem[mem[ceil32(_2) + ceil32(_4) + 1792]] / ...",
+      "old": "_3756 = mem[mem[ceil32(_2) + ceil32(_4) + 1792]] ... if _3756 * (_51 / _3728) <= ...",
+      "source": "MarketUtils.getBorrowingFactorPerSecond / getUsageFactor (price.min * poolAmount, inlined mulDiv)",
+      "issue": "A memory read that the old text bound once to _3756 is now inlined at each of its many uses inside the mulDiv expansions, lengthening already long P9 lines.",
+      "rule": "Keep a value read from memory in its variable when it is used more than once (or when inlining it repeats a long expression).",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "distributePositionImpactPool 0xc468d135",
+      "lines": "1026-1028",
+      "decompiled": "delegate 0x11d6b8f7e6008911d7d4c5b20c5c4e416f888d3e.mem[mem[64] len 4] with: args _param2, _param3, _138, _139",
+      "source": "MarketUtils.sol:1090-1112 applyDeltaToPositionImpactPool: emitPositionImpactPoolAmountUpdated / emitLentPositionImpactPoolAmountUpdated",
+      "issue": "The call site shared by both arms now shows its arguments, but its function as 'mem[mem[64] len 4]'; the selector is 0x555a9979 in one arm and 0x4ddb3d81 in the other.",
+      "rule": "When a call's selector word is a phi of constants, name it by a variable set in each arm (or print the call once per arm).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getSwapPathMarkets 0x0988a8f7",
+      "lines": "339-358",
+      "decompiled": "require ext_call.return_data[0] == ext_call.return_data[12 len 20] ... if not ext_call.return_data[12 len 20]: ... sha3(sha3(Array(len=18, data='IS_MARKET_DISABLED')), Bytes(12, 0), ext_call.return_data[12 len 20])",
+      "source": "MarketUtils.sol validateEnabledMarket / MarketStoreUtils.get (same code as validateSwapPath)",
+      "issue": "The same decoded marketToken prints as address(ext_call.return_data[0]) in 0x7b3435fc but as a 20-byte slice and 'Bytes(12, 0), slice' here.",
+      "rule": "Print a word's low 20 bytes, zero-extended, as address(word) wherever it appears.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "P2 5->0: MarketStoreUtils.get (a8d8fff5), balanceOf and the event delegatecalls now show function and args. P1 14->0, P6 22->0: 'Math: mulDiv overflow', SafeCast and EmptyMarket reverts decode (raw reverts 20->0). All 71 unresolved inner key hashes resolve; calldata-backed struct reads print as _param3/_param5/_param6/_param9/_param11. The dominated SafeCast of excessAmount is dropped (c468d135, implied by line 925). The zeroing loop of getSwapPathMarkets is a do-while, not rotated (P3 1->0). If/else-revert pairs become early reverts. 1,153 fewer lines.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 7,359 lines reviewed by structure: per-function counts of calls, delegatecalls, reverts, ifs, loops and stops are the same, except c468d135 (one implied SafeCast less), d2ab7dc0 (else 145->130, early reverts) and f2e2a4f5 (+1 if/revert from a restructure). Hunks of 7b3435fc, 0988a8f7, c468d135 and samples of the others read in full. 1450a879 drops _param10/_param12 from its signature: they were only copied to memory by ABI decoding (dead writes) and are the prices' max fields, unused. The new pack header has no pattern line (regex found none). text_check --per-selector 32: 966 calls, 0 different.",
+  "summary": "One systematic regression: 34 open-interest getUint keys became opaque sha3(mem[_a + 160 len _b - _a + 128]) because two equal mem[64] reads are no longer unified (16 texts corpus-wide); minor: struct fields addressed through a past mem[64]. Otherwise much better: P1, P2 and P6 gone, keys, calls and reverts decoded, 1,153 fewer lines."
+}

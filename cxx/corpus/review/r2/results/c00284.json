@@ -1,0 +1,29 @@
+{
+  "id": "c00284",
+  "text_changed": true,
+  "lines_old": 870,
+  "lines_new": 804,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "addPermittedCallers (unknownffb8df3f) unchanged: loop still rotated around the i++ overflow check."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "addPermittedCallers' empty-array path unchanged."}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown2f7adf43(string,bytes), unknown450baef0(string,bytes) (TuringHelper.APIRequest-style)",
+      "lines": "the GetResponse call and the following log / return",
+      "decompiled": "call stor201.GetResponse(uint32, string, bytes) with: args 1, 96, ceil32(cd[_param1 + 4]) + 128, cd[_param1 + 4], mem[ceil32(cd[_param1 + 4]) + ceil32(cd[_param2 + 4]) + 324 len ceil32(cd[_param1 + 4]) + ceil32(cd[_param2 + 4]) + 32]  |  return 32, mem[X + 256 len ceil32(_19) + 32]",
+      "source": "TuringHelper.sol: Turing.GetResponse(1, _url, _payload); returns bytes",
+      "issue": "The call's two dynamic arguments are now exact but printed as the raw ABI head/tail words (offsets 96 and ceil32(len) + 128, then the url length and the rest), not as the string and bytes the signature names. The old text was wrong-looking: one Array spanning both tails, then an offset as the third argument. The function's own bytes return is still 'return 32, mem[..]', while GetResponse's identical return now prints as Array(len=.., data=..).",
+      "rule": "When the head words of an encoded call are offsets into its own tail (offset_k = 32 * nargs + preceding tails), decode each dynamic argument from its offset as calldata-backed Array/bytes. Apply the same Array form to every 'return 32, len, data' encoding.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "Whiles 16 -> 9. The bytes copies feeding the log and the return in unknown2f7adf43/450baef0 are copy lines, and the 'Address: low-level delegate call failed' message copies in upgradeTo/upgradeToAndCall became a quoted revert. GetResponse returns 'Array(len=_param3.length, data=..)' instead of '32, mem[..]'. The GetResponse call args are now exact. P6 11 -> 0.",
+  "patterns": {"P1": 0, "P2": 3, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 473 lines, all read. The call/log/store/revert sequences are unchanged apart from decoded reverts and the removed P7 copy loops. Copy-line ranges and zero padding ('if ceil32(_19) > _19: mem[_19 + .. + 288] = 0') match the old loops. Lines with >= 4 ceil32 terms 33 -> 47 (the free pointer is substituted in the copies), but lines over 240 chars 6 -> 4.",
+  "summary": "No regression. Seven implicit copy loops became copy lines or decoded reverts, and GetResponse's bytes returns are decoded. The Turing call's string/bytes arguments are exact but still raw ABI words."
+}

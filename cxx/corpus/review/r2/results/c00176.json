@@ -1,0 +1,42 @@
+{
+ "id": "c00176",
+ "text_changed": true,
+ "lines_old": 2851,
+ "lines_new": 2705,
+ "changed_functions": 9,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "loop",
+   "status": "partly",
+   "note": "The peeled first elements of the zeroed struct-array allocations are gone in both views (now 'while True: ... if t != 1: continue / break' loops with the same number of stores). The rotated result encoding (element 0 encoded before the loop, which starts at 1) and findPendingWithdrawals' 'len _94 - 96 * _97 + 96 * max(_95, _97) - mem[64]' return are still there."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "toHexString keeps the 'if idx >= 42: revert with Panic(50)' bounds check (26 lines)."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "getPendingWithdrawals(address,uint256[]) (unknown28a6ff1e)",
+   "lines": "1442-1468",
+   "decompiled": "_32 = mem[64] ... while s < mem[128]: ... / return memory from mem[64] len _32 + 128 * max(1, cd[_param2 + 4]) - mem[64] + 64",
+   "old": "while idx < cd[_param2 + 4]: ... / return Array(len=cd[_param2 + 4], data=mem[mem[64] + 64 len 128 * max(1, cd[_param2 + 4])])",
+   "source": "FlowRateWithdrawalQueue.getPendingWithdrawals: pending = new PendingWithdrawal[](indices.length); for (...) pending[i] = ...; return pending",
+   "issue": "The decoded struct-array return became a raw memory return. _32 and the later mem[64] read are the same value (only stores relative to mem[64] in between), but they are no longer unified. The encoding loop's bound also reads mem[128] where the old text forwarded it to the calldata length cd[_param2 + 4] stored there.",
+   "rule": "A load of mem[64] returns the last value stored to or loaded from slot 64 when the stores in between are at mem[64] + k (k >= 0) with mem[64] at least 96. Forward a store at a constant address (mem[128] = cd[...]) to later loads under the same condition.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "P2 12 -> 6 and P6 6 -> 0. In deposit/depositTo the SafeERC20 transferFrom calls are decoded and their copy loops are gone (80 -> 70 whiles: only copy and peeled-allocation loops were removed). The peeled allocation iterations before the queue loops are gone. unknown7248c77c's event data and a balanceOf call are decoded. The 6 remaining P2 lines are the bridge sendMessage calls with encoded bytes payloads.",
+ "patterns": {
+  "P2": 6
+ },
+ "notes": "The diff is 1060 lines; I checked all 9 changed functions with per-function diffs and call/loop/log listings. All 5 source loops are still whiles. mapToken shows the longer expanded memory addresses seen elsewhere (lines with 3+ ceil32 terms: 9 -> 32), which is minor here. depositETH and unknowne0410432 only changed memory lines.",
+ "summary": "One medium regression: getPendingWithdrawals' decoded Array return became a raw memory return, because two equal mem[64] reads are no longer unified. Otherwise improved: SafeERC20 calls decoded, copy loops and peeled allocation iterations removed, P6 gone."
+}

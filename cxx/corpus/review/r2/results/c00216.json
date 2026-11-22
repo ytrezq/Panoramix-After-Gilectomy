@@ -1,0 +1,30 @@
+{
+  "id": "c00216",
+  "text_changed": true,
+  "lines_old": 2117,
+  "lines_new": 1990,
+  "changed_functions": 3,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "tokenURI still 1408 lines with the continuation duplicated in both arms of each toString; 102 whiles as before."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "'(u % 10 << 248) + 0x30.. >> 248' unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "tokenURI(uint256)",
+      "lines": "1004-1022 and the 15 other abi.encodePacked copies (e.g. 1050-1056)",
+      "decompiled": "s = 0; while s < mem[_319 + _320 + 2]: mem[s + mem[64] + 32] = mem[_319 + _320 + s + 34]; s = s + 32 ... mem[idx + mem[64] + mem[_319 + _320 + 2] + 33] = mem[_384 + idx + 32]",
+      "old": "_566 = mem[64]; _570 = mem[_319 + _320 + 2]; idx = 0; while idx < _570: mem[_566 + idx + 32] = ...; ... mem[_566 + _570 + idx + 33] = mem[_384 + idx + 32]",
+      "source": "AddOnChainMetaData.getMetadata: abi.encodePacked(..., ',', ...)",
+      "issue": "The copies lost their named base and length: the bound and every address re-read mem[64] and the length word inline, and the counter reuses s, which held the digit count two lines above (exact, since s is dead there, but confusing).",
+      "rule": "Keep a value read before a loop and used in its bound or addresses as one named variable; give a loop counter a fresh name when the name is live just before the loop.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "mint 222 -> 145 lines: onERC721Received and the two 45ff812a calls named with arguments, the ERC721 messages decoded ('mint to the zero address', 'token already minted', 'transfer to non ERC721Receiver implementer', 'No more tokens available'...), the onERC721Received data copy is a copy line, and slot 14 is named after its getter bridgeExtraData with the stored value decoded as sha3(seed, tokenId); P2 3 -> 0.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 1,533 lines: mint read whole (storage writes and events unchanged apart from naming), tokenURI's 16 changed copy blocks compared by pattern; checked that the reused s is not read after the copy (the length is re-read as mem[_494]).",
+  "summary": "mint is much clearer (calls, messages and the tokenURI seed decoded); tokenURI is unchanged in structure, its copy loops now re-read memory inline instead of using named temporaries."
+}

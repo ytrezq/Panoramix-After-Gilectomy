@@ -1,0 +1,19 @@
+{
+  "id": "c00366",
+  "text_changed": true,
+  "lines_old": 300,
+  "lines_new": 273,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "Immutables still 0; calculateInterestRates still always reverts."},
+    {"n": 2, "kind": "semantics", "status": "fixed", "note": "decimals() is now read as 'require ext_call.return_data[0] == uint8(ext_call.return_data[0])' / uint8(ext_call.return_data[0]), and the exponent-zero arm prints 'static call 0x0.getAPR()' like the other arm (P2 1 -> 0)."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "The exponentiation helper loop and the duplicated getAPR arms remain."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "Still 'require _29 - ceil32(_1) - mem[64] >=′ 32' ((r + A) - A), the getAPR word read as mem[ceil32(_1) + mem[64]], and the contradictory 'x <′ 0 and x >=′ 0' test."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "calculateInterestRates: the getAPR call is decoded in both arms and the decimals result is a uint8 of the return data. Dead stores of the params struct and of the local-variable struct are dropped (mem[128..576]; only mem[512], which is read, stays). The rayDiv check's nonzero conjunct is equivalently '... != _param3'. The signature keeps only the calldata words the code reads (_param1, 2, 3, 5, 8, 9; 'calldata.size - 4 >= 288' still shows the 9-word struct).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 120 lines, read in full; one function (calculateInterestRates, unknowna5898709). Calls, reverts and control flow are unchanged; the old raw getAPR call is now named. The memory addresses after decimals() are written as ceil32(_1) + mem[64], because the pointer bump is no longer printed (consistent).",
+  "summary": "No regression. The round-1 semantic finding (getAPR lost and decimals read as slices after the join) is fixed, and the dead struct stores are dropped. The exp-helper loop, duplicated arms and the unreduced return-size check remain."
+}

@@ -1,0 +1,56 @@
+{
+  "id": "c00135",
+  "text_changed": true,
+  "lines_old": 6882,
+  "lines_new": 6172,
+  "changed_functions": 7,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The mulDiv expansions are unchanged (239 mulmod lines). getTwapFromOracle's return now prints prod1/prod0 >> 64 as Bytes(8, uint64(...)), Bytes(24, ...) instead of an OR; this is exact, and the operand is still repeated about 15 times."},
+    {"n": 2, "kind": "simplification", "status": "fixed", "note": "0 calls left with the selector as a memory slice (old 44 lines) and 0 unnamed calls (old 8). slot0, observations, positions, decreaseLiquidity, collect, increaseLiquidity, mint, approve, feeAmountTickSpacing and increaseObservationCardinalityNext are all named with their arguments."},
+    {"n": 3, "kind": "artifact", "status": "still", "note": "The immutables still read 0 (38 'call 0x0.' lines)."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "There are still 15 'calldata.size - 4 >=′ 0' checks, 94 two-armed min(32, return_data.size) assignments, and 6 whole-slot stor[0] reads."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "collectFees(address[],int24) (unknown71d4dfbb), decreaseLiquidity(...) (unknown9dbaef5e), increaseLiquidity(...) (unknown8beb03ec)",
+      "lines": "607-635, 1521-1553, 2495-2527",
+      "decompiled": "_480 = mem[64] ... mem[mem[64] + 32] = _480 + 32 * cd[_param1 + 4] - mem[64] + 128 ... log 0x1b90ebd5...: mem[mem[64] len 32 * _484 + u - mem[64] + 32], indexed ... ; return memory from mem[64] len _489 + 32 * _490 - mem[64] + 128",
+      "old": "mem[_480 + 32] = 32 * _481 + 128 ... log 0x1b90ebd5...: mem[_480], 32 * _481 + 128, uint128(_30), mem[_480 + 96 len 32 * _481 + 32 * _484 + 64], ...; return mem[_489], uint128(_30), 96, mem[_489 + 96 len 32 * _490 + 32]",
+      "source": "LiquidityManagerCore: emit PositionFeesCollected/Decreased/Increased(pool, positionId, ..., tokens, amounts); return (positionId, liquidity, amounts)",
+      "issue": "A variable holding mem[64] and mem[64] itself are now both used for the same value with no store in between, and x - mem[64] is never folded to 0. A length also keeps the copy loop's final pointer u. As a result, 3 events and 2 returns lost their decoded words (the uint128 liquidity, the head offsets) and became raw memory slices.",
+      "rule": "After x = mem[64] with no store to mem[64] in between, x and mem[64] are one value: print one name and fold x - mem[64] to 0. Close loop exit values (u = base + 32 * count), so that log and return ranges split into the words just stored.",
+      "verified": "reading only; text_check run --per-selector 16: 0 different (483 calls)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "convertToV3(...) (unknownda8dca60), changeRanges(...) (unknownc6a6bf08), getTwapFromOracle(address) (unknown9a739b50)",
+      "lines": "e.g. 4304-4350, 304-310",
+      "decompiled": "if 32 * _69 + ceil32(return_data.size) + ceil32(_23) + ceil32(_36) + ceil32(_56) + ceil32(min(64, _1)) + 32 * cd[_param1 + 4] + 32 * cd[_param4 + 4] + 32 * mem[...] + 352 > 18446744073709551615 or ...; mem[32 * _69 + 32 * _81 + ceil32(return_data.size) + ... + 356] = 64",
+      "old": "_89 = mem[64]; if mem[64] + 32 * mem[...] + 32 > 18446744073709551615 or ... < mem[64]; _128 = mem[64]; mem[mem[64] + 4] = 64",
+      "source": "via-IR allocations and abi.encode of the custom error and of the arrays (new uint256[](n), revert Error(tokens, amounts))",
+      "issue": "Every use of the free pointer is replaced by its full symbolic value, a sum of 8 to 10 terms, so the allocation checks and stores grow to 300-1000 characters. Lines over 240 characters went from 315 to 383 and the text has 4% more characters despite 10% fewer lines.",
+      "rule": "Substitute the free pointer's value only when it is short (a constant or base + constant). Otherwise keep it as mem[64], or bind it once to a variable where it is read, and address memory relative to that name.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "convertToV3(...) (unknownda8dca60)",
+      "lines": "log 0x61af548e",
+      "decompiled": "log 0x61af548e...: 64, Bytes(16, 0), ext_call.return_data[16 len 16], 2, ext_call.return_data[32 len 64], indexed _v",
+      "source": "emit PositionLiquidityIncreased-like event (uint256[] amounts, uint128 liquidity)",
+      "issue": "The words are now decoded, but the uint128 is spelled as a byte concatenation and the array as a raw offset and length. The same event in increaseLiquidity prints as Array(len=2, data=ext_call.return_data[32 len 64]), uint128(ext_call.return_data[0]).",
+      "rule": "A word that is Bytes(16, 0) followed by the low 16 bytes of w is uint128(w); a head offset that points at a (len, data) tail prints as one Array argument.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "Every call is now named with decoded arguments (44 selector-as-memory lines and 8 unnamed calls are gone). Custom errors carry values: 0x9eb241a7 shows its int24 instead of mem[4], and the two-array 0x6810c7f8 is decoded. 'revert with memory' became 'revert with ext_call.return_data[...]'. Dominated Panic(50) bounds checks on known lengths were folded (46 -> 4 in decreaseLiquidity). Returns of changeRanges, convertToV3 and checkPoolAndGetCenterPrice are values, and P2 20 -> 0, P6 8 -> 0.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Reviewed by structure (6290-line diff): for all 7 changed functions, call/log/return/require/revert counts and lines were compared, and every changed while was classified. All whiles are implicit ABI copies, as in round 1 (57 -> 49); no source loop exists. Calls, logs and requires are equal in number in every function. The removed reverts are dominated Panic(50) checks and 'revert with memory' lines now shown as return-data reverts. The three small functions were read diff by diff. The new pack has no pattern line; P1-P6 come from regexes that reproduce round 1's counts. FeesCollected's data prints as mem[... len ceil32(min(64, return_data.size))], ext_call.return_data[0 len 64]: exact on reachable paths but opaque (old: fully raw).",
+  "summary": "Two medium readability regressions, both from the free-pointer change: 3 events and 2 returns at function ends fell back to raw memory with unfolded x - mem[64], and via-IR allocation code substitutes long symbolic pointer sums. Otherwise the text improved a lot: all calls are named, custom errors are decoded, and dominated bounds checks are folded."
+}

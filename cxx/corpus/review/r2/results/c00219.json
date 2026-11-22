@@ -1,0 +1,29 @@
+{
+  "id": "c00219",
+  "text_changed": true,
+  "lines_old": 871,
+  "lines_new": 854,
+  "changed_functions": 6,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "getTrustedRemoteAddress still decodes the storage-bytes length and its Panic(34) check twice (2 Panic(34) in both texts). Only its return changed, to Array(len=_25, data=...)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "retryMessage(uint16,bytes,uint64,bytes) (OFT/NonblockingLzApp)",
+      "lines": "75-78 (function-relative)",
+      "decompiled": "mem[ceil32(_25) + ceil32(_srcAddress.length) + ceil32(_payload.length) + 352] = _srcAddress.length / mem[... + 384 len _srcAddress.length] = _srcAddress[all] / mem[...] = 0 / log RetryMessageSuccess(uint16 _srcChainId, bytes _srcAddress, uint64 _nonce, bytes32 _payloadHash): _srcChainId, 128, _nonce, _17, mem[ceil32(_25) + ceil32(_srcAddress.length) + ceil32(_payload.length) + 352 len ceil32(_srcAddress.length) + 32]",
+      "old": "log RetryMessageSuccess(uint16 _srcChainId=_srcChainId, bytes _srcAddress=Array(len=_srcAddress.length, data=_srcAddress[all]), uint64 _nonce=_nonce, bytes32 _payloadHash=_17)",
+      "source": "NonblockingLzApp.retryMessage: emit RetryMessageSuccess(_srcChainId, _srcAddress, _nonce, payloadHash)",
+      "issue": "An event decoded with named fields and its bytes argument as Array(...) is now raw ABI words: the bytes offset 128, then a memory slice, with three memory writes printed before it. The memory is now addressed by its absolute value (a sum of four sizes) instead of the free pointer, and the event decoder no longer recognizes the copied calldata bytes.",
+      "rule": "Decode event and call data from the memory they are read from whatever its base expression. A head word equal to the offset of a length-prefixed region whose contents are a calldata copy is that calldata bytes, so print Array(len, data=_srcAddress[all]) and drop the writes that only built it.",
+      "verified": "reading only; text_check run --per-selector 16: 0 different (random world, 6 evm inconclusive)"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "lzReceive's MessageFailed event now decodes its three bytes fields exactly (_srcAddress, _payload, _reason = Array(len=min(150, return_data.size), data=...)), where the old text mis-decoded them. The gasleft() read is a variable at its read point (_25 = gas_remaining ... gas _25). getConfig's return copy is a copy line, and getTrustedRemoteAddress returns Array(...). The OFT receive paths use the decoded length (_8 < 20) and read the recipient and amount directly. P6 1 -> 0, 6 -> 5 whiles.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "I read the whole diff (6 functions). In nonblockingLzReceive and retryMessage the recipient changed from '_14 >> 96' to 'mem[X len 20]' and the amount from mem[mem[64]] to mem[X + 32]: equivalent and no worse. The source loop (BytesLib.slice) is still a while. Decoded multi-line logs went 17 -> 16 (the retryMessage one). text_check run --per-selector 16, both worlds: 707 + 32 guessed-param calls, 0 different (random world 6 evm inconclusive).",
+  "summary": "One medium regression: retryMessage's RetryMessageSuccess event lost its decoding (raw offset and memory slice instead of named fields with Array). Otherwise better: MessageFailed decoded exactly, the GAS read is named at its read point, and returns and copies are simpler."
+}

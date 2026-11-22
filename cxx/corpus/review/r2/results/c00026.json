@@ -1,0 +1,49 @@
+{
+  "id": "c00026",
+  "text_changed": true,
+  "lines_old": 22957,
+  "lines_new": 22406,
+  "changed_functions": 27,
+  "old_findings": [
+    {"n": 1, "kind": "coverage", "status": "still", "note": "stopPriceRatioUpdate (0xd4a5b63a) still aborts at the same point, after the PriceRatioStateUpdated emitAuxiliaryEvent (new 16677)."},
+    {"n": 2, "kind": "coverage", "status": "still", "note": "startPriceRatioUpdate (0xa6d2e718) still aborts at the same point (new 18637)."},
+    {"n": 3, "kind": "simplification", "status": "partly", "note": "Free-pointer aliasing mostly resolved: events with mem[_x] data 14->0, calls losing their selector 2->0 (isPoolInitialized now named), raw emitAuxiliaryEvent bytes args 31->0 (now Array(len=.., data=..)), '- mem[64]' return lengths 20->3. 7 single-word 'return memory' remain, and the main-path return of getReClammPoolDynamicData (see regressions)."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "ceil32(min(C, return_data.size)) kept after the dominating require: 1081 -> 1104 lines."},
+    {"n": 5, "kind": "simplification", "status": "still", "note": "Branchless select still raw: max(now, p2) form on 26 lines (22 before), mulDiv panic code 17 ^ 3 * (not x) on 52 (53)."},
+    {"n": 6, "kind": "simplification", "status": "partly", "note": "FixedPoint products (a + 1e18) * (b + 1e18) are now SafeMath.mul3(a + 10**18, b + 10**18) with the add check stated first, instead of the distributed sum. Still distributed: (_2618 * _param5 + _2618 * _2) / _2 (30 lines) and -124649 * stor7_32 + 124649 * 10**18."},
+    {"n": 7, "kind": "simplification", "status": "still", "note": "require not mem[..] << 40 style range checks: 24 lines, unchanged."},
+    {"n": 8, "kind": "naming", "status": "fixed", "note": "Parameters are now named by calldata word: onRegister's flag is _param7 (offset 196); onAfterRemoveLiquidity uses _param5.._param8, onAfterAddLiquidity _param4, _param5, _param7, _param8; onAfterInitialize _param1, _param3."},
+    {"n": 9, "kind": "artifact", "status": "still", "note": "solc immutables read as 0 (Vault calls to 0x0, onlyVault as caller != 0); unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getReClammPoolDynamicData() (0x2c357688), onBeforeInitialize, setCenterednessMargin, stop/startPriceRatioUpdate and other Vault-calling functions",
+      "lines": "20472-20504, 21325-21350, 22364-22369 and 227 lines in all",
+      "decompiled": "mem[32 * _2 + 32 * _8 + 32 * _12 + ceil32(_3) + ceil32(_4) + ceil32(min(32, return_data.size)) + 800] = 0xe4dc2aa4...; if 32 * _2 + 32 * _8 + 32 * _12 + ceil32(_3) + ceil32(_4) + ceil32(min(32, _5)) + ceil32(min(32, return_data.size)) + 800 > 18446744073709551615 or ...",
+      "old": "_16 = mem[64] / mem[_16 + ceil32(min(32, return_data.size))] = 0xe4dc2aa4... / if ceil32(min(32, return_data.size)) + mem[64] > 18446744073709551615 ...",
+      "source": "ReClammPool.sol:getReClammPoolDynamicData, successive Vault calls whose returns are abi-decoded into memory",
+      "issue": "The free pointer is now resolved, which fixes the aliasing (mem[192] = ext_call.return_data[0] instead of mem[_16]), but its value is printed inline as a 5- to 8-term sum at every use. 227 lines now carry six-term address sums (3 before), and each Panic(65) check repeats it three times.",
+      "rule": "When a resolved free-pointer value is used more than a few times, bind it to a variable at the mem[64] read (_16 = 32 * _2 + ... + 800) and print the addresses relative to that variable. This keeps the aliasing precision.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getReClammPoolDynamicData() (0x2c357688), main-path return",
+      "lines": "22350-22404",
+      "decompiled": "_4400 = mem[64] ... mem[mem[64] + 64] = 32 * _2 + _4400 - mem[64] + 608 ... while s < mem[32 * _2 + 32 * _8 + ceil32(_3) + ceil32(_4) + 768]: ... return memory from mem[64] len 32 * _2 + _4400 + 32 * _4406 + 32 * _4413 - mem[64] + 704",
+      "old": "mem[mem[64] + 64] = 32 * _4402 + 608 ... while idx < _4406: ... return mem[mem[64]], 576, 32 * _4402 + 608, mem[mem[64] + 96 len 96], ...",
+      "source": "ReClammPool.sol getReClammPoolDynamicData: return of the ReClammPoolDynamicData struct",
+      "issue": "_4400 holds mem[64], and nothing writes mem[64] before these lines, yet _4400 - mem[64] is no longer folded to 0. The copy-loop bound re-reads the length word instead of _4406, and the return lost the head words the old text listed. Values are unchanged (checked by hand).",
+      "rule": "A variable bound to a read of mem[64] equals any later read of mem[64] as long as no write to mem[64] comes between, so fold x - mem[64] to 0. Use the bound length variable as the loop bound when the length word is not written in the loop.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Hex constants whole bytes (1100+ lines). Durations: 25 * 10**13 * 3600 now 9 * 10**17. Free pointer resolved: event data, two selectors and all emitAuxiliaryEvent bytes arguments decoded. Typed array returns in getCurrentLiveBalances, computeInitialBalancesRaw, getTokens and getTokenInfo (4 arrays, 2 copy loops gone). Two early-return arms of getReClammPoolDynamicData now return the full struct field by field, removing 6 copy loops. Bubbled reverts print as revert with ext_call.return_data. Dominated checks dropped: onSwap's Panic(33) (decode already requires kind < 2), and setCenterednessMargin's repeated Panic(50) and PoolOutsideTargetRange checks inside the arm known to have balance0 != 0. FixedPoint products shown with SafeMath.mul3. Text is 5% smaller (3.31M to 3.13M chars).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 16k lines, mostly function reordering. Per-function changes total about 3,000 lines, so reviewed by structure: for each of the 27 changed functions, the counts of whiles, calls, logs, reverts, storage writes and returns, compared old vs new, with every count change traced. Removed: whiles 46->34 (return-encoding copies became Array returns or structured returns); reverts in onSwap (Panic(33), dominated), setCenterednessMargin (4 Panic(50), 1 mulDiv panic, 2 PoolOutsideTargetRange; all dominated by checks of the same values on the enclosing path, new 13855-13858). Added: computeCurrentPriceRatio and computeCurrentFourthRootPriceRatio gain an explicit add check (10**18 > b + 10**18) before the unchanged product check, correct and slightly redundant. stagecheck --function 0x0673d09a (4 seeds, 32 per selector): 160 same, but all revert at the Vault call to 0x0, so the deep paths were checked by reading only. Pack header has no regex pattern line, so P1-P6 are 0 (round 1: P2 1, P6 3).",
+  "summary": "No semantic regression found. Readability gained a lot (aliasing resolved, typed and structured returns, emitAuxiliaryEvent decoded, parameter names fixed, 12 copy loops gone). The cost is long inline free-pointer sums on 227 lines and a rawer main-path return in getReClammPoolDynamicData. The two aborts remain."
+}

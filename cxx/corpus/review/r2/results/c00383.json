@@ -1,0 +1,17 @@
+{
+  "id": "c00383",
+  "text_changed": true,
+  "lines_old": 60,
+  "lines_new": 60,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "transferOwnership still passes Bytes(28, uint128(newOwnerWallet >> 32)), Bytes(4, uint32(newOwnerWallet)). The same split now also appears in c00156, c00184 and c00210."},
+    {"n": 2, "kind": "artifact", "status": "still", "note": "The immutable owner still reads 0."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "executeDelegateCall returns Array(len=_8, data=...) instead of the raw words 32, mem[...], Bytes(...).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 10 lines: one return line changed.",
+  "summary": "No regression. The bytes return is now decoded as an Array, and round 1's two low findings remain."
+}

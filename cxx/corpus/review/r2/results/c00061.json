@@ -1,0 +1,42 @@
+{
+  "id": "c00061",
+  "text_changed": true,
+  "lines_old": 3456,
+  "lines_new": 3280,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "coverage", "status": "still", "note": "constructTokenURI still aborts at the same place (after the SVG parameters: overRange, tokenId), line 3278."},
+    {"n": 2, "kind": "simplification", "status": "worse", "note": "Lines over 240 characters 87 -> 120; pointer variables are now expanded into their allocation expressions (289 lines with floor32(...), 5 before)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "constructTokenURI(...)",
+      "lines": "e.g. 2780-2790 and 289 lines with floor32(",
+      "decompiled": "_5397 = _741 + ceil32(mem[_741 + floor32(uint8(t) + cd[params + cd[params + 132] + 4] + 31) + 95 len 1]) + floor32(uint8(t) + cd[params + cd[params + 132] + 4] + 31) + 320; _5408 = _741 + floor32(uint8(t) + cd[params + cd[params + 132] + 4] + 31) + 288",
+      "old": "_5397 = _3329; _5408 = _2702",
+      "source": "NFTDescriptor.sol escapeQuotes / abi.encodePacked of the name and description strings (memory buffers allocated one after another)",
+      "issue": "Variables that held free-pointer values are replaced by the full expression of what mem[64] held, which repeats the escaped-string allocation 'floor32(uint8(t) + cd[params + cd[params + 132] + 4] + 31)' in 289 lines; lines over 240 characters rise from 87 to 120.",
+      "rule": "Substitute a held mem[64] value only when its expression is short (a constant or base + constant); otherwise keep the variable, and print floor32(x + 31) as ceil32(x).",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "def SafeMath: mul(a, b, errorMessage); constructTokenURI (5 uses)",
+      "lines": "10-13; 666, 1702, 2021, 2327, 2578",
+      "decompiled": "def mul(a, b, errorMessage): if a * b / a != b: revert with errorMessage ... if address(_3617): _3996 = SafeMath.mul(address(_3617), 10**(_3748 / 2), concat(Bytes(4, 0x08c379a0), 32, 33, 'SafeMath: multiplication overflow', mem[... len 31]))",
+      "source": "NFTDescriptor.sol adjustForDecimalPrecision: sqrtRatioX96.mul(10**(difference.div(2))) (OpenZeppelin SafeMath.mul)",
+      "issue": "The new helper is right at its call sites (all under 'if a:'), but its body alone would revert for a = 0 (EVM 0/0 = 0), and its message argument is the raw revert payload (selector, offset, length, string, trailing memory).",
+      "rule": "State the helper's precondition (a != 0) or include 'if not a: return 0' when the call sites guard it; pass the decoded string as the message and keep exact trailing bytes in a comment.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "A P7 string copy became an exact copy line (mem[... len 42] = '0x', mem[_5665 + 34 len 40]); memory fields known from earlier stores are forwarded (isPercent = false removes its dead branch and 11 bounds asserts; mem[mem[224]] reads become calldata lengths; string data at a constant address 608); SafeMath.mul with message replaces 5 inlined 8-line checks; P6 17 -> 0. 176 fewer lines.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 3,010 lines in one function (plus the SafeMath block), reviewed by structure: calls, reverts and loops compared per kind; the lost while is the copy line above; the 11 asserts and 5 reverts less come from dead branches (isPercent) and the SafeMath.mul helper. The abort point is unchanged. The new pack header has no pattern line.",
+  "summary": "One readability regression: free-pointer variables expanded into long floor32(...) allocation expressions (289 lines, lines over 240 chars 87 -> 120). Otherwise better: a string copy loop became a copy line, dead branches and implied asserts folded; the abort remains."
+}

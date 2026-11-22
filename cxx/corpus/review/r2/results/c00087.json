@@ -1,0 +1,51 @@
+{
+  "id": "c00087",
+  "text_changed": true,
+  "lines_old": 6115,
+  "lines_new": 5862,
+  "changed_functions": 9,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "zero immutables unchanged (calls to 0x0, 'if caller: revert')"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "deployGasRelayPaymaster unchanged (init(address) data still split 16+16+4); stor1_176 still merged, isLib still undeclared"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification", "severity": "medium",
+      "function": "buyShares(uint256,uint256), buySharesOnBehalf(address,uint256,uint256) (tail: policy hook, received-shares check, event, return)",
+      "lines": "2276-2349 (buyShares) and the same block of buySharesOnBehalf",
+      "decompiled": "_982 = mem[64] / ... / _983 = mem[64] / mem[mem[64]] = 128 / ... / while idx < _985: mem[_982 + idx + 292] = mem[_983 + idx + 32] / call 0x0 with: args mem[mem[64] len _990 - mem[64]] / static call _893 with: args mem[mem[64] len 36] / if _967 > mem[mem[64]]: mem[mem[64]] = 0x08c379a0... revert with memory len 100 / ... log SharesBought(...): mem[mem[64] len 96], indexed _8 / return memory from mem[64] len 32",
+      "old": "call 0x0.validatePolicies(...) with: args this.address, 0, 96, 128, _8, -_898 + _939, _961 / _958, _894 - _898 + _939 / static call _893.balanceOf(address account) with: args _8 / if SafeMath.sub(ext_call.return_data[0], _967) < image_asset_amount: revert with Error(string reason), ..., '__buyShares: Shares received < _minSharesQuantity' / log SharesBought(address indexed buyer=_8, ...) / return SafeMath.sub(ext_call.return_data[0], _967)",
+      "source": "ComptrollerLib.sol __buyShares: IPolicyManager(...).validatePolicies(address(this), PostBuyShares, abi.encode(...)); sharesReceived = balanceOf(buyer).sub(prevBuyerShares); require(sharesReceived >= _minSharesQuantity, ...); emit SharesBought(...); return sharesReceived",
+      "issue": "Two pointers read from mem[64] with no write between (_982, _983) are not identified, so the abi.encode length mem[_983] (128) is unknown: the argument copy stays a loop (+1 while), validatePolicies and balanceOf print raw, both error strings are built in memory, SharesBought logs raw memory and the return is 'return memory'. The scratch writes 'mem[0] = _8 / mem[32] = 3' are now printed too, as if they could alias the event data. All of this was decoded in round 1.",
+      "rule": "Values read from mem[64] between two writes to it are equal (and equal to mem[64]); use the floor of mem[64] to prove that writes to mem[0..63] do not alias data at mem[64] + k, so the event, error and return decode as before.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification", "severity": "medium",
+      "function": "redeemSharesForSpecificAssets(address,uint256,address[],uint256[])",
+      "lines": "5835-5860",
+      "decompiled": "mem[mem[64]] = _1393 / ... / log SharesRedeemed(address redeemer, address recipient, uint256 sharesAmount, address[] receivedAssets, uint256[] receivedAssetAmounts): mem[mem[64] len 32 * _1564 + ...] / ... / return memory from mem[64] len 32 * _1583 + 64",
+      "old": "log SharesRedeemed(address indexed redeemer=_7, address indexed recipient=address(_recipient), uint256 sharesAmount=_1393, address[] receivedAssets=Array(...), uint256[] receivedAssetAmounts=32 * _payoutAssets.length + 128) / return 32, mem[_1533 + 32 * _1535 + 32 * _1540 + 320 len 32 * _1583 + 32]",
+      "source": "ComptrollerLib.sol __redeemShares: emit SharesRedeemed(redeemer, recipient, sharesQuantity, payoutAssets, payoutAmounts); return payoutAmounts_",
+      "issue": "The free-memory pointer, known in round 1 as '_1533 + 32 * _1535 + 32 * _1540', is now an unknown 'mem[64]' after the payout loops, so the event and the uint256[] return print as raw memory. Round 1's event decode was itself wrong for receivedAssetAmounts (it showed the ABI offset), but its indexed topics, sharesAmount and receivedAssets were right, and its return was right.",
+      "rule": "Keep the symbolic free-memory pointer across a loop that does not write mem[64] (a loop-invariant value is not a join); fall back to the constant floor only when the paths disagree.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification", "severity": "low",
+      "function": "redeemSharesInKind, redeemSharesForSpecificAssets, buyShares, buySharesOnBehalf",
+      "lines": "e.g. 3482 (indexesToAdd[s] = 1); 90 lines with long address sums",
+      "decompiled": "mem[_146 + _148 + 32 * _157 + 32 * s + 32 * _additionalAssets.length + 32 * _assetsToSkip.length + 128] = 1",
+      "old": "assert s < mem[_322] / mem[_322 + 32 * s + 32] = 1",
+      "source": "ComptrollerLib.sol __parseRedemptionPayoutAssets: indexesToAdd[i] = true",
+      "issue": "Array pointers that were named variables are now printed as the whole free-memory sum (lines with 8+ ceil32 or 6+ '32 * _N' terms 12 -> 90, longest line 539 -> 795).",
+      "rule": "Keep a name for each pointer taken from mem[64] (the array base) and print element addresses from it.",
+      "verified": "reading only (grep counts)"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P2 106 -> 58: calcCanonicalAssetsTotalValue/calcCanonicalAssetValue, getManagedAssets/getDebtAssets, calcGav, hasMigrationRequest/hasReconfigurationRequest, totalSupply/decimals/balanceOf and buyBackProtocolFeeShares are named; preTransferSharesHook's bytes argument decodes exactly as Array(len=96, data=...); def SafeMath gains add() and 17 explicit overflow blocks become SafeMath.add; calcGav and calcGrossShareValue return values instead of memory; 'Shares action timelocked', 'Vault action re-entrance' and '__redeemSharesSetup: No shares...' decoded in redeemSharesInKind; four indexesToAdd bounds asserts dropped, correctly implied by 'i < _additionalAssets.length' now that the array length is known; P6 60 -> 0.",
+  "patterns": {"P1": 0, "P2": 58, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 4,045 lines reviewed by structure: calls, events, storage writes, loops and returns compared per function. All 12 source loops still shown as while (the labelled contains/isUniqueSet loops unchanged); the only new while is buyShares'/buySharesOnBehalf's abi.encode copy (P7). redeemSharesInKind: reverts 80 -> 71 = 8 raw SafeMath/error blocks now SafeMath.add or named strings, and 4 redundant bounds asserts. Named multi-line events 3 -> 0 (all three lost), 'return memory' 3 -> 4.",
+  "summary": "Many calls are now named and SafeMath.add is recognized, but the free-memory pointer is lost at the tails of buyShares, buySharesOnBehalf and redeemSharesForSpecificAssets: validatePolicies, balanceOf, both error strings, the SharesBought and SharesRedeemed events and the returns, all decoded in round 1, print as raw memory again (medium); array pointers print as long sums (low)."
+}

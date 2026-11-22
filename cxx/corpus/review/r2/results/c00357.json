@@ -1,0 +1,31 @@
+{
+  "id": "c00357",
+  "text_changed": false,
+  "lines_old": 369,
+  "lines_new": 369,
+  "changed_functions": 0,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "text unchanged"
+    },
+    {
+      "n": 2,
+      "kind": "naming",
+      "status": "still",
+      "note": "text unchanged"
+    }
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "none (text unchanged)",
+  "patterns": {
+    "P5": 6,
+    "P8": 40,
+    "P14": 5
+  },
+  "notes": "No diff file; r2/dec and t01/dec texts are byte-identical. Round-1 findings stand as they were.",
+  "summary": "Text unchanged; all round-1 findings still apply."
+}

@@ -1,0 +1,29 @@
+{
+  "id": "c00184",
+  "text_changed": true,
+  "lines_old": 1861,
+  "lines_new": 1849,
+  "changed_functions": 4,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The mulDiv expansions are unchanged (the conversion functions did not change)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "unknown6442b2ba(address,uint256,uint256)",
+      "lines": "1098-1100",
+      "decompiled": "call asset.transfer(address recipient, uint256 amount) with: args Bytes(28, uint128(_param1 >> 32)), Bytes(4, uint32(_param1)), -_23 + _param3 - (mulmod(_param3, stor5, stor5 + 10**18) > 0)",
+      "old": "call asset.transfer(address recipient, uint256 amount) with: args _param1, -_23 + _param3 - (mulmod(_param3, stor5, stor5 + 10**18) > 0)",
+      "source": "SafeTransferLib.safeTransfer(asset, receiver, amount): the call data is built in scratch memory with the address at an unaligned offset",
+      "issue": "The recipient argument, printed as _param1 in round 1, is now cut at a 32-byte boundary into a 28-byte and a 4-byte piece. The same split appears as a new finding in c00156 and as re-stores in c00162 and c00210.",
+      "rule": "Merge adjacent byte pieces that are consecutive slices of one value (Bytes(28, v >> 32), Bytes(4, uint32(v)) with v < 2^160 is the word address(v)) before splitting call data into ABI arguments.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "The authority.canCall call is named with arguments (caller, target, selector). The custom error 0xfb563026 is decoded in both functions (it was a raw memory revert), and unknownf6e715d0 returns Array(len=_28, ...) instead of raw words. Whole-byte hex is printed in def storage, and P2 2 -> 1.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 302 lines, 4 changed functions, all read. calls, logs, requires, reverts and whiles are equal in number; the manage loop (the only source loop) changed only in variable form (the result-encoding loop uses mem[64] instead of _38).",
+  "summary": "One medium regression: asset.transfer's recipient, clean in round 1, is now split into two byte pieces. canCall and the custom-error reverts are newly decoded."
+}

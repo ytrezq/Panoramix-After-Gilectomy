@@ -1,0 +1,21 @@
+{
+  "id": "c00398",
+  "text_changed": false,
+  "lines_old": 29,
+  "lines_new": 29,
+  "changed_functions": 0,
+  "old_findings": [],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "none (text unchanged)",
+  "patterns": {
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "No diff file; old and new texts are byte-identical.",
+  "summary": "Text unchanged; round 1 had no findings."
+}

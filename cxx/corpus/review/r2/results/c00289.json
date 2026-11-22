@@ -1,0 +1,17 @@
+{
+  "id": "c00289",
+  "text_changed": true,
+  "lines_old": 659,
+  "lines_new": 626,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "fixed", "note": "latestRoundData now reads 'revert with 0x24775e06, ext_call.return_data[0]' and 'return 0, ext_call.return_data[0], block.timestamp, block.timestamp, 0'. initialize's custom errors and fee event are decoded too."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "'x >= 78 and x >= 32' and the exponentiation helper loop are unchanged (260, 325, 410, 569)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "P1 is gone: the Initializable slot is 0xf0c57e16..00; the real 14-day and 1-day constants still read '14 * 24 * 3600' and '24 * 3600'. P2 and P6 are gone. initialize: baseToken() is named, the 0xef024699, 0xea4286cd and 0x0bac560e custom errors are 'revert with 0x..' instead of raw memory, return words are read as ext_call.return_data, and the SwapFee event shows _swapFee. latestRoundData's return and SafeCast revert are decoded.",
+  "patterns": {},
+  "notes": "Diff 165 lines, read in full. No control-flow, storage or call-target change. In latestRoundData's no-code branch the dead 'mem[64] += 32' is dropped, and the branch's buffer is read as mem[64].",
+  "summary": "No regression: round-1 finding 1 is fixed (returns and custom-error reverts after a call are decoded), and P1/P2/P6 are gone."
+}

@@ -1,0 +1,19 @@
+{
+  "id": "c00277",
+  "text_changed": true,
+  "lines_old": 680,
+  "lines_new": 584,
+  "changed_functions": 5,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "still", "note": "const addResolvers(address[] resolvers, uint256[] withdrawAllowances) unchanged"},
+    {"n": 2, "kind": "naming", "status": "still", "note": "selector 0x2e567b36 still printed as the string '.V{6', now in 3 lines because the createRetryableTicket arguments and the TxToL2 data are decoded; decimal selectors 3 -> 2"},
+    {"n": 3, "kind": "simplification", "status": "fixed", "note": "outboundTransfer: transferFrom named, 'SafeERC20: low-level call failed' decoded, TxToL2 data = Array(len=196, data=...), return = Array(len=32, data=ext_call.return_data[0]); copy loops 8 -> 3"},
+    {"n": 4, "kind": "artifact", "status": "still", "note": "immutables still 0"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "outboundTransfer: the token pull, its error, the TxToL2 event data and the returned abi.encode(seqNum) are decoded; the struct field callValue (0) is folded, so the expected-ETH test reads 'call.value < SafeMath.add(_45, _maxGas * _gasPriceBid)' and the impossible overflow check of 0 + maxSubmissionCost is gone (exact: source minEthValue = callValue + maxSubmissionCost + maxGas * gasPriceBid with callValue: 0); P2 1 -> 0, P6 7 -> 0; 248 -> 152 lines.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 276 lines; 5 functions changed (storage, supportsInterface, getOutboundCalldata, finalizeInboundTransfer only in hex display). outboundTransfer checked by hand: reverts 20 -> 19 is the folded overflow check above; the removed ifs are copy-loop tail tests and checks now printed with their errors. Source loop (toHexString) unchanged.",
+  "summary": "Improved with no regression: outboundTransfer's call, error, event data and return are now decoded and its fee check simplified exactly; the selector-as-string naming issue remains (and shows in more decoded lines)."
+}

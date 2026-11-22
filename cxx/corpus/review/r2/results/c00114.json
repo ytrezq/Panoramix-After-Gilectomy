@@ -1,0 +1,55 @@
+{
+  "id": "c00114",
+  "text_changed": true,
+  "lines_old": 5815,
+  "lines_new": 5574,
+  "changed_functions": 9,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "still", "note": "Phantom stor1 (38 lines) and its def storage line unchanged."},
+    {"n": 2, "kind": "loop", "status": "still", "note": "sendPacket's one-iteration 'while idx < 32' still printed (1918)."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "2 * bool(..) overflow checks (14) and the dead 'if idx >= 42' unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "unknownb0777bfa, unknown4d6e7ce3 (sendPacket), unknownb98c330a, unknown1bca011a, unknown5ebd10ca",
+      "lines": "693-700, 1876-1883, 2350-2357, 3381-3388, 4507-4514",
+      "decompiled": "v = 0 / u = 0 / while u < _24: mem[u + mem[64] + 32] = stor[v + sha3(t + sha3(..) + 1)]; v = v + 1; u = u + 32 / v = (_24 + 31) / 32 + sha3(..)",
+      "old": "mem[_19 + 32 len ceil32(_24)] = stor[sha3(t + sha3(..) + 1) len (_24 + 31) / 32]",
+      "source": "reading a long bytes member of counterpartyInfos (bytes[] merklePrefix) from storage into memory",
+      "issue": "The 5 storage-to-memory bytes copies whose destination is the free-memory pointer are now while loops with a dead exit value after them; the 5 with a constant destination are still copy lines.",
+      "rule": "Recognise a word-by-word copy loop (dst + 32i <- src + i, i < ceil32(n)/32) as a copy line whatever the destination expression is, a mem[64] read included.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "unknown4d6e7ce3 (sendPacket)",
+      "lines": "4440-4444 (log), return at the end",
+      "decompiled": "log 0xab3a4458..: mem[mem[64] len u - mem[64]], indexed sha3(..), indexed uint64(_29 + 1) / mem[mem[64]] = uint64(_29 + 1) / return memory from mem[64] len 32",
+      "old": "log 0xab3a4458..: 32, mem[_144 + 192], 160, ceil32(_172) + 192, mem[_144 + 288], .. / return uint64(_29 + 1)",
+      "source": "ICS26Router.sendPacket: emit SendPacket(..., packet); return sequence",
+      "issue": "The sequence return is no longer folded (a word stored at mem[mem[64]] then returned from mem[64] with length 32), and the event data lost its head words.",
+      "rule": "return/log of mem[p len 32] right after mem[p] = x (p any expression, mem[64] included, with no write in between) is return x; print the known head words of a returned or logged memory range.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "unknown5ebd10ca",
+      "lines": "4820-4833",
+      "decompiled": "mem[_284 + 160] = 0xa7c34e4f.. / ... / if t >= _311: revert with memory from mem[64] len v - mem[64] / mem[s] = v - mem[64] - 68",
+      "old": "if t >= _311: revert with 0xa7c34e4f, 32, mem[_284 + 196 len -_284 + v - 196] / mem[s] = -_284 + v - 228",
+      "source": "custom error with a bytes[] argument (revert 0xa7c34e4f(...))",
+      "issue": "The selector is written at _284 + 160 and the data are read from mem[64]; these are equal (_284 = mem[64] at 4799, mem[64] = mem[64] + 160 at 4807) but not identified, so the custom error falls back to raw memory. The same revert in unknownb98c330a and unknown1bca011a still decodes.",
+      "rule": "After p = mem[64]; mem[64] = mem[64] + k, a read of mem[64] is p + k: rewrite addresses into one form before matching revert data.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Reverts decoded: 0xdf95155a, 0x9fff831f, 0xa0db16fe, 0x14d71247, 0x4870bd74, 0x87dfb267, 0x837f46a6 (were mem[_V len 4]), 48 call-failure forwards are one line; two functions return Array(len=.., data=..) instead of raw memory, unknownb0777bfa's return shows 32, 64 and the length; a log in unknown5f516889 and unknown5ebd10ca decoded; stor1260 keyed by call.data instead of memory. P6 19 -> 0.",
+  "patterns": {"P1": 0, "P2": 3, "P3": 0, "P4": 3, "P5": 0, "P6": 0},
+  "notes": "Diff 2137 lines: reviewed by structure (per-function counts of calls, requires, writes, logs equal; the +1 while per function is regression 1) plus per-function diffs of multicall (delegatecall length now the value _18 + len, neutral), unknownb0777bfa, unknown4d6e7ce3 and unknown5ebd10ca. The new copy loops are semantically right (ceil32(n)/32 words).",
+  "summary": "Errors and returns are decoded in most places, but three regressions tied to mem[64]-relative addresses: five storage-to-memory bytes copies became while loops, sendPacket's return and event fall back to raw memory, and one custom-error revert is no longer decoded."
+}

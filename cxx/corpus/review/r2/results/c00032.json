@@ -1,0 +1,19 @@
+{
+  "id": "c00032",
+  "text_changed": true,
+  "lines_old": 3164,
+  "lines_new": 3071,
+  "changed_functions": 10,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "Strings.toString's do-while is still rotated in the 5 copies ('while t / 10:' writing digit t / 10 % 10); those functions did not change there."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "for loops ending the function are still 'while True' with the test inside; EnumerableSet index slots still raw sha3."},
+    {"n": 3, "kind": "artifact", "status": "still", "note": "Mailbox immutable still 0x0."},
+    {"n": 4, "kind": "simplification", "status": "partly", "note": "new Quote[](3): the peeled first iteration is gone (the allocation loop is now 'while True: .. mem[s] = _26 / if t != 1: ..; continue / break', 3 iterations, no 'while idx - 1'). The quotes[2] bound check against the constant length 3 is dropped (both branches store mem[128] = 3). '100 * 10**6' remains."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "SafeERC20/Address reverts decoded ('SafeERC20: low-level call failed', 'Address: call to non-contract', 'SafeERC20: ERC20 operation did not succeed'). Token calls named: approve, transfer, transferFrom on the (immutable, 0x0) token. In removeBridge the forceApprove error paths are printed as success-first branches without the old raw revert buffers; the third call's Error(string) is half decoded ('32, _106, mem[..]'), where it was fully raw. Dead quotes[2] bound checks dropped in quoteTransferRemote(To). 'mem[64] = 128' now appears at the start of quoteTransferRemote. P6 16 -> 0, P2 9 -> 1, return-memory 2 -> 0.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 1186 lines, reviewed function by function with the call/log/store/revert/while sequences and full diffs of removeBridge and quoteTransferRemote. In removeBridge the failure branches after the second and third approve are inverted ('if not mem[_79]: revert 'low-level call failed' / revert bubble'; 'if ext_call.success: checks else: bubble / Error'), with the same reverts in the same conditions. Addresses are consistent: _100 = _95 + 64, mem[64] = _95 + ceil32(rds) + 96. Source loops: the 11 are unchanged (still whiles).",
+  "summary": "No regression. Reverts and token calls are decoded, the constant-size Quote[] allocation loop is no longer rotated, and its dead bound check is gone. The rotated Strings.toString copies and the 'while True' fors remain."
+}

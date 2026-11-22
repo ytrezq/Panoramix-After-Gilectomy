@@ -1,0 +1,16 @@
+{
+  "id": "c00317",
+  "text_changed": true,
+  "lines_old": 685,
+  "lines_new": 669,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "After the 'Invalid request:' string concatenation (_41 = mem[64], mem[mem[64]] = _41 + _42 - mem[64] + 16), the BOBA transfer (call stor3 with args mem[mem[64] len ..]), the 'Cooldown' / response reverts and the 0x2747583c event are still raw memory in both claim functions."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "The 'No boba token' and 'Rate limit reached' reverts are decoded. The Turing payload's encoded length is resolved, so its copy loop is bounded by 'ceil32(cd[_param2 + 4]) + 96' instead of '_50 = mem[_44]', and the call length is shorter ('-_38 + _49 - ceil32(return_data.size)'). 'require mem[..] >= 96' became 'require _57 >= 96'. P6 6 -> 0.",
+  "patterns": {"P1": 0, "P2": 4, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 183 lines, all read. The call/log/store/revert sequences are unchanged apart from the two decoded reverts. The Strings.toString buffer (_77 = mem[64] before) is now addressed by its full sum ('_38 + ceil32(_1) + ceil32(return_data.size) + ceil32(_57) + ceil32(cd[_param2 + 4]) + 160'), which lengthens 6 lines; it is consistent with the old allocation and too small to count as a regression here. The rotated toString loop (P3) is unchanged.",
+  "summary": "No regression. Two reverts are decoded and the Turing payload copy has a resolved bound. The raw transfer/event after the string concatenation (round-1 finding) remains."
+}

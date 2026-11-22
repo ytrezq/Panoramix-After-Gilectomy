@@ -1,0 +1,42 @@
+{
+  "id": "c00171",
+  "text_changed": true,
+  "lines_old": 3779,
+  "lines_new": 3462,
+  "changed_functions": 5,
+  "old_findings": [
+    {"n": 1, "kind": "semantics", "status": "fixed", "note": "Each GAS read is now bound once where it executes. handleOps: '_194 = gas_remaining' before the innerHandleOp call (1481/1514); _244, _257 and _275 after it, used in the deposit SSTORE and the event (actualGas '_194 - _244 + _252 + _257 - _275'). The same holds in handleAggregatedOps (_572 before 3275), simulateHandleOp (_408 before 2257), innerHandleOp (_2 after decoding; _83 and _92 in _handlePostOp) and simulateValidation (AA41 check '_52 - _111')."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "actualGasCost is still distributed over the GAS terms ('_194 * _270 - _244 * _270 + _252 * _270 + _257 * _270 - _270 * _275'), and actualGas is unnamed."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "handleAggregatedOps(((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes)[],address,bytes)[],address)",
+      "lines": "2642-2644",
+      "decompiled": "_52 = gas_remaining / static call address(cd[..aggregator..]) with: gas _52",
+      "old": "static call address(cd[..aggregator..]) with: gas gas_remaining",
+      "source": "EntryPoint.sol handleAggregatedOps: try aggregator.validateSignatures(ops, opa.signature) {} catch { revert SignatureValidationFailed(address(aggregator)); }",
+      "issue": "A GAS read used once, as the gas argument of the call right after it, is bound to a temporary. The other 14 calls keep 'gas gas_remaining' inline.",
+      "rule": "Inline a GAS binding into its only use when no instruction with an effect lies between the read and that use.",
+      "verified": "reading only (_52 has no other use)"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "simulateValidation, handleOps, simulateHandleOp (unknownd6383f94), handleAggregatedOps",
+      "lines": "e.g. 440, 464, 537 (63 lines)",
+      "decompiled": "revert with FailedOp(uint256, string), 0, 64, 31, 0x414131302073656e64657220616c726561647920636f6e737472756374656400",
+      "source": "revert FailedOp(opIndex, \"AA10 sender already constructed\")",
+      "issue": "The 79 FailedOp reverts are now named (they were 'revert with mem[_N len 4], ...'). But a reason shorter than 32 bytes still prints as offset, length and a hex word. 32-byte reasons print as text ('AA51 prefund below actualGasCost').",
+      "rule": "A string argument whose data is a constant word, with its first len bytes printable and the rest zero, prints as a string literal of length len.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "The GAS fix repairs the gas accounting in all five functions that had it, and the stray '_1 = gas_remaining' lines are gone. All 79 FailedOp reverts and ExecutionResult are decoded, and the AA90/91/93/94/96 Error reverts print as strings. Failure branches are now one-armed 'if bad: revert'. The postOp and innerHandleOp calls are named with decoded args (postOp's context is an Array). The userOpHash uses address(cd[..]) instead of a memory word. Dead copies into memory are dropped from innerHandleOp, which is 129 lines now 88. P4 fell from 14 to 4 lines, P2 from 13 to 9, and P6 is gone.",
+  "patterns": {"P2": 9, "P4": 4},
+  "notes": "Very long diff (5600 lines; handleOps moved ahead of unknownd6383f94). Reviewed by structure: each big function's old body was diffed against its new body, and the effect-bearing changed lines were grouped (calls, logs, storage, reverts, loops, GAS). Every GAS read in the five functions was checked against EntryPoint's preGas/gasleft() order. All loops are kept, including handleAggregatedOps' encoding loop (2592). innerHandleOp's def no longer lists _param6 and _param12, which it never reads; the other parameters keep their numbers. The deposit store in simulateHandleOp/handleAggregatedOps now prints the 'deposit overflow' SafeMath.add form, as handleOps does (neutral).",
+  "summary": "The high round-1 GAS finding is fixed everywhere: preGas is read before the inner call, and each gasleft() is bound once. Custom errors and Error strings are decoded. Only a cosmetic regression (one GAS temp not inlined)."
+}

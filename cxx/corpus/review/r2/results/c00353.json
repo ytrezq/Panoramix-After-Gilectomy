@@ -1,0 +1,48 @@
+{
+  "id": "c00353",
+  "round1": true,
+  "abi_functions": 9,
+  "reviewed": 9,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0, "P11": 1, "P14": 3},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "exit(address,uint256)",
+      "lines": "200-231",
+      "decompiled": "_5 = ext_call.return_data[0] (both arms) / require mem[128] - 1 <= mem[128] / ... SafeMath.div(SafeMath.mul(1000000000 * 10**18, wad) + mem[128] - 1, mem[128]) (3 times) / pot.exit: args (_5 + SafeMath.mul(1000000000 * 10**18, wad) - 1) / _5 / rmul: _5 * ((_5 + SafeMath.mul(..) - 1) / _5) ..",
+      "source": "DsrManager.sol:109-118 chi = ...; pie = rdivup(wad, chi); ... pot.exit(pie); amt = rmul(chi, pie);",
+      "issue": "chi is printed both as mem[128] (the copy of the return data) and as _5, and pie = rdivup(wad, chi) is recomputed five times in two different shapes. The six-line function reads as four unrelated expressions.",
+      "rule": "A memory word known to equal a bound variable (here the return data copied to mem[128] and bound to _5) is printed as that variable. A pure expression evaluated more than once is bound to a variable at its first evaluation.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "exit(address,uint256)",
+      "lines": "212-213",
+      "decompiled": "require SafeMath.sub2(pieOf[caller], pie) <= pieOf[caller] / pieOf[caller] = SafeMath.sub2(pieOf[caller], pie)   (def SafeMath: sub2(a, b): if b > a: revert with 'insufficient-balance')",
+      "source": ":112 require(pieOf[msg.sender] >= pie, \"insufficient-balance\"); :114 pieOf[msg.sender] = sub(pieOf[msg.sender], pie);",
+      "issue": "The contract's own require is hidden inside a SafeMath helper that carries its message, and the outer 'require a - b <= a' (sub's check) is implied by the helper's 'b <= a' (P11).",
+      "rule": "Keep a check whose revert data is a contract-specific message as an explicit 'require a >= b, msg' and do not fold it into an arithmetic helper. 'a - b <= a' is always true once 'b <= a' holds: drop it.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "daiBalance, exit, exitAll, join",
+      "lines": "82, 158, 211-231, 125",
+      "decompiled": "return _7 / (1000000000 * 10**18)  |  require 1000000000 * 10**18 * wad / (1000000000 * 10**18) == wad",
+      "source": "uint256 constant RAY = 10 ** 27;",
+      "issue": "RAY = 10**27 prints as the product '1000000000 * 10**18'.",
+      "rule": "Print a power of ten as 10**n whatever its exponent.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Reviewed whole (no round-1 result; the text did not change since round 1). All 9 ABI functions and the fallback (bare revert) compared with DsrManager.sol. The storage slots pot/dai/daiJoin/supply/pieOf 0-4 match the declaration order (the pack's compiler layout is empty). daiBalance, exit, exitAll and join: the chi selection (rho/drip/chi), rdiv/rdivup/rmul with their mul/add/sub require checks, the 'insufficient-balance' check, the storage updates, the five external calls with their arguments, and the Join/Exit events all match. The check order inside rdivup is sub then mul then add; all three are bare requires, so the order is not observable. transferFrom's bool return is size-checked but unused, as in the source. No loop in the source or the text.",
+  "summary": "Faithful and short. The only problems are readability: chi printed as both mem[128] and _5, pie recomputed five times, the contract's require folded into a SafeMath helper, and RAY printed as 1000000000 * 10**18."
+}

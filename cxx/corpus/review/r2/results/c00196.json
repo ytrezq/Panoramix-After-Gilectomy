@@ -1,0 +1,16 @@
+{
+  "id": "c00196",
+  "text_changed": true,
+  "lines_old": 874,
+  "lines_new": 831,
+  "changed_functions": 7,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "the second bytes copy (revert encoding) is now a copy line; the lzReceiveSimulate self-call is still raw (the 1 P2 line), one decode copy loop remains and the SimulationResult revert is still '0x8351eea7, 32, _23, mem[...], Bytes(...)'"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Unknown functions' parameters now follow calldata word positions (isComposeMsgSender: _param4/_param5 after the 3-word Origin; send: _param1/_param4; lzReceiveSimulate: _param1, _param3.._param7), so the names no longer misplace the arguments; in lzReceive/lzReceiveSimulate the sendCompose bytes argument decodes as Array(len=mem[128] + 44, data=Bytes(8, nonce), Bytes(4, srcEid), amount, composeMsg) and its copy loop is gone (whiles -1 in three functions); P6 1 -> 0.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 378 lines; 7 functions changed; effect totals equal except the removed copy loops. The odd 'def SafeMath: mul(a, b): require b == uint64(b)' used for the packed nonce is unchanged from round 1 (only its hex constant now shows whole bytes). The 2 source loops unchanged.",
+  "summary": "Improved with no regression: correct calldata-position parameter names for unknown functions, a decoded sendCompose payload and one fewer copy loop; the raw self-call and half-decoded SimulationResult revert remain."
+}

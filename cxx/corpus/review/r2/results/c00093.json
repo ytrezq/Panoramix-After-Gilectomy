@@ -1,0 +1,52 @@
+{
+  "id": "c00093",
+  "text_changed": true,
+  "lines_old": 7083,
+  "lines_new": 5928,
+  "changed_functions": 11,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "mulDiv/LiquidityAmounts lines unchanged apart from renumbering and whole-byte hex (0x01000000000000000000000000); 2**96 still printed both as -79228162514264337593543950336 and in hex; lines over 400 chars 172 -> 173"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "the copy loop of the call buffer is gone and every SafeERC20 call is decoded (transfer/transferFrom with args), but the dead encodeWithSelector buffer stores, the split slices and the decimal selector ('mem[_49 + 32 len 4] = 2835717307', 13 lines) remain; see new finding 2 for the identity store now added"},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "'while idx < 2:' with 'Bytes(28, 0), mem[t + 28 len 4]' still encodes uint32[2] (3 places); observe's call line shows Array(len=2, data=mem[... len 64])"}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "withdraw, deposit, rebalance, getPositionAmounts, getTotalAmounts (53 SafeMath.mul calls)",
+      "lines": "e.g. withdraw 'SafeMath.mul(ext_call.return_data[16 len 16], shares, concat(Bytes(4, 0x08c379a0), 32, 33, 'SafeMath: multiplication overflow', mem[_269 + ceil32(return_data.size) + 159 len 31]))'",
+      "decompiled": "_95 = SafeMath.mul(uint128(_3), -protocolFee - managerFee + 10**6, concat(Bytes(4, 0x08c379a0), 32, 33, 'SafeMath: multiplication overflow', mem[ceil32(_1) + ceil32(return_data.size) + 287 len 31]))",
+      "source": "SafeMath.sol (0.7): require(c / a == b, \"SafeMath: multiplication overflow\")",
+      "issue": "The revert data are now exact (the 31 stale bytes after the 33-byte literal, copied by CODECOPY of exactly 33 bytes), which is right, but each of 53 calls now carries the selector, offset, length and a stale memory slice, some built from old event data (Bytes(27, uint216(_78 / 10**6)), Bytes(4, _124 >> 224)). Non-mulDiv lines over 240 chars went 7 -> 21.",
+      "rule": "When revert data equal Error(string) of a literal except for the padding after it, print the literal and name the padding once, e.g. SafeMath.mul(a, b, 'SafeMath: multiplication overflow' ~ mem[x len 31]) or a separate helper in def SafeMath, so the call stays short while staying exact.",
+      "verified": "reading only (the revert buffer address checked against the old text: _273 = _269 + 58, message at +68, padding at +101)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "uniswapV3MintCallback, uniswapV3SwapCallback, unknown1d769828, unknownfa9430e1, withdraw, deposit (8 SafeERC20 calls)",
+      "lines": "withdraw: 'mem[_729 + 36 len 28] = uint128(to >> 32)' ... 'args Bytes(28, uint128(to >> 32)), Bytes(4, uint32(to)), _266 + _513 + _710 + _15 / _4'; every block: 'mem[_49 + 232 len 28] = uint224(mem[_49 + 232 len 28])'",
+      "decompiled": "mem[_729 + 164 len 64] = Bytes(4, 0xa9059cbb), Bytes(28, uint128(to >> 32)), Bytes(4, uint32(to)), Bytes(28, X >> 32) / mem[_729 + 232 len 28] = uint224(mem[_729 + 232 len 28]) / call token0.transfer(address recipient, uint256 amount) with: args Bytes(28, uint128(to >> 32)), Bytes(4, uint32(to)), X",
+      "source": "SafeERC20.safeTransfer(token0, to, amount0): abi.encodeWithSelector(token.transfer.selector, to, value) and Address.functionCall's copy",
+      "issue": "Calls decoded now, with two leftovers: stores that write back the bytes already there (the selector merge's low 28 bytes, the copy's last-word merge) are printed (8 lines), and in withdraw's token0 transfer the re-store splits the word so the first argument prints as two byte slices, while the identical token1 block prints 'args to, ...'.",
+      "rule": "A store whose value is the bytes it overwrites (mem[a len n] = mem[a len n], or the same bytes of a word just stored there) is a no-op: drop it before decoding, so the word keeps its whole value (to).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "withdraw (2), deposit (3): positions(bytes32)",
+      "lines": "new text 1706-1718, 1846, 3023, 3058, 3093",
+      "decompiled": "_268 = mem[64] / mem[mem[64] + 32] = this.address << 96 / mem[mem[64] + 52] = ... / _269 = mem[64] / ... / static call pool with: args mem[_269 + 58 len _268 - _269 + 36]",
+      "source": "PositionKey.compute(address(this), tickLower, tickUpper) then pool.positions(key)",
+      "issue": "These are the 5 remaining P2 calls. The two reads of mem[64] are separated only by stores at mem[64] + 32/52/55, which cannot write slot 64, yet they stay distinct variables, so the length '_268 - _269 + 36' does not fold to 36 and the call stays raw. The same call is decoded (positions(bytes32), args sha3(...)) where mem[64] was known.",
+      "rule": "A store at mem[64] + k with k >= 32 (or above the free-pointer floor) does not change mem[64]; two reads of mem[64] with only such stores between them are the same value.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "Raw-argument calls 30 -> 5 (named calls 55 -> 80): burn, collect, slot0, balanceOf, positions(bytes32) with its sha3 key, every SafeERC20 transfer/transferFrom with arguments; the 14 SafeERC20 copy loops are gone (while 23 -> 9); Error(string) reverts print as revert with '...' ('T', 'SafeERC20: low-level call failed', 'ERC20: mint to the zero address', 'maxTotalSupply'); checked adds of storage print as SafeMath.add; CollectFees, Withdraw, Deposit and Transfer events now have named fields and exact values; withdraw/deposit return their values directly; P6 (124) gone. Text 1,155 lines shorter.",
+  "patterns": {"P2": 5},
+  "notes": "Diff of 5,074 lines reviewed by structure: 11 functions changed; hex-padding-only line pairs were filtered out (3,889 lines left), then each hunk of withdraw, deposit and the callbacks was read, and rebalance/getTotalAmounts through their changed calls, stores, events and conditions. Per function the calls, events and returns are unchanged; the extra ' call ' lines (104 -> 112) are the string 'SafeERC20: low-level call failed', and the fewer revert lines come from SafeMath folding. Checked: the order of the two SafeERC20 failure paths (both revert), the 'SafeMath.sub(10**6, protocolFee, ...)' fold of the two old checks, sqrtPriceX96 as ext_call.return_data[12 len 20] with no call in between, the positions liquidity variables (old _59/_6/_7 -> new _6/_10/_12, same burns), and the observe decoding (assert 0 < _5 / 1 < _5). getTwap still ends 'mem[X] = v / return memory from X len 32' (now with a long X instead of mem[64]), not folded to 'return v'.",
+  "summary": "No regression. Calls, events, Error(string) reverts and returns are now decoded throughout (P2 30 -> 5, while 23 -> 9, P6 gone). Exact SafeMath revert data make 53 mul calls long; small leftovers remain (identity stores, 5 positions calls with unmerged mem[64] reads). The three round-1 findings remain."
+}

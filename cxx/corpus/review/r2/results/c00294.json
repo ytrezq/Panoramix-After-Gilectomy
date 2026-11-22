@@ -1,0 +1,30 @@
+{
+  "id": "c00294",
+  "text_changed": true,
+  "lines_old": 974,
+  "lines_new": 939,
+  "changed_functions": 3,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "BytesLib.slice's copy loop in parseVM did not change."},
+    {"n": 2, "kind": "loop", "status": "still", "note": "verifyVM's guardian-key storage copy still peels its first element ('mem[_21 + 160] = stor2[..][0]' before the while), and the signature loops are still 'while True'. parseVM's zero-init is no longer rotated (a P3 instance, not this finding)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "verifyVM((uint8,uint32,uint32,uint16,bytes32,uint64,uint8,bytes,uint32,(bytes32,bytes32,uint8,uint8)[],bytes32))",
+      "lines": "336, 340",
+      "decompiled": "mem[_103 + 32] = mem[448] / signer2 = ecrecover(mem[448], uint8(_94), _92, _93)",
+      "old": "mem[_103 + 32] = cd[vm + 324] / signer2 = ecrecover(mem[mem[64] len _103 - mem[64] + 160])",
+      "source": "Messages.verifySignatures(vm.hash, vm.signatures, guardianSet): ecrecover(hash, sig.v, sig.r, sig.s)",
+      "issue": "Inside the signature loop, vm.hash is now read as its memory copy mem[448] (set at 282 to cd[vm + 324]). The old text forwarded the calldata value. ecrecover's arguments are newly decoded, but the first one names the memory slot instead of the field.",
+      "rule": "Carry the free-memory pointer's floor (above the decoded VM struct, here at least 480) into the loop, so stores at mem[64] + k cannot alias 448, and keep forwarding mem[448] = cd[vm + 324].",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P6 is gone (12 lines). The 0x9ad79794 custom-error reverts are 'revert with 0x9ad79794' instead of raw memory. ecrecover's arguments are decoded in verifySignatures and verifyVM ('ecrecover(hash, uint8(_37), _35, _36)'), and the recovered signer is read as mem[_46 + 12 len 20] instead of 'mem[mem[64] - 20 len 20]'. verifyVM's return length simplifies to 'ceil32(_134) + 96'. parseVM's zero-init is a do-while, no longer rotated (P3).",
+  "patterns": {},
+  "notes": "Diff 410 lines, read hunk by hunk. The verifyVM error paths (guardian set invalid/expired, no quorum) now build the (bool, string) return at explicit addresses. They were checked against the old ones: same words, same length. In the empty-guardian-set branch the base '_21 + 32 * stor2[..].length + 160' could fold to _21 + 160, since the length is 0 there.",
+  "summary": "Improved: custom errors and ecrecover decoded, P6 and one P3 gone. One low regression: verifyVM's signature loop uses vm.hash's memory copy mem[448] where the old text forwarded cd[vm + 324]."
+}

@@ -1,0 +1,43 @@
+{
+  "id": "c00256",
+  "text_changed": true,
+  "lines_old": 724,
+  "lines_new": 668,
+  "changed_functions": 5,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "fixed", "note": "setRoot's ecrecover now prints its four arguments. The ECDSA messages ('ECDSA: invalid signature'...) and the custom errors (0x4a36ec08, InvalidSigner(), 0xaa6185ca...) are decoded."},
+    {"n": 2, "kind": "loop", "status": "still", "note": "The uint8[32] packed copies keep the step 's - (s + 1) / 32 - s * ((s + 1) / 32) + 1' (getConfig, setConfig)."},
+    {"n": 3, "kind": "simplification", "status": "fixed", "note": "groupParents is now the array stor5[u] (def storage: 'fixed array of uint8'), and the group walk is no longer rotated: 'while uint8(u) < 32:' with one increment site, then Panic(50) after the loop."}
+  ],
+  "regressions": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "setRoot (unknown7cc38b28), MerkleProof.verify inlined",
+      "lines": "~370-385 (the proof loop after the 0xb057a452 check)",
+      "decompiled": "t = 0 / while s < _108: if t + sha3(0xe6b8..., _param3, _param4, _param5, _param6, _param7) < mem[_62 + 32 * s + 256]: mem[0] = t + sha3(...) ... / t = sha3(mem[0 len 64]) - sha3(0xe6b8..., ...) / t = t + sha3(0xe6b8..., ...)",
+      "old": "_81 = sha3(mem[_79 + 32 len mem[_79]]) / t = _81 / while s < _108: if t < mem[...]: mem[0] = t ... / t = sha3(mem[0 len 64])",
+      "source": "MerkleProof.verify: computedHash = leaf; for (...) computedHash = _hashPair(computedHash, proof[i]); return computedHash == root",
+      "issue": "The leaf hash now resolves, but the loop variable is rebased as an offset from it. The leaf hash expression appears in the comparison, in both arms, in the step (subtracted) and after the loop (added), so the plain 'computedHash = hash(computedHash, proof[i])' loop is much harder to read than before. execute's copy of this loop already had this form in round 1.",
+      "rule": "Keep a loop-carried value as its own phi variable (t = H; ... t = sha3(...)). Never rewrite a non-address loop value as initial + offset.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setConfig (unknown846c67ef)",
+      "lines": "~640-668",
+      "decompiled": "_88 = mem[64] / mem[mem[64]] = 64 ... / log 0x0a4974ad...: mem[mem[64] len _88 - mem[64] + 96 * stor3.length + 2176]",
+      "old": "log 0x0a4974ad...: mem[mem[64] len 96 * stor3.length + 2176]",
+      "source": "emit ConfigSet(config, isRootCleared)",
+      "issue": "The log length gains a spurious '_88 - mem[64]': the variable bound to mem[64] and the later load of mem[64] are not known to be equal, though only stores at mem[64] + k (and the scratch word 0) lie between them.",
+      "rule": "Unify two loads of slot 0x40 when no store between them can reach it (the pointer's floor >= 0x80 rules out mem[64] + k, k >= 0, and the scratch words).",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "56 fewer lines. setRoot is much clearer: ecrecover, the ECDSA messages and the custom errors are decoded, groupParents is named, and the group walk is de-rotated. getConfig returns its head words and arrays instead of 'return memory'. The _paramN fix: setConfig's bool is now _param67 (clearRoot is the 67th calldata word: two offsets, 2 x 32 uint8 words, then the bool), instead of _param3. P6 9 -> 0.",
+  "patterns": {"P3": 2, "P4": 1, "P6": 0, "P7": 9, "P8": 50, "P10": 2, "P11": 4, "P14": 10},
+  "notes": "Diff (443 lines) read hunk by hunk. setConfig's def line changed (_param3 -> _param67), so its bodies were diffed directly with that rename. Its only changes: an equality-resolved allocation, stor5[0][k] -> stor5[k], a dead 'mem[0] = 3', and the log length (regression 2). The new group walk checked against ManyChainMultiSig.setRoot: increment, compare with the quorum, move to the parent unless the group is 0, break otherwise; the bounds check is the while condition with Panic(50) after the loop. All 7 source loops present (20 whiles).",
+  "summary": "setRoot and getConfig improved a lot (old findings 1 and 3 fixed, parameter naming fixed), but setRoot's Merkle proof loop now carries its hash as an offset from the leaf hash (medium loop regression), and a log length picked up a spurious '_88 - mem[64]'."
+}

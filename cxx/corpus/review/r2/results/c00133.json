@@ -1,0 +1,68 @@
+{
+  "id": "c00133",
+  "text_changed": true,
+  "lines_old": 6520,
+  "lines_new": 6530,
+  "changed_functions": 22,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "EnumerableSet members inside mapped structs are still raw slot arithmetic; where slot variables are now inlined, the forms are longer (see regression 4)."},
+    {"n": 2, "kind": "simplification", "status": "fixed", "note": "All 22 'revert with mem[_N len 4], ...' now show the selector and decoded payload, e.g. 'revert with 0x4ff9e48a, 32, _24, mem[_23 + 68 len _24], ...' (unknown88ea09ee 248, 270; unknown94bbb012; updateNodes). A call whose function printed as 'mem[_2070 len 4]' is now unknownfba64a7c(?)."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "'revert with 0x5fab2b6600...00, mem[_402 + 28 len 4]' unchanged (4308)."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "removeDONsByName still holds the DON id in u and w; both are now 'uint32(stor[sha3(mem[_4 len cd[...] + 32])])' (longer, regression 4)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getNode(bytes32), unknown2af97674",
+      "lines": "getNode 1118-1119, 1121, 1138-1139; unknown2af97674 1035",
+      "decompiled": "mem[0] = mem[32 * s + 448] / mem[32] = 25 / ... / mem[mem[64]] = _46 / if not uint1(stor[sha3(mem[0 len 64])]):  |  mem[0] = sha3(mem[0 len 64]) + 6  |  static call address(stor[sha3(sha3(call.data[_param2 + 36 len cd[_param2 + 4]]), mem[32]) + 1]).unknown8318ed5d(?)",
+      "old": "_44 = sha3(mem[32 * s + 448], 25) / if not uint1(stor[_44]):  |  mem[0] = sha3(node, 18) + 6  |  static call address(stor3[sha3(call.data[...])].field_256).unknown8318ed5d(?)",
+      "source": "CapabilitiesRegistry.getNode: s_capabilities[hashedCapabilityIds[i]] strings, s_nodes[p2pId].capabilitiesPerDon; getDONs-type view reading s_capabilityConfigurationContracts (slot 3)",
+      "issue": "A mapping slot computed in the scratch words (mem[0], mem[32]) is no longer resolved once a store at a free-pointer-relative address follows it: the hash is printed as sha3(mem[0 len 64]) / mem[32] at its later uses. The slot the old text named (stor3[...].field_256, sha3(node, 18) + 6) becomes opaque. The memory-dependent hash is also printed after stores the text does not prove disjoint from [0, 64).",
+      "rule": "Bind a keccak of scratch memory to a value at the point where it is computed. Use the free pointer's constant floor (>= 0x80) to prove that stores at mem[64] + k (k >= 0) never reach [0, 0x40], so the scratch contents stay known.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "getNode(bytes32), unknown05a51966, unknown1d05394c (2)",
+      "lines": "getNode 1122-1127; unknown05a51966 (in the capability loop, 'while t < _144'); unknown1d05394c 'while idx < _343', 'while idx < _170'",
+      "decompiled": "t = 0 / idx = 0 / while idx < _343: mem[idx + mem[64]] = stor24[_245][t]; t = t + 1; idx = idx + 32 / t = (_343 + 31) / 32 + sha3(sha3(_245, 24))",
+      "old": "mem[mem[64] len ceil32(_343)] = stor[sha3(sha3(_245, 24)) len (_343 + 31) / 32]",
+      "source": "copies of storage strings into memory (string memory s = s_capabilities[...].labelledName / DON names)",
+      "issue": "Four storage-to-memory string copies that round 1 showed as copy lines are while loops again. The copy base, held in a variable before (_342 = mem[64]), is now re-read as mem[64] inside the loop, which writes memory, so the copy is no longer proven (in getNode the source also depends on mem[0]). Storage copy lines 69 -> 65, whiles 112 -> 116.",
+      "rule": "Evaluate the copy base once, before the loop (a load of slot 0x40 is a value, not a location). Use the pointer floor to prove that the loop's stores at base + i never hit slot 0x40 or the scratch words, then fold the loop into 'mem[base len n] = stor[s len k]'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getNode(bytes32), unknown2af97674",
+      "lines": "getNode 1203-1205; unknown2af97674 1067-1069",
+      "decompiled": "return memory / from mem[64] / len 32 * _68 + u - mem[64] + 32",
+      "old": "return mem[_48 len 256], 288, -_48 + u - 32, mem[_48 + 320 len -_48 + 32 * _68 + u - 288]",
+      "source": "getNode returns NodeInfo (struct with dynamic arrays); unknown2af97674 returns (string, string)-like tuple",
+      "issue": "Two returns that the old text split into words and memory slices are raw 'return memory' again. In the same function the base variable (_48, _22) was replaced by mem[64].",
+      "rule": "Keep decoding return data relative to its base value even when that base equals the current mem[64].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown88eafafb, unknown53a25dd7, removeDONsByName (b8521761), unknown94bbb012, updateNodes",
+      "lines": "e.g. unknown88eafafb 'stor[sha3(uint32(mem[188 len 4] - 1), sha3(Bytes(28, 0), mem[156 len 4], 19) + 1) + 5]' (24 lines); b8521761 2203-2214",
+      "decompiled": "if not uint1(stor[sha3(uint32(mem[188 len 4] - 1), sha3(Bytes(28, 0), mem[156 len 4], 19) + 1) + 5]):  |  u = uint32(stor[sha3(mem[_4 len cd[_param1 + cd[32 * idx + _param1 + 36] + 36] + 32])])",
+      "old": "if not uint1(stor[_92 + 5]):  |  _5 = sha3(mem[_4 len ...]) / u = uint32(stor[_5])",
+      "source": "CapabilitiesRegistry: s_dons[donId].config[version] fields; s_donNameToId-style lookups",
+      "issue": "Slot variables used several times are now inlined at each use as long hash expressions, some built from memory slices. Lines that read stor[_92 + 5] or stor[_5] become 150-250 characters; mem[0] does resolve now in some of them.",
+      "rule": "Keep a named temporary for a hashed slot that is used more than once (substitute only short expressions).",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Old finding 2 is fixed (22 custom-error reverts decoded); a call named 'mem[_2070 len 4]' now shows its selector. supportsInterface is named and its argument decoded. P4 keys (stor19[concat(mem[0])], stor14[concat(mem[0])], stor9[concat(mem[0])]) now use values. Logs decoded (Array(len, data), constant 0 payloads), and several returns are split into offset/length/data words. Hex constants show whole bytes (0x01ffc9a7...).",
+  "patterns": {"P2": 2, "P4": 100, "P6": 0, "P7": 54, "P8": 400, "P10": 10, "P11": 12, "P18": 21},
+  "notes": "Diff (1,575 lines) read hunk by hunk with per-function diffs (22 changed). The changed functions' text grew 2% in characters (lines over 240 chars 128 -> 139). Regressions 1-3 share one cause: values read from mem[64] (or from the scratch words) are now re-read at their uses after stores at free-pointer-relative addresses, instead of being kept as values. The selector-as-memory-slice display ('target.mem[a len 4]') already existed in round 1 here. The P4/P7/P8 counts are estimates.",
+  "summary": "Custom-error reverts and several keys and logs are now decoded (old finding 2 fixed), but four storage-string copies fell back to while loops, getNode's mapping slots and one call target became opaque scratch-memory hashes, two returns went back to raw memory, and inlined slot expressions lengthen many lines."
+}

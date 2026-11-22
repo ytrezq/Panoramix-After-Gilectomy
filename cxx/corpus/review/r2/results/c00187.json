@@ -1,0 +1,33 @@
+{
+  "id": "c00187",
+  "text_changed": true,
+  "lines_old": 1577,
+  "lines_new": 1574,
+  "changed_functions": 3,
+  "old_findings": [],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "claimReward(uint256)",
+      "lines": "1538-1543",
+      "decompiled": "mem[_62 + 100 len 68] = Bytes(4, 0xa9059cbb), Bytes(28, stor14_96 >> 32), Bytes(4, uint32(stor14_96)), stor14 / call 0x0.transfer(address recipient, uint256 amount) with: args Bytes(28, stor14_96 >> 32), Bytes(4, uint32(stor14_96)), stor14",
+      "source": "SafeERC20.safeTransfer in the reward claim",
+      "issue": "The call is named now, but its first argument word is printed as a 28-byte and a 4-byte piece of the same value (the result of storing the selector and the word at an offset of 4) instead of address(stor14_96).",
+      "rule": "Adjacent byte pieces Bytes(28, x >> 32), Bytes(4, uint32(x)) form the 32-byte word x; print an ABI argument as one word (address(x) when its top 12 bytes are known zero).",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "claimReward's token transfer is named with its arguments (was 'call 0x0 with args mem[..]'), its return-data buffer is addressed from _62; unknowneb576cf2 returns four Array(len=.., data=..) values (the old grouping was wrong). P2 2 -> 1.",
+  "patterns": {
+    "P1": 0,
+    "P2": 1,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff 103 lines, read whole. multicall's result encoding loop only renamed its variables and kept 'return memory from mem[64] len v - mem[64]' (neutral).",
+  "summary": "No regression: a transfer call is now named and a four-array return decoded; the transfer's address argument still prints as byte pieces."
+}

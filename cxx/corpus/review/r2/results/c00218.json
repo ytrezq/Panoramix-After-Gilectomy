@@ -1,0 +1,29 @@
+{
+  "id": "c00218",
+  "text_changed": true,
+  "lines_old": 1924,
+  "lines_new": 1886,
+  "changed_functions": 13,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "the other members of the copied struct now print as fields of the same mapping (stor5[..].field_256/512/672/680) instead of raw stor[_25 + k], but keyed by concat(mem[0]) while the first member keeps concat(mem[32 * idx + 160]); this is why P4 rises 4 -> 12 lines (setPairStatusBatch's 4 P4 keys are resolved)"},
+    {"n": 2, "kind": "artifact", "status": "still", "note": "immutables still 0"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification", "severity": "low",
+      "function": "setPairStatusBatch (unknowndb397717)",
+      "lines": "1801-1845 (20 lines)",
+      "decompiled": "if stor4[sha3(address(cd[160 * idx + _param1 + 36]), address(cd[160 * idx + _param1 + 68]), address(cd[160 * idx + _param1 + 100]), cd[160 * idx + _param1 + 132])]: / stor3[stor4[sha3(... same ...)] - 1] = ... / stor4[sha3(... same ...)] = 0 ...",
+      "old": "_89 = sha3(mem[_87 + 32 len mem[_87]]) ... if stor4[concat(mem[0])]: ... stor4[_89] = 0",
+      "source": "PendleRouterAdapter.setPairStatusBatch: bytes32 pairHash = keccak256(abi.encode(pair.market, pair.inputToken, pair.pendleToken, pair.status)); _allowedPairHashes.add/remove(pairHash)",
+      "issue": "The pair hash is now decoded, but its variable is gone: the 4-argument sha3 is substituted into 20 lines of the EnumerableSet add/remove code (lines of 200-280 characters), where round 1 used '_89'.",
+      "rule": "Keep a named variable for a non-trivial value used more than once (print its decoded definition once, e.g. '_89 = sha3(a, b, c, d)'); substitute only single uses.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "setPairStatusBatch's mapping keys resolved (stor2[address(ext_call.return_data[32])], stor4[...] instead of concat(mem[0]) and raw stor[_90]); the struct members of getAllowedPairs/serialize print as named fields; the zero-trip copies of the empty bytes (mem[96]) in the two router-call adapters are gone; P3 2 -> 0 (rotated zero-inits converted, +1 'if' in two functions); P6 10 -> 0.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 12, "P5": 0, "P6": 0},
+  "notes": "Diff of 1,230 lines; 13 functions changed; effect totals (calls, events, writes, reverts, returns) equal in all, loops: only the two zero-trip empty-bytes copies removed (correct: mem[96] is never written) and the rotations converted. The 2 source loops unchanged.",
+  "summary": "Improved: mapping keys and struct members are now resolved and the rotations converted; one low regression, the decoded pair hash substituted into 20 long lines instead of a variable. P4 rises because the struct members now go through the mapping with a scratch-memory key."
+}

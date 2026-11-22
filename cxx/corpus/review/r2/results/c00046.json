@@ -1,0 +1,29 @@
+{
+  "id": "c00046",
+  "text_changed": true,
+  "lines_old": 2722,
+  "lines_new": 2601,
+  "changed_functions": 12,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "Members of calldata struct-array elements are still nested offset arithmetic (cd[_param1 + cd[_param1 + cd[32 * t + _param1 + 36] + 36] + ...]) in every validation and copy line."}
+  ],
+  "regressions": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "unknowneea43aba(address,array) (_sumRestakingETHWithdrawals' inner loop)",
+      "lines": "1626-1648",
+      "decompiled": "t = 0 / u = s / while True: require cd[32 * idx + _param2 + 36] <′ ... (4 requires) / if t < cd[_param2 + cd[_param2 + cd[32 * idx + _param2 + 36] + 36] + cd[32 * idx + _param2 + 36] + 36]: ...; t = t + 1; u = _45; continue / break",
+      "old": "(4 requires once) / while t < cd[_param2 + cd[...] + ... + 36]: ...; t = t + 1; u = _45",
+      "source": "EtherFiNodesManager.sol (nested for over withdrawals[i].strategies, j < ...length)",
+      "issue": "The inner loop's header is now 'while True' and its condition is an 'if' inside the body, after four calldata-offset requires. The requires depend only on idx and calldata, so they are invariant in this loop. The old text (requires before the loop, 'while t < len') was exact and much clearer.",
+      "rule": "A check in a loop condition block whose operands are loop-invariant (calldata, outer variables) passes on every iteration if it passes once, and the block runs at least once. Hoist such checks before the loop and keep the remaining comparison as the while condition.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "121 fewer lines. Raw reverts 36 -> 19: custom errors (0x8b7114df, 0x3ff5b4a2, 0xdd6c454d, 0x9f106472, 0x27a267f1), 'Address: low-level delegate call failed', 'SafeCast: value doesn't fit in 64 bits'. P2 24 -> 13: selectors shown (unknown99d23cd8, unknown089acd98, unknownc44e30dc, unknownb87a8ecd) with decoded arguments, and sha256 arguments decoded. The withdrawal-credential getters return Array(len=32, data=...). The FundsTransferred log is decoded, a P4 key resolved (stor323[_31]), return-data checks read ext_call.return_data. requestExecutionLayerTriggeredWithdrawal's main loop is no longer rotated: the first element's pubkey check moved into a 'while True' with the exit at the end. P6 9 -> 0.",
+  "patterns": {"P2": 13, "P3": 2, "P4": 2, "P6": 0, "P7": 9, "P8": 50, "P16": 69},
+  "notes": "Diff (1,112 lines) read hunk by hunk with per-function diffs (12 changed). Loop counts per function are unchanged (32 whiles). The two 'while idx - 1' allocations remain (P3). P8 is an estimate.",
+  "summary": "Mostly improvements (custom-error reverts, named and decoded calls, a de-rotated main loop). One medium loop regression: an inner source loop now prints as 'while True' with its loop-invariant calldata checks and its condition inside the body."
+}

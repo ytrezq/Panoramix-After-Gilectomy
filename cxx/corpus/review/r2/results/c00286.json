@@ -1,0 +1,29 @@
+{
+  "id": "c00286",
+  "text_changed": true,
+  "lines_old": 563,
+  "lines_new": 552,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "the final 'operation is not ready' revert of executeBatch is now decoded (as a guard before timestamp[_11] = 1); the in-loop 'underlying transaction reverted' revert, the CallExecuted data and the call data stay raw at copies of mem[64]"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "scheduleBatch, executeBatch",
+      "lines": "389-398, 493-496 (9 lines)",
+      "decompiled": "_11 = sha3(mem[_9 + 32 len -_9 + t - 32]); timestamp[sha3(mem[_9 + 32 len -_9 + t - 32])]",
+      "old": "_11 = sha3(mem[_9 + 32 len mem[_9]]); timestamp[sha3(mem[_9 + 32 len mem[_9]])]",
+      "source": "TimelockController.hashOperationBatch: keccak256(abi.encode(targets, values, datas, predecessor, salt))",
+      "issue": "The hashed length is now the end-pointer difference with the negative term first, instead of the length word stored on the line before.",
+      "rule": "When the length word mem[p] was just stored and not changed, print len mem[p]; otherwise order the sum positive-first (t - p - 32).",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P6 fixed. executeBatch's closing check prints as 'if not _30: revert with 'TimelockController: operation is not ready'' followed by timestamp[_11] = 1, instead of a raw revert after the success path; its dead mapping-key stores are gone.",
+  "patterns": {"P2": 1},
+  "notes": "Diff 80 lines, read in full. 8 while before and after.",
+  "summary": "Low regression only (negative-first hash length in the operation-id keys); executeBatch's final revert is decoded."
+}

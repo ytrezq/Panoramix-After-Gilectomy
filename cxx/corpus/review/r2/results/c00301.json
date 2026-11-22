@@ -1,0 +1,16 @@
+{
+  "id": "c00301",
+  "text_changed": true,
+  "lines_old": 479,
+  "lines_new": 444,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "The bool result is now 'return bool(_244)'. The receiver call (onStateReceive at 0x26c53bea) is still raw memory: args mem[_191 + ceil32(_190) + 64 len -_191 + _213 - ceil32(_190) - 64], the selector still decimal (650460138). Its encode copy is now a copy line rather than a while."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Parameter names follow their calldata words. commitState's bytes is _param2 (word 1, syncTime, is unused), and replayHistoricFailedStateSync's leafIndex/stateId/receiver/data are _param17.._param20 after the 16 proof words, which are read as one copy. replayHistoricFailedStateSync's receiver call is decoded, onStateReceive(_param18, Array(len, data=call.data[...])), its merkle hashes print as sha3(s, _20), and '!proof' is a literal revert. commitState's rotated allocation loop is a do-while (P3 1 -> 0). P2 3 -> 2, P6 1 -> 0.",
+  "patterns": {"P1": 0, "P2": 2, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "I read the whole diff (2 functions). Most changed lines are the parameter renames. The four source loops (RLP numItems, toList, copy, merkle) are still whiles. In the merkle loop's else arm the hash reads sha3(mem[_27 + 32], s), where the then arm names the proof element: a small inconsistency. text_check run --per-selector 16, both worlds: 0 different (random world, guessed-param calls: 83 same, 8 unsupported, 5 inconclusive).",
+  "summary": "No regression. Parameter names now match calldata words, replayHistoricFailedStateSync's receiver call and merkle hashes are decoded, and commitState returns bool(_244). commitState's receiver call is still raw memory."
+}

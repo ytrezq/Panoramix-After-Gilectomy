@@ -1,0 +1,16 @@
+{
+  "id": "c00269",
+  "text_changed": true,
+  "lines_old": 622,
+  "lines_new": 622,
+  "changed_functions": 4,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "name() and symbol() did not change."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "P6 is gone (5 lines): CAP_MANAGER_ROLE's 0x027f9f68.. in its getter, in hasRole and in the toHexString argument, plus 0x0f00.. (eip712Domain fields) and 0x01ffc9a7.",
+  "patterns": {},
+  "notes": "Diff 52 lines, read in full: whole-byte hex only. The CAP_MANAGER_ROLE getter moved below unknownfadd1a1b (identical body).",
+  "summary": "No regression: display-only change (whole-byte hex), P6 gone."
+}

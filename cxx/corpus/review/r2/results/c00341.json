@@ -1,0 +1,27 @@
+{
+ "id": "c00341",
+ "text_changed": false,
+ "lines_old": 373,
+ "lines_new": 373,
+ "changed_functions": 0,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "artifact",
+   "status": "still",
+   "note": "Text unchanged."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "Text unchanged: the slate copies are still rotated loops (P3)."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "None (no diff).",
+ "patterns": {},
+ "notes": "No diff file, and the new text is byte-identical to round 1's. The rotation fix did not change these storage-to-memory slate copies.",
+ "summary": "Text unchanged; both round-1 findings stand."
+}

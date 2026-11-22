@@ -1,0 +1,29 @@
+{
+  "id": "c00169",
+  "text_changed": true,
+  "lines_old": 1658,
+  "lines_new": 1623,
+  "changed_functions": 10,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "partly", "note": "The P1 form is gone: initialize reads 'stor[0xf0c57e16..6a00]', the true Initializable slot. It is still printed next to storF0C5_64, the same slot under a second name."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknownac697e3f(...), claimRewards-style unknown (the two functions returning a uint256[] built at mem[128])",
+      "lines": "1378-1382, 1617-1621",
+      "decompiled": "_44 = mem[64] / mem[mem[64]] = 32 / _45 = mem[128] / mem[mem[64] + 32] = mem[128] ... return memory from mem[64] len _44 + 32 * _45 - mem[64] + 64",
+      "old": "mem[mem[64]] = 32 / mem[mem[64] + 32] = mem[128] ... return memory from mem[64] len 32 * mem[128] + 64",
+      "source": "return amounts; (uint256[] memory)",
+      "issue": "The return length was folded to '32 * mem[128] + 64'. It now carries '_44 - mem[64]' with _44 = mem[64] and no store to mem[64] in between, plus two new variables. The return is still raw memory in both texts.",
+      "rule": "x = mem[64] with no store to mem[64] in between makes 'x - mem[64]' 0. Better still, decode the return as Array(len=mem[128], ..), as done elsewhere in this build.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Custom errors decoded with their arguments (0x09639043, cd[..]; 0x96c6fd1e, 0; 0xe450d38c, caller, balanceOf[caller], ..; 0xbc28f241, ext_call.return_data[0]) instead of raw memory. SFC calls named (claimRewards, withdraw, slashingRefundRatio). The withdraw revert is flattened to 'if not _param2: revert ..' before the call. P1 2 -> 0, P6 13 -> 0, P2 4 -> 0.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 20, "P5": 0, "P6": 0},
+  "notes": "Diff 630 lines, reviewed function by function. The call/log/store/revert sequences are unchanged apart from names, decoded reverts and the flattened withdraw/revert order. The 4 source loops are unchanged whiles. The pack header lists no P4, but the text still has 20 one-element concat keys (round-1 count) by my regex.",
+  "summary": "Low regression: two raw returns lost their folded length ('_44 + 32 * _45 - mem[64] + 64'). Custom errors and SFC calls are decoded, and P1/P6 are gone."
+}

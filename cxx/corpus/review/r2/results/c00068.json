@@ -1,0 +1,30 @@
+{
+  "id": "c00068",
+  "text_changed": true,
+  "lines_old": 1391,
+  "lines_new": 1290,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "worse", "note": "Address sums now on 475 lines (448): pointer variables such as _709 are replaced by their value (_700 + ceil32(return_data.size) + 2 * ext_code.size(stor113) + 96), lines over 200 chars 71 -> 120 although the function is 107 lines shorter."},
+    {"n": 2, "kind": "simplification", "status": "fixed", "note": "All four salts print as sha3('L1R'/'L1SGW'/'L1CGW'/'L1WGW', Bytes(20, _param1)) (790-899); no raw-memory hash left."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown8277742b (createTokenBridge)",
+      "lines": "e.g. 964-978",
+      "decompiled": "mem[_700 + ceil32(return_data.size) + 2 * ext_code.size(stor113) + 164] = ext_call.return_data[0] (x 12 lines)",
+      "old": "mem[_709 + ceil32(return_data.size) + 68] = _710",
+      "source": "L1AtomicTokenBridgeCreator._deployL2Factory / retryable ticket encoding",
+      "issue": "Free-memory-pointer values held in variables are inlined as longer sums at every address (finding 1 worse); 49 more lines pass 200 chars.",
+      "rule": "Keep a non-constant free-memory-pointer value in a named variable and write addresses relative to it.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "6 of the 8 word-copy loops of creation code / constructor arguments are now copy lines (while 10 -> 4, the 2 exp loops and 2 copies remain). Calls named: createRetryableTicket with its arguments (value SafeMath.add(..), the add-overflow check folded with order kept), rollup, chainId, 6 former address(_V) calls. 'Address: call to non-contract', 'SafeERC20: ...' reverts resolved (were 'revert with memory'). OrbitTokenBridgeCreated logs 448 bytes of structs plus address(_10), address(_4) (was one raw range). P2 10 -> 1, P6 7 -> 0.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Only createTokenBridge changed (1137 -> 1030 lines): reviewed by structure (27 calls, 39 requires, 14 writes, 1 log as before; one Panic(17) check moved into SafeMath.add in the call value, only memory writes between its old place and the call). Read the retryable-ticket call and the event block.",
+  "summary": "Clearly better: copies, calls, reverts and salts are decoded; the one cost is longer inlined address sums (finding 1 worse, low)."
+}

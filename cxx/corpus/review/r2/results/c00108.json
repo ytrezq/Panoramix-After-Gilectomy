@@ -1,0 +1,85 @@
+{
+  "id": "c00108",
+  "text_changed": true,
+  "lines_old": 9927,
+  "lines_new": 7814,
+  "changed_functions": 7,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "_redeemNoFlash bound still distributed into four products and repeated in the body; it now even leads with '-1 * _160 * amount' (12 lines, see regressions)"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "shared redeem/redeemUnderlying CALL still printed with 'args mem[.. len 36]' (19 of the 27 P2 lines)"},
+    {"n": 3, "kind": "loop", "status": "worse", "note": "still a one-trip loop reading the element back from memory, and its bounds are now 'idx = 32 * _43 + ceil32(_3) + ceil32(return_data.size) + 224 / while 32 * _43 + ceil32(_3) + ceil32(return_data.size) + 256 > idx' instead of '_48 / _48 + 32'"},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "investedUnderlyingBalance unchanged"}
+  ],
+  "regressions": [
+    {
+      "kind": "loop", "severity": "medium",
+      "function": "withdrawToVault(uint256), doHardWork() (_depositNoFlash inlined)",
+      "lines": "3333-3345 (withdrawToVault), 7235-7247 (doHardWork)",
+      "decompiled": "while t < min(SafeMath.add(_78, _1115), (_1065 * _69 - _1065 * _78) / (_1064 - _1065)): / if -t + min(SafeMath.add(_78, _1115), (...)/(...)) > min(...): revert Panic(17) / ... min(-t + s * collateralFactorNumerator / stor4E92, -t + min(SafeMath.add(_78, _1115), ...))",
+      "old": "_1124 = min(SafeMath.add(_1073, _1115), (_1065 * _1070 - _1065 * _1073) / (_1064 - _1065)) ... while t < _1124: / if _1124 - t > _1124: ... min(_1124 - t, ...)",
+      "source": "VenusFoldStrategy.sol:485-487 while (borrowed < borrowTarget) { uint256 wantBorrow = borrowTarget.sub(borrowed); ... _borrow(Math.min(wantBorrow, maxBorrow));",
+      "issue": "The loop-invariant bound (borrowTarget) lost its binding: its 60-character expression is now substituted into the loop condition and four body lines, so the condition no longer reads as 'borrowed < borrowTarget'. Probably because its inputs became registers (ext_call.return_data) instead of memory reads, which made it substitutable.",
+      "rule": "Never substitute a non-trivial expression bound before a loop into the loop condition or into more than one use; keep the named variable (also after its inputs become pure).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification", "severity": "low",
+      "function": "withdrawToVault, withdrawAllToVault, doHardWork, emergencyExit, receiveFlashLoan, initializeStrategy",
+      "lines": "e.g. 3196, 3222, 3328 (withdrawToVault); 374 lines with 8 or more ceil32 terms",
+      "decompiled": "mem[64] = _1068 + ceil32(_68) + ceil32(_70) + ceil32(_71) + ceil32(_73) + ceil32(_74) + ceil32(_75) + ceil32(_79) + ceil32(return_data.size) / mem[_1068 + ceil32(_68) + ... + ceil32(return_data.size)] = 0x17bfdfbc...",
+      "old": "_1170 = mem[64] / mem[64] = ceil32(return_data.size) + mem[64] / mem[_1170 + ceil32(return_data.size)] = 0x3af9e669...",
+      "source": "VenusFoldStrategy.sol (every external call's ABI encoding)",
+      "issue": "With mem[64] now known, each later allocation is printed as the whole growing sum of earlier return sizes: lines with 8+ ceil32 terms went from 18 to 374, the longest line from 286 to 783 characters. Most are selector/argument stores that are dead now that the calls are decoded.",
+      "rule": "When the free-memory pointer advances, bind the new base to a name (p2 = p1 + ceil32(n)) and print later addresses from the latest name; drop memory writes no later read uses (P8) once the call that read them is decoded.",
+      "verified": "reading only (grep counts)"
+    },
+    {
+      "kind": "simplification", "severity": "low",
+      "function": "emergencyExit(), withdrawAllToVault() (redeem-maximum loop)",
+      "lines": "1788-1790 (emergencyExit), 5375-5377 (withdrawAllToVault)",
+      "decompiled": "if s - SafeMath.div(t * stor4E92, collateralFactorNumerator) > s: revert with Panic(17) / _303 = min(SafeMath.add(_99, t), s - SafeMath.div(t * stor4E92, collateralFactorNumerator))",
+      "old": "_303 = min(SafeMath.add(_99, t), SafeMath.sub(s, SafeMath.div(t * stor4E92, collateralFactorNumerator)))",
+      "source": "VenusFoldStrategy.sol:510 uint256 toRedeem = Math.min(supplied.sub(requiredCollateral), amount.add(toRepay));",
+      "issue": "A checked subtraction that printed as SafeMath.sub is now an explicit test plus a raw subtraction. The only check it moves past is SafeMath.add, which reverts with the same Panic(17), so the order did not need keeping.",
+      "rule": "Two checks whose failures produce identical revert data may be reordered; fold 'if x - y > x: revert Panic(17)' into SafeMath.sub(x, y) unless a check that fails differently lies between.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification", "severity": "low",
+      "function": "withdrawToVault(uint256) (_redeemNoFlash bound)",
+      "lines": "2690-2702 and 10 more lines",
+      "decompiled": "while t > (-1 * _160 * amount + _160 * _32 + _160 * _29 - _160 * _49) / (-_160 + _191):",
+      "old": "while t > (_135 * _160 + _160 * _168 - _160 * _173 - _160 * amount) / (-_160 + _191):",
+      "source": "VenusFoldStrategy.sol:505 while (borrowed > newBorrowTarget)",
+      "issue": "The same sum now starts with a negative term printed with a '-1 *' factor (12 lines).",
+      "rule": "Print a positive term first and negative terms as subtractions; never print a '-1 *' factor.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification", "severity": "medium",
+      "function": "receiveFlashLoan, emergencyExit, withdrawToVault, withdrawAllToVault, doHardWork",
+      "lines": "1051, 1094, 1150, 1322, 4667, 5046, 5485, 6468, 6847, 7016 (approve); 1677, 2395, 3287, 3613, 3637, 3884, 5197, 7189, ... (11 flashLoan); 4875, 6676",
+      "decompiled": "call address(_18).approve(address spender, uint256 amount) with: args Bytes(28, uint128(_19 >> 32)), Bytes(4, uint32(_19)), min(...) / flashLoan(...) args this.address, Array(len=1, data=Bytes(12, 0), mem[X + 44 len 20]), Array(len=1, data=_34), Array(len=32, data=0) / approve args Bytes(12, 0), ext_call.return_data[12 len 20], 0",
+      "source": "SafeERC20.safeApprove(spender, value); VenusFoldStrategy.sol:446-452 tokens[0] = _underlying; IBVault(bVault).flashLoan(address(this), tokens, amounts, userData)",
+      "issue": "These calls are decoded now, but one argument word is shown as byte slices: the spender split at the 32-byte boundary that the selector store created, the flash-loan token read back from memory right after 'mem[X + 32] = address(storA170)', and an address return value as Bytes(12, 0) plus a 20-byte slice.",
+      "rule": "Merge adjacent slices that rebuild one word (Bytes(28, x >> 32) ++ Bytes(4, uint32(x)) = x; Bytes(12, 0) ++ v[12 len 20] = address(v) when v is known to fit), and forward a word stored before the call into the argument that reads it back.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification", "severity": "medium",
+      "function": "withdrawAllToVault(), doHardWork() (rewardForwarder() lookup)",
+      "lines": "4388-4395 (withdrawAllToVault), 6189-6196 (doHardWork)",
+      "decompiled": "_871 = _156 + ceil32(_26) + ... + ceil32(_59) / mem[_871 + ceil32(return_data.size)] = 0xa98e929c... / static call address(_880) with: args mem[_156 + ceil32(_26) + ... + ceil32(return_data.size) len -_156 + _871 - ceil32(_26) - ... ]",
+      "source": "BaseUpgradeableStrategy rewardForwarder() lookup via the controller (the same call decodes as 'static call address(ext_call.return_data[0]).rewardForwarder()' at 4853 and 6654)",
+      "issue": "A variable bound to the free-memory sum is substituted in the start address but kept in the length, so the length never folds to 4 and two of the four copies of this call stay raw, in a 1,000-character line (old: a short raw line).",
+      "rule": "Substitute a variable bound to an address expression consistently (all uses or none) before simplifying a call's input range; here len = 4 and the call decodes as rewardForwarder().",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "P2 387 -> 27: the Venus, ERC20, SafeERC20, flashLoan, claimRewardToken, notifyFee and swap calls are named with arguments; 36 raw 'revert with memory' errors now print their strings (SafeERC20 messages, 'Unable to withdraw the entire amountUnderlying', 'emergency state'); the ProfitsNotCollected event decoded; P6 154 -> 0; return values read as ext_call.return_data instead of memory; 21 implicit one-element array copy loops, 18 statically true Panic(50) checks and a dominated 'if amount != balance' guard dropped. Text 9927 -> 7814 lines.",
+  "patterns": {"P1": 0, "P2": 27, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 12,861 lines reviewed by structure, per function (old vs new): calls, events, storage writes and requires are equal in count; whiles lose only implicit copies (the 4 source loops are present in every copy); reverts differ only by the 18 Panic(50) checks and the 2 split Panic(17). receiveFlashLoan's final 'stop' is now implicit (the success test is inverted). The untagged 'if' differences are SafeERC20 error blocks now printed as tagged reverts. No undefined temporaries; gas_remaining counts unchanged. initializeStrategy's new bounds use return_data.size of enterMarkets, with no call in between: correct.",
+  "summary": "A large improvement: nearly every call, error string and event is now named (P2 387 -> 27, P6 gone). Regressions: _depositNoFlash's loop bound is substituted into its condition and body (medium), the free-memory bookkeeping prints as long sums (low), plus two split SafeMath.sub checks and a '-1 *' term. New: decoded calls with an argument split into byte slices, and a call left raw by inconsistent substitution."
+}

@@ -1,0 +1,16 @@
+{
+  "id": "c00311",
+  "text_changed": true,
+  "lines_old": 438,
+  "lines_new": 437,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "the second balance loop's balanceOf, the Trade event data and the implied bounds checks are unchanged"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "unknownf0d7bb94: the balance read after the token call is now '_56 = ext_call.return_data[0]' instead of '_54 = mem[64] ... _56 = mem[_54]' (exact: after the size check, no call in between).",
+  "patterns": {"P1": 0, "P2": 6, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 14 lines, one hunk in unknownf0d7bb94.",
+  "summary": "No regression: one memory read folded into the return value; the round-1 finding stands."
+}

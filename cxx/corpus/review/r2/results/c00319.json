@@ -1,0 +1,16 @@
+{
+  "id": "c00319",
+  "text_changed": true,
+  "lines_old": 423,
+  "lines_new": 416,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "remove_relay is unchanged: the three rotated storage string-copy loops and the memory-held locals remain."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "get_relays: the return is now after the DynArray-copy loop ('if s + 1 != get_relays_amount: ...; continue / break', then one return) instead of being printed inside the loop's last iteration.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 10, "P6": 0},
+  "notes": "Diff of 48 lines, read in full; one function (get_relays). The return value is now a single slice 'mem[128 len t + ceil32(_20) + ceil32(_28) + ceil32(_34) + 224]', with the last element's three string lengths kept in _20/_28/_34. The old text listed that last element's head words and strings one by one. Exact (the loop is guarded by 'if not get_relays_amount: return'), and as readable as before (neutral).",
+  "summary": "No regression. get_relays' return moved out of the loop; the rest of the text is unchanged."
+}

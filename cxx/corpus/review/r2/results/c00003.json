@@ -1,0 +1,94 @@
+{
+ "id": "c00003",
+ "text_changed": true,
+ "lines_old": 26118,
+ "lines_new": 23440,
+ "changed_functions": 20,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "coverage",
+   "status": "still",
+   "note": "same 13 aborts at the same indents (6e2964a8, 76c8121a, 7ffc732a, 3d02341e at indent 2; aff7ef51 x7; 5e94ea04 x2)"
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "59 checked-exp helper loops unchanged (51 'while u > 1', 8 'while v > 1')"
+  },
+  {
+   "n": 3,
+   "kind": "simplification",
+   "status": "still",
+   "note": "'_62 = caller and ext_call.return_data[0]' still in every governance check"
+  },
+  {
+   "n": 4,
+   "kind": "simplification",
+   "status": "still",
+   "note": "'if not 4 * uint1(..field_234)', '2 * uint1(..field_209)' unchanged"
+  },
+  {
+   "n": 5,
+   "kind": "simplification",
+   "status": "still",
+   "note": "'1000000000 * 10**18' unchanged"
+  },
+  {
+   "n": 6,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "range checks now 'require ext_call.return_data[0] == uint80(ext_call.return_data[0])' (162 byte-slice checks -> 27; getPriceRawForMode/getPricesRawForMode keep 'return_data[0] == return_data[22 len 10]'); the 39 'Bytes(12, 0), mem[..]' / 'Bytes(31, 0), mem[..]' field reads of the return encodings unchanged"
+  },
+  {
+   "n": 7,
+   "kind": "simplification",
+   "status": "still",
+   "note": "removeConfig unchanged"
+  },
+  {
+   "n": 8,
+   "kind": "simplification",
+   "status": "still",
+   "note": "loop-carried s, t still assigned and never read (e.g. new 1002-1003, 1051-1052)"
+  },
+  {
+   "n": 9,
+   "kind": "simplification",
+   "status": "still",
+   "note": "split address slices and decimal selector 1992823322 remain; now also in the args of getPriceView/getPriceDetailedView, whose self-call is decoded now"
+  },
+  {
+   "n": 10,
+   "kind": "artifact",
+   "status": "still",
+   "note": "immutables read as 0 (0x0.unknownb5c736e4, 'if caller' in multicall)"
+  }
+ ],
+ "regressions": [],
+ "new_findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "getPriceView(address,uint256,bool,bool), getPriceDetailedView(address,uint256,bool,bool)",
+   "lines": "1219, 1356",
+   "decompiled": "mem[mem[64] + 36] = _param1 ... _91 = mem[64] ... mem[_91 + 36 len 28] = uint128(_param1 >> 32) / mem[_91 + 32 len 4] = 1992823322",
+   "source": "main.sol:1647 address(this).staticcall(abi.encodeCall(this._getPriceImplNoWrite, (token_, emode_, isOperate_, isCollateral_)))",
+   "issue": "Now that the self-call is decoded, the read-modify-write of the selector word prints its unchanged 28-byte part as a store of the bytes already there (getPriceDetailedViewRaw already showed it with constant addresses: 'mem[176 len 16] = uint128(_param1 >> 32)').",
+   "rule": "A memory store whose value equals the bytes the location already holds (known from an earlier store to the same bytes with no write in between) is a no-op: drop it, keeping only the changed bytes (the 4-byte selector).",
+   "verified": "reading only (old word at _91+36 is _param1; its first 28 bytes are uint128(_param1 >> 32) for a 160-bit _param1)"
+  }
+ ],
+ "improvements": "P2 293 -> 203 lines: decimals(), symbol(), the self-call unknown76c8121a with its arguments, and the 12/24 unnamed source-check calls of each set*SourceConfig (now unknown13d368a7/unknown8e7bfbc0) are named. P4 88 -> 6: keys print as stor0[sha3(_param1, uint240(stor1[_param1][idx].field_0), _39, _45)]. Logs, returns and range checks read plain values (log ..: _param1, 1; return mem[_99 + 32], uint8(..), uint8(..); == uint80(..)). Dead memory writes dropped (26118 -> 23440 lines). Duplicated tails (P12) merged in removeSourceConfig/removeAdditionalSourceConfig (6 -> 4 logs, one-armed 'if flag: removeAlt..'). In _getPriceImplNoWrite ctx_.isWrite now resolves to the constant false, so the dead _readFluidSourceWrite path (24 non-static calls with their reverts) is gone (93 -> 49 calls); getPrice/getPriceDetailed keep their 80 write calls each. The rotated zero-init of new ConfiguredTokenOracle[](n) is one 'while True' loop (P3 fixed there); hex constants show whole bytes (0x0466..., 0x08c379a0).",
+ "patterns": {
+  "P1": 0,
+  "P2": 203,
+  "P3": 0,
+  "P4": 6,
+  "P5": 0,
+  "P6": 0
+ },
+ "notes": "Diff of 19518 lines reviewed by structure, partly because functions moved in the text. For each of the 20 changed functions I compared the counts of calls, loops, aborts, logs, reverts, requires, storage writes and returns between the old and new text and read every hunk where a count changed: the remove*SourceConfig family, setTokenType, sequencerL2Data, getPriceView, getPriceDetailedView, setPriceMode, setSourceConfig (+3 twins with identical counts), _getPriceImplNoWrite (the write-path removal checked against main.sol:1092 _readSourceMaybeWrite and :1668 '_getPriceImpl(.., false)'), the zero-init loop of getConfiguredTokenOracles, and multicall. getPrice, getPriceDetailed, getPriceRawForMode, getPricesRawForMode and getConfiguredTokenOracles keep all their counts; their changes are memory rebases (mem[_262 + 96] -> mem[_261 + 224]), return_data reads, and ctx fields read as _param3/_param4. setPriceMode drops a dead 'mem[64] = mem[64] + 96' and rebases the later reads consistently on both branches (mem[mem[64] + 108 len 20] != caller). Assignments that came before 'break' in the sequencer do-while loops now come after the loop: exact, because break is the loop's only exit. multicall keeps a one-statement rotation ('mem[160] = 96' before 'while idx - 1:'), within the two-statement limit; the regex counts it as no P3.",
+ "summary": "No regression. Many raw-memory artifacts are gone (P2 293->203, P4 88->6, plain logs/returns/range checks), as are P12 tails, the dead write path of _getPriceImplNoWrite and a P3 rotation. The 13 aborts and the 59 exp-helper loops remain."
+}

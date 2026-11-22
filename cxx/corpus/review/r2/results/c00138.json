@@ -1,0 +1,17 @@
+{
+  "id": "c00138",
+  "text_changed": true,
+  "lines_old": 2863,
+  "lines_new": 2336,
+  "changed_functions": 10,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "partly", "note": "The sort's inner loop (getStake in its condition) is now 'while True:' with the condition computed once per iteration at the top, not rotated (2259-2282). The pure conjunction flags remain: _100 (runTasks 969/999), _1829 (2288/2302), _1738 (2170/2184; here folded to 0 on its min == 0 path, but the dead loop is kept)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "AddressSetLib.clear still prints as 'while _10 + sha3(109) > s + sha3(109): stor109[s] = 0' (610)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "527 fewer lines. Raw reverts 38 -> 0 (SafeMath sub/mul/div helpers, 'Cannot recover signature', 'Signatures are not unique...', 'EnumerableSet: index out of bounds', 'Token transfer failed'...), raw logs 8 -> 0, concat(mem[0]) keys 3 -> 0, P6 39 -> 0, memory stores 769 -> 515. Calls named: runTask(), peek(), getStake, registry.getUint, token.transfer. ecrecover's arguments are decoded. Returns: unknowndc8990e1 now returns Array(len, data). In unknown4a1131a9 the three paths that each logged the round event with an empty array now join into one log at the end (correct tail merge). GAS fix: runTasks' initialGas is read after the ABI checks (the old _3 was before them), and the single gasleft() after peek() is now one variable _127 (the old text read gas_remaining five times).",
+  "patterns": {"P2": 1, "P3": 4, "P4": 0, "P6": 0, "P7": 12, "P11": 15},
+  "notes": "Diff (2,405 lines) read hunk by hunk with per-function diffs. Checked against TasksRunner.sol:247-291 (GAS order: gasleft, _getBaseFee/peek, gasleft). Loops per function: only implicit loops were removed (revert-message copies, encodings of the merged logs, 69 -> 60 whiles); the sort loop and the source loops are all present. A log now precedes a SafeMath.sub check in switchRound (1731-1734), which is unobservable since a revert discards logs. In switchRound's insertion, an address variable is now spelled as its memory slice (2176-2183), with no net change in readability. P3/P7/P11 are estimates.",
+  "summary": "No regression: a large cleanup (all reverts and logs resolved, calls named, the GAS reads placed and unified correctly, a correct tail merge of three identical logs). The conjunction-flag loops and the storage clear loop remain."
+}

@@ -1,0 +1,23 @@
+{
+ "id": "c00186",
+ "text_changed": true,
+ "lines_old": 1915,
+ "lines_new": 1775,
+ "changed_functions": 9,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "artifact",
+   "status": "still",
+   "note": "price strategy and vault immutables still read as 0x0."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "Calls named with decoded arguments (getSellFee, getBuyFee, use, restore, getUsage, isValidSignature, unknowna7b78c3c...; P2 21 -> 5); the two preview functions now `return finalAssetAmount, ghoToReceive, finalGrossAmount, finalFee` as expressions instead of `return memory`; three of the four `revert with memory` in each sell function decoded ('EXOGENOUS_ASSET_EXPOSURE_TOO_HIGH', 'INVALID_AMOUNT', SafeCastOverflowedUintDowncast 0x6dfcc650); ecrecover shows its EIP-712 digest; stor58's accrued-fee write reads `ext_call.return_data[0]` instead of `mem[_V]`; P6 gone; 140 fewer lines.",
+ "patterns": {
+  "P2": 5
+ },
+ "notes": "Per-function normalized diffs and statement multisets: every difference is a named call, a decoded return/revert/hash or renumbered variables (`-_51 + _55 + _63` -> `_55 + _63 - _3`, the same sum). The redundant `SafeMath.sub(_13, _1 - _5)` after an identical explicit Panic(17) test in unknownc431280e's return was already in the old text (P11). eip712Domain's return changed only by hex padding.",
+ "summary": "No regression; calls, preview returns, require messages and the SafeCast error are now decoded, leaving a short, faithful text whose only oddity is the zero immutables."
+}

@@ -1,0 +1,16 @@
+{
+  "id": "c00393",
+  "text_changed": true,
+  "lines_old": 13,
+  "lines_new": 13,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "partly", "note": "The immutables still read as 0 (artifact, unchanged), but the empty bytes constant now prints as '' instead of its ABI words '32, 0', which is the display fix round 1 suggested."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "const getCreationCode = '' (was 32, 0).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of one line, read in full.",
+  "summary": "No regression; the empty-bytes constant is now printed as ''."
+}

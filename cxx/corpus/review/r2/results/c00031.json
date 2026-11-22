@@ -1,0 +1,16 @@
+{
+  "id": "c00031",
+  "text_changed": true,
+  "lines_old": 754,
+  "lines_new": 754,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "setTimelockWindows unchanged (no hunk): raw calldata element arithmetic and the unused struct allocation remain."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "isFactory(bytes32,address) (unknown6167f931) now names its address parameter _param2, the calldata word it is (MapleGlobals.sol:471, factory_ is the second argument; the unused bytes32 is not shown), where the old text called it _param1.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 18 lines (one function) read in full and checked against the source.",
+  "summary": "No regression; the only change names an unknown function's parameter after its calldata word, which is now correct."
+}

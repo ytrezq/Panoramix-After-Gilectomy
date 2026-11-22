@@ -1,0 +1,47 @@
+{
+  "id": "c00247",
+  "text_changed": true,
+  "lines_old": 2751,
+  "lines_new": 2714,
+  "changed_functions": 13,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "The msg.sig dispatch of _getAdminRestrictions is still unfolded in every onlyAuthorized function (only its selector constants now show whole bytes)."
+    },
+    {
+      "n": 2,
+      "kind": "simplification",
+      "status": "still",
+      "note": "Nested mapping still raw stor[sha3(selector, sha3(target, 0))]; execute's execution id is still a memory hash (stor3 = sha3(mem[_145 + ceil32(_data.length) + 192 len _144 - _145 + 64])); ceil32 still Mask(250, 5, x + 31)."
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "execute(address,bytes), schedule (unknownf801a698)",
+      "lines": "execute 2358-2408 (15 lines), schedule 632-648 (9 lines)",
+      "decompiled": "mem[_144 + ceil32(_data.length) + 164] = sha3(caller, _target, 96, _data.length, _data[all], Bytes(ceil32(_data.length) - _data.length, 0))  |  return sha3(caller, _param1, 96, cd[_param2 + 4], call.data[...], Bytes(...)), uint32(_106 + 1)",
+      "old": "_147 = sha3(mem[_145 + 32 len mem[_145]]) ... mem[... + 164] = _147  |  _94 = sha3(mem[_92 + 32 len mem[_92]]) ... return _94, uint32(_106 + 1)",
+      "source": "AccessManager.sol hashOperation: keccak256(abi.encode(caller, target, data)), used for _schedules[operationId] and in errors and events",
+      "issue": "The operation id is now resolved to its abi.encode tuple, which is good, but the temporary that held it is gone. The roughly 100-character hash is repeated in every storage key, revert argument, event topic and the return (15 lines in execute, 9 in schedule).",
+      "rule": "Bind a composite expression used more than twice (especially a sha3 over several operands) to one temporary at its first evaluation.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "The operation id hashes resolve to sha3(caller, target, 96, len, data, padding), matching hashOperation. schedule's AlreadyScheduled revert decodes as 'revert with 0x813e9459, <hash>' and its OperationScheduled data decodes its first four words. Dead mapping-key writes to mem[0]/mem[32] are dropped in schedule. Selectors with a leading zero digit show whole bytes (P6 42 -> 0).",
+  "patterns": {
+    "P1": 0,
+    "P2": 1,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff of 868 lines, read by function (13 changed; 10 only by the 0x08d6122d display). Effects and control-flow skeletons are identical old vs new. multicall's result-encoding loop renamed its counter idx -> s and reads its bound mem[160] directly (neutral). execute's custom-error reverts stay raw memory (len _144 - _145 + 68), as before.",
+  "summary": "One low regression: the newly resolved operation-id hash is inlined on 15 and 9 lines in execute and schedule instead of being bound once. Otherwise the hash inputs and schedule's revert and event become readable, and P6 is gone."
+}

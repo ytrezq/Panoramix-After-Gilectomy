@@ -1,0 +1,48 @@
+{
+  "id": "c00295",
+  "round1": true,
+  "abi_functions": 23,
+  "reviewed": 23,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0, "P8": 90},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "safeTransferFrom(address,address,uint256,bytes)",
+      "lines": "534-544",
+      "decompiled": "mem[ceil32(_data.length) + 292] = _data.length / mem[ceil32(_data.length) + 324 len _data.length] = _data[all] / ... args caller, from, tokenId, 128, mem[ceil32(_data.length) + 292 len ceil32(_data.length) + 32]",
+      "source": "OZ ERC721._checkOnERC721Received: IERC721Receiver(to).onERC721Received(_msgSender(), from, tokenId, data)",
+      "issue": "The bytes argument is printed as its head offset plus a raw memory slice, although the slice was just written as [length, copy of calldata _data, zero padding]. The 3-argument variant prints its empty bytes as Array(len=0, data='').",
+      "rule": "A memory region written right before a call as a length word, a copy of n bytes and zero padding to ceil32(n), and placed at the offset given in the head, is an ABI bytes argument: print it as Array(len=n, data=<source of the copy>).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "safeTransferFrom(address,address,uint256), safeTransferFrom(address,address,uint256,bytes)",
+      "lines": "289-384, 435-529 (about 90 lines)",
+      "decompiled": "mem[0] = tokenId / mem[32] = 2 / ... / mem[0] = from / mem[32] = 3 / balanceOf[from]-- / mem[0] = to / balanceOf[to]++",
+      "source": "OZ ERC721._safeTransfer -> _transfer, _beforeTokenTransfer (ERC721Enumerable)",
+      "issue": "The mapping-key scratch writes (mem[0], mem[32]) are kept throughout both safeTransferFrom functions. They are dropped in transferFrom, which runs the same transfer code without the onERC721Received call (P8).",
+      "rule": "A CALL reads only memory[argsOffset, argsOffset + argsSize). A scratch write to words outside that range is dead when the word is overwritten before any other read, even if a call follows.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "paused(), renounceOwnership(), transferOwnership(address)",
+      "lines": "51-52, 95-98, 126-130",
+      "decompiled": "return bool(uint8(stor[10])) / _1 = stor[10] / owner = 0 / log OwnershipTransferred(address indexed previousOwner=address(_1 >> 8), ...)",
+      "source": "Pausable._paused (slot 10 +0, bool) and Ownable._owner (slot 10 +1)",
+      "issue": "def storage names owner (slot 10, offset 8) but not the bool packed below it, so paused() reads the raw slot. The previous owner in OwnershipTransferred is shown as address(stor[10] >> 8) instead of owner.",
+      "rule": "Give every field of a packed slot that a getter returns a name in def storage (paused is uint8 at storage 10). Print a read of the whole slot that is only used shifted to a field as a read of that field.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "OpenZeppelin 4.9 ERC721 + Enumerable + Burnable + Pausable + Ownable test token. The AST gives source only for mint, counter and supportsInterface, so the inherited functions were checked against OZ 4.9 semantics line by line: approve (two ownerOf checks), burn (_isApprovedOrOwner, owner and all-tokens enumeration removal with both Panic(50) checks and the pop, second ownerOf, deletes, Transfer), _transfer (from/to enumeration arms, re-check, approvals, balances, Transfer), _checkOnERC721Received (isContract, try/catch with empty-reason message and bubbling, bytes4 check), setApprovalForAll, the enumerable getters, tokenURI (empty base URI: return ''), name/symbol storage-string decoding, Ownable. All exact; checks dominated by earlier identical checks are omitted correctly. Pausable is not used by any transfer. The only source loop (mint's for, with counter++ checked by SafeMath.inc and the counter increment unchecked) is a clean while. Round-2 diff (3 lines): tokenURI 'return 32, 0' -> 'return ''', 0x01ffc9a7 now whole bytes, the empty bytes argument now Array(len=0, data=''); all improvements. The two identical bytes4 checks print differently (Mask(32, 224, x) vs x[0 len 4] << 224).",
+  "summary": "Clean and faithful ERC721 text with its one loop as a while. Minor issues: the bytes argument of onERC721Received is raw memory in the 4-argument safeTransferFrom, dead scratch writes are kept only in the functions that make an external call, and slot 10's paused flag is unnamed."
+}

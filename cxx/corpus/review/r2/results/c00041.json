@@ -1,0 +1,44 @@
+{
+  "id": "c00041",
+  "text_changed": true,
+  "lines_old": 5266,
+  "lines_new": 4987,
+  "changed_functions": 17,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "Packed uint32 creditPositions/debtPositions elements still raw 'Mask(32, 32 * (i % 8), stor[i / 8 + sha3(10)]) >> ..' (386 lines, old 428; fewer only because text shrank)."},
+    {"n": 2, "kind": "loop", "status": "still", "note": "getCreditPositions/getDebtPositions unchanged (rotated packed-array copy)."},
+    {"n": 3, "kind": "simplification", "status": "partly", "note": "Storage-bytes copies into call memory: 22 -> 16 loops; 6 are now copy lines 'mem[a len ceil32(n)] = stor[sha3(..) len (n + 31) / 32]' (totalAssets, callOnAdaptor, cachePriceRouter...)."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "callOnAdaptor's mulDivUp still distributed / '(p - 1) / d * bool(p) + bool(p)'."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "cachePriceRouter(bool,uint16,address) (unknownc588d8d6)",
+      "lines": "4072-4100 and the following lines of the same loop (36 lines)",
+      "decompiled": "mem[0] = Mask(32, 32 * (idx % 8), stor[idx / 8 + sha3(10)]) >> 32 * (idx % 8) / mem[32] = 13 / mem[mem[64]] = 0x78415365.. / mem[mem[64] + 4] = 32 / if uint1(stor[sha3(mem[0 len 64]) + 1]): _399 = stor[sha3(mem[0 len 64]) + 1].field_1 ... mem[s + mem[64] + 68] = stor[t + sha3(mem[0])]",
+      "old": "if uint1(stor13[Mask(32, 32 * (idx % 8), stor[idx / 8 + sha3(10)]) >> 32 * (idx % 8)].field_256): _139 = stor13[..].field_257 ...",
+      "source": "Cellar._calculateTotalAssets loop: adaptor.balanceOf(getPositionData[position].adaptorData) (inlined into cachePriceRouter)",
+      "issue": "The stores at mem[mem[64]] (the call buffer) are no longer proven disjoint from the hash scratch words, so getPositionData[position].adaptorData prints as stor[sha3(mem[0 len 64]) + 1]. The other copies of this loop (totalAssets, maxRedeem...) still print stor13[..]. sha3(mem[..]) lines 8 -> 42. Same root cause as c00090's revertEnableRebalancing.",
+      "rule": "mem[64] keeps a floor >= 0x80 through loop headers and joins (all its stores write >= 0x80 or mem[64] plus a non-negative size). So stores at mem[64] + k never touch mem[0..63], and the scratch words can be forwarded into the sha3.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "totalAssets, totalAssetsWithdrawable, maxRedeem, maxWithdraw, cachePriceRouter, callOnAdaptor (the memory arrays of _calculateTotalAssets)",
+      "lines": "e.g. totalAssets loop",
+      "decompiled": "if idx >= mem[_7 + 32 * stor10.length + 32]: ... mem[_7 + 32 * idx + 32 * stor10.length + 64] = ext_call.return_data[0]  |  args mem[_85 + ceil32(return_data.size) len -_85 + _115 - ceil32(return_data.size)]",
+      "old": "_10 = mem[64] ... if idx >= mem[_10]: ... mem[_10 + 32 * idx + 32] = mem[_85]  |  args mem[mem[64] len _115 - mem[64]]",
+      "source": "Cellar._calculateTotalAssetsOrTotalAssetsWithdrawable: uint256[] memory balances = new uint256[](numOfCreditPositions) ...",
+      "issue": "The base variables of freshly allocated arrays (_10, _12, _14) are replaced by sums of the earlier allocation sizes, and a call's raw length becomes '-_85 + _115 - ceil32(return_data.size)'. This is milder than in c00090: 9 lines with >= 4 ceil32 terms (old 2).",
+      "rule": "Keep a variable for an allocation's base and print addresses as base + constant; substitute the symbolic free-memory pointer only where it is a constant or a single term.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Custom errors and string reverts decoded: Cellar__AssetMismatch(asset, expectedAsset), Cellar__PositionNotEmpty, Cellar__RemovingHoldingPosition(), Cellar__IncompleteWithdraw, 'Index out of bounds', 'Address: low-level delegate call failed', 'Address: call to non-contract', and bare selectors such as 0x4ee204d7 instead of raw memory (retmem 7 -> 5, quoted 47 -> 53). Calls named: decimals, target, getPriceInUSD, approve. 'if ok: ..stop / revert' blocks flattened (unknown0780fd3a). Whiles 101 -> 93: 6 storage-bytes copies became copy lines, and redeem/withdraw lost the P7 copy of the delegate-call failure message. P6 19 -> 0, P4 8 -> 6 (executeOperation: stor15[address(_108)]), P2 59 -> 53.",
+  "patterns": {"P1": 0, "P2": 53, "P3": 0, "P4": 6, "P5": 0, "P6": 0},
+  "notes": "Diff 2871 lines, reviewed function by function. The per-function sequences of calls, logs, storage writes, reverts, returns and whiles differ only by decoded reverts, named calls, the 8 whiles that became copy lines or decoded reverts, and the order of the flattened 'if ..: revert' in unknown0780fd3a/855bccb3. The 10 source loops are all still whiles (multicall, executeOperation, the 3 fors of _calculateTotalAssets and copies, _makeAdaptorCalls, _withdrawInOrder, Uint32Array add/remove). Allocation offsets in unknown0780fd3a and totalAssets are consistent with the old chained allocations.",
+  "summary": "One medium regression: in one loop of cachePriceRouter getPositionData[..].adaptorData falls back to stor[sha3(mem[0 len 64]) + 1] (36 lines), plus milder base-pointer expansion. Improvements: many custom errors and strings decoded, calls named, 6 storage-bytes copy loops are now copy lines, P6 gone."
+}

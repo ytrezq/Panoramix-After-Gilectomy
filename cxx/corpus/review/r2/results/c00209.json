@@ -1,0 +1,18 @@
+{
+  "id": "c00209",
+  "text_changed": true,
+  "lines_old": 2002,
+  "lines_new": 2002,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "partly", "note": "the Initializable slot now prints whole (stor[0xf0c57e16...6a00], no '* 3600'), but the two reads are still uint64(stor[slot]) instead of a named field and _initialized is still split into storF0C5 (uint8) + storF0C5_8 (uint56)"},
+    {"n": 2, "kind": "naming", "status": "still", "note": "SafeMath.mul4(2^248, v) for the uint8 check and shift in permit"},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "RAY constants still 1000000000 * 10**18 / 500000000 * 10**18"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "P1 2 -> 0 (the ERC-7201 Initializable slot 0xf0c57e16...6a00 is no longer factored by 3600) and P6 11 -> 0 (AccessControl storage base 0x02dd7bc7..., interface id 0x01ffc9a7, 2^248 constant in permit).",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 86 lines, 8 changed functions, all display-only (hex constants printed with whole bytes, the P1 slot constant); no line changed otherwise.",
+  "summary": "No regression: display-only changes that remove the P1 slot factoring and the 63-digit constants; the field-split and helper-naming findings stand."
+}

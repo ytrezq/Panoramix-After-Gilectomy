@@ -1,0 +1,14 @@
+{
+  "id": "c00274",
+  "text_changed": true,
+  "lines_old": 776,
+  "lines_new": 742,
+  "changed_functions": 8,
+  "old_findings": [],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Calls with several dynamic arguments now decode exactly. batchTransferERC1155-style calls (a9412a59, d5770dc7, c56411f6) pass two separate Array(len, data=...) arguments where the old text merged both arrays and a raw offset into one inexact Array. transferERC1155's empty data prints Array(len=0, data='') instead of '160, 0'. Returns decode as Array(...) in c56411f6 and dd756c4f. The bytes return copies of the pipe readers (08e1a0ab, 6e47d07b) and the revert-reason copy of dd756c4f are copy lines instead of whiles (26 -> 22). P6 4 -> 0.",
+  "patterns": {"P1": 0, "P2": 3, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "I read the whole diff (8 functions; transferERC1155, a9412a59, d5770dc7 and farm changed by one or two lines). farm's zero-init of new bytes[](n) is still rotated ('mem[160] = 96' before 'while idx - 1:'), unchanged: it copies a single statement, which the new rotation rule still allows. The source loop (farm's for) is still a while. text_check run --per-selector 16, both worlds: 67 + 224 guessed-param calls same, 0 different.",
+  "summary": "No regression. Calls with two dynamic arrays now decode into two correct Array arguments (they were mis-decoded), and returns decode as Array. Copy loops became copy lines and P6 is gone."
+}

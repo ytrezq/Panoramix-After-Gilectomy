@@ -1,0 +1,47 @@
+{
+ "id": "c00137",
+ "text_changed": true,
+ "lines_old": 3752,
+ "lines_new": 3050,
+ "changed_functions": 21,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "mapping inside the Vote struct still raw 'stor[sha3(caller, sha3(_voteId, 2) + 6)]' (38 -> 39 lines with that form)"
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "the 99 'revert with Error(string reason), 32, mem[..]' lines (vote, attemptVoteFor, executeVote) are now plain 'revert with 'VOTING_CAN_NOT_VOTE'' etc. The 89 'revert with memory' (attemptVoteForMultiple 48, newVote, forward, setters) are unchanged, and dead message-preparation stores remain (24 lines)"
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "canExecute(uint256)",
+   "lines": "206-209",
+   "decompiled": "if 10**18 * stor2[_voteId].field_512 / stor2[_voteId].field_512 != 10**18: revert with 'MATH_MUL_OVERFLOW' / if 10**18 * stor2[_voteId].field_512 / SafeMath.add(..) > uint64(stor2[_voteId].field_136):",
+   "old": "if SafeMath.mul(stor2[_voteId].field_512, 10**18) / SafeMath.add(..) > uint64(stor2[_voteId].field_136):",
+   "source": "Voting.sol _isValuePct: uint256 computedPct = _value.mul(PCT_BASE) / _total;",
+   "issue": "The checked multiply is no longer folded into the SafeMath.mul helper here: an explicit check line is printed and the product is repeated unchecked. executeVote (1773, 1778) still folds the same expression.",
+   "rule": "'if a * b / a != b: revert R' (under a != 0) followed by uses of a * b is the helper SafeMath.mul(a, b) when R is the helper's revert data: fold it at the first use.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "vote 657 -> 215 lines, attemptVoteFor 462 -> 249, executeVote 259 -> 211: solc 0.4's Error(string) reverts with their memory copy loops (19 + 11 + 3 whiles) are decoded to 'revert with 'VOTING_CAN_NOT_VOTE'', 'VOTING_NO_VOTING_POWER', 'INIT_NOT_INITIALIZED', 'EVMRUN_EXECUTOR_UNAVAILABLE'... SafeMath.sub now takes its message ('MATH_SUB_UNDERFLOW' vs 'MATH64_SUB_UNDERFLOW'), so revert data are exact. attemptVoteFor's voters loop now has the exact constant bound ('while idx < 1:', the one-element array). The redundant 'assert idx < mem[_3]' of getDelegatedVoters (P11) is gone. P6 81 -> 0.",
+ "patterns": {
+  "P1": 0,
+  "P2": 13,
+  "P3": 0,
+  "P4": 0,
+  "P5": 0,
+  "P6": 0
+ },
+ "notes": "Diff of 2241 lines: 21 changed blocks. Most change only their hex constants (P6). I read vote whole against Voting.sol:232 and _vote: the phase computation (with the source's assert), the _isValidPhaseToVote test, balanceOfAt, the Yea/Nay/Delegate sub-then-add, the voter state, and CastVote/CastObjection all match. Its 12 CastVote logs are the duplicated tails already present (P12). The loop counts of attemptVoteFor and executeVote fall only by the decoded revert copies.",
+ "summary": "One low regression: canExecute's checked multiply is no longer folded into SafeMath.mul. The Error(string) reverts of vote/attemptVoteFor/executeVote are decoded (about 700 lines shorter), SafeMath.sub carries exact messages, and P6 is gone."
+}

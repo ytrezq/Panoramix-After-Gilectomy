@@ -1,0 +1,60 @@
+{
+  "id": "c00034",
+  "text_changed": true,
+  "lines_old": 15528,
+  "lines_new": 11710,
+  "changed_functions": 15,
+  "old_findings": [
+    {"n": 1, "kind": "semantics", "status": "fixed", "note": "A mul whose revert padding is stale memory now passes the exact revert data to the helper: concat(Bytes(4, 0x08c379a0), 32, 33, 'SafeMath: multiplication overflow', Bytes(31, bool(stor22_8)) or mem[mem[64] + 101 len 31]). Where the padding is zero (getRedemptionAmount's 2nd mul, after the div's allocation) the literal stays, which is right. Round 1's text_check (seed 6, random, each, 8/selector) now gives 0 different (5 before)."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "182 -> 10 whiles. 9 message-copy reverts remain where the message pointer reaches the revert through a join variable (_801 = _433...): swap 1, liquidatePosition 4, decreasePosition 3, increasePosition 1. All the others print as revert with 'msg' or SafeMath.sub/div(..., msg)."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "The storage-string reverts of _validate keep their three-way expansion, with the floor32(max(p + 100, p + len + 68) - p - 69) lengths (same counts per function)."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "Same path duplication: increasePosition still calls vaultUtils.updateCumulativeFundingRate 12 times. It shrank 4616 -> 3532 lines only because the reverts folded."},
+    {"n": 5, "kind": "simplification", "status": "fixed", "note": "The packed key at an unknown pointer is now resolved. positions[key] reads as stor43[sha3(Bytes(20, address(_param1)), ..., Bytes(1, bool(_param6)))].field_N everywhere. Raw stor[_N + k] went from 274 to 0, and the delete is 7 field writes."},
+    {"n": 6, "kind": "simplification", "status": "partly", "note": "The 31 'if fundingInterval:' tests and their copy-loop arms now print as SafeMath.div(block.timestamp, fundingInterval): still redundant, but hidden in the helper. 'if stor42[a] > block.timestamp: revert' after add <= t remains."},
+    {"n": 7, "kind": "simplification", "status": "still", "note": "1000000000000 * 10**18 remains (15 -> 11 lines, fewer only because lines merged). 'x <= 0', 'if _param3 > mem[128]' beside _6 (getNextAveragePrice) and -b + a all remain."},
+    {"n": 8, "kind": "simplification", "status": "partly", "note": "P2 went from 16 to 2: the transfers, balanceOf calls and the sellUSDG event are named and decoded. liquidatePosition's fee transfer and its balanceOf are still raw memory (3916, 3943). The selector is still decimal (2835717307 x10), and the byte-sliced argument writes stay. See the new finding on the split recipient."}
+  ],
+  "regressions": [
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "sellUSDG(address,address) 0x711e6190; decreasePosition(...) 0x82a08490; liquidatePosition(...) 0xde2ea948",
+      "lines": "2059, 5620, 3214 (def lines)",
+      "decompiled": "def unknown711e6190(address _param1, uint256 _param2) / ... bool _param6, uint256 _param7) / ... bool _param4, uint256 _param5)",
+      "old": "def unknown711e6190(address _param1, address _param2) / ... address _param7) / ... address _param5)",
+      "source": "Vault.sol: sellUSDG(address _token, address _receiver); decreasePosition(..., address _receiver); liquidatePosition(..., address _feeReceiver)",
+      "issue": "The receiver parameter is now typed uint256 where the old text typed it address, as the ABI does. Its use as a transfer argument is now the byte slices uint128(_p >> 32) and uint32(_p), which hides the address mask.",
+      "rule": "Infer a parameter's type from the value its uses compute: slices that together make the low 160 bits of _p are an address use. Merging the slices (new finding 1) fixes this too.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "decreasePosition(address,address,address,uint256,uint256,bool,address)",
+      "lines": "e.g. 5908-5926 (4 copies: diff hunks 54, 60, 69, 75)",
+      "decompiled": "if POS.field_256 >= _param4: (if POS.field_1024: ... mul ...) _1049 = _1044 / else: (revert with stor48[33] ...)",
+      "old": "if stor[_964 + 1] < _param4: (revert with stor48[33] ...) / if stor[_964 + 4]: ... / _1046 = _963 ... _1050 = stor[_964]",
+      "source": "Vault.sol:_decreasePosition: _validate(position.collateral >= _collateralDelta, 33)",
+      "issue": "A guard that only reverts is now printed as the else arm of an if/else, after the main path it protects, with a negated condition (P10). The old text put the guard first. Old text 0 such else-arm reverts, new 4.",
+      "rule": "When one arm of a branch only reverts, print it first as a one-armed 'if cond: revert', with the other arm after it, whatever the arms' order in the CFG.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "sellUSDG 0x711e6190 (2440-2442), liquidatePosition 0xde2ea948 (5577-5579), decreasePosition 0x82a08490 (8144-8146)",
+      "lines": "2442, 5579, 8146",
+      "decompiled": "call address(_param1).transfer(address recipient, uint256 amount) with: args Bytes(28, uint128(_param2 >> 32)), Bytes(4, uint32(_param2)), (...) / 10000",
+      "source": "SafeERC20.safeTransfer(IERC20(_token), _receiver, amount) via Vault._transferOut",
+      "issue": "The transfer is now named, but its recipient is shown as two byte slices of the parameter rather than address(_param2). The other path's transfer in the same function prints address(_param7). The slices come from the selector's read-modify-write of the word that overlaps the address.",
+      "rule": "Merge adjacent slices of one value: Bytes(28, uint128(x >> 32)) followed by Bytes(4, uint32(x)) is the 32-byte word x & (2**160 - 1), i.e. address(x). In general, Bytes(a, (x >> 8b) mod 2**(8(a-k))) ++ Bytes(b, x mod 2**(8b)) is Bytes(a + b, x mod 2**(8(a+b-k))).",
+      "verified": "reading only (exact: the two slices concatenate to the masked word)"
+    }
+  ],
+  "improvements": "The text shrank 15528 -> 11710 lines and 172 of 182 copy-loop whiles are gone: reverts print as 'msg' or SafeMath.sub(a, b, msg) and SafeMath.div. The mul revert data are exact, past the message too (round-1 finding 1 fixed; text_check 0 different, round 1 had 5). The position key at an unknown pointer is resolved, so every member is stor43[key].field_N (274 raw slots -> 0, P4 24 -> 0). P6 309 -> 0. P2 16 -> 2: sellUSDG's transfer, balanceOf, its event and its return are decoded, and vaultUtils.validateLiquidation (0xfdaf6ac3) is decoded in decreasePosition and liquidatePosition. Memory built after a join is addressed from its base (mem[_30 + 64], mem[_2688 + 165 len 31]).",
+  "patterns": {"P1": 0, "P2": 2, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "The diff is 15421 lines, so this is a structural review. Functions were reordered: liquidatePosition (hunks 46/101), getRedemptionAmount and others moved. I compared each of the 15 changed defs old-vs-new: buyUSDG, sellUSDG, swap and the 3 position functions by calls, events, storage writes, reverts and loops; the small ones (SafeMath block, getRedemptionAmount, getRedemptionCollateral, getRedemptionCollateralUsd, getNextGlobalShortAveragePrice, getNextAveragePrice, updateCumulativeFundingRate, clearTokenConfig, directPoolDeposit) line by line. Every call and log keeps its count in every function. Storage-write differences are only -= turned into = SafeMath.sub and raw slots turned into fields. require ext_code.size(vaultUtils) dropped from 16 to 7 in decreasePosition (also in liquidatePosition and increasePosition). These are repeated checks: every vaultUtils call is still dominated by a check, and each remaining check comes right before a call, so none was hoisted. The extcodesize check hoisted above the branch in getNextAveragePrice is exact, since both arms call priceFeed. updateCumulativeFundingRate now nests ifs where it had early stops: equivalent. The 'x = cond and v' form is not new (28 in the old text). The unsimplified forms 'len _2322 - mem[64] + 132' (where _2322 = mem[64]) also existed before (29 -> 5). A no-op 'stor37[t] = stor37[t]' (poolAmounts.sub(0)) shows in liquidatePosition. Execution: text_check run --seed 6 --random --each --per-selector 8 gives random 475 same, guessed-params 508 same, 0 different.",
+  "summary": "No semantic regression, and 2 low ones: receiver params now typed uint256, and 4 guards printed as else arms in decreasePosition. A big cleanup: the copy-loop reverts folded, exact mul revert padding (round-1 finding 1 fixed), positions[key] resolved (finding 5 fixed), P2 16 -> 2, -3800 lines. A transfer's recipient is still shown as two byte slices."
+}

@@ -1,0 +1,63 @@
+{
+  "id": "c00310",
+  "round1": true,
+  "abi_functions": 12,
+  "reviewed": 12,
+  "not_reviewed": [],
+  "source_loops": 2,
+  "loops_shown": {
+    "while": 2,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0,
+    "P7": 2,
+    "P11": 5
+  },
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "token(), distributeRewards, distributeAndUpdateRecipients, receive",
+      "lines": "1, 112-117, 226-231, 36-38",
+      "decompiled": "const token = 0 / t = eth.balance(this.address) / 10000 / def _fallback(?) payable: require calldata.size < 4; require not calldata.size",
+      "source": "RewardDistributor.sol:38 IERC20 public immutable token; :133 address(token) == address(0) ? address(this).balance : token.balanceOf(...); :167 token.safeTransfer; :82 receive reverts CannotReceiveNative if token != 0",
+      "issue": "The solc immutable reads 0 in the pre-deployment code. Only the native-ETH path is present; the ERC20 balanceOf/safeTransfer path and receive's CannotReceiveNative check are dead.",
+      "rule": "None (bytecode artifact).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "distributeAndUpdateRecipients(address[],uint256[],address[],uint256[]) (unknown91aee56e)",
+      "lines": "291-317",
+      "decompiled": "_110 = mem[64] ... mem[mem[64] + 96] = _110 + 32 * _115 - mem[64] + 160 ... while idx < _115: mem[s] = Bytes(12, 0), mem[t + 12 len 20] ... while t < mem[...]: mem[v] = mem[u] ... log 0x33bc54b3...: mem[mem[64] len s - mem[64] + 32 * mem[32 * cd[_param1 + 4] + 32 * cd[_param2 + 4] + 32 * cd[_param3 + 4] + 224] + 32]",
+      "source": "RewardDistributor.sol:226 emit RecipientsUpdated(recipientGroup, recipients, recipientWeights, weights)",
+      "issue": "The event's 4 arguments are printed as one raw memory slice whose length uses the first copy loop's exit pointer s. The head offset keeps _110 - mem[64] unfolded (_110 = mem[64], no store in between); the old text had folded it to 32 * len + 160. Two copy loops build the buffer (P7).",
+      "rule": "After x = mem[64] with no store to mem[64], fold x - mem[64] to 0. Close a copy loop's exit pointer (base + 32 * n). Then split the log range by head/tail into (stor2 value, Array(recipients), _106, Array(weights)), and print the memory-to-memory copies as copies of their calldata sources.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "distributeRewards(address[],uint256[]), distributeAndUpdateRecipients(...)",
+      "lines": "117, 127, 140-144, 231, 254-258, 280, 289-290",
+      "decompiled": "u = eth.balance(this.address) (never used) / value t * mem[32 * s + 32 * _recipients.length + 192] wei (= _42 * t) / if s < mem[128]: ... / if s >= mem[128]: revert with Panic(50) (after the same check at 124) / _106 = sha3(X); stor3 = sha3(X)",
+      "source": "RewardDistributor.sol:139-188 the distribution loop; :211-213 the weight loop; :223-224 hashWeights",
+      "issue": "Several things: a dead loop variable u; the call value recomputes the weight read already held in _42; the recipients[r] bounds checks repeat a dominating check, as does the weights[i] check inside 'while s < len' (P11, 5 lines); and stor3 recomputes the hash held in _106.",
+      "rule": "Drop variables never read; reuse a variable for an equal expression; fold a bounds test implied by a dominating identical test or by the loop condition.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No round-1 result. Reviewed whole against the new pack and RewardDistributor.sol. Source loops: the distribution loop (:139, while in distributeRewards and inlined in distributeAndUpdateRecipients) and the total-weight loop (:211, while). The other 5 whiles are implicit: 3 ABI decodes of address[] with validation, and 2 copies encoding RecipientsUpdated (P7); the distribution loop is printed twice (8 whiles). Checked: nonReentrant (stor1 2/1), onlyOwner before it, EmptyRecipients 0x2a67cf23 / InputLengthMismatch / InvalidRecipientGroup 0x2cf5faaf / InvalidRecipientWeights 0x505c311b / NoFundsToDistribute 0x63d664bc / TooManyRecipients 0x5531b495 / InvalidTotalWeight 0x5943317f, the gasleft() <= 1050000 test (a fresh GAS read each iteration), call(10**6, recipient, value), the fallback call with all gas and its FallbackFailedRecieve revert, both events, and Ownable. All faithful. Some error and event names print as selectors and topics (not in the signature database). Compared with the old text: the RecipientRecieved log now shows _42 * t instead of mem[mem[64]] (better), while the RecipientsUpdated head offset lost its fold (worse). The pack header has no pattern line (P1-P6 are 0).",
+  "summary": "Faithful, with both source loops shown as clear whiles. The main readability problem is the RecipientsUpdated event printed as one raw memory slice; the immutable token makes the ERC20 path dead (artifact)."
+}

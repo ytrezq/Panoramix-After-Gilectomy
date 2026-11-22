@@ -1,0 +1,29 @@
+{
+  "id": "c00107",
+  "text_changed": true,
+  "lines_old": 3270,
+  "lines_new": 2738,
+  "changed_functions": 9,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "fixed", "note": "Every SafeERC20 call is now decoded: transferFrom(caller, this.address, _amount), transfer, approve, balanceOf, investedUnderlyingBalance(), vault(). The copy loops are gone (P2 39 -> 0), the data copy prints as one line with the selector in hex, and 'SafeERC20: low-level call failed' prints as a literal revert."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "migrateUnderlying(uint256,uint256) (28 -> 135 lines), initializeVault (2 -> 20), doHardWork and rebalance (0 -> 5 each)",
+      "lines": "e.g. migrateUnderlying new 155-199 (the assets loop and the ExitPoolRequest encoding)",
+      "decompiled": "while idx < _43: mem[_27 + 32 * _43 + 32 * _49 + 32 * idx + ceil32(_3) + ceil32(return_data.size) + 420] = Bytes(12, 0), mem[...] / mem[_27 + 64 * _43 + 32 * _49 + ceil32(_3) + ceil32(return_data.size) + 680] = this.address ...",
+      "old": "mem[_55 + 32 * idx + 32] = Bytes(12, 0), mem[...] / _61 = mem[64] ... mem[_61 + 260] = this.address",
+      "source": "vaultMigratable_balStMatic.sol _balancerWithdraw: for (i < _nTokens) assets[i] = poolTokens[i]; IBVault(bVault).exitPool(poolId, address(this), address(this), req)",
+      "issue": "Allocation bases that the old text named (_55, _61, _21 + _22) are now printed as absolute sums of every earlier allocation and return-data size, the same change as in c00150. Lines with 4+ pointer terms went 30 -> 165, with 8+ terms 3 -> 26.",
+      "rule": "Bind a free-memory-pointer value that is a sum of several symbolic sizes to a variable at the allocation, and address the allocation's contents from it. Substitute it only when it is a constant or a single term.",
+      "verified": "reading only (counts by regular expression)"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "All token and strategy calls are named and decoded (P2 39 -> 0), and the SafeMath, 'Too much arb', initializer and strategy-check reverts print as literals: the 7 nested 'Initializable' checks in initializeVault were hex memory writes. Return data are used directly (if _4 + ext_call.return_data[0] < ...). The 0.6 bounds asserts implied by the loop bound are dropped. exitPool's request decodes further (its tokens array). WMATIC prints with whole bytes (0x0d500b...). P6 40 -> 0, 32 -> 8 whiles.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Structural review (3233-line diff): I compared the 9 changed defs by calls, events, storage writes, reverts and loops; deposit, initializeVault and migrateUnderlying in detail. No call, event or storage write is lost. The trailing 'stop' of deposit, depositFor, withdraw and setStrategy became an inverted success guard: equivalent. The one source loop (assets[i] = poolTokens[i]) is still a while. The remaining 8 whiles are that loop, the request encoding copies and the string copies. text_check run --per-selector 16: empty world 931 same; random world 903 same, 28 unsupported (storage bytes encoding), 0 different.",
+  "summary": "One medium regression: allocation bases are now printed as long absolute sums (165 lines with 4+ terms, 30 before), mostly in migrateUnderlying. Otherwise a large improvement: round-1 finding fixed (every SafeERC20 call decoded, P2 39 -> 0), literal reverts, P6 gone."
+}

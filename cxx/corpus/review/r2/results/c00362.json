@@ -1,0 +1,16 @@
+{
+  "id": "c00362",
+  "text_changed": true,
+  "lines_old": 157,
+  "lines_new": 157,
+  "changed_functions": 7,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "GemBag creation code still printed twice in make() and make(address)"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "The anonymous DSNote log of cage, rely, deny, join, exit, make and make(address) now shows its data as one bytes value, Array(len=224, data=call.data[0 len 224]), instead of the raw words 32, 224, call.data[0 len 224]; this matches the note modifier (mstore 0x20, 224, calldatacopy 224 bytes).",
+  "patterns": {},
+  "notes": "Diff 61 lines, read in full: only the 7 log lines changed.",
+  "summary": "No regression; the note event's bytes data is now decoded."
+}

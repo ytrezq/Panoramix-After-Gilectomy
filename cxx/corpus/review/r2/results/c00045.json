@@ -1,0 +1,27 @@
+{
+ "id": "c00045",
+ "text_changed": true,
+ "lines_old": 169,
+ "lines_new": 169,
+ "changed_functions": 1,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "artifact",
+   "status": "still",
+   "note": "'require this.address' (library address 0) is unchanged."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "The clone init code still splits the implementation address over two slices (unchanged lines)."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "The __VaultIncentivesModule_init call (unknownf9d96614) now decodes its three address[] arguments exactly: 'Array(len=n9, ...), Array(len=n10, ...), Array(len=n11, ...)'. Before, the first Array swallowed the other two, and the offsets 32 * n9 + 192 and 32 * n9 + 32 * n10 + 224 were printed after it.",
+ "patterns": {},
+ "notes": "The diff is 11 lines (one changed line, 164). I compared the full old and new lines. No source loops; the 6 whiles are the decode/encode copies as in round 1.",
+ "summary": "No regression: the one change decodes a call with three dynamic array arguments exactly."
+}

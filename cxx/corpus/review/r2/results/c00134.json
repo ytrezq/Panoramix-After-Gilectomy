@@ -1,0 +1,89 @@
+{
+ "id": "c00134",
+ "text_changed": true,
+ "lines_old": 5579,
+ "lines_new": 4848,
+ "changed_functions": 16,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "loop",
+   "status": "still",
+   "note": "the 11 storage-to-memory copies of accountAssets are still rotated loops ('mem[_14 + 480] = assetsIn[borrower][0] ... while _14 + 32 * len + 480 > idx + 32'), only rebased"
+  },
+  {
+   "n": 2,
+   "kind": "loop",
+   "status": "worse",
+   "note": "the supplier loop of the 3 claimComp is still rotated, now at the sub_ check: header 'while u >= t', exit by 'continue loop1' (regression 1); the peel shrank to holder 0's index prologue (one call and one log fewer)"
+  },
+  {
+   "n": 3,
+   "kind": "simplification",
+   "status": "still",
+   "note": "1e36 as 1000000000000000000 * 10**18 (151 -> 141 lines), 108 -> 104 'x and y > -1 / x' shapes, mem[32] scratch stores kept"
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "loop",
+   "severity": "medium",
+   "function": "claimComp(address), claimComp(address,address[]), claimComp(address[],address[],bool,bool)",
+   "lines": "3213-3277 (claimComp(address)); 3650-3713; 4730-4784",
+   "decompiled": "t = _613; u = _612 ... b = 0 / while u >= t: mem[v] = -t + u; balanceOf(a); compAccrued[a] = ..; log DistributedSupplierComp; if SafeMath.inc(b) >= mem[_6]: s = s + 1; continue loop1; <index prologue of holder b+1>; b = SafeMath.inc(b); continue / revert with Panic(17)  (indent 6, after the loop)",
+   "old": "<holder 0 fully peeled> b = 0 / while b + 1 < _642: if b + 1 >= mem[_6]: revert Panic(50); <whole body for holders[b+1]>; b = b + 1",
+   "source": "Comptroller.sol:1358 for (uint j = 0; j < holders.length; j++) distributeSupplierComp(address(cToken), holders[j]);  (distributeSupplierComp: deltaIndex = sub_(supplyIndex, supplierIndex))",
+   "issue": "The loop header is now the underflow check of sub_(supplyIndex, supplierIndex): 'while u >= t' reads as the loop's condition, but the real bound j < holders.length is an exit by 'continue loop1' from inside the body, and the header's false edge only reaches a Panic(17) printed 60 lines later at the outer level. Holder 0's index prologue is still peeled before the loop, once in each arm.",
+   "rule": "Choose as the loop's header the test whose exit continues the program (the induction-variable bound). A header whose false edge ends only in a revert is a check: print it as 'require u >= t' (or the checked sub) inside the body, and undo the peel so that the body runs from the bound test.",
+   "verified": "reading only (traced the three loops: same calls, writes, logs and Panic(17) on underflow as the source; same in all three claimComp)"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "mintAllowed, repayBorrowAllowed, seizeAllowed, _setCompSpeeds, borrowAllowed, redeemAllowed, claimComp (x2), transferAllowed (9 stores)",
+   "lines": "895, 1033, 1457, 2105, 2187, 2498, 2740, 2843, 3977, 4121",
+   "decompiled": "mem[_33 + 64] = SafeMath.add(uint224(compSupplyState[cToken].field_0), mem[_32]) ... if mem[_33 + 64] >= 0x01000..: revert with 'new index exceeds 224 bits' / uint224(compSupplyState[cToken].field_0) = mem[_33 + 68 len 28]",
+   "old": "mem[_35] = SafeMath.add(mem[_33], mem[_32]) / _39 = mem[_35] / if _39 >= 0x1000..: ... / uint224(compSupplyState[cToken].field_0) = uint224(_39)",
+   "source": "Comptroller.sol:1200 supplyState.index = safe224(index.mantissa, \"new index exceeds 224 bits\");",
+   "issue": "The stored index was 'uint224(_39)'. It is now a byte slice of the memory word that holds the sum.",
+   "rule": "x[a + 32 - n len n] is Mask(8n, 0, x[a]): print uintN(mem[a]), or better forward the value last stored at mem[a] (the SafeMath.add) when no write to it intervenes.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "borrowAllowed, liquidateBorrowAllowed, transferAllowed, redeemAllowed, getHypotheticalAccountLiquidity, getAccountLiquidity, exitMarket, seizeAllowed, repayBorrowAllowed (110 lines)",
+   "lines": "e.g. 1670-1689 (liquidateBorrowAllowed)",
+   "decompiled": "if mem[_114 + ceil32(_2) + ceil32(return_data.size) + 128] and mem[_148] > -1 / mem[_114 + ceil32(_2) + ceil32(return_data.size) + 128]: revert Panic(17) / mem[_114 + ceil32(_2) + ceil32(return_data.size) + 192] = mem[_148] * mem[_114 + ceil32(_2) + ceil32(return_data.size) + 128] / 10**18",
+   "old": "if mem[_138] and mem[_148] > -1 / mem[_138]: revert Panic(17) / mem[_150] = mem[_138] * mem[_148] / 10**18",
+   "source": "Comptroller.sol getHypotheticalAccountLiquidityInternal: vars.tokensToDenom = mul_(mul_(vars.collateralFactor, vars.exchangeRate), vars.oraclePrice) ...",
+   "issue": "The pointer temporaries that held mem[64] (_138, _150, _160) are replaced by their full address expressions, repeated twice per overflow check: 8 such lines before, 110 now.",
+   "rule": "Keep a named temporary for a memory address used more than once. Better, forward the value stored at a memory slot into its later reads (mem[A] = x * y / 10**18 ... mem[A] -> that value) so the address disappears.",
+   "verified": "reading only (addresses are consistent: no mem[64] or call between store and reads)"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "getHypotheticalAccountLiquidity(address,address,uint256,uint256), transferAllowed(address,address,address,uint256)",
+   "lines": "1346-1348; 4015-4019",
+   "decompiled": "if borrowAmount * ext_call.return_data[0] / 10**18 > ~SafeMath.add(redeemTokens * (..) / 10**18, _111 + _4 * ext_call.return_data[0] / 10**18): revert with Panic(17) / mem[160] = _111 + redeemTokens * (..) / 10**18 + borrowAmount * ext_call.return_data[0] / 10**18 + _4 * ..  |  if compAccrued[src] > ~(..): revert Panic(17) / mem[0] = src / mem[32] = 20 / compAccrued[src] += ..",
+   "old": "mem[160] = SafeMath.add(mem[_123] / 10**18, _111 + _115 / 10**18 + _120 / 10**18)  |  compAccrued[src] = SafeMath.add(compAccrued[src], _406 * _407 / (1000000000000000000 * 10**18))",
+   "source": "Comptroller.sol mul_ScalarTruncateAddUInt(vars.oraclePrice, borrowAmount, vars.sumBorrowPlusEffects); distributeSupplierComp: compAccrued[supplier] = add_(compAccrued[supplier], supplierDelta)",
+   "issue": "A checked addition printed as SafeMath.add is now an explicit 'a > ~b' check followed by the unchecked sum (expanded, in the first case). Two other functions (repayBorrowAllowed, borrowAllowed) moved the other way, so the form now depends on the function.",
+   "rule": "'if a > ~b: revert Panic(17)' followed, with only memory scratch writes in between, by a use of a + b is the checked add: print SafeMath.add(a, b) at the use, whatever the operands' form.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "Revert strings decoded: the 15 revert-string copy loops (P7) and 'revert with memory'/Error(string) blocks are now 'revert with 'new index exceeds 224 bits'' etc. (39 -> 56 decoded, 15 'while idx < _N' loops gone). P2 54 -> 27 lines, P6 31 -> 0. '25 * 10**13 * 3600' is now '9 * 10**17' (P1). _setCompSpeeds' loop bound reads 'idx < cTokens.length'. 'SafeMath.sub' checks now stay ahead of calls that fail differently ('if _107 < _110: revert Panic(17)' before balanceOf). Dead pointer bumps dropped (5579 -> 4848 lines). New helper SafeMath.inc for the checked j++.",
+ "patterns": {
+  "P1": 0,
+  "P2": 27,
+  "P3": 0,
+  "P4": 0,
+  "P5": 0,
+  "P6": 0
+ },
+ "notes": "Diff of 5936 lines reviewed by function: 16 changed blocks (SafeMath + 15 functions). I compared each function's counts of calls, logs, reverts, loops and writes, and read the hunks where they changed: the claimComp loops, SafeMath.inc, the Panic(17) moves (all exact, from the order-keeping SafeMath fix), and the decoded reverts. Calls and logs fall by 1-2 in each claimComp only because the supplier loop's peel is smaller. Still present though not counted by the pack's regex: 40 'concat(Bytes(12, 0), mem[..])' keys (round 1 counted them as P4) and the 11 rotated accountAssets copies (finding 1). New syntax 'loop1: while' / 'continue loop1' appears in the 3 claimComp.",
+ "summary": "One medium regression: the claimComp supplier loops now use the sub_ underflow check as their header ('while u >= t', exit by 'continue loop1'). Three low readability regressions: byte-slice stores, inlined pointer expressions, a checked add split in two. Revert strings, P2, P6 and P1 improved."
+}

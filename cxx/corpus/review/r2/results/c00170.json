@@ -1,0 +1,34 @@
+{
+  "id": "c00170",
+  "text_changed": true,
+  "lines_old": 10209,
+  "lines_new": 9519,
+  "changed_functions": 13,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "mulDiv still expanded into Newton polynomials (P9)."},
+    {"n": 2, "kind": "simplification", "status": "fixed", "note": "Calls now decoded: transferFrom(caller, this.address, assets) and transfer(...) in deposit, mint, redeem x2 and withdraw x2, and the self-calls unknown503160d9 / unknown3d6cb575 / unknown9cdb1593 with their arguments (no P2 left, was 119). The copy loops are gone (whiles 16 -> 2: symbol's string decode and the exp helper). 'Math: mulDiv overflow', 'ZERO_SHARES', 'SafeERC20: low-level call failed' and the ERC20 messages fold (P1 65 -> 0). The Approval and Transfer values are now expressions instead of memory slices."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "Products still distributed: 121 lines like (block.timestamp * storD284_d2841a5d_2 - lastReport * storD284_d2841a5d_2) / 10**12."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "storD284_d2841a5d_6 still one uint256 in def storage."},
+    {"n": 5, "kind": "naming", "status": "still", "note": "withdraw(uint256 _id, address _sender, address _cToken, uint256 _cTokenAmount) etc. unchanged."},
+    {"n": 6, "kind": "simplification", "status": "partly", "note": "symbol's 'ys' is now a string literal in its return. The decimal key 57005 (10 lines), the 6 decimal selectors and the apiVersion hex word remain."},
+    {"n": 7, "kind": "artifact", "status": "still", "note": "FACTORY still 0."}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "deposit, mint, redeem (2), withdraw (2)",
+      "lines": "4275, 5683, 6527, 7367, 8414, 9476",
+      "decompiled": "mem[_974 + 36 len 28] = caller >> 32 / mem[_974 + 32 len 4] = 599290589  |  mem[_2591 + 36 len 28] = uint128(_sender >> 32)",
+      "source": "SafeERC20.safeTransferFrom / safeTransfer: abi.encodeWithSelector(token.transferFrom.selector, from, to, value)",
+      "issue": "The SafeERC20 buffers are now printed before their decoded calls. They include a no-op store: when the selector is merged into the first word, the 28 bytes after it are rewritten with what they already hold (the top of the address word just stored).",
+      "rule": "Drop a memory store whose value equals the bytes already held at that location (a slice of the word stored there before, unchanged since).",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "Free-memory-pointer forwarding resolves the SafeERC20 calls, the deployFunds / freeFunds / strategyTotalAssets self-calls and their arguments, and every 'Math: mulDiv overflow', 'ZERO_SHARES', ERC20 and SafeERC20 revert. mem[_N] reads of return data become ext_call.return_data[0], checked against the call order in report (no call intervenes where it is used). The copy loops are gone, and symbol returns Array(len=_2 + 2, data='ys', <symbol bytes>, padding); its padding length was checked. A Panic(18) check dominated by 'if mem[_2126]:' is dropped in both withdraws (exact). Hex words show whole bytes. 690 lines shorter.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 4,565 lines, reviewed by structure per function matched by name and arity. Effects are unchanged except that raw calls became named calls (same count) and the dominated Panic(18) is dropped in withdraw/3 and withdraw/4 (revert 82 -> 81, 85 -> 84). Read line by line: deposit (whole diff), report's call order (harvestAndReport -> _5; strategyTotalAssets inside 'if not _1431'), withdraw/4's reverts, symbol. setPerformanceFeeRecipient and the two unknown setters drop the temporaries _190/_199 and use the byte slices mem[ceil32(_1) + 158 len 2] / + 172 len 20, which the block already used elsewhere (neutral); their Transfer value is now an expression.",
+  "summary": "No regression. The free-memory-pointer fix decodes all SafeERC20 and self-calls and folds all revert strings (P2 119 -> 0, P1 65 -> 0, whiles 16 -> 2). mulDiv expansion, distributed products and the packed slot remain."
+}

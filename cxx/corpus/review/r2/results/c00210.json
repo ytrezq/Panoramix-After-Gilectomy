@@ -1,0 +1,41 @@
+{
+  "id": "c00210",
+  "text_changed": true,
+  "lines_old": 1209,
+  "lines_new": 1181,
+  "changed_functions": 7,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The TransferHelper safeTransfer/safeTransferFrom calls are still 'call _param4 with: args mem[_25 + 100 len 68]' after a word-copy loop (P2 10). The loop bound is now the constant 68 instead of _28 = mem[_25], and the address word gains a redundant 'mem[_25 + 36 len 28] = bridge >> 32' re-store."}
+  ],
+  "regressions": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "unknownc23a4c88 (the metaSynthesize / metaRouter path)",
+      "lines": "679-695",
+      "decompiled": "mem[mem[64]] = 0xf5b697a5... / mem[mem[64] + 4] = _param6 ... / idx = 0 / while idx < cd[_param8 + 4]: mem[idx + mem[64] + 228] = mem[idx + 160]; idx = idx + 32 / if idx > cd[_param8 + 4]: ... / call metaRouter.unknownf5b697a5(?) with: args ..., Array(len=cd[_param8 + 4], data=mem[mem[64] + 228 len ceil32(cd[_param8 + 4])]), ...",
+      "old": "mem[mem[64] + 228 len ceil32(cd[_param8 + 4])] = call.data[_param8 + 36 len cd[_param8 + 4]], mem[...] / call metaRouter.unknownf5b697a5(?) with: args (same)",
+      "source": "Portal: IMetaRouter(metaRouter).metaRoute...(..., bytes calldata, ...) forwarding the bytes argument",
+      "issue": "The copy of the bytes argument into the call buffer was a copy line naming its calldata source. It is now a memory-to-memory word-copy loop (P7) from the memory copy at 160. The dead stores of the call head, already shown in the call line, are printed again (6 lines).",
+      "rule": "A word-copy loop whose length is the byte length and whose source is a memory copy of calldata is a copy of that calldata. Keep printing it as one copy line, and drop call-buffer stores that the call line's decoded arguments already cover.",
+      "verified": "reading only; text_check run --per-selector 16: 0 different (483 calls)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknownce654c17 (the synthesize request path)",
+      "lines": "1117-1170",
+      "decompiled": "_53 = mem[64] ... _54 = mem[64] ... mem[_54 + 116] = _53 - _54 + 104 / address(requests[sha3(mem[_54 + 148 len _53 - _54 + 104])].field_0) = ... (8 lines)",
+      "old": "_62 = sha3(mem[_60 + 32 len mem[_60]]) / address(requests[_62].field_0) = ... / requests[_62].field_512 = ...",
+      "source": "SynthesisRequest id = keccak256(abi.encodePacked(internalID, ...)); requests[requestId] = ...",
+      "issue": "The request id that the old text held in _62 is now re-printed at all 8 uses as a raw memory hash. Its length keeps _53 - _54, although both variables read mem[64] with no store in between, so the length is 104. In unknownb1659a3c and unknownfb7c7c2a the same id now resolves to its fields.",
+      "rule": "Two reads of mem[64] with no store between them are equal (_53 - _54 = 0). Bind a hash used more than twice to one variable.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "The request id resolves to sha3(sha3(Bytes(20, this.address), requestCount, chainid), Bytes(20, ...), ...) in unknownb1659a3c and unknownfb7c7c2a instead of a hashed memory slice. The bridge call in unknownfce633c2 is decoded head/tail: Array(bytes) first, then the 3 static arguments, where the old text printed a raw 128 offset and a tail slice. Hash scratch writes and free-pointer bookkeeping are gone.",
+  "patterns": {"P1": 0, "P2": 10, "P3": 0, "P4": 7, "P5": 0, "P6": 0},
+  "notes": "Diff of 354 lines, 7 functions, all read in 0-context diffs. calls, logs, requires and reverts are equal in number in every function. No source loops, as in round 1. The only while change is the copy loop added in unknownc23a4c88 (copy lines from calldata 9 -> 8). The 3 TransferHelper sites now also print 'mem[X + 36 len 28] = addr >> 32' re-stores, the same split-word artifact as in c00156/c00162.",
+  "summary": "Two regressions: a calldata copy line in unknownc23a4c88 became a memory-to-memory while loop (medium), and unknownce654c17 lost the variable naming its request id (low). The request ids elsewhere and the bridge call's arguments are better decoded."
+}

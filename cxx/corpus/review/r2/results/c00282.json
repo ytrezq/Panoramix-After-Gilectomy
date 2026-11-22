@@ -1,0 +1,17 @@
+{
+  "id": "c00282",
+  "text_changed": true,
+  "lines_old": 251,
+  "lines_new": 250,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "minHealthFactor still reads 0, and the function still always reverts with 0x234b893b."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "mem[140 len 20] is still a call target, and the phantom-token probe still prints its selector as a memory slice (line 101)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "serialize prints as Array(len=160, data=Bytes(160, 0)) instead of raw words. partiallyLiquidate's parameters are named after their calldata words (_param5, _param6; the two uint256 words 3-4 are never read), consistently. A value held in _52 via mem[_47] is now read as ext_call.return_data[0]; no call lies between, so this is exact. P6 1 -> 0.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 103 lines, read in full: the constant, the parameter renaming, the return-data read, and one whole-byte hex.",
+  "summary": "No regression: only renaming, a decoded constant and a return-data read. Round 1's artifact and memory-struct findings remain."
+}

@@ -1,0 +1,77 @@
+{
+ "id": "c00086",
+ "text_changed": true,
+ "lines_old": 9464,
+ "lines_new": 9289,
+ "changed_functions": 19,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "worse",
+   "note": "slightly: the offset expression cd[calldata.size - (cd[calldata.size - 2] >> 240) + 20] is now on 2042 lines (2010 before), because pointer temporaries are inlined into absolute addresses (regression 2)"
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "same 7 rotated _getJ searches 'while -address(_506) + _param1', InvalidTokens still 'revert with memory .. len _502 - mem[64] + 4'"
+  },
+  {
+   "n": 3,
+   "kind": "simplification",
+   "status": "still",
+   "note": "calcLpTokenSupply (0x14c15fc0) still unnamed with raw-memory args; 29 'return memory' unchanged"
+  },
+  {
+   "n": 4,
+   "kind": "simplification",
+   "status": "fixed",
+   "note": "the 22 rotated 'while idx - 1' Call[] allocations are now 'while True: ... if t != 1: s += 32; t -= 1; continue / break' with no peeled element"
+  },
+  {
+   "n": 5,
+   "kind": "simplification",
+   "status": "still",
+   "note": "eip712Domain changed only its hex constant (0x0f00..)"
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "pumps()",
+   "lines": "598",
+   "decompiled": "if not cd[calldata.size - (cd[calldata.size - 2] >> 240) + 104]: return ''",
+   "old": "return 32, 0",
+   "source": "Well.sol:117 if (_numberOfPumps == 0) return _pumps;  (Call[] memory)",
+   "issue": "The empty Call[] return is now printed as an empty string. The 64 bytes are the same, but the literal suggests a string-returning function. The same new display is right for wellData() (bytes), line 5.",
+   "rule": "(32, 0) encodes every empty dynamic type: print '' only when the return type is known to be bytes or string, '[]' when it is known to be an array, and the words otherwise.",
+   "verified": "reading only (return '' is absent from every round-1 text, present in 10 new ones)"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "upgradeToAndCall(address,bytes), upgradeTo(address), unknown978b24ed and the other swap/liquidity functions",
+   "lines": "e.g. 2267-2300 (upgradeToAndCall); 7123-7189 (unknown978b24ed)",
+   "decompiled": "mem[32 * _20 + ceil32(_1) + ceil32(_2) + ceil32(_3) + ceil32(_4) + ceil32(return_data.size) + ceil32(data.length) + 32 * cd[calldata.size - (cd[calldata.size - 2] >> 240) + 20] + 224] = 39  |  _342 = mem[mem[_16 + 32 * s + 64 * cd[calldata.size - (cd[calldata.size - 2] >> 240) + 20] + 96]]",
+   "old": "mem[_57 + ceil32(return_data.size)] = 39  |  _342 = mem[mem[_79 + 32 * s + 32]]",
+   "source": "ERC1967Upgrade._upgradeToAndCallUUPS / Address.functionDelegateCall; Well._getReserves / pumps()",
+   "issue": "Pointer temporaries that held mem[64] (_57, _79, _51) are replaced by their full address, which chains every earlier return size and the immutable-args offset: lines with 3+ ceil32 terms 31 -> 42, lines carrying the offset expression 2010 -> 2042.",
+   "rule": "Keep a named temporary for a memory address used more than once (or forward the stored values so the address disappears), instead of substituting the free-memory pointer's full expression at every use.",
+   "verified": "reading only (addresses consistent)"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "Calls decoded: skim's SafeERC20 transfer(to, amount) and balanceOf(this), upgradeTo/upgradeToAndCall's proxiableUUID(). Revert strings decoded ('SafeERC20: low-level call failed', 'ERC1967: new implementation is not a contract', 'New implementation must be a valid ERC-1967 implmentation'...; revert with memory 147 -> 139), and upgradeToAndCall's UUID check is flattened into 'if ext_call.return_data[0] != 0x3608..: revert'. P3: the 22 rotated Call[] allocations are un-rotated (finding 4). P6: 98 -> 0. P11: skim's repeated '_tokens[i]' bound check and unknown978b24ed's repeated Panic(65) are dropped, each dominated by an identical earlier check. wellData() now reads 'const .. = '''. Dead pointer bumps dropped (9464 -> 9289 lines).",
+ "patterns": {
+  "P1": 0,
+  "P2": 88,
+  "P3": 0,
+  "P4": 0,
+  "P5": 0,
+  "P6": 0
+ },
+ "notes": "Diff of 3793 lines reviewed by function: for 19 changed functions I compared the counts of calls, logs, reverts, loops and writes, and read every hunk where they changed (skim, upgradeTo/upgradeToAndCall, pumps, eip712Domain, unknown978b24ed). The large swap/liquidity functions (5647e42c ... b8c55d4a) change by 6-22 lines each: inlined pointers, return_data reads, the un-rotated allocation loop. Their calls, loops, logs and writes are unchanged. The skim 'call' count rises only because decoded revert strings contain the word 'call'. Both removed Panic checks are dominated by identical checks on the same value, with no aliasing write between.",
+ "summary": "Two low regressions: 'return ''' for pumps()'s empty Call[], and pointer temporaries inlined into very long absolute addresses (upgradeToAndCall, liquidity functions). Calls and revert strings are now decoded, the Call[] allocation loops are no longer rotated, and P6 is gone."
+}

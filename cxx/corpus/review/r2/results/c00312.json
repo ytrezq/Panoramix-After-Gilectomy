@@ -1,0 +1,19 @@
+{
+  "id": "c00312",
+  "text_changed": true,
+  "lines_old": 365,
+  "lines_new": 365,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "maxWithdraw/onWithdraw did not change."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "The Panic(65) checks after the join are unchanged."},
+    {"n": 3, "kind": "simplification", "status": "partly", "note": "Only the P6 part is fixed: the selector store now prints as 0x07a00b1f...; it is still a dead store, and the output is still read through mem[128] with a split min."},
+    {"n": 4, "kind": "artifact", "status": "still", "note": "Immutables are 0."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "P6 1 -> 0 (maxWithdraw's selector word prints with a whole first byte).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 11 lines: one changed line in maxWithdraw, correct.",
+  "summary": "No regression; only the P6 display fix changed this text."
+}

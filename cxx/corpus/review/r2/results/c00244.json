@@ -1,0 +1,53 @@
+{
+  "id": "c00244",
+  "text_changed": true,
+  "lines_old": 2126,
+  "lines_new": 2119,
+  "changed_functions": 6,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "OpenZeppelin mulDiv expansions unchanged (P9)."
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown8d18e24b (userRedeems(address))",
+      "lines": "310-329",
+      "decompiled": "_5 = mem[64] ... while s < mem[128]: ... return memory from mem[64] len _5 - mem[64] + 128 * stor13[_param1].length + 64",
+      "old": "while idx < stor13[_param1].length: ... return memory from mem[64] len 128 * stor13[_param1].length + 64",
+      "source": "XSilo.sol userRedeems(address) returns RedeemInfo[] memory (storage array copied to memory, then ABI-encoded)",
+      "issue": "After the first loop, the two reads of mem[64] (_5 and mem[64], no store between) are no longer unified, so the return length keeps '_5 - mem[64]'; the second loop's bound is mem[128] instead of the length stored there.",
+      "rule": "Reads of mem[64] with no store to mem[64] between them are one value even after a loop join; forward a word stored before a loop when the loop does not write it.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "mint, deposit, redeem, withdraw, unknowna7393788 (SafeERC20 transfer buffers)",
+      "lines": "681, 796, 1383, 1687, 1789, 2079",
+      "decompiled": "mem[_18 + 36 len 28] = caller >> 32; mem[_18 + 32 len 4] = 599290589  |  mem[_103 + 36 len 28] = uint128(receiver >> 32)",
+      "old": "mem[_18 + 32 len 4] = 599290589 (only)",
+      "source": "SafeERC20.safeTransferFrom / safeTransfer: abi.encodeCall(token.transferFrom, (from, to, value))",
+      "issue": "The masked selector store is now printed as two partial stores, the first rewriting 28 bytes with the value they already hold; it reads like a new value (caller >> 32). The selector itself is still decimal.",
+      "rule": "Drop a partial store whose bytes equal the bytes already in memory there; print a 4-byte selector store in hex.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P2 8 -> 0: SafeERC20 transfer/transferFrom calls named with their arguments (e.g. call 0x0.transferFrom(caller, this.address, amount)), the call buffer copy is a single copy line (Bytes(4, 0x23b872dd), caller, this.address, ...), and the return-data handling uses constant offsets from _18.",
+  "patterns": {
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff of 315 lines read in full. The decimal selector store '= 599290589' was already in the old text. The new pack header has no pattern line.",
+  "summary": "Minor regressions: userRedeems' return length keeps an unfolded '_5 - mem[64]' and its loop bound reads mem[128], and six no-op partial stores appear before transfer buffers. Otherwise the token calls are now named with their arguments (P2 8 -> 0)."
+}

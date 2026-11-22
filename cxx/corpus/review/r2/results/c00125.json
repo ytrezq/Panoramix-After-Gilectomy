@@ -1,0 +1,31 @@
+{
+  "id": "c00125",
+  "text_changed": true,
+  "lines_old": 1040,
+  "lines_new": 1040,
+  "changed_functions": 7,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "deposits[0xf3bc..] slots still two top-level variables."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "initialize's packed constant is no longer factored by 3600 ('stor[66] = 0x05f5e10000093a80..'), but slots 63/66 are still single constants and slot 68's fields still unsplit."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "12 unsigned '<= 0' tests unchanged."},
+    {"n": 4, "kind": "artifact", "status": "still", "note": "Unlinked library placeholders unchanged."}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "submitFraudChallenge(bytes,bytes,(bytes32,bytes32,uint8))",
+      "lines": "the delegatecall's args line",
+      "decompiled": "args 51, 192, ceil32(_param1.length) + 224, _param3._param1, _param3._param2, _param3._param3, _param1.length, _param1[all], mem[ceil32(_param2.length) + _param1.length + 388 len ceil32(_param1.length) + ceil32(_param2.length) - _param1.length + 32]",
+      "source": "Bridge.submitFraudChallenge -> Fraud.submitFraudChallenge(self, walletPublicKey, preimageSha256, signature)",
+      "issue": "Now exact (the old grouping put an Array where the 192 offset is), but the two bytes arguments are not decoded: the first prints as length and data, the second as one memory slice that starts inside the first one's padding.",
+      "rule": "Decode each dynamic argument from its head offset: the tail at offset o is Array(len=w[o], data=next w[o] bytes), padding excluded, whether the data come from calldata or memory.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "Calls with several dynamic arguments now decode each array (defeatFraudChallenge, defeatFraudChallengeWithHeartbeat, notifyRedemptionTimeout, notifyFraudChallengeDefeatTimeout, submitMovingFundsCommitment, where a bool or a uint after an array was swallowed before). GAS reads sit where the bytecode reads them (submitMovingFundsCommitment: the second after the success check). P1 1 -> 0.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 235 lines, mostly function reordering; 7 functions changed, read in full as per-function diffs.",
+  "summary": "No regression: multi-array call arguments decode exactly, the time-unit constant is gone and GAS reads are in place; one call's two bytes arguments still print partly raw."
+}

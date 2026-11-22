@@ -1,0 +1,87 @@
+{
+  "id": "c00127",
+  "text_changed": true,
+  "lines_old": 34060,
+  "lines_new": 23755,
+  "changed_functions": 11,
+  "old_findings": [
+    {"n": 1, "kind": "coverage", "status": "still", "note": "13 aborts at the same places (9 in the NONE branch, 4 in the borrow branch); borrow-branch blocks still end mid-revert and fall through to the single marker at the end (23741-23753)."},
+    {"n": 2, "kind": "loop", "status": "partly", "note": "Rotation gone: 'mem[256] = 0 / while True: if assets.length <= mem[256]: stop', iteration loads once at the top, the 5 prologue asserts/require dropped. The borrow arm still leaves the loop by 'break' (21371) and is printed after it."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "Same 122 mintToTreasury sites, call counts identical in every function; deposit 3910 -> 2531 lines only because each path is shorter."},
+    {"n": 4, "kind": "simplification", "status": "partly", "note": "Error-string blocks now 'revert with '48'' etc. everywhere but flashLoan, which keeps 107 of the 117 whiles (e.g. 18008-18022); while count 756 -> 117."},
+    {"n": 5, "kind": "simplification", "status": "partly", "note": "burn (16 sites), mint, handleRepayment, transferUnderlyingTo, Borrow topics and withdraw's 'return _7' now decoded. Still raw: SafeERC20 transferFrom (100-byte while copy, 'call asset with: args mem[_2824 + 324 len 100]'), executeOperation ('call mem[204 len 20]'), transferUnderlyingTo's target 'mem[364 len 20]'."},
+    {"n": 6, "kind": "simplification", "status": "still", "note": "Delegatecall part unchanged (296-312). Its tail improved: revert '23' and the Error(returnMessage) revert decoded, copies are copy lines."},
+    {"n": 7, "kind": "naming", "status": "worse", "note": "Fixed in finalizeTransfer (6 -> 0), but flashLoan's NONE branch now prints every member as storK[_2922] / stor[_2922 + k]: 88 -> 354 lines (see regression 4). def storage still declares stor2-stor7 in the gap."},
+    {"n": 8, "kind": "simplification", "status": "still", "note": "10**27 still '1000000000 * 10**18' (1865 lines)."},
+    {"n": 9, "kind": "simplification", "status": "still", "note": "getUserAccountData 520 'x <= 0', 522 'x / 2 / x', 528 '-5001 /', 559 subtracting a known 0."},
+    {"n": 10, "kind": "simplification", "status": "still", "note": "'len 5]' lines 580 -> 1149: the getSupplyData uint40 is now read from return data instead of memory and inlined, same slice; 'len 16]' 75."},
+    {"n": 11, "kind": "simplification", "status": "still", "note": "x & ~m | m still (24 lines); initReserve/initialize unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "flashLoan(address,address[],uint256[],uint256[],address,bytes,uint16)",
+      "lines": "17943-17961",
+      "decompiled": "mem[_78 + ceil32(return_data.size)] = 2; mem[... + 32] = 0x3636..; if not _80: mem[mem[64]] = 0x08c379a0..; _83 = mem[_78 + ceil32(return_data.size)]; while idx < _83: ...; revert with memory from mem[64] len ceil32(_83) + 68",
+      "old": "28187: if not _80: revert with '66'",
+      "source": "LendingPool.sol:504-507 require(IFlashLoanReceiver(receiverAddress).executeOperation(...), Errors.LP_INVALID_FLASH_LOAN_EXECUTOR_RETURN)",
+      "issue": "The check of executeOperation's result was decoded as revert '66'; it is now the 15-line Error copy loop, although the length 2 is stored at the very address read three lines later.",
+      "rule": "Forward a store to a later load of the identical address expression when the stores in between are at mem[64] + k with mem[64] = that address + 64 (disjoint, offsets non-wrapping); the copy then has length 2 and folds to revert with '66'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "finalizeTransfer(address,address,address,uint256,uint256,uint256)",
+      "lines": "646-650, 676-680, 836-840, 866-870, 909-913, 939-943, 980-984, 1010-1014, 1056-1060, 1086-1090 -> 1091-1093",
+      "decompiled": "if uint8(reserveData[asset].field_1952) < 128: ...; stop / mem[X] = 0x08c379a0..; mem[X+4] = 32; mem[X+36] = 2; mem[X+68 len 2] = 14135; mem[X+70] = 0   (block ends) ... 1091: revert with memory from mem[64] len 100",
+      "old": "967 and each later group: the same buffer writes followed by the group's own revert",
+      "source": "UserConfiguration.sol setUsingAsCollateral require(reserveIndex < 128, Errors.UL_INVALID_INDEX)",
+      "issue": "The '77' revert of ten paths is now one revert at the end of the function, up to 445 lines below the blocks that fall into it; each block reads as if the call stopped. Semantics are right (every arm sets mem[64] to its buffer). The merged revert also reads memory at a phi mem[64], which keeps all dead stores of the function (mem[0]/mem[32] keys, error-string allocations).",
+      "rule": "Do not merge terminal blocks (revert/return/stop) reached by falling out of distant arms; duplicate a terminal of a few lines into each predecessor. Then each buffer 0x08c379a0, 32, n, s folds to revert with '77'.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "deposit, rebalanceStableBorrowRate, withdraw, repay, swapBorrowRateMode, borrow (first two _mintToTreasury sites of each, 12 sites)",
+      "lines": "deposit 3456-3489 and 3497-3531; swapBorrowRateMode 1525-1551; rebalanceStableBorrowRate 6041-6078; withdraw 8638-8684; repay 12125-12161; borrow 14769-14806",
+      "decompiled": "if mem[ceil32(_1) + 320] > mem[ceil32(_1) + 192] + mem[ceil32(_1) + 288]: revert ... / mem[ceil32(_1) + 416] = mem[ceil32(_1) + 192] + mem[ceil32(_1) + 288] - mem[ceil32(_1) + 320] / assert mem[ceil32(_1) + 480] / mem[_1689 + 196] = mem[ceil32(_1) + 448] / call ...mintToTreasury(...) args mem[_1689 + 196], uint128(...)",
+      "old": "if (_2 * field_384 + 5e26)/1e27 > SafeMath.add(_93, ext_call.return_data[32]) ... / mem[+416] = _93 - (...) + ext_call.return_data[32] / args (_93 * uint16(field_64) - ... + 5000) / 10000, uint128(...)",
+      "source": "ReserveLogic.sol _mintToTreasury: totalDebtAccrued = currentVariableDebt.add(currentStableDebt).sub(previousVariableDebt).sub(previousStableDebt); amountToMint = totalDebtAccrued.percentMul(reserveFactor); mintToTreasury(amountToMint, newLiquidityIndex)",
+      "issue": "On these paths the MintToTreasuryLocalVars fields are read back from memory (P14) instead of the values written, the call buffer is printed and mintToTreasury's amount is a word of its own buffer; a redundant 'assert mem[ceil32(_1) + 480]' appears inside 'else' of '... or not mem[ceil32(_1) + 480]'. Forwarding stops after the error-string allocation at _1689 = mem[64].",
+      "rule": "Keep forwarding stores at constant offsets of ceil32(_1) across stores at a free-memory-pointer value whose floor (the constant floor kept at joins) lies above them; the fields then print as their values, as on the other 110 sites.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "flashLoan(address,address[],uint256[],uint256[],address,bytes,uint16)",
+      "lines": "17990-21370 (NONE branch), e.g. 17993-17994, 18005, 18009, 18038",
+      "decompiled": "_2922 = sha3(address(cd[assets + 32 * mem[256] + 36]), 53) / static call stor6[_2922] / if uint128(stor2[_2922].field_0) / uint40(stor3[_2922].field_128) / uint128(stor[_2922 + 1])",
+      "old": "static call address(reserveData[address(cd[32 * _2908 + assets + 36])].field_1536) / uint40(reserveData[...].field_896) / uint128(reserveData[...].field_256)",
+      "source": "LendingPool.sol:521-533 _reserves[vars.currentAsset].updateState(); cumulateToLiquidityIndex(...); updateInterestRates(...)",
+      "issue": "The NONE branch now holds the reserve slot in _2922, so about 266 member accesses that were reserveData[asset].field_N are printed as elements of invented arrays storK in the gap (reads, 6 storage writes, 8 call targets).",
+      "rule": "stor[v + k] with v = sha3(key, s) held in a variable is s[key].field_{256k}, the same as with the sha3 inline (round-1 finding 7).",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "rebalanceStableBorrowRate(address,address)",
+      "lines": "6512-6557, 8416",
+      "decompiled": "if max128 >= _3026: ... else: mem[_3057 + 64] = 0x08c379a0..; mem[_3057 + 68] = 32; mem[_3057 + 100] = 2; _3241 = _3057 + 32 / mem[mem[64] + 68] = mem[_3241]; revert with mem[mem[64] len 70], Bytes(30, 0)",
+      "source": "ReserveLogic.sol updateInterestRates: require(newLiquidityRate <= max128, '53'); require(newStableRate <= max128, '55'); require(newVariableRate <= max128, '54')",
+      "issue": "The three failing requires join into one revert through a phi of the string pointer (as in round 1); it is now 2 lines but has lost the Error(string) label. deposit prints the same code as three 'revert with '5x''.",
+      "rule": "Duplicate a revert block whose data differ per predecessor only by a constant string into each predecessor; each then decodes as revert with '53' / '55' / '54'.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "34060 -> 23755 lines. Error-string reverts decoded ('48', '53'-'55', '63', '64', '6', '77', '23', SafeERC20 and SafeMath messages) in every function but flashLoan; while 756 -> 117. aToken burn (16 sites), mint, handleRepayment, transferUnderlyingTo, Borrow topics and withdraw's return decoded; getUserAccountData's loop reads userConfiguration directly and drops dead stores (375 -> 147 lines); finalizeTransfer 1044 -> 527, its balanceOf targets now named; flashLoan's second loop no longer rotated; P6 899 -> 0; amounts copy in flashLoan is a copy line.",
+  "patterns": {"P1": 0, "P2": 87, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 39,948 lines reviewed by structure: for each changed function, normalized multisets of calls, events, storage writes, reverts, asserts and aborts compared old vs new, then the differing places read against the source. liquidationCall, getReserveNormalizedVariableDebt, getUserAccountData and finalizeTransfer read line by line. Calls are identical in count everywhere; storage writes identical except flashLoan's renaming; event sites fewer only where arms merged (deposit Deposit 4 -> 2, finalizeTransfer 18 -> 15 through a phi on the health factor). swapBorrowRateMode only moved (functions are sorted by size); its 12 redundant 'assert mem[_1660 + 288]' are gone. flashLoan: requires 155 -> 154 and asserts 38 -> 34 are the dropped rotation prologue; borrow branch unchanged; after the assets abi.encode loop the loop pointer s is used for the offsets (17924), equal to the old closed form.",
+  "summary": "Large improvement (error strings, aToken calls, getUserAccountData, finalizeTransfer, loop rotation), but four regressions: flashLoan's '66' revert is an undecoded copy loop again, finalizeTransfer's ten '77' paths share one revert at the end of the function, 12 _mintToTreasury sites read their locals back from memory, and flashLoan's NONE branch names reserve members as invented storK arrays."
+}

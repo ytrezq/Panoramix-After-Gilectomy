@@ -1,0 +1,17 @@
+{
+  "id": "c00249",
+  "text_changed": true,
+  "lines_old": 886,
+  "lines_new": 886,
+  "changed_functions": 6,
+  "old_findings": [
+    {"n": 1, "kind": "semantics", "status": "fixed", "note": "TransferBatch (burnBatch, mintBatch, safeBatchTransferFrom) now prints 'ids=Array(..)' and 'values=Array(..)', and onERC1155BatchReceived passes three separate Arrays (ids, amounts, data) instead of one merged Array plus head offsets."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "The catch Error(string) test still compares with the decimal 147028384 (4 lines)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "The several-dynamic-arguments fix corrects all 5 sites of round-1 finding 1. P6 is gone (6 lines: the 0x0e89341c / 0x01ffc9a7 interface ids, 0x08c379a0). The re-thrown Error(string) data show the length separately ('32, _41, mem[.. + 68 len _41], Bytes(..)').",
+  "patterns": {},
+  "notes": "Diff 129 lines, read in full. Only decoding and display changed; no control-flow, storage or loop change.",
+  "summary": "No regression: the medium round-1 finding on events and calls with several dynamic arrays is fixed, and P6 is gone."
+}

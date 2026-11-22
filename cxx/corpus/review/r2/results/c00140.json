@@ -1,0 +1,17 @@
+{
+  "id": "c00140",
+  "text_changed": true,
+  "lines_old": 2107,
+  "lines_new": 2040,
+  "changed_functions": 6,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "Role-check toHexString loops unchanged (impossible 'if idx >= 42/66' checks remain)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "usedValidators still sha3(mem[mem[64] len _58 + .. - mem[64]]) (lines 1138, 1184, 1188); initiateValidatorsWithDeposits changed only in hex."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "unstakeRequest and unstakeRequestWithPermit (unknown891ef43e/b064d461): UnstakeRequested is decoded (uint128(_77), _param1, indexed request id, indexed caller); the SafeERC20 bytes copy loop is now one copy line, so transferFrom is named with args caller, stor215, _param1 (whiles 36 -> 32). stake: custom errors decoded (revert with 0x273ad0e0; revert with 0xb5903eca, _120, amount), Staked(user=caller, amount=call.value, total=_120) decoded, and dead selector/return-copy writes dropped. P6 6 -> 0, args-mem 3 -> 1, raw reverts 10 -> 8.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 439 lines, read per function. supportsInterface, unknown04f36cc2 and unknown0208e4b5 change only in hex display. If/require/revert counts are unchanged in all 6 functions; the 4 removed whiles are the SafeERC20 copy loops. In stake the temporaries _5/_6 and _13/_14 swapped names, consistently in every use. The 'len 4] = 599290589' decimal selector writes remain (2).",
+  "summary": "No regression. The unstake paths gain a decoded log and transferFrom (two copy loops gone); stake's errors and Staked log are decoded; P6 is fixed."
+}

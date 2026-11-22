@@ -1,0 +1,16 @@
+{
+  "id": "c00095",
+  "text_changed": true,
+  "lines_old": 1400,
+  "lines_new": 1356,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "The calls around the hook receiver are now decoded: 'call mem[172 len 20].setGauge(address _token, address _gauge) with: args address(ext_call.return_data[0]), address(_1536)', and 'call 0x0.unknownf0eb5ab2(?)' with args. The target is still the slice mem[172 len 20], an argument is 'Bytes(12, 0), mem[172 len 20]', and the nested calldata offsets are unchanged."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "In deploy (unknown2556aca1), return words are read directly (ext_call.return_data[32], the address checks) instead of copies at mem[64]. The clone salts are resolved ('sha3(ext_call.return_data[0], Bytes(20, caller), 0x1d05..)' instead of a sha3 of a memory range), and 'if not mem[300 len 20]' became 'if not _param10'. Two more calls are named with args (setGauge, 0xf0eb5ab2), and a dynamic argument is decoded ('Array(len=32, data=this.address)'). Allocations are addressed from their base ('_69 + ceil32(cd[_param3 + 4]) + k'): longer than before but correct. P2 fell from 19 to 17 and P6 is gone.",
+  "patterns": {"P2": 17},
+  "notes": "Diff 587 lines, one function, read hunk by hunk. The relative addresses were checked against the old ones: e.g. '_678 + mem[_678]' = '_661 + mem[_661 + 96] + 96' with _678 = _661 + 96, and the call length '_706 + _747 - mem[64] + 84' = _747 as before (still unfolded, as in the old text). No control-flow, call-target or storage change.",
+  "summary": "No regression: deploy's return values, salts and two hook calls are now decoded. The hook target is still a memory slice."
+}

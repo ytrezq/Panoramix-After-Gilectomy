@@ -1,0 +1,107 @@
+{
+  "id": "c00001",
+  "text_changed": true,
+  "lines_old": 4677,
+  "lines_new": 4271,
+  "changed_functions": 8,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "loop",
+      "status": "partly",
+      "note": "_addPaymentToList (4 copies: 1037, 2234, 2796, 4160) is no longer rotated: the test is computed once at the top ('while True: _346 = s and ... >= ...; if not _346: ...'), not twice. It is still a flag, not the while condition, and the code after the loop is now printed inside the exit branch (see regressions)."
+    },
+    {
+      "n": 2,
+      "kind": "simplification",
+      "status": "worse",
+      "note": "Lines with five or more ceil32 terms 35 -> 81: addresses are now spelled from an earlier base instead of the '_x = mem[64]' variables."
+    },
+    {
+      "n": 3,
+      "kind": "simplification",
+      "status": "still",
+      "note": "1000000000000 * 10**18 (109 lines) and the distributed accrual products unchanged."
+    },
+    {
+      "n": 4,
+      "kind": "simplification",
+      "status": "still",
+      "note": "unknown18058610 unchanged (no diff): 'x >= 78 and x >= 32' remains."
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "unknownfc1aa82f (acceptNewTerms path, _queueNextPayment inlined)",
+      "lines": "2830-2893, 2900-2910, 2918-2925",
+      "decompiled": "_578 = mem[64]; mem[64] = mem[64] + 224; if _520 > 16777215: revert with 'LM:UINT24'; mem[_578] = uint24(_520); if _527 > 16777215: mem[mem[64]] = 0x08c379a0...; ...; revert with memory from mem[64] len 100 ... log 0x64020fa3...: mem[mem[64] len 96], _514, ... ; log 0x76074101...: mem[mem[64] len 96]",
+      "old": "if _527 > 16777215: revert with 'LM:UINT24' ... revert with 'LM:UINT128' (x2), 'LM:UINT112', 'LM:UINT48'; log 0x64020fa3...: _520, _527, block.timestamp, _514, ...; log 0x76074101...: uint48(_618), -_445 + _623 + ..., _619",
+      "source": "LoanManager.sol _queueNextPayment: payments[paymentId_] = PaymentInfo({_uint24(...), _uint24(...), _uint48(...), _uint48(...), _uint128(...), _uint128(...), newRate_}); accountedInterest += _uint112(...); emit PaymentAdded(...); _updateIssuanceParams -> emit IssuanceParamsUpdated",
+      "issue": "In this tail, once a word is written through the held pointer _578 (= mem[64] - 224), reads at mem[64]-based offsets are no longer resolved: five reverts the old text decoded ('LM:UINT24', 'LM:UINT128' x2, 'LM:UINT112', 'LM:UINT48') are raw 'revert with memory', and the two events lose their data words (the first three, or all three).",
+      "rule": "Keep the relation between a held read of mem[64] and the pointer's later value (here mem[64] = _578 + 224), so that stores through _578 + k (k < 224) are known not to alias [mem[64], mem[64] + n) and revert/log data stay resolvable.",
+      "verified": "reading only (old text lines 2963-2997 decode them)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknownfc1aa82f",
+      "lines": "2789-2925",
+      "decompiled": "if _514 <= 281474976710655: <whole rest of the function, 130 lines, loop and stop> else: <raw 'LM:UINT48' revert>",
+      "old": "if _514 > 281474976710655: revert with 'LM:UINT48' (then the rest, flat)",
+      "source": "LoanManager.sol _addPaymentToList(_uint48(nextPaymentDueDate_)): require(input_ <= type(uint48).max, \"LM:UINT48\")",
+      "issue": "An early revert became the else arm of a 130-line if, its test far from its revert, the rest nested one level deeper.",
+      "rule": "When one arm of a branch only reverts, print it first as 'if not cond: revert ...' and keep the other arm flat, even when that arm ends with stop.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "unknown1cd8d07b, fund, unknownfc1aa82f, claim (_addPaymentToList)",
+      "lines": "1037-1083, 2234-2290, 2796-2917, 4160-4270",
+      "decompiled": "while True: _346 = s and mem[mem[64] + 122 len 6] >= uint48(stor13[s].field_48); if not _346: <the rest of the function, 30-120 lines>; stop; t = s; s = uint24(stor13[s].field_24); continue",
+      "old": "while _346: _346 = ...; t = s; s = ...; continue; <the rest of the function after the loop>",
+      "source": "LoanManager.sol:872 _addPaymentToList: while (next_ != 0 && paymentDueDate_ >= sortedPayments[next_].paymentDueDate) { current_ = next_; next_ = sortedPayments[current_].next; } then the inserts",
+      "issue": "The code after the loop is now printed inside the loop as its exit branch ending in stop; the loop's own test is not the while condition.",
+      "rule": "When a loop's exit edge leads to code that ends the function, still print that code after the loop, with the exit test as the while condition (or 'if not c: break').",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown1cd8d07b, unknownfc1aa82f and the _removePaymentFromList / memory-struct copies (12 copies, 34 lines)",
+      "lines": "e.g. 1001-1009, 1038, 1050-1056, 1301-1308, 713-717, 934-938",
+      "decompiled": "mem[mem[64]] = uint24(payments[...].field_0) ... (no allocation) ... if mem[_107 + 285 len 3]: uint24(stor13[concat(Bytes(29, 0), mem[_107 + 285 len 3])].field_0) = mem[_107 + 253 len 3]; if mem[_107 + 253 len 3]: uint24(stor13[concat(Bytes(29, 0), mem[_107 + 253 len 3])].field_24) = mem[_107 + 285 len 3]",
+      "old": "_305 = mem[64]; mem[64] = mem[64] + 224; mem[_305] = ... | _111 = uint24(stor13[u].field_0); _112 = uint24(stor13[u].field_24); ... if uint24(_111): uint24(stor13[uint24(_111)].field_24) = uint24(_112)",
+      "source": "LoanManager.sol:900-921 _removePaymentFromList (previous_, next_ from the memory copy of sortedPayments[id]); PaymentInfo memory copies",
+      "issue": "Struct allocations are dropped and their fields addressed through a stale 'mem[64]' (34 lines, 5 before); the fields of a struct just copied from storage are read back as 3-byte memory slices instead of the stored values, so 12 more mapping keys become concat(Bytes(29, 0), mem[...]).",
+      "rule": "Print addresses from the variable that holds the struct pointer; forward a narrow load mem[A + 32 - n len n] from the word stored at A when that word fits in n bytes.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown9e5df6c2 (finishCollateralLiquidation)",
+      "lines": "e.g. call at the pullFunds site, min(...) tests",
+      "decompiled": "call mem[_269 + 172 len 20].pullFunds(...) ... if not -min(-min(mem[_269 + 148 len 12], _3) + _3, uint128(mem[_269 + 48 len 16] + mem[_269 + 81 len 15]) + mem[_269 + 96]) - ...",
+      "source": "LoanManager.sol _disburseLiquidationFunds: liquidationInfo_ fields (liquidator, principal, interest, lateInterest, platformFees)",
+      "issue": "Struct fields the old text bound to variables (_279.._282, _323) are now re-read from memory at each use, including as a call target.",
+      "rule": "Keep a memory read in its variable when it is used more than once.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "Calls named (pool, mapleGlobals, mapleTreasury, borrower, isBorrower, skim, createInstance with its bytes argument), reverts decoded ('LM:UINT128', 'LM:DLF:TRANSFER_B', 'LM:ANT:INVALID_BORROWER'...; raw reverts 28 -> 7), logs decoded (raw logs 16 -> 3), a P7 copy loop in triggerDefault became a copy line (while 26 -> 25) and the other copies have constant bound 68, P2 51 -> 16, P6 gone; 406 fewer lines.",
+  "patterns": {
+    "P1": 0,
+    "P2": 16,
+    "P3": 0,
+    "P4": 24,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff of 3,515 lines (8 functions) reviewed by structure plus full reading of fund, fc1aa82f's tail, 1cd8d07b's loop and 9e5df6c2's changed lines. Check order in _queueNextPayment checked against source (due - start, interest[0] mul, *PRECISION, /0, LM:UINT48, counter, loop, interest[2] mul, LM:UINT24...): same in old and new. claim's new 'stop' at 4087 is an early exit, fine.",
+  "summary": "Regressions: in fc1aa82f's tail five reverts and two events lose the decoding the old text had (a held free-pointer value no longer related to mem[64]), an early revert became a 130-line else, and loop tails moved inside their loops; struct fields read through a stale mem[64]. Otherwise many calls, reverts and logs newly decoded and P2 51 -> 16."
+}

@@ -1,0 +1,29 @@
+{
+  "id": "c00172",
+  "text_changed": true,
+  "lines_old": 3597,
+  "lines_new": 3005,
+  "changed_functions": 15,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "fixed", "note": "The 8 loops rotated around their require (removeSenders, approveSenders, the adapter updates, the initializer) are now 'while s < len:' with the bounds check, the require ('if not address(_20): revert with '36''), the write and the log in the body. No 'while address(_N)' or 'while _N' header is left. The initializer's two epilogue copies (flag reset + Initialized) are merged into one after the loops."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown34f7870c(uint256) (returns the ChainIdBridgeConfig[] of a chain)",
+      "lines": "275-291",
+      "decompiled": "_5 = mem[64] ... while s < mem[128]: ... return memory from mem[64] len _5 - mem[64] + 64 * stor7[_param1].length + 64",
+      "old": "while idx < stor7[_param1].length: ... return memory from mem[64] len 64 * stor7[_param1].length + 64",
+      "source": "CrossChainForwarder.sol getForwarderBridgeAdaptersByChain: return _bridgeAdaptersByChain[chainId]",
+      "issue": "_5 is bound to mem[64] and nothing writes mem[64] before the return, but _5 - mem[64] is no longer folded to 0, and _5 exists only for that. The re-encoding loop's bound is now mem[128] (the copied length) instead of stor7[_param1].length. Values are unchanged.",
+      "rule": "A variable bound to a read of mem[64] equals any later read of mem[64] as long as no write to mem[64] comes between, so fold x - mem[64] to 0 and drop the unused binding. Print a memory word that holds a copy of a storage value, never rewritten, as that storage value.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Loops: every rotated loop is now a plain 'while s < len' (finding 1). The rotated allocation loop no longer prints its first iteration before 'while idx - 1'. Error-string reverts decoded ('36', '14', '33', 'Address: call to non-contract'); the 18 Error(string) copy loops and 13 'revert with memory' are gone. Initialized(uint8 version=1) decoded. receiveCrossChainMessage and forwardMessage now show the hashed envelope, call arguments and event data as values. The delegatecall is named (unknown52d1043d). '_N - mem[64]' terms 25 -> 2. P1 9 -> 0, P2 6 -> 3, P4 24 -> 13, P6 -> 0. Text 7% smaller, whiles 99 -> 89 (removed: error-string copies and duplicated first iterations).",
+  "patterns": {"P1": 0, "P2": 3, "P3": 0, "P4": 13, "P5": 0, "P6": 0},
+  "notes": "Diff of 3.2k lines over 15 functions, reviewed function by function on the structural deltas. Changes traced: logs and storage writes 15->13 and 30->28 in the initializer (unknown700e50a8) and logs 11->10 in unknownc5ca1830 are duplicated epilogues and first iterations now merged, and each source effect is still present once per path. Call-count changes are call.data lines. The extra Panic(50) in unknown0a234b15 is the first iteration's bounds check, now inside the loop. retryTransaction keeps its 3 source loops (outer loop1, uniqueness, registered-adapter search with break). Pack regex: P2 3, P4 13.",
+  "summary": "No semantic regression. The main round-1 problem (8 loops rotated around their require) is fixed, error strings and events are decoded, and the text is 7% smaller. One small getter shows an unfolded '_5 - mem[64]' in its return length."
+}

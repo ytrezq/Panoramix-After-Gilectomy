@@ -1,0 +1,33 @@
+{
+  "id": "c00275",
+  "text_changed": true,
+  "lines_old": 412,
+  "lines_new": 358,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "The sort/aggregation loops still print as 'while True' holding the function's tail."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "The custom-error reverts decode (0xe7764c9e, 0x5796f78a, 0xc30a7bd7, 0x4fec3a61, SignerNotAuthorised; raw reverts 10 -> 3) and ecrecover's input is sha3(call.data[...]); the UpdatePrice event is still 'newPrice=mem[mem[64] len _90 - mem[64] + 32]' (line 287)."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "arr[n / 2] and the distributed uint24 * uint32 overflow checks unchanged."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "cd[calldata.size] zero-inits, 16-byte lastPrice slice, decimal marker mask unchanged."},
+    {"n": 5, "kind": "artifact", "status": "still", "note": "immutables 0."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown8736ec47 (updatePrice(bytes))",
+      "lines": "254, 256, 269, 272-275",
+      "decompiled": "if s >= mem[ceil32(cd[_param1 + cd[_param1 + 68] + 36]) + 64 * mem[ceil32(cd[_param1 + cd[_param1 + 68] + 36]) + 160] + 288]: revert with Panic(50)",
+      "old": "if s >= mem[ceil32(cd[_param1 + cd[_param1 + 68] + 36]) + 352]: revert with Panic(50)",
+      "source": "RedstoneConsumerNumericBase / RedstonePriceFeed: uint256[] memory valuesForDataFeed = new uint256[](uniqueSignersThreshold) and the loops over it",
+      "issue": "Addresses inside and after the zero-init loop now contain '64 * mem[X + 160]', a word stored as the constant 1 just before the loop and never written in it; the old text had the constant offsets 352/384.",
+      "rule": "Forward a memory word stored before a loop when no store in the loop can alias it (the loop's stores are at or above a pointer greater than that word), so the pointer floor after the loop stays constant.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Custom-error reverts decoded (raw reverts 10 -> 3); the two identical SignerNotAuthorised reverts after ecrecover merge into one (P12); ecrecover's input decoded; the '- 118 > calldata.size' check folded into the SafeMath.sub (Panic(17), same revert, evaluated before the 0x4fec3a61 check as before); serialize returns 'Array(len=..., data=...)' for its bytes value; P2 54 -> 0 by the header's count; 54 fewer lines.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 142 lines read in full. Old/new order of failing checks compared (Panic(17) checks may swap: same revert data).",
+  "summary": "One minor regression: addresses around the zero-init loop carry '64 * mem[X + 160]' instead of constants. Otherwise better: custom errors and ecrecover decoded, duplicate reverts merged, serialize's bytes return wrapped."
+}

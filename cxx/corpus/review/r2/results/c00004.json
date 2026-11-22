@@ -1,0 +1,66 @@
+{
+  "id": "c00004",
+  "text_changed": true,
+  "lines_old": 2993,
+  "lines_new": 2470,
+  "changed_functions": 9,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "Fixed: the VRF revert reasons ('invalid x-ordinate', 'bigModExp failure!', 'bad witness'...; raw reverts 55 -> 4), event payloads (raw logs 5 -> 1), fieldHash's step (now 't = sha3(t)'), and bigModExp's arguments. Still opaque: hashToCurve's per-iteration candidate hash (1696, 2116) and the pointToAddress checks 'address(sha3(mem[_310 + 128 len 64]))'. The first fieldHash loop is now rebased (regression 2)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "migrate's inlined isTargetRegistered is still the inverted loop 'while -_to + address(stor[_3 + s])' with _3 = sha3(19) recomputed (1155-1161). The consumers copy loops and FIELD_SIZE printed as -4294968273 are unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "pendingRequestExists (41af6c87), removeConsumer (cb631797), cancelSubscription (0ae09540), migrate",
+      "lines": "704-706, 930-932, 1040-1042, 1228-1230",
+      "decompiled": "_54 = mem[64] / ... / _55 = mem[64] / ... / mem[0] = sha3(mem[_55 + 192 len _54 - _55 + 64]) / if not stor16[sha3(mem[_55 + 192 len _54 - _55 + 64])]:",
+      "old": "mem[0] = sha3(stor15[idx], _57) / if not stor16[sha3(stor15[idx], _57)]:",
+      "source": "VRFCoordinatorV2Plus.pendingRequestExists: s_requestCommitments[computeRequestId(keyHash, consumer, subId, nonce)] (requestId = keccak256(abi.encode(keyHash, preSeed)))",
+      "issue": "The inner preSeed hash now resolves. But the outer requestId hash, which the old text showed as sha3(stor15[idx], _57), is a hash of raw memory again: the two loads of mem[64] (_54, _55), with only stores at mem[64] + k between them, are no longer known to be equal. Same root cause as c00066's regression 1.",
+      "rule": "Two loads of slot 0x40 with no store that can reach it between them read the same value (stores at mem[64] + k, k >= 32, cannot, given the pointer's floor >= 0x80); unify them before resolving keccak inputs relative to them.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "unknownba2f7379 and unknown330987b3 (VRF.fieldHash inlined in hashToCurve)",
+      "lines": "1653-1660; 2073-2080",
+      "decompiled": "s = 0 / while s + sha3(1, call.data[4 len 64], _163) >= 0xffff...fffefffffc2f: ... s = sha3(s + sha3(1, call.data[4 len 64], _163)) - sha3(1, call.data[4 len 64], _163) / s = s + sha3(1, call.data[4 len 64], _163)",
+      "old": "s = sha3(mem[_229 + 32 len mem[_229]]) / while s >= 0xffff...fc2f: ... s = sha3(mem[_237 + 32 len mem[_237]])",
+      "source": "VRF.sol:201-205 x_ = uint256(keccak256(b)); while (x_ >= FIELD_SIZE) { x_ = uint256(keccak256(abi.encodePacked(x_))); }",
+      "issue": "The hash inputs now resolve, but the loop variable is rebased as an offset from its initial value H = sha3(1, pk, input). H is added in the condition, the step and the exit, and subtracted in the step, so 'x = keccak(x) while x >= F' no longer reads as such. Correct modulo 2^256, but the loop header and step are much harder to read than before. The nested fieldHash loop (2117) keeps the plain form 'while t >= F: t = sha3(t)'.",
+      "rule": "Express a loop-carried value by its own phi variable (s = H; while s >= F: s = sha3(s)). Rewrite it as init + offset only for address-like values where the offset is what matters, never for values such as hashes.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getRequestConfig()",
+      "lines": "289",
+      "decompiled": "return stor13, stor13_16, 96, stor15.length, mem[160], mem[32 * stor15.length + 320 len 32 * max(1, stor15.length) - 32]",
+      "old": "return stor13, stor13_16, Array(len=stor15.length, data=mem[160], mem[...])",
+      "source": "VRFCoordinatorV2Plus.sol:190 return (..., s_provingKeyHashes) (bytes32[])",
+      "issue": "The returned bytes32[] used to be shown as Array(len=..., data=...). It is now printed as its raw ABI words (offset 96, length, data).",
+      "rule": "Keep recognizing an ABI tail 'offset, length, length words of data' in return data as Array(len, data).",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknownba2f7379, unknown330987b3",
+      "lines": "1595, 2015",
+      "decompiled": "revert with Bytes(28, 0x175dadad000000000000000000000000000000000000000000000000), Bytes(8, uint64(cd[_param14 + 4]))",
+      "source": "VRFCoordinatorV2Plus: revert NumWordsTooBig / custom error with a uint64 argument (selector 0x175dadad)",
+      "issue": "The custom-error revert, raw memory before, is now decoded but split where the uint64 sits in its word, instead of '0x175dadad, uint64(...)'.",
+      "rule": "Print revert data as the 4-byte selector followed by whole 32-byte words; merge a zero-padded slice with the value it pads.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "523 fewer lines. Dead memory stores dropped (memory-store lines 1023 -> 720), all VRF revert messages resolved, custom errors decoded (InsufficientBalance(), FailedToSendEther(), 0x79bfd401 with args). Logs decoded (RandomWordsRequested, SubscriptionConsumerRemoved, SubscriptionCanceled, MigrationCompleted). Calls named: LINK.transfer, setCoordinator, bigModExp with arguments. The 2-word proof-key copies are now copy lines. consumers[i] mapping writes now print as stor4[...][subId] = 0 (stor4 is declared uint64). The preSeed and the stor16 value hashes in requestRandomWords resolve. P6 45 -> 0, P2 6 -> 2.",
+  "patterns": {"P2": 2, "P3": 9, "P4": 8, "P6": 0, "P7": 15, "P8": 120, "P11": 10},
+  "notes": "Diff (2,559 lines) read hunk by hunk with per-function diffs. Checked: removeConsumer's reads of the memory consumers copy rewritten as reads of the unchanged storage array (equal at that point); the dropped P11 checks; the rebased fieldHash loop is equivalent modulo 2^256. migrate's setCoordinator loop is still rotated: the i = 0 call is printed before 'while idx + 1:' in both arms of the LINK branch (1373-1384, 1401-1412), so the rotation fix did not reach it. P3/P7/P8/P11 are estimates.",
+  "summary": "Much cleaner VRF and subscription code (messages, logs, calls, dead stores). Two medium regressions: the requestCommitments key is a raw-memory hash again in four functions (two mem[64] loads not unified), and the first fieldHash loop's variable is rebased as an offset from its initial hash. One low: getRequestConfig's array return lost its Array form."
+}

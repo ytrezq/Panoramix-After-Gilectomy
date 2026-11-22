@@ -1,0 +1,29 @@
+{
+  "id": "c00055",
+  "text_changed": true,
+  "lines_old": 2811,
+  "lines_new": 2754,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "unbondRequest is now 'static call address(_2).unknownd241c1ea(?)' with args _4, s and getClaimableAmount returns t; the struct result is still read partly from memory (mem[_19 + 32])"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getUserWithdrawalRequests(address)",
+      "lines": "1063-1080",
+      "decompiled": "_5 = mem[64] / ... / while s < mem[128]: ... / return memory from mem[64] len _5 - mem[64] + 96 * stor211[_address].length + 64",
+      "old": "while idx < stor211[_address].length: ... / return memory from mem[64] len 96 * stor211[_address].length + 64",
+      "source": "ListaStakeManager.getUserWithdrawalRequests: return userWithdrawalRequests[_address] (struct array)",
+      "issue": "After the allocating copy loop the free pointer has no known floor, so the encode loop's writes may alias it: the return length keeps _5 - mem[64] (zero) and the loop bound is the memory length word instead of the storage length.",
+      "rule": "A free pointer that starts above a constant floor and only grows keeps the floor through loops, so writes at mem[64] + k miss [0, 160): cancel _5 - mem[64] and keep mem[128] equal to the length stored there.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P6 fixed (0x07d274... address). Calls decoded (raw args 7 -> 0): unbondRequest, totalSupply, mint and the two validator-credit calls in compoundRewards/unknown786a56c3. compoundRewards resolves the stor234 key to address(ext_call.return_data[0]). getClaimableAmount returns t. requestWithdraw places its SafeMath.add overflow check where the bytecode does (same panic).",
+  "patterns": {},
+  "notes": "Diff 633 lines, read in full per function (8 changed; unknown9823004f only gained blank lines). 69 while before and after; no line over 200 chars.",
+  "summary": "One low regression: getUserWithdrawalRequests' return length keeps an uncancelled _5 - mem[64]. Otherwise calls decoded and returns simplified."
+}

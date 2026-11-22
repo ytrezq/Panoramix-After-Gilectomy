@@ -1,0 +1,17 @@
+{
+  "id": "c00338",
+  "text_changed": true,
+  "lines_old": 721,
+  "lines_new": 710,
+  "changed_functions": 5,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "GetRandom/Get42 still merge GetErrorCode's messages through the phi chain into one raw revert (only the hex display of the Error selector changed)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "'2 * Mask(250, 5, x + 31)' is still printed (3 lines)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "TuringTx: the two copy loops of the response bytes (log and return encodings) are now copy lines (whiles 6 -> 4). The GetResponse call's arguments are now the exact ABI words (1, 96, offset, length, data); the old text showed a misleading Array(len=cd[_param1 + 4], data=...) that absorbed both dynamic arguments. GetResponse's revert shows its length explicitly. P6 26 -> 0.",
+  "patterns": {"P6": 0, "P7": 4, "P10": 1},
+  "notes": "Diff (294 lines) read in full: supportsInterface, GetRandom and Get42 differ only in hex display; TuringTx and GetResponse as above. No source loops.",
+  "summary": "No regression: copy loops became copy lines, a misleading call-argument decode became exact, and hex constants show whole bytes; the GetErrorCode phi chain remains."
+}

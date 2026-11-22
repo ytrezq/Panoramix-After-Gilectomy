@@ -1,0 +1,29 @@
+{
+ "id": "c00128",
+ "text_changed": true,
+ "lines_old": 2833,
+ "lines_new": 2811,
+ "changed_functions": 7,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "toHexString keeps the dead 'if idx >= 42/66: revert with Panic(50)' (46 lines)."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "Role membership still prints as raw stor[sha3(caller, sha3(...))] (18 lines)."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "P6 30 -> 0. In mint/redeem/verifyOrder, the order hash is now shown as the EIP-712 struct hash sha3(0x30ea..., sha3(order_id), ...) instead of sha3(mem[_7 + 32 len mem[_7]]). encodeOrder's return is one 'Array(len=320, data=...)' instead of 11 raw ABI words.",
+ "patterns": {
+  "P2": 14
+ },
+ "notes": "The diff is 576 lines; I read all 7 changed functions (4 only changed hex display). All 3 source loops are still whiles (57 whiles before and after). The ERC-1271 isValidSignature call stays P2 as before. Its argument stores now print at '_7 + 352...', while the call still reads 'mem[mem[64] len ...]', so base and stores look unrelated; unifying them (mem[64] == _7 + 352) would decode the call.",
+ "summary": "No regression. Small gains: whole-byte hex constants, the EIP-712 order hash resolved inline, and a compact encodeOrder return."
+}

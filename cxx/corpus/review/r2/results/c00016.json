@@ -1,0 +1,54 @@
+{
+  "id": "c00016",
+  "text_changed": true,
+  "lines_old": 6818,
+  "lines_new": 5220,
+  "changed_functions": 5,
+  "old_findings": [
+    {"n": 1, "kind": "coverage", "status": "still", "note": "internal_0x12ec (swap's runLoop copy) still aborts at 2672 ('jump to a parameter computed at runtime', 4852)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "Power.pow loops (3430, 3461, 3570) still carry t and v with equal values, and the one-armed if still has two arms."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "quote/swap runLoop copy internal_0x1356 (Balances instructions)",
+      "lines": "2848-2855, 2872-2879, 2961-2968",
+      "decompiled": "revert with Bytes(16, 0x5534d910000000000000000000000000), mem[mem[_param1 + 32] + 108 len 20], Bytes(12, 0), mem[mem[_param1 + 32] + 140 len 20], 96, ...",
+      "old": "_716 = mem[mem[_param1 + 32] + 96] / _717 = mem[...+ 128] / ... revert with mem[_742 len 4], address(_716), address(_717), 96, ...",
+      "source": "Balances.sol custom errors with (tokenIn, tokenOut, tokens) arguments (selectors 0x5534d910, 0x9ddce115, 0x361b6097)",
+      "issue": "The selector is now visible, but it is merged with the first address word's 12 zero bytes into one 16-byte constant, and the two address arguments become 20-byte memory slices with a Bytes(12, 0) between them. Exact, but the reader no longer sees two address arguments.",
+      "rule": "Segment revert or call data as the 4-byte selector followed by 32-byte words: a 12-byte zero run followed by bytes 12..31 of a word w is address(w), and the selector is printed alone.",
+      "verified": "reading only (old 4416-4430 vs new 2846-2855)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "internal_0x1356 (base-fee instruction, else arm)",
+      "lines": "3504-3508",
+      "decompiled": "if 10**18 > SafeMath.div(10**18 * (...) / 10**18), mem[mem[_param1 + 64] + 64]) + 10**18: revert with Panic(17) / _727 = (SafeMath.div(...) + 10**18 < uint64(...)) * (SafeMath.div(...) + 10**18 ^ ...)",
+      "old": "_726 = (SafeMath.add(10**18, SafeMath.div(10**18 * (...) / 10**18), mem[...+ 64])) < uint64(...)) * (...)",
+      "source": "the base-fee adjustment instruction: 1e18 + fee factor, checked addition",
+      "issue": "A checked addition that was SafeMath.add(10**18, x) is now an explicit wrap test 'if 10**18 > x + 10**18: revert Panic(17)', with the huge x repeated in the test and in _727. Equivalent, but longer and an idiom the reader must decode.",
+      "rule": "Recognize 'if a > x + a: revert Panic(17)' (and a > ~x) followed by uses of x + a as SafeMath.add(a, x), and keep the folded form.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "internal_0x1356 (Debug instruction, console.log)",
+      "lines": "4366-4368",
+      "decompiled": "static call 0x636f6e736f6c652e6c6f67.log(string key, string val) with: args 64, 128, 18, 0x20202020766d2e74616b6572417267733a20...00, 2 * uint128(_982) + 2, '0x', mem[... len 2 * uint128(_982)], Bytes(-(2 * uint128(_982)) + floor32(2 * uint128(_982) + 33) - 2, 0)",
+      "source": "Debug.sol console.log(\"    vm.takerArgs: \", _toHexString(...))",
+      "issue": "The call is named and its data are exact, but the two string arguments print as their ABI head and tail words (offsets 64 and 128, lengths, padded data). They are not printed as two strings.",
+      "rule": "When a named call's signature has dynamic parameters, and the data's head offsets and length words match the tail layout, print each argument as its value ('    vm.takerArgs: ', '0x' ++ mem[...]).",
+      "verified": "reading only (layout checked: offsets 64/128, padding = ceil32(2n+2) - (2n+2))"
+    }
+  ],
+  "improvements": "swap: an orphan copy of the post-runLoop code (old 2876-4221) is dropped. It sat after a top-level return, called internal_0x12ec with undefined _87.._91, and duplicated the two reachable continuations, which together cover both Aqua and non-Aqua arms. Its 1345 lines hold exactly the lost 48 calls, 1 log, 122 reverts and 2 writes. Named calls: transferFrom, approve, balanceOf, console.log, AQUA unknown65f2fe14/b00bbd10/6d58b4cc/47d72768 (P2 46 -> 33). Failed calls read 'if not ext_call.success: revert with ext_call.return_data[...]'. Custom-error selectors are inline. The Balances while-True body loses a needless else. Returns no longer go through memory. bitInvalidators prints as stor5[a][i]. P1 (27775 * 10**10 * 3600 -> 9999 * 10**14) and P6 (21 -> 0) are fixed.",
+  "patterns": {"P1": 0, "P2": 33, "P3": 0, "P4": 5, "P5": 0, "P6": 0},
+  "notes": "Diff of 5,776 lines, reviewed by structure. swap: all count changes are the orphan block (checked by counting it). The rest is naming and revert bubbling (checked with a normalized diff of old 577-2875 against new 574-2663). internal_0x1356: calls, logs and storage writes unchanged. +1 revert/if is R2. The loop structure (9 whiles, same as before) is unchanged apart from the flattened else in the Balances while True. Allocation checks now spell out the pointer instead of mem[64] (avg 211 -> 219 chars, 87 checks), which is neutral. simulate's Simulated(...) data now split out result length and data, which is correct. 2**128 prints as 0x0100...00 (whole bytes), as intended.",
+  "summary": "No semantic regression. An unreachable 1345-line duplicate of swap's tail is gone, many calls are named, revert bubbling is simpler, and P1/P6 are fixed. Two low readability regressions: address arguments of three custom errors are split into byte slices, and one checked add prints as a raw wrap test."
+}

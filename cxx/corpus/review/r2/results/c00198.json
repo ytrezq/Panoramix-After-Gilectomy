@@ -1,0 +1,29 @@
+{
+  "id": "c00198",
+  "text_changed": true,
+  "lines_old": 3380,
+  "lines_new": 3022,
+  "changed_functions": 9,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "Checked int128 operations still print as four (mul) or two (add/sub) sign-case checks over the Point struct in memory, in all 11 _checkpoint copies. In merge the operands got longer (see regressions)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "merge(uint256,uint256) (inlined _deposit_for + _checkpoint)",
+      "lines": "2838-2880 (8 lines)",
+      "decompiled": "mem[mem[64] + 224] = int128(int128(int128(_18) + int128(mem[192])) /′ (365 * 24 * 3600)) / if int128(int128(int128(_18) + int128(mem[192])) /′ (365 * 24 * 3600)) >′ 0 and ...",
+      "old": "mem[192] = int128(int128(_18) + int128(mem[192])) ... mem[_468 + 32] = int128(int128(mem[192]) /′ (365 * 24 * 3600))",
+      "source": "ve.sol _deposit_for: _locked.amount += int128(int256(_value)); _checkpoint(_tokenId, old_locked, _locked)",
+      "issue": "The write of the updated amount to mem[192] is dropped and the new amount is forwarded as int128(int128(_18) + int128(mem[192])) into each of the 8 sign-case lines that read it (1 line before). mem[192] now means the old amount. merge grows 1.6% while the sibling functions shrink 8-10%. Consistent and same values.",
+      "rule": "When a memory word is overwritten with a computed value that is read several times later, keep the write and the reads (or bind the value to a variable) rather than forwarding the compound expression into every read.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Dead scratch and struct writes dropped in withdraw, deposit_for, increase_amount, create_lock(_for) (mapping-key 'mem[0]/mem[32]' pairs, zeroed Point structs, unread locked copies); words read later are kept. Token transferFrom/transfer results read as ext_call.return_data[0] and the 'caller is not owner nor approved' revert decoded. tokenURI: constant SVG fragments are now single string-literal copies, 6 copy loops fewer (whiles 33 -> 27). merge addresses its local structs as mem[64] + K instead of _457/_467/_468. Text 11% smaller. P6 1 -> 0.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 17, "P5": 0, "P6": 0},
+  "notes": "Diff of 1.7k lines over 9 functions. In each function I checked that every dropped memory write is unread afterwards, including reads through join addresses (mem[_34 + 64] with _34 in {576, 704}). In merge: the unlock-time update (if _16: mem[224] = _16) and locked[_to] writes are present; old_locked.end is written before the update; old/new amounts are used where the source uses them. tokenURI's removed loops copied constant strings, and the 3 source loops (toString x2, Base64) remain.",
+  "summary": "No semantic regression; dead memory writes and constant-string copy loops are gone (text 11% smaller). In merge, forwarding the updated lock amount makes 8 checkpoint lines longer."
+}

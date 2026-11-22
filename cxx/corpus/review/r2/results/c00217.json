@@ -1,0 +1,77 @@
+{
+ "id": "c00217",
+ "text_changed": true,
+ "lines_old": 17580,
+ "lines_new": 17112,
+ "changed_functions": 2,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "coverage",
+   "status": "still",
+   "note": "26 + 24 aborts (was 26 + 25); the storage proof and the live relay are still lost. In fn 2 one inner abort (old 14096-14148) now falls through to its enclosing abort: same path, still aborted."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "The relay is still printed after the always-taken 'if not r: if not r: revert'. The dead tail is shorter now (hash shown as sha3 of the encoded call, no scratch writes, no copy loop)."
+  },
+  {
+   "n": 3,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "49 more Error(string) reverts print as strings (LP1 hashes, ReentrancyGuard, Pausable, onlyRelayer, toBytes32 RLP checks). 982 remain as '_N = mem[64] ... revert with memory from mem[64] len _N - mem[64] + 100'."
+  },
+  {
+   "n": 4,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "Fixed: LP1 compare reads ext_call.return_data[0], the OVM_L2MessageRelayer copy is copy lines, getAddress has args Array(len=20, ...) (P2 1 -> 0), later memory is addressed from _55. Still there: 'require _42 - _43 >=′ 32 / if mem[_43] != block.number' and the mem[mem[64]] currentDepositInfoHash call (431-441)."
+  },
+  {
+   "n": 5,
+   "kind": "simplification",
+   "status": "still",
+   "note": "initialize unchanged."
+  },
+  {
+   "n": 6,
+   "kind": "simplification",
+   "status": "still",
+   "note": "add2/add3 and decimal 3419729129 unchanged; 2 * Mask(250, 5, len + 31) now on 92 lines (was 64) because fn 1 now resolves the encoded calldata length."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "both relayMessage",
+   "lines": "e.g. 637-650, 4752-4765 (18 loops)",
+   "decompiled": "t = 32\nwhile True:\n    _186 = mem[64] ... mem[s] = _186\n    if t != 1:\n        s = s + 32\n        t = t - 1\n        continue\n    break",
+   "source": "Lib_RLPReader.sol readList: new RLPItem[](MAX_LIST_LENGTH) (compiler zero-init loop)",
+   "issue": "The P3 fix leaves each zero-init loop as a do-while with the exit test in the middle. Its entry test is known true (t = 32, or under 'if t:'), and s and t are reassigned right after the loop.",
+   "rule": "When a do-while's condition holds on entry and the variables that differ after the last iteration are dead after the loop, print it as a top-tested 'while t: ...; t = t - 1'.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "both relayMessage",
+   "lines": "581-582, 8893-8894",
+   "decompiled": "mem[... len floor32(ceil32(_message.length) + 195)] = Bytes(4, 0xcbd4ece9), _target, ...\nif floor32(ceil32(_message.length) + 195) > ceil32(_message.length) + 164:",
+   "source": "L1CrossDomainMessengerFast.sol:333 abi.encodePacked(xDomainCalldata, L2_CROSS_DOMAIN_MESSENGER)",
+   "issue": "floor32(ceil32(L) + 195) is ceil32(L) + 192, so the length is not folded and the 'if' is always true. Fn 1 now shows the same form as fn 2.",
+   "rule": "floor32(m + c) = m + floor32(c) when m is a multiple of 32 (ceil32 of a bounded value); then compare the constants.",
+   "verified": "reading only"
+  }
+ ],
+ "improvements": "991 of 1024 hunks are the whole-byte hex display (P6 1069 -> 0). 49 more reverts print as strings, and the RLP 'if ok: ... else: revert' checks became guards. In the 7-arg relayMessage the free-memory pointer stays named after the bridge if/else: getAddress decoded (P2 1 -> 0), the 3 P7 copy loops are copy lines (whiles 41 -> 38), the dead relay tail shows the hashed calldata. The 18 rotated zero-init loops (P3) no longer print a first iteration before the loop. Fn 2's verifyStateCommitment call shows the extraData length as its own argument. 17580 -> 17112 lines.",
+ "patterns": {
+  "P2": 0,
+  "P6": 0
+ },
+ "notes": "Reviewed by structure (10949-line diff): 991 hunks change only hex display; the 33 others were read in full. Per function, calls (14, 5), logs (2, 2), storage writes and requires are unchanged; ifs +6 and +9 from guards; aborts 26 -> 26 and 25 -> 24. The arms 'mem[X] = 0; if 0 >= mem[X]: revert Panic(50)' (empty readList) still keep dead checks after them, as in round 1.",
+ "summary": "No regression. Hex display, 49 more string reverts and a named free-memory pointer in the 7-arg relayMessage (decoded getAddress, copy lines, no P3 rotations) make the text shorter and clearer. The aborted storage proof, the dead relay tail and 982 raw reverts remain."
+}

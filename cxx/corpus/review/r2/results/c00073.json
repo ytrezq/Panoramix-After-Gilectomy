@@ -1,0 +1,71 @@
+{
+  "id": "c00073",
+  "text_changed": true,
+  "lines_old": 4445,
+  "lines_new": 3822,
+  "changed_functions": 26,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "saturatingSub still distributed (26 lines), e.g. 'return -1 * _3 * (... <= ...) + ...' in unknownb148db6a"
+    },
+    {
+      "n": 2,
+      "kind": "simplification",
+      "status": "still",
+      "note": "2-slot struct arrays still indexed 2 * idx / 2 * idx + 1 (12 lines)"
+    },
+    {
+      "n": 3,
+      "kind": "simplification",
+      "status": "partly",
+      "note": "P3 fixed: the 5 zero-init loops have no peeled first iteration ('while True: ... mem[s] = _2 / if t != 1: ... continue / break'); 'return memory' 9 -> 4, the remaining 4 still raw"
+    },
+    {
+      "n": 4,
+      "kind": "artifact",
+      "status": "still",
+      "note": "zero immutables unchanged"
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getFeeSplits (unknowna2373f62), unknownb5b624bf, getFeeSplitTransfers (unknown731ebc57), unknown6e13f099",
+      "lines": "712, 845, 987, 1102",
+      "decompiled": "_5 = mem[64] / mem[mem[64]] = 32 / ... / return memory from mem[64] len _5 - mem[64] + 64 * storAC55[_param1].length + 64",
+      "old": "return memory from mem[64] len 64 * storAC55[_param1].length + 64",
+      "source": "FeeSplits getters returning FeeSplit[] / BondCurveInterval[] (memory struct arrays)",
+      "issue": "The length of four raw returns gains a '_5 - mem[64]' term: the pointer read from mem[64] is not identified with mem[64], though nothing writes mem[64] in between.",
+      "rule": "Between 'p = mem[64]' and the next write to mem[64], mem[64] equals p; fold 'p - mem[64]' to 0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "getFeeSplitTransfers (unknown731ebc57)",
+      "lines": "939-940",
+      "decompiled": "if not _param2: return ''",
+      "old": "if not _param2: return 32, 0",
+      "source": "FeeSplits.sol:45-46 returns (SplitTransfer[] memory transfers) { if (splittableShares == 0) return transfers;",
+      "issue": "The empty dynamic return of a function whose return type is unknown is now printed as a string literal, which suggests a string where the source returns an empty struct array.",
+      "rule": "When the return type is unknown, print an ABI-encoded empty dynamic value type-neutrally (Array(len=0) or 32, 0); use '' only when the type is known to be string or bytes.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P2 50 -> 0: every call is named, including the 9 BondCurvesLib delegatecalls (unknown231163d9 with arguments) and the stETH/wstETH/withdrawal-queue calls; 5 'return memory' became values; P3 5 -> 0 (no first iteration before the zero-init loops); P6 10 -> 0; two explicit Panic(17) blocks folded into SafeMath.add; SafeCast's 0x6dfcc650 custom error decoded with its arguments; dead scratch and argument stores dropped (4445 -> 3822 lines).",
+  "patterns": {
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff of 3,077 lines; 26 functions changed, all compared by effect totals (calls, events, storage writes, reverts, returns, loops equal except as noted) and by condition diffs. The +1 'if' in five functions is the new loop exit test 'if t != 1' replacing the rotation; the -1 revert in unknownb148db6a/unknown28846981 is the Panic(17) check now inside SafeMath.add. Source loops (4) unchanged and readable.",
+  "summary": "A clear improvement: all raw calls are now named (P2 50 -> 0), the rotated loops lost their peeled first iteration and several memory returns became values. Only two low regressions: four raw return lengths keep an unfolded 'p - mem[64]' term, and one empty array return prints as ''."
+}

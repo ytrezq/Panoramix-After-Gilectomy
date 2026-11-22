@@ -1,0 +1,18 @@
+{
+  "id": "c00151",
+  "text_changed": true,
+  "lines_old": 190,
+  "lines_new": 190,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "GUARDIAN still reads as 0."},
+    {"n": 2, "kind": "simplification", "status": "fixed", "note": "initialize's args and the deploy event now print 'Array(len=cd[_param1 + 4], data=...), Array(len=cd[_param2 + 4], data=...), _param3, _param4, _param5': both strings decoded, the second no longer read as its offset."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "multiexcall's call (P2) and its 'Call Failed' revert are still raw memory (only the selector word's display changed)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "deployUSDY's two-string call and event decode exactly (the multi-dynamic-argument fix). P6 1 -> 0.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 29 lines, read in full. Three lines changed: the two decodes and the Error selector's whole-byte display.",
+  "summary": "No regression. The garbled two-string encodings of deployUSDY, round 1's main readability defect, are now exact; multiexcall is unchanged."
+}

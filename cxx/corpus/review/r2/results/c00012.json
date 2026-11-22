@@ -1,0 +1,54 @@
+{
+  "id": "c00012",
+  "text_changed": true,
+  "lines_old": 19482,
+  "lines_new": 18521,
+  "changed_functions": 6,
+  "old_findings": [
+    {"n": 1, "kind": "coverage", "status": "still", "note": "each of the four validate functions still ends in its one abort marker with no return (0 return lines; 4 aborts in the text as before); success path and final revert still lost"},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "some mem[448] reads now fold to _param1 (_param1.l1CrossDomainMessenger(), _param1.l1StandardBridge(), 'address(_1909) != _param1'), but 20 of 22 mem[448] reads remain per function (e.g. _1978 = mem[448]) and the dead override arms 'if not mem[652 len 20]' / 'mem[684 len 20]' remain (9 per function)"},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "inside 'if 40 == _2681' / 'if 124 == _3391' the decode's '!= 40' / '!= 164 and != 124' InvalidGameArgsLength reverts and the 'if len != 164' dead arm remain; the revert size '_2867 - mem[64] + 4' with _2867 = mem[64] is still not folded to 4"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "the four validate functions (9793d84f, 44c3e085, 41fe5385, 0e9d5cb9)",
+      "lines": "17 lines per function, e.g. 41fe5385 text lines 9495+95, +122, +148 (abs. ~9590, 9617, 9643), 9495+622, +648, +962, +988",
+      "decompiled": "if ceil32(_1) + ceil32(_3) + ceil32(_4) + ceil32(_5) + ceil32(return_data.size) + ceil32(_8) + ceil32(_21) + ceil32(_30) + ceil32(mem[ceil32(_1) + ... + 832] + 832]) + 864 < ... or ... > 18446744073709551615: (837 chars)",
+      "old": "_35 = mem[64] ... if _35 + ceil32(return_data.size) + ceil32(mem[_35 + mem[_35]]) + 32 < _35 + ceil32(return_data.size) or ... (about 200 chars)",
+      "source": "OPContractsManagerStandardValidator.sol: string memory v = ISemver(x).version(); the abi.decode of each returned string",
+      "issue": "Where the old text named the allocation base (_19, _28, _35 = mem[64]), the new text inlines the free-pointer value as a sum of up to 9 ceil32 terms and repeats it up to 5 times per line: lines over 240 chars went from 6 to 72 in the text (max 277 -> 837). Exact, but the ABI-decode checks of each version() string became unreadable.",
+      "rule": "When a known free-pointer value used as an allocation base is a sum of more than a few terms and is used more than once, bind it to one variable at the allocation (base = ceil32(_1) + ... + 832) and print addresses as base + k; this is common-subexpression naming and holds for any code.",
+      "verified": "reading only (line-length counts: >240 chars 6 -> 72, >500 chars 0 -> 18)"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "the four validate functions (every string.concat(errors, ',', CODE) of internalRequire)",
+      "lines": "68 lines, e.g. 41fe5385 diff: 'mem[X + 961 len 9] = 1537516320418228416816', 'mem[_433 + _436 + 97 len 9] = 1537516320418228418096'",
+      "decompiled": "mem[_21 + ... + 961 len 9] = 1537516320418228416816 / mem[... + 97 len 10] = 393604178027066474704944 / mem[... + 161 len 8] = 5490301655489261872",
+      "source": ":internalRequire -> string.concat(_errors, \",\", _errorCode) with codes 'SYSCON-10', 'SYSCON-100', 'L1xDM-10'...",
+      "issue": "The copy loop of the error code became a single store, a good change, but its value prints in decimal: 1537516320418228416816 is 0x535953434f4e2d3130 = 'SYSCON-10'. The appended error code, the main content of these functions, cannot be recognised (sizes 7 to 10 bytes; 68 lines).",
+      "rule": "Print a constant stored to a byte slice (mem[a len n] = c) as hex with exactly n bytes (0x535953434f4e2d3130), or as a string literal when all n bytes are printable ASCII.",
+      "verified": "reading only (decoded with python: SYSCON-10, -60, -70, -80)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown3b16016e / unknown495dfd3f (validateMigratedChain[WithOverrides]); validate functions (stor20.unknowned4c1914)",
+      "lines": "3b16016e call at ~264 'mem[_10 + 1188 len 96]'; 495dfd3f line 331+206 'mem[_10 + 1380 len 96]'; 41fe5385 'args 96, address(_2), stor1, mem[X + 868 len ceil32(_8) + 32]'",
+      "decompiled": "static call stor21.unknown41bd146b(?) with: args 384, _param2, stor10, ..., address(cd[_param1 + 4]), 384, 32 * n + 416, mem[_10 + 1188 len 96], ...",
+      "source": "validateMigratedChain: migrationValidator.validate(_input, ...) with _input's 3-address struct member; the errors string passed to ed4c1914",
+      "issue": "Calls decoded now, but two arguments still show as memory slices: a 3-address struct member whose words are 'Bytes(12, 0), mem[_5 + 12 len 20]' with mem[_5] = cd[_param1 + 100] (so address(cd[_param1 + 100]) etc.), and a bytes argument printed as one slice holding its length word and data.",
+      "rule": "Forward a whole-word store mem[a] = v to a later sub-word read mem[a + 12 len 20] as address(v) (Mask of v) when no store in between can alias; print a dynamic bytes argument as its length plus data slice (or Array(len, data)) as is already done for the empty case.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "The free-pointer fix makes addresses exact: 82 calls are now named with decoded arguments (named calls 40 -> 122, raw-args lines 414 -> 332), including the migrationValidator (stor21) calls of both validateMigratedChain functions, which were P2 in round 1, getProxyImplementation(address), version(), MESSENGER(), portal(), proxyAdmin()... 90 copy loops are gone (while 687 -> 597: concat copies of the error code and the return encoding now single lines). Return-data words read back from memory now print as ext_call.return_data[0]. P1 (4) and P6 (28) are gone (e.g. the selector 0xe23567e9 no longer prints as '0x1016009... * 3600'). Text 961 lines shorter.",
+  "patterns": {"P2": 332},
+  "notes": "Diff of 8,888 lines reviewed by structure: 6 functions changed (61 hunks in each validate function, 4 in each migrated-chain function). After renumbering, the diffs of 9793d84f and 41fe5385 are identical, and 44c3e085 / 0e9d5cb9 differ from them only in the override context and one argument (address(_N) for storK), so 41fe5385 was read in detail (first 820 diff lines line by line, the rest through every changed call, condition and require) and stands for all four. Per validate function the calls (113), reverts (170) and abort (1) are unchanged. Checked by hand: the concat rewrite (lengths _21 + 10, mem[64] = ... + 970, the zero padding word), the two sha3 version comparisons (operand order and bases kept), resourceConfig field checks (uint32(ext_call.return_data[0]) != 20 * 10**6 with no call in between), the stor21 call argument order against the head/tail layout (head 384 / 448 words, offsets 384, 32n + 416, 32n + 128m + 448), and the returned-bytes copy line + 'if ceil32(_64) > _64' padding. Every ext_call.return_data[k] use has no call between it and its call. Minor: uint32(return_data[0]) and return_data[28 len 4] are both used for the same check; one call target prints as address(ext_call.return_data[0]) where the next uses _10 for the same value; '_6 = return_data.size / _10 = ext_call.return_data[0]' are bound before the success check (harmless: both paths revert on short data). Some raw calls remain unfolded where mem[64] comes from a join ('args mem[mem[64] len _1759 - mem[64] + 4]').",
+  "summary": "One low regression: allocation bases are now inlined as long ceil32 sums (lines over 240 chars 6 -> 72). Big improvement otherwise: 82 calls decoded (including the stor21 migration calls), 90 copy loops removed, P1/P6 gone. The coverage abort and the length-check finding remain; finding 2 is only partly fixed."
+}

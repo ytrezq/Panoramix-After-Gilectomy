@@ -1,0 +1,32 @@
+{
+  "id": "c00121",
+  "text_changed": true,
+  "lines_old": 1893,
+  "lines_new": 1526,
+  "changed_functions": 18,
+  "old_findings": [
+    {"n": 1, "kind": "coverage", "status": "still", "note": "onSwap still aborted at the same point (only trailing blank lines changed)"},
+    {"n": 2, "kind": "naming", "status": "fixed", "note": "onRegister now reads bool _param7 (calldata word 7, enableDonation); parameters are numbered by calldata word throughout"},
+    {"n": 3, "kind": "simplification", "status": "partly", "note": "getPoolConfig/totalSupply calls decoded (raw args 4 -> 0), permit's ecrecover shows its arguments, raw returns 7 -> 1; the recovered address is still read from mem[mem[64] + 12 len 20]"},
+    {"n": 4, "kind": "artifact", "status": "still", "note": "immutables still 0; functions using the weights now end in an unconditional Panic(50)"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getWeightedPoolDynamicData (unknownc0bc6f33), getCowPoolDynamicData (unknownbeb5c1e1), getWeightedPoolImmutableData, getTokenInfo",
+      "lines": "1304-1365, 1460-1526, 830-858",
+      "decompiled": "require mem[32 * _2 + 32 * _9 + 32 * _13 + ceil32(_3) + ceil32(_4) + ceil32(_5) + ceil32(_6) + 480] == bool(mem[...])",
+      "old": "require mem[_v] == bool(mem[_v])",
+      "source": "abi.decode of Vault return data (PoolConfig, token arrays)",
+      "issue": "Exact free-pointer values are printed in full at every use, so the return-data checks carry sums of up to ten terms: lines over 200 chars 7 -> 62, over 300 chars 2 -> 14, lines with 4+ ceil32 terms 0 -> 58.",
+      "rule": "Bind a compound free-pointer value to a temporary at its read (p = mem[64]) and print addresses as p + k.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P6 fixed. Parameters numbered by calldata word (onRegister _param7, hooks _param5/_param6/_param8). getPoolConfig and totalSupply decoded; permit's ecrecover shows its digest and v, r, s. Returns decoded as Array(...) or tuples (raw returns 7 -> 1, 2 copy loops each gone). getWeightedPoolImmutableData and getCowPoolImmutableData end at the always-failing weight lookup (immutables 0) with the dead rest dropped (230 -> 84 lines); getMinTokenBalances drops 6 bounds checks dominated by 'if _2 > k'.",
+  "patterns": {},
+  "notes": "Diff 1818 lines, reviewed function by function (18 changed). The validation requires of getPoolConfig's struct are all still present (with longer addresses). Dead-line removals checked against the source: _getNormalizedWeights indexes [0] of a new uint256[](_totalTokens) with _totalTokens = 0, so it always reverts with Panic(50).",
+  "summary": "No semantic regression; free-pointer values printed in full lengthen the decoding checks (lines over 300 chars 2 -> 14). Improved: parameter numbering fixed, Vault calls and returns decoded, dead code after the always-failing weight lookup dropped."
+}

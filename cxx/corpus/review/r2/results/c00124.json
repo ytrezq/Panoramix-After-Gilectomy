@@ -1,0 +1,80 @@
+{
+  "id": "c00124",
+  "text_changed": true,
+  "lines_old": 8284,
+  "lines_new": 7887,
+  "changed_functions": 18,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "custom errors, ECDSA messages and most returns decoded (raw reverts 76 -> 38, raw returns 14 -> 11, mem[mem[64] - k] 21 -> 3); the digest is still recomputed inline (42 lines) and signer3 is still unused (address read from mem[_203])"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "nested calldata struct decoding still expanded field by field; lines got longer (see regression 2)"},
+    {"n": 3, "kind": "artifact", "status": "still", "note": "immutables still 0x0"},
+    {"n": 4, "kind": "simplification", "status": "partly", "note": "zero fills still read past calldata.size (28); some dominated Panic(50) checks dropped (91 -> 84)"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "verifyChainAgnostic (unknown0f0bc515)",
+      "lines": "4055-4529",
+      "decompiled": "if cd[_param1 + 196] == chainid: ... if _1: ... if not _3: <whole body> ... return 1 / (end of function) revert with 0xec925985",
+      "old": "if cd[_param1 + 196] != chainid: revert with 0xec925985 / if not _1: revert with 0xec925985 / if _3: revert with 0xec925985 / body at top level",
+      "source": "AvocadoMultisig.sol:370 if (params_.chainId != block.chainid) revert AvocadoMultisig__InvalidParams(); then _validateParams' reverts",
+      "issue": "The three guard reverts now share one tail at the end of the function, so the 470-line body is nested three levels under the negated tests and the revert is far from its conditions. Meaning unchanged; the other chain-agnostic functions keep guard clauses.",
+      "rule": "When a block that ends every path (revert/return) is reached from several branches, print it at each branch as a guard clause (if not c: revert ...) instead of nesting the rest of the code under c.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "isValidSignature, verify*, cast*, executeOperation, getSigDigest* (Action struct decoding, SSTORE2 signers read)",
+      "lines": "1389-1428, 2411-2440, 2555-2567, 3392-3402, 466-470",
+      "decompiled": "require 32 * _9 + _49 + mem[32 * _9 + _49 + 64] + 95 <′ 32 * _9 + _49 + ext_code.size(address(stor1)) + 63; mem[_3 + ceil32(cd[_param1 + cd[_param1 + 164] + 4]) + 32] = _param2; mem[_102 + _116 + 64] = _98 - _116 + _120 + 32",
+      "old": "_57 = mem[64] / require _57 + mem[_57 + 32] + 63 <′ _57 + ext_code.size(address(stor1)) + 31; _5 = mem[64] / mem[_5] = _param2; mem[_98 + _102 + 64] = _120 + 32",
+      "source": "SSTORE2.read / abi.decode of Action[] and CastParams into memory (allocations)",
+      "issue": "A temporary that held mem[64] is replaced by the pointer's full value at every use, so allocation code repeats long expressions (lines over 300 chars 63 -> 92, up to 400+ in one check), and two names of one pointer are not cancelled (11 lines _a - _b + _c + 32, none before).",
+      "rule": "Keep a compound free-pointer value bound to the temporary of its read and print uses through it (substitute only constants or variable + constant); unify temporaries read from mem[64] with no write to mem[64] between them, and cancel their difference.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "executeOperation(address[],uint256[],uint256[],address,bytes)",
+      "lines": "3423-3432",
+      "decompiled": "_103 = mem[64] / mem[64] = ceil32(return_data.size) + mem[64] + 32 / ... / mem[mem[64]] = 1 / return memory from mem[64] len 32",
+      "old": "return 1",
+      "source": "AvocadoMultisig.sol:142 return true (after _spell, whose return-data copy is now shown, exactly)",
+      "issue": "The tx.origin == dEaD path's return of true is now raw memory at the moved free pointer.",
+      "rule": "A return of mem[p len 32] whose only write since p was set is mem[p] = v is return v.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "cast, castAuthorized, castChainAgnostic, _callTargets",
+      "lines": "6845, 5038, 7733, 7774, 5250",
+      "decompiled": "gas -370 * _738 + _778 - 8 * cd[_param1 + cd[_param1 + 164] + 4] - 10000; stor54 = sha3(mem[_792 + 32 len -_792 + t - 32]) / 256",
+      "old": "gas gas_remaining - 370 * _731 - 8 * cd[...] - 10000; stor54 = sha3(mem[_x + 32 len mem[_x]]) / 256",
+      "source": "AvocadoMultisigCore delegatecall(sub(gas(), ...)); bytes31(keccak256(abi.encode(...))) for _transientAllowHash",
+      "issue": "Sums now print with a negative term first (29 lines, 23 before), and a hashed length is printed as the end-pointer difference instead of the length word written just before.",
+      "rule": "Order a sum's terms so a positive term comes first (x - 370 * n, t - p - 32); when the length word mem[p] was just written and not changed, print len mem[p].",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "cast (unknown9428ae4e)",
+      "lines": "6603-6610, 6660-6694, 6741",
+      "decompiled": "static call this.address.mem[mem[64] len 4] with:; revert with memory from mem[64] len 100; revert with mem[mem[64] len 100], 0x7565000000...; static call address(_v) with: args mem[mem[64] len _v + 100], Bytes(-_v + ceil32(_v), 0)",
+      "source": "_verifySig: owner() call, ECDSA.recover string reverts, IERC1271.isValidSignature",
+      "issue": "Where the free pointer is symbolic after a join, data written at mem[64] + k just before a call or revert are not resolved: the selector is printed in the function-name position as a memory slice and the ECDSA messages stay raw (one half-folded), while the same code in verify, verifyAuthorized, castAuthorized and castChainAgnostic is fully decoded.",
+      "rule": "Writes at mem[64] + k with mem[64] unchanged since are as resolvable as writes at constant addresses: decode call and revert data from them the same way, and never print a memory slice as a function name.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "P6 fixed (whole-byte hex). GAS reads now set where the code reads them: per action inside the loop in executeOperation/_callTargets (the old text hoisted two reads out of the loop) and at function start in castAuthorized. The EIP-712 domain separator and struct hashes are resolved as sha3 of their constants in every digest. Custom errors (0xec925985, 0x70a17179, 0xa8398eb9) and ECDSA messages decoded, calls named (_owner(), isValidSignature(bytes32, bytes) with args), returns 1 / 0x1626ba7e direct. Dominated Panic(50) checks dropped, the duplicated params decoding hoisted out of both arms in executeOperation, 397 fewer lines.",
+  "patterns": {"P2": 21},
+  "notes": "Diff 9338 lines, reviewed by structure: per-function counts of calls, events, reverts, storage writes, returns and loops, plus control-statement diffs, for all 18 changed functions. executeOperation's large hunks are a shift (98% identical after renaming temporaries). signers/isSigner only swapped places; isSigner's _17 = _4 is right. 227 while blocks before and after. P3: the struct-array allocation loops (getChainAgnosticHashes, getSigDigestChainAgnostic) now print one peeled iteration before a do-while (was two), with n >= 2 guaranteed by the revert before.",
+  "summary": "One medium regression: verifyChainAgnostic's guard reverts merged into one tail, nesting the whole body; low ones from exact free-pointer values printed in full (longer lines, uncancelled pointer differences), negative-first sums and executeOperation's return as raw memory. Large gains: GAS reads placed correctly, digests resolved, custom errors, ECDSA messages and calls decoded."
+}

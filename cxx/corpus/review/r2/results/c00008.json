@@ -1,0 +1,16 @@
+{
+  "id": "c00008",
+  "text_changed": true,
+  "lines_old": 260,
+  "lines_new": 262,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "still", "note": "log Initialized(address collateralToken=cd[0], address borrowerNote=cd[32], address lenderNote=pool) keeps the misleading database field names."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "decodeArguments: the return is now the exact flat list of ABI words (160, ceil32(L1) + 192, L1, name bytes, then the rest from memory). Before, it grouped the second string's tail into the first Array(...) and showed its offset as a plain fifth value. The fallback's create: the symbol length is now a value (cd[cd[128]]) in the constructor arguments instead of a memory write plus a slice of length '2 * Mask(250, 5, ..) - ..', and the name padding is now 'len ceil32(L) - L'.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 27 lines (decodeArguments' return and the fallback's create), read in full and checked word by word against the ABI layout of (address, address, uint256, string, string). Neither text shows the two strings as Array(..) values (the second string's tail is still a memory slice), but the new one is exact and no longer misleading.",
+  "summary": "No regression. decodeArguments' return and the create's constructor arguments are now exact word lists with simpler lengths; the misnamed Initialized event fields remain."
+}

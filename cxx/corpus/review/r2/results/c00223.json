@@ -1,0 +1,29 @@
+{
+ "id": "c00223",
+ "text_changed": true,
+ "lines_old": 1575,
+ "lines_new": 1555,
+ "changed_functions": 3,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "bytes-keyed mappings (preSignature, filledAmount) still stor[sha3(mem[...])]; freePreSignatureStorage/freeFilledAmountStorage unchanged."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "nested tuple parameters still raw calldata arithmetic (P16)."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "The 3 rotated `while idx - 1` initialisations of new BalanceTransfer[] in settle (P3) now run unpeeled (`while True: ...; if t != 1: continue; break`), dropping the 7-line first iteration; the order digest prints as `sha3(Bytes(2, 0x1901), 0, _V)` at its uses; interaction calls pass `call.data[...]` instead of a memory copy; one token transfer named; in swap the limits array length is known (`mem[_98 + 128] = tokens.length`), so `limits[trade.sellTokenIndex]`'s bounds check, implied by the earlier `assert cd[trade + 4] < tokens.length` (323), is dropped (exact).",
+ "patterns": {
+  "P2": 6
+ },
+ "notes": "Per-function normalized diffs: swap, settle, simulateDelegatecall (hex padding only). In swap the second limits write keeps `assert cd[trade + 36] < mem[_98 + 128]` (493) although 325 implies it, because the symbolic-index write between may alias the length word for the decompiler (P11, low, pre-existing form).",
+ "summary": "No regression; settle's rotated array initialisations are unpeeled, digests and interaction calldata are clearer, and an implied bounds check is gone. Bytes-keyed mappings and nested calldata offsets remain raw."
+}

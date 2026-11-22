@@ -1,0 +1,28 @@
+{
+  "id": "c00179",
+  "text_changed": true,
+  "lines_old": 2192,
+  "lines_new": 2054,
+  "changed_functions": 12,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "sellAsset paths now decode INVALID_AMOUNT, EXOGENOUS_ASSET_EXPOSURE_TOO_HIGH and the SafeCast message (raw reverts 14 -> 8); rescueTokens and two other functions keep raw message stores; the packed exposure slot is still whole-slot arithmetic"}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getGhoAmountForBuyAsset / getGhoAmountForSellAsset style views (unknownc431280e, unknowncea46213)",
+      "lines": "253-255, 296-298",
+      "decompiled": "return ext_call.return_data[0], -_5 + _1, _13, SafeMath.sub2(_13, _1 - _5); return ext_call.return_data[0], _5 + _1, _13, _5 - _13 + _1",
+      "source": "Gsm4626 _calculateGhoAmountForBuyAsset/_calculateGhoAmountForSellAsset return tuples",
+      "issue": "The newly decoded return tuples print differences with the negative term first (-_5 + _1 for _1 - _5, _5 - _13 + _1).",
+      "rule": "Order a sum's terms so a positive term comes first (_1 - _5, _5 + _1 - _13).",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "P6 fixed. Calls decoded: getSellFee, getBuyFee, mint, burn, unknowna7b78c3c/unknownaa02f94a (raw args 20 -> 6). sellAsset/sellAssetWithSig reverts decoded. Four view functions return tuples instead of raw memory. The SafeMath.sub nested in the exposure check is expanded into its own Panic(17) check before the overflow check, in the bytecode's order (equivalent, same panic code). 138 fewer lines.",
+  "patterns": {"P2": 6},
+  "notes": "Diff 1302 lines, reviewed function by function (12 changed; rescueTokens, unknown605297e1, unknownc350de6c and supportsInterface only got whole-byte hex). 26 while before and after. No line over 200 chars before or after.",
+  "summary": "No regression. Calls, reverts and returns decoded; only cosmetic negative-first terms in the new return tuples."
+}

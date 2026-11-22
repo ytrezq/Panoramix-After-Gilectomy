@@ -1,0 +1,50 @@
+{
+  "id": "c00022",
+  "text_changed": true,
+  "lines_old": 2460,
+  "lines_new": 2373,
+  "changed_functions": 10,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "execute's and hashProposal's tails still sit in the exit branch of the bytes[] encoding 'while True'; this now also costs the free-pointer knowledge there (regressions 1-2)."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "Fixed in updateQuorumNumerator and unknown40e8c5cb ('SafeCast: value doesn't fit in 32 bits'), addContender (0xc6cd9b06, x, address(y)), castVote..BySig (0x62d524b0); ProposalCreated is decoded (2369). createElection's 2 raw reverts remain."},
+    {"n": 3, "kind": "semantics", "status": "fixed", "note": "VoteCastWithParams now prints reason=Array(len=reason.length, ..) and params=Array(len=params.length, ..) (1511-1517 and the BySig copy)."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "cd[calldata.size] on 17 lines."},
+    {"n": 5, "kind": "simplification", "status": "partly", "note": "createElection now 'return _214'; state, electionIndexToDescription, getProposeArgs unchanged; hashProposal worse (regression 2)."},
+    {"n": 6, "kind": "simplification", "status": "still", "note": "quorum's mem[_40] read and duplicated arms unchanged."},
+    {"n": 7, "kind": "simplification", "status": "still", "note": "mem[172 len 20] (28 lines) and the 4 Bytes(16, 0x..) selector fragments unchanged."},
+    {"n": 8, "kind": "simplification", "status": "fixed", "note": "usedNonces key is now sha3(sha3(Bytes(2, 0x1901), domain separator, struct hash), Bytes(20, address(signer))) (1576, 1581)."},
+    {"n": 9, "kind": "simplification", "status": "still", "note": "Raw sha3 struct members unchanged elsewhere; execute adds stor[sha3(mem[0 len 64]) + k] (regression 1)."},
+    {"n": 10, "kind": "simplification", "status": "still", "note": "Cosmetic misses unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "execute(address[],uint256[],bytes[],bytes32)",
+      "lines": "1824-1955",
+      "decompiled": "mem[v] = 0x08c379a0.. / mem[v + 68] = 0x476f7665726e6f723a2070726f706f73616c206e6f7420737563636573736675 / revert with memory from mem[64] len v - mem[64] + 132 (x 8 reverts) | static call stor655.mem[mem[64] len 4] | call stor656 with: args mem[mem[64] len ..] | log ProposalExecuted(uint256 id=mem[mem[64]]) | uint64(stor[sha3(mem[0 len 64]) + 1]) | return memory from mem[64] len ..",
+      "old": "revert with 'Governor: proposal not successful' / revert with 'Governor: unknown proposal id' / revert with 0x992f5645, .. / 0xaa5f24ef, .. / 0x01eef61a, _30, .. | static call stor655.cohortSize() | call stor656.unknownf2ff01e6(?) | log ProposalExecuted(uint256 id=_30) | proposalSnapshot[_30].field_256 | return _30",
+      "source": "Governor.execute: state checks (require ... 'Governor: proposal not successful'), _execute -> cohortSize(), custom errors, emit ProposalExecuted(proposalId), return proposalId",
+      "issue": "The whole tail of execute (inside the encoding loop's exit branch) lost the free-memory pointer: 8 string/custom-error reverts, 2 call names, the event argument, 3 storage names and the return value fall back to raw memory. Effects are all still there and text_check finds no difference.",
+      "rule": "A read of mem[64] right after mem[64] = x is x inside loop bodies and their exit branches too; better, print code that only runs after a loop's exit after the loop (finding 1) so it is not treated as loop-variant.",
+      "verified": "reading only (text_check run --per-selector 32: 0 different, the tail is likely unsampled)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "hashProposal(address[],uint256[],bytes[],bytes32)",
+      "lines": "1330-1337",
+      "decompiled": "mem[64] = v / mem[v] = sha3(mem[_28 + 32 len mem[_28]]) / return memory from mem[64] len v - mem[64] + 32",
+      "old": "mem[v] = sha3(mem[mem[64] + 32 len mem[mem[64]]]) / return memory from v len 32",
+      "source": "Governor.hashProposal: return uint256(keccak256(abi.encode(targets, values, calldatas, descriptionHash)))",
+      "issue": "Same cause: the read of mem[64] just after 'mem[64] = v' is not v, so the length stays 'v - mem[64] + 32' (finding 5 worse here).",
+      "rule": "Same as above; then return of mem[p len 32] after mem[p] = x is return x.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "VoteCastWithParams' two dynamic fields split right (finding 3), usedNonces key resolved (finding 8), SafeCast and custom-error reverts decoded in 4 functions, ProposalCreated decoded field by field, createElection returns its id, updateQuorumNumerator 55 -> 33 and addContender 121 -> 76 lines. P6 3 -> 0.",
+  "patterns": {"P1": 0, "P2": 3, "P3": 0, "P4": 9, "P5": 0, "P6": 0},
+  "notes": "Diff 1284 lines: per-function diffs of execute, hashProposal; effects compared for all 10 changed functions (counts equal everywhere). P4 4 -> 9 comes from execute's proposalSnapshot[concat(mem[0])]. text_check run --per-selector 32 (r2): empty 1571 same, random 1571 same, 0 different.",
+  "summary": "Three round-1 findings fixed (event split, nonce key, most raw reverts), but execute's tail, nested in a loop exit, lost the free-pointer tracking: its reverts, two calls, an event argument and the return fall back to raw memory (medium)."
+}

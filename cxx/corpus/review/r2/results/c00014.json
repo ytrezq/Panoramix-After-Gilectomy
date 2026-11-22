@@ -1,0 +1,78 @@
+{
+  "id": "c00014",
+  "text_changed": true,
+  "lines_old": 5960,
+  "lines_new": 5356,
+  "changed_functions": 14,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "worse", "note": "The params offset is still never named and now sits on 505 lines (1761 times), was 452 (1485): values that were held in variables are inlined, see the regression."},
+    {"n": 2, "kind": "artifact", "status": "still", "note": "104 calls to 0x0 and 'if caller:' unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "unknownab6291fe(bytes) (lockAcquired)",
+      "lines": "4796-4804 (also 3947, 4103, 5275...)",
+      "decompiled": "address(stor10[Mask(200, 56, sha3(cd[_param1 + Mask(27, 5, uint32(cd[_param1 + 100]) + 31) + cd[32 * idx + ...] + 196], ... 6 words ...))].field_0) = ...  (912-1068 chars per line)",
+      "old": "_900 = sha3(...6 words...) / if not stor10[Mask(200, 56, _900)].field_1024: / address(stor10[Mask(200, 56, _900)].field_0) = ...  (60-216 chars)",
+      "source": "CLPositionManager._mint: poolKeys[poolId] = poolKey when not yet stored (poolId = keccak256(abi.encode(poolKey)))",
+      "issue": "Expressions the old text held in a variable (the poolId hash _900) are now inlined at every use, so 7 poolKeys lines grow fivefold; lines over 800 chars 36 -> 47 in this function, 24 -> 28 in unknowneb80d35e, lines over 240 chars 228 -> 253.",
+      "rule": "Bind a pure expression used more than once, or longer than a threshold, to a named variable at its first evaluation, whatever the source of its operands (calldata, memory, storage).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "multicall(bytes[])",
+      "lines": "767-769",
+      "decompiled": "return memory / from mem[64] / len v - mem[64]",
+      "old": "return mem[mem[64]], mem[128], mem[mem[64] + 64 len v - mem[64] - 64]",
+      "source": "Multicall.multicall returns (bytes[] memory results)",
+      "issue": "The return lost its head words: the old text showed the offset word and the count mem[128]; the new one is a bare memory range (same bytes).",
+      "rule": "When a returned memory range starts with words written in the same block (mem[P] = 32, mem[P + 32] = n), print those words as values before the rest of the range.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknowneb80d35e(bytes,bytes[]) and unknownab6291fe(bytes): the mint-liquidity settle path",
+      "lines": "2885-2886, 2902-2903 (and the same 2 in unknownab6291fe)",
+      "decompiled": "revert with Bytes(16, 0x4c085bf1000000000000000000000000), Bytes(20, address(stor10[positionInfo[..].field_56 << 56].field_0))",
+      "old": "revert with 0x4c085bf1, address(_660)",
+      "source": "SafeCast/DeltaResolver revert with a selector and an address argument",
+      "issue": "The address is now traced to its storage origin (better), but the error is printed as a 16-byte and a 20-byte piece instead of the selector and an address word, as the 3 other 0x4c085bf1 reverts of the function still are.",
+      "rule": "Revert data of the form 4-byte constant then a 32-byte word whose top 12 bytes are zero print as 'selector, address(x)', whatever expression x is.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unsubscribe, transferFrom, safeTransferFrom x2",
+      "lines": "256, 373, 460, 546",
+      "decompiled": "_24 = gas_remaining / call _20.unknownaf45dd14(?) with: gas 0",
+      "old": "call _19.unknownaf45dd14(?) with: gas 0",
+      "source": "Notifier: if (gasleft() < unsubscribeGasLimit) revert ...; notifyUnsubscribe{gas: unsubscribeGasLimit}",
+      "issue": "With the immutable limit read as 0 the comparison folds away, and the GAS read is now printed as an unused variable.",
+      "rule": "Drop an assignment whose value is never used when its expression has no effect (a GAS read included); keeping each GAS read as its own value only matters for the reads that are used.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getPositionLiquidity(uint256)",
+      "lines": "497-498",
+      "decompiled": "mem[mem[64]] = mem[512] / return Bytes(16, 0), mem[mem[64] + 16 len 16]",
+      "source": "CLPositionManager.getPositionLiquidity returns (uint128 liquidity)",
+      "issue": "Decoded now (was 'return memory'), but the value is read back through the word just stored instead of being shown as the low 16 bytes of the returned word.",
+      "rule": "A read of memory just written in the same block (mem[P + 16 len 16] after mem[P] = X) is Mask(128, 0, X): print return uint128(X).",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "P2 19 -> 2 and P6 gone: 25 'call 0x0.mem[_V len 4]' calls are named (take, settle, sync, withdraw, deposit, balanceOf, unknowna54b2831...), results read as ext_call.return_data[0], 48 'revert with memory' forwards are one line, 'NOT_MINTED' / 'ALREADY_MINTED' / 'INVALID_RECIPIENT' and 0x90bfb865 reverts resolved; permit/permitBatch return '' instead of 32, 0; getPositionLiquidity returns a value; the transient slot prints with 64 digits. Both handler functions shrank by ~300 lines.",
+  "patterns": {"P1": 0, "P2": 2, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 5970 lines: the two handler functions (unknowneb80d35e, unknownab6291fe, mirror-image hunks) reviewed by structure: call, require, revert, return and log counts equal old vs new (63 calls, 88/84 requires, 224/226 reverts, 8 logs); read the changed lines of unknowneb80d35e with the free-memory-pointer patterns filtered out, and the settle path (sync, transferFrom/transfer + settle, settle with value). tokenURI is neutral (same bytes, one slice instead of length/data/padding; a dead padding write dropped).",
+  "summary": "Calls in the action handlers are now named and their results and reverts resolved, but four readability regressions: inlined former variables make lockAcquired's lines longer (finding 1 worse), multicall's return is a bare memory range, two custom-error reverts print as byte pieces, and dead GAS reads show as unused variables."
+}

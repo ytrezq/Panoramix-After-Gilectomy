@@ -1,0 +1,21 @@
+{
+  "id": "c00281",
+  "text_changed": true,
+  "lines_old": 17081,
+  "lines_new": 17081,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "coverage", "status": "still", "note": "getAPRs/getTrancheAPR unchanged, still aborted"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "unchanged"},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "unchanged"},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "unchanged"},
+    {"n": 5, "kind": "simplification", "status": "still", "note": "packed Initializable slot still typed uint72 + uint184; its whole-slot read at 89 now shows the slot number plainly (stor[0xf0c57e16...6a00]) instead of a P1 product"},
+    {"n": 6, "kind": "simplification", "status": "still", "note": "unchanged"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "P1 fixed: the ERC-7201 Initializable slot read in initialize prints as 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00 (verified equal to the old 0x111f...7aa0 * 3600), so it is recognisably the slot of storF0C5.",
+  "patterns": {},
+  "notes": "Diff 11 lines (one line changed). The new pack header reports no P1-P6 instance.",
+  "summary": "No regression; the only change is the P1 slot constant printed as the plain slot number."
+}

@@ -1,0 +1,14 @@
+{
+ "id": "c00399",
+ "text_changed": false,
+ "lines_old": 24,
+ "lines_new": 24,
+ "changed_functions": 0,
+ "old_findings": [],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "none (text unchanged)",
+ "patterns": {},
+ "notes": "No diff file: the new text is identical to round 1's, which had no finding.",
+ "summary": "Unchanged, exact constant library."
+}

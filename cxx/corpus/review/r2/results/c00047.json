@@ -1,0 +1,68 @@
+{
+  "id": "c00047",
+  "text_changed": true,
+  "lines_old": 7098,
+  "lines_new": 6677,
+  "changed_functions": 33,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "Better: named chained-reference accesses 87 -> 95 (stakeETH, stakeETHAndWrap, swap writes; joinPool and batchSwap replacement reads); dominated 'assert 0 < mem[...]' 51 -> 4 and the trivially true 'require mem[_9] <= 2^64-1' dropped; 'mem[mem[64]] = 64', 'len 68', 'len 36', 'len 100' resolved in many buffers. Still: 53 raw stor[sha3(mem[...]) - 1] in the wrap/unwrap/gauge outputs, where the length word is unchanged and an extra '_78 = mem[64]' is added; still 121 P2 lines."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "No peeled first iteration any more ('while idx - 1' 25 -> 0). The zero-initialisation is now a do-while 'while True: ... if t != 1: ... continue / break'. In 24 functions it starts at t = 1 (see the new finding); cd[calldata.size] still appears 48 times."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "41 decimal selectors stored with 'len 4' (2835717307, 157198259...)."},
+    {"n": 4, "kind": "artifact", "status": "still", "note": "Immutables still read as 0 (call 0x0, stor0[...].field_-256)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "25 functions inlining _pullTokens / _checkpointGaugesViaUserBalance (wrap*, unwrap*, gaugeDeposit, gaugeWithdraw, unknown48699d58...), joinPool, exitPool",
+      "lines": "100-104 (unwrapERC4626), 78-82 (unknown48699d58), 6067, 6079 (joinPool), 6296-6544 (exitPool)",
+      "decompiled": "_54 = mem[64] ... args mem[mem[64] len _54 + 160 * _57 - mem[64] + 68]  |  mem[mem[64] + 164] = _96 + 32 * _98 - mem[64] + 160 / mem[mem[64] + 196] = 32 * _103 + s - mem[64] - 100  |  _365 = mem[64] / mem[mem[64]] = _264 - mem[64] + 160",
+      "old": "args mem[mem[64] len 160 * _57 + 68]  |  mem[_96 + 164] = 32 * _98 + 160 / mem[_96 + 196] = 32 * _98 + 32 * _103 + 192  |  mem[_264 + 96] = 64",
+      "source": "BaseRelayerLibraryCommon.sol _pullTokens: getVault().manageUserBalance(ops); VaultActions joinPool/exitPool: getVault().joinPool(poolId, sender, recipient, request), userData = abi.encode(kind, amount...)",
+      "issue": "A new variable holding mem[64] is not identified with later reads of mem[64] when nothing stores to mem[64] between them. So 22 manageUserBalance lengths, 4 joinPool/exitPool request offsets and 8 userData length words now print as pointer differences that are constants (68 + 160n, 160 + 32n, 64). Two offsets also use a finished loop's final counter s instead of the closed form.",
+      "rule": "A variable set to mem[64] equals every later read of mem[64] reached without a store to 64..95 (stores at mem[64] + k with k >= 0 cannot alias it, given the pointer's constant floor): fold v - mem[64] to 0. After a loop, use the closed form of an induction variable (start + step * count), not its last value.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "stakeETHAndWrap, approveVault (x2)",
+      "lines": "335, 452, 487",
+      "decompiled": "mem[_13 + 36] = recipient ... mem[_13 + 36 len 28] = uint128(recipient >> 32) / mem[_13 + 32 len 4] = 2835717307  |  mem[_21 + 36 len 28] = 0",
+      "old": "the same buffer without the 28-byte line",
+      "source": "SafeERC20.safeTransfer / safeApprove: abi.encodeWithSelector(token.transfer.selector, to, value)",
+      "issue": "When the selector is merged into the first word, the 28 bytes after it are rewritten with what they already hold. The text now prints that no-op write (uint128(recipient >> 32), or 0) as its own line.",
+      "rule": "Drop a memory store whose value equals the bytes the location already holds, e.g. a slice of the word stored there just before.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown48699d58(address,array,...)",
+      "lines": "196-209",
+      "decompiled": "s = 0 / t = 160 / u = mem[64] + 68 / while s < mem[128]: ... s = s + 1",
+      "old": "idx = 0 / s = 160 / t = mem[64] + 68 / while idx < cd[_param2 + 4]:",
+      "source": "BaseRelayerLibraryCommon.sol _checkpointGaugesViaUserBalance: abi encoding of ops (length = gauges.length)",
+      "issue": "The ABI-encoding loop's bound is now the raw memory word mem[128] instead of the calldata length it holds, because mem[128] is no longer forwarded through the un-peeled zero-initialisation loop. The index is renamed s.",
+      "rule": "Forward a memory word through a loop whose stores provably cannot reach it: mem[128] across stores at s >= 160 and at fresh allocations above the free-memory pointer's floor.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "24 functions inlining _pullToken (wrap*, unwrap*, gaugeDeposit, gaugeWithdraw, unknown*)",
+      "lines": "45-61 (unwrapERC4626)",
+      "decompiled": "mem[_9 + 128] = 1 / s = _9 + 160 / t = 1 / while True: _29 = mem[64] ... mem[s] = _29 / if t != 1: s = s + 32 / t = t - 1 / continue / break",
+      "source": "BaseRelayerLibraryCommon.sol _pullToken: new IERC20[](1); _pullTokens: new IVault.UserBalanceOp[](tokens.length)",
+      "issue": "The zero-initialisation do-while of a one-element struct array starts with t = 1, so its continue test t != 1 is false on the first pass and it runs once, but it is printed as a loop.",
+      "rule": "A loop whose exit is decided on entry (a constant counter that fails the continue test at once) runs once: print its body once, without the loop.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "Free-memory-pointer forwarding resolves much: chained-reference reads and writes named in stakeETH, stakeETHAndWrap, swap, joinPool and batchSwap; 47 dominated 'assert 0 < mem[...]' and the trivially true length requires dropped; call lengths 68/36/100 and revert lengths resolved; swap now 'return ext_call.return_data[0]'. The rotated zero-init loops (P3) and exitPool's rotated outputReferences loop are re-rolled; the latter is checked exact, guarded by 'if 0 >= outputReferences.length: stop' in both arms. A dominated 'assert s < mem[128]' is dropped in batchSwap. Hex selectors show whole bytes (P6 gone). stakeETH and stakeETHAndWrap only swapped places in the text, each keeping its own body.",
+  "patterns": {"P1": 0, "P2": 121, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 5,658 lines, reviewed by structure, per function matched by name. Calls, events, reverts, storage writes and whiles are unchanged in all 33 changed functions, apart from the explained ones: assert 6 -> 4 and require -1 in the 25 _pullToken functions (dominated); exitPool one storage write fewer and one stop more (the rotation undone). Read in full: stakeETH, stakeETHAndWrap, swap, approveVault, unwrapERC4626, wrapERC4626, batchSwap, joinPool, exitPool, unknown48699d58, unknown837f9bcb (only display). batchSwap's 'invalid chained reference' revert is now 'revert with memory from mem[64] len 100' but not folded to a message. One raw chained-reference write remains in its loop although 'mem[mem[64]] = 64' is resolved.",
+  "summary": "Three low regressions, all readability: 34 pointer-difference lengths and offsets no longer fold to constants, 3 no-op 28-byte stores are printed, and one loop bound became raw mem[128]. Free-memory-pointer forwarding improved a lot: named chained references, dominated asserts gone, P3 rotations re-rolled exactly."
+}

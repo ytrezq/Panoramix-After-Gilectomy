@@ -1,0 +1,16 @@
+{
+  "id": "c00349",
+  "text_changed": true,
+  "lines_old": 187,
+  "lines_new": 187,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "tend's second checked multiplication is still the two-arm if with a flag (only tend's log line changed)"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "The 8 LibNote anonymous events (rely, deny, cage, file, tick, yank, deal, tend) now print their data as Array(len=224, data=call.data[0 len 224]) instead of the raw ABI words '32, 224, call.data[0 len 224]'.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 71 lines: one log line per function, the bytes payload of LibNote's note modifier (offset 0x20, size 224, calldatacopy of 224 bytes) now decoded as one Array; topics unchanged.",
+  "summary": "No regression: only the LibNote event data changed, now decoded as a bytes value."
+}

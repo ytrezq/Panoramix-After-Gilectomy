@@ -1,0 +1,30 @@
+{
+  "id": "c00167",
+  "text_changed": true,
+  "lines_old": 2570,
+  "lines_new": 2407,
+  "changed_functions": 7,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "still", "note": "proposals still named receipt (P13); member array elements still raw stor[s + sha3(sha3(proposalId, 11) + k)]"},
+    {"n": 2, "kind": "loop", "status": "partly", "note": "ProposalExecuted's argument is now proposalId and ProposalQueued is decoded; the three loops are still 'while True' with the exit test inside"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "queue(uint256)",
+      "lines": "930-950",
+      "decompiled": "mem[B] = 0x3a66f901.. (B = _85 + ceil32(return_data.size) + 2 * Mask(250, 5, len5 + 31) + 2 * Mask(250, 5, len6 + 31) + 320) ... call timelock.mem[B len 4] with: args mem[B + 4 len 128], block.timestamp + _2, mem[B + 164 len ceil32(len5) + ceil32(len6) + 64]",
+      "old": "call timelock.queueTransaction(address target, uint256 value, string signature, bytes data, uint256 eta) with: args address(stor[s + sha3(sha3(proposalId, 11) + 3)]), stor[s + sha3(sha3(proposalId, 11) + 4)], 160, ceil32(_119) + 192, block.timestamp + _2, mem[.. len ceil32(_119) + ceil32(_122) + 64]",
+      "source": "GovernorBravoDelegate.sol queueOrRevertInternal: timelock.queueTransaction(target, value, signature, data, eta)",
+      "issue": "The only named timelock call loses its name and decoded head arguments: the selector stored at B is printed as 'mem[B len 4]'. The calldata copy in between writes at addresses using 96 * ((len5 + 31) / 32) while B uses 2 * Mask(250, 5, len5 + 31), so the store is apparently not forwarded.",
+      "rule": "Normalise Mask(250, 5, x + 31) to 32 * ((x + 31) / 32) (= ceil32(x) when x + 31 does not wrap) before comparing addresses, so writes at B + 32 * q + c (c >= 4) are seen not to touch the selector bytes at B, and forward the selector store into the call.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P6 22 -> 0, P2 4 -> 3. In propose, each pair of start/end-block overflow checks with raw reverts became one line with SafeMath.add (which reverts 'addition overflow', exactly add256), 8 reverts decoded, 1072 -> 921 lines. VoteCast (castVote, castVoteBySig: empty reason as Array(len=0, data='')), ProposalExecuted (id=proposalId) and ProposalQueued are decoded. uint96 return values read uint96(ext_call.return_data[0]) instead of byte slices. queue's signature copy loops became copy lines (while 43 -> 40), and queuedTransactions' tx hash prints as sha3(target, value, 160, .., eta, ..). 2570 -> 2407 lines.",
+  "patterns": {"P1": 0, "P2": 3, "P3": 0, "P4": 24, "P5": 0, "P6": 0},
+  "notes": "Diff 1262 lines, 7 changed functions reviewed by skeleton comparison plus the changed regions read in full (castVote*, execute, queue, getActions, propose's checks). getActions: only the pointer variables were renamed and reused (u keeps the end of the targets data across the values loop); the ABI offsets derived from it (e.g. 192 + 32n + 32m) are right. propose keeps both getPriorVotes uint96 range checks, now on ext_call.return_data. cancel and the source loops are unchanged.",
+  "summary": "Mostly improved (events and reverts decoded, propose's checks compacted, P6 gone), but one medium regression: queue's timelock.queueTransaction call lost its name and decoded arguments (selector printed as a memory slice)."
+}

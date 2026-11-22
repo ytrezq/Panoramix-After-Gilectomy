@@ -1,0 +1,17 @@
+{
+  "id": "c00147",
+  "text_changed": true,
+  "lines_old": 195,
+  "lines_new": 195,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "semantics", "status": "fixed", "note": "initialize's args and the USDYDeployed event now group the two strings correctly: Array(len=cd[_param1 + 4], ...), Array(len=cd[_param2 + 4], ...), _param3, _param4, _param5"},
+    {"n": 2, "kind": "artifact", "status": "still", "note": "guardian immutable still 0"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Several dynamic ABI arguments are decoded exactly: deployUSDY's initialize(string, string, address, address, address) call and its USDYDeployed(address, address, address, string, string, (address, address, address)) event now show two Array arguments followed by the three addresses. P6 fixed in multiexcall.",
+  "patterns": {"P2": 1},
+  "notes": "Diff 29 lines, read in full; checked against event USDYDeployed's signature in the pack.",
+  "summary": "No regression; round 1's medium semantic finding (two strings merged into one Array) is fixed."
+}

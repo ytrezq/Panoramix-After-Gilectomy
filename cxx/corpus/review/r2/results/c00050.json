@@ -1,0 +1,22 @@
+{
+  "id": "c00050",
+  "text_changed": true,
+  "lines_old": 17721,
+  "lines_new": 9122,
+  "changed_functions": 17,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "partly", "note": "272 revert-string copy loops -> 6. Checks are now SafeMath.mul/mul2/add/sub/div calls or one-line reverts; dead message writes stay (P8). The 6 left read the message through a pointer that is a join of equal values (unknown1d94cb94 4899-4914: _774 = _306 + 640 on every edge) or the buffer of a rotated loop ('subtraction underflow' exit after break in redeemAllowed, transferAllowed, claimReward x3)."},
+    {"n": 2, "kind": "loop", "status": "partly", "note": "Fixed: mintAllowed, repayBorrowAllowed, seizeAllowed x2, borrowAllowed, transferAllowed src are 'while uint8(s) <= 1'; claimReward market loops are 'loop1: while s < len' and borrower holder loops 'while t < len'. Still rotated: redeemAllowed 3844 and transferAllowed dst 8858 (type 0 update peeled in both arms, 'while True', exit 'if uint8(w + 1) > 1: return 0', dead s/u) and the 3 claimReward supplier holder loops (first holder peeled, 'while True')."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "accountMembership still raw stor[sha3(.., sha3(.., 9) + 2)] (e.g. 1545, 7876)."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "exitMarket 1571-1576 unchanged."},
+    {"n": 5, "kind": "simplification", "status": "partly", "note": "raw stor[_N] 143 -> 49 lines and concat(Bytes(12, 0), mem[..]) 84 -> 76; claimReward still has call mem[_6 + 32 * u + 44 len 20] and rewardAccrued[..] = stor[_1625]."},
+    {"n": 6, "kind": "simplification", "status": "partly", "note": "0.9e18 now '9 * 10**17' (468); 1e36 still '1000000000000000000 * 10**18' (103 lines); enterMarkets 583 still reads code.data[24396 len ..]."},
+    {"n": 7, "kind": "simplification", "status": "still", "note": "exitMarket 1531-1537 '_288 = _272 and 4 / if _288: log Failure(14, 3, _288)' unchanged; equal-edge phis remain (also block the copy collapse, see 1)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Text halved (17721 -> 9122 lines). P2 95 -> 0: getAccountSnapshot, getUnderlyingPrice, totalSupply, balanceOf, borrowBalanceStored, totalBorrows, qiAddress.balanceOf/transfer are named with arguments; all 41 raw-memory logs now show their data (speed events uint8(_param1), _param3/_param4). Error returns print as codes (return 15/13/14, Bytes(64, 0)) instead of 'return memory'; 'Transfer failed.' reverts resolved (18). Most reward loops now read as the source's rewardType loop; claimReward lost the peeled first market. SafeMath helpers renamed consistently (old div2 = new div, old div = new div2; mul2 only where a is a checked non-zero price). P6 299 -> 0.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 21623 lines: reviewed by structure. Per changed function, compared calls, storage writes, logs, reverts, requires and returns old vs new with a script, then read: getAccountLiquidity whole, getHypotheticalAccountLiquidity's modify branch, mintAllowed whole (vs updateRewardSupplyIndex + distributeSupplierReward), redeemAllowed's reward part and tail, unknown1d94cb94's changed hunks, transferAllowed and claimReward(uint8,address) skeletons and loop exits. Call counts equal except claimReward(uint8,address[,address[]]) -4 each = the peeled first iteration (and its 5 stops) gone. unknown1d94cb94 hunk '-3106' is borrowAllowed/redeemAllowed moved earlier. Remaining by estimate: 11 rotated assetsIn/allMarkets storage-to-memory copies (P3, unchanged), P12 in transferAllowed (src loop + dst type-0 update in both membership arms, 8092-8471 vs 8473-8852, was ~840 lines per arm) and redeemAllowed (type-0 update in both arms, as before), dead message writes (P8). text_check run --per-selector 32 (r2): empty 2275 same, random 2251 same, 0 different, 3 exhausted, 21 inconclusive.",
+  "summary": "No regression. Calls and logs are now fully decoded, the 272 revert-string loops are down to 6, and most reward loops read as 'while uint8(s) <= 1'; redeemAllowed, transferAllowed dst and the claimReward supplier loops stay rotated."
+}

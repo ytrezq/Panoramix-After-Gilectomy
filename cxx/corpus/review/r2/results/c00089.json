@@ -1,0 +1,43 @@
+{
+  "id": "c00089",
+  "text_changed": true,
+  "lines_old": 3199,
+  "lines_new": 2865,
+  "changed_functions": 14,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "Flipped, same cause as regression 1: setup 806 now resolves the read and prints the write raw, 'stor[sha3(mem[_25 + 116 len _24 - _25 + 52])] = stor[sha3(0xde9bdca3.., Bytes(20, address(cd[params + 36])))] | 2', with 'mem[_25 + 84] = _24 - _25 + 52' (804); _24 (796) and _25 (799) are equal reads of mem[64]."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "2 * uint1(..) bit tests: 11 lines, unchanged."},
+    {"n": 3, "kind": "artifact", "status": "still", "note": "Immutables still 0."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "setup(bytes) (the trusted-chain loop of _setup)",
+      "lines": "850-883",
+      "decompiled": "_73 = mem[64] / mem[mem[64] + 32] = 0x5f58fea7.. / ... / _75 = mem[64] / ... revert with memory from _75 + ceil32(_74) + 128 len _73 - _75 + 4 / if uint1(stor[sha3(mem[_75 + ceil32(_74) + 160 len _73 - _75 + ceil32(_80) + 96])]): ... (8 lines)",
+      "old": "revert with 0xdeba1689 / if uint1(stor[sha3(0xa5b4aa1bcb53.., 64, mem[_73 + ceil32(_74) + 224 len _80 + 32], Bytes(-_80 + ceil32(_80), 0))]): ...",
+      "source": "InterchainTokenService._setup -> _setTrustedChain / removal of a chain name (custom error, string-keyed mapping at slot 0xa5b4aa1b..)",
+      "issue": "_73 and _75 are two reads of mem[64] with only writes to mem[mem[64] + k] between them, but the new text keeps _73 - _75 symbolic, so a custom-error revert becomes raw memory and 8 accesses of the 0xa5b4aa1b string-keyed mapping lose their key.",
+      "rule": "A write at mem[p + k] (k >= 32, or a copy starting there) does not change mem[64] unless addresses wrap, which no execution can afford; two reads of mem[64] separated only by such writes are the same value, so p1 - p2 folds to 0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "unknown49160658, unknown95109d5c, unknownda081c73, unknown65657636, unknown70756cde, unknowne24a240b, unknown83d29696, unknown465a09e0",
+      "lines": "e.g. 1405-1416 (unknown95109d5c), 1797-1822 (unknown65657636)",
+      "decompiled": "mem[_19 + 2 * Mask(250, 5, cd[_param2 + 4] + 31) + 96 * ((cd[_param3 + 4] + 31) / 32) + 2 * Mask(250, 5, cd[_param5 + 4] + 31) + 1476] = tx.origin  |  call address(mem[ceil32(_1) + ceil32(_15) + ceil32(_18) + ceil32(_47) + ceil32(cd[_param2 + 4]) + ceil32(cd[_param3 + 4]) + ceil32(cd[_param4 + 4]) + 544 len 20]).unknown77c7..",
+      "old": "_48 = mem[64] / mem[mem[64]] = .. / mem[_43 + ceil32(_46) + ceil32(_47) + 192] = 6  |  call address(_56).unknown77c79025(?)",
+      "source": "abi.encode / abi.decode of strings and bytes in the ITS message paths",
+      "issue": "Free-memory-pointer values that the old text held in variables (_29, _48, _56...) are now inlined as long sums of ceil32 terms (mixed with the unfolded forms 2 * Mask(250, 5, x + 31) and 96 * ((x + 31) / 32)) at every address: those functions' text doubles (unknown95109d5c 9.7k -> 19.6k chars, unknown49160658 36.5k -> 68k), lines over 200 chars 121 -> 265 in the contract, max line 403 -> 1483 in unknown95109d5c.",
+      "rule": "Keep a non-constant free-memory-pointer value (and a value loaded from memory at such an address) in a named variable and write addresses relative to it; normalise Mask(250, 5, x + 31) and 32 * ((x + 31) / 32) to ceil32(x) so equal terms merge.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "unknown7fb53dc9 shrinks 89 -> 30 lines: with a constant free pointer the two call argument lists are concrete and the dead memory writes go. Logs decoded as Array(len=.., data=..) in setup, unknown65657636, unknown49160658; reverts resolved (0x0dc10197, 0x725f13f1, 0xc646a623 with its address, 0xd08dbec5); storage keys resolved (0x2a41fec9 mapping in unknown65657636/unknown49160658, the 0x5f58fea7 lookup and storF310 string-keyed mapping in setup); unknowne1d40c77 returns a sha3 value instead of 'return memory'; decoded lengths now read as values (mem[_29] -> _28). P6 15 -> 0, P2 11 -> 9.",
+  "patterns": {"P1": 0, "P2": 9, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 3248 lines: reviewed by structure (calls, logs, writes, requires per function: counts equal; the two dropped 'stop's in unknown65657636 are now fall-through ends with inverted tests) plus per-function diffs of setup, unknown83d29696, unknown65657636 and unknown7fb53dc9, and line/char statistics per function.",
+  "summary": "Many reverts, logs and keys are now resolved, but two medium readability regressions: two equal mem[64] reads in setup's loop are no longer equated (a custom error and a mapping key fall back to raw memory), and free-pointer sums are inlined everywhere, doubling the text of six functions."
+}

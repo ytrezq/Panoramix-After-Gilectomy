@@ -1,0 +1,43 @@
+{
+  "id": "c00204",
+  "text_changed": true,
+  "lines_old": 7146,
+  "lines_new": 4701,
+  "changed_functions": 13,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "still", "note": "def storage still declares stor1/stor2/stor3 at slots 1-3; the struct members of $.collectors[c].providers[p] still print as stor1[_6], stor2[_6], stor3[_6][id] (20 uses, forceRemoveAgreement)."},
+    {"n": 2, "kind": "simplification", "status": "fixed", "note": "Raw-memory lines 241 -> 0: AgreementReconciled (_380, newMax), EscrowFunded/EscrowWithdrawn data, the returns of reconcileAgreement/reconcileProvider (bool) and offerAgreement (Mask(128,128,_17)), and the escrow calls (deposit, withdraw, approve, 709255a5, f93f1cd0) now show their decoded arguments."},
+    {"n": 3, "kind": "simplification", "status": "partly", "note": "Keccak-scratch stores 687 -> 24 (16 left at the start of offerAgreement, 5 in getRoleMembers, 3 in setIssuanceAllocator); the nested-mapping accesses are still raw stor[sha3(..)] (630 lines)."},
+    {"n": 4, "kind": "naming", "status": "still", "note": "getEscrowAccount is still MoveEthToWallets(bool state) with cd[36] (lines 171-181, unchanged)."},
+    {"n": 5, "kind": "artifact", "status": "still", "note": "Immutables GRAPH_TOKEN/PAYMENTS_ESCROW still 0x0."}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "beforeCollection(bytes16,uint256) (unknown9081e3a6)",
+      "lines": "663-713",
+      "decompiled": "_93 = mem[_89] / if _param2 > mem[_89]: ... if _param2 - mem[_89] > _param2: revert Panic(17) ... if -_93 + _param2 < mem[_118]: approve(0, -_93 + _param2) ... deposit(caller, address(_85), -_93 + _param2)",
+      "source": "RecurringAgreementManager.sol:329-338 escrowBalance = _fetchEscrowAccount(..).balance; if (tokensToCollect <= escrowBalance) return; deficit = tokensToCollect - escrowBalance",
+      "issue": "The escrow balance is bound to _93, yet two conditions read it again as mem[_89], and the same checked difference prints once as '_param2 - mem[_89]' and twice as '-_93 + _param2'. The old text used one name (_90) throughout.",
+      "rule": "Once a load is bound to a variable, print every later use of the same unchanged location through that variable, and print one expression for the same value (a - b) everywhere.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "reconcileProvider, forceRemoveAgreement, afterCollection, reconcileAgreement, cancelAgreement, offerAgreement (10 inlined copies of the escrow update)",
+      "lines": "e.g. 793-798, 1693-1698",
+      "decompiled": "static call 0x0.unknown7a8df28b(?) ... / _1 = return_data.size / _2 = ext_call.return_data[32] / _4 = ext_call.return_data[0] / if not ext_call.success: revert ... / require return_data.size >=′ 96",
+      "source": ":_fetchEscrowAccount(collector, provider) then account.balance / account.tokensThawing used after balanceOf",
+      "issue": "The returned words are bound right after the call, before the success check and the 'return_data.size >= 96' check that guard them, so they read as unchecked reads (the bytecode reads them from memory after the checks). Not a semantic difference: text_check finds no different call.",
+      "rule": "A binding that must precede the next call can be placed at the latest point before that call that is dominated by the checks on the same return data; place it there.",
+      "verified": "text_check run --per-selector 16: 595/595 same in both worlds"
+    }
+  ],
+  "improvements": "Text 7146 -> 4701 lines. Dead keccak-scratch stores, struct zeroing and call-buffer writes dropped (687 scratch stores -> 24). The free-memory-pointer fix decodes every escrow call (deposit, withdraw, approve, 709255a5, f93f1cd0), the three event payloads and the three returns that were raw memory (finding 2). The approve result check reads ext_call.return_data[0]. P1 (initialize's Initializable slot now 0xf0c5..00) and P6 (0x01ffc9a7.., 0x02dd7b..) are gone. A Panic(17) check dominated by '_121 > mem[_303]' is folded into SafeMath.sub in the approve/deposit/EscrowFunded arguments.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 7575 lines, reviewed by structure. Read in full: beforeCollection, reconcileProvider, the afterCollection prefix (getMaxNextClaim, AgreementReconciled, the removal branch), the specific starts of cancelAgreement (cancel 2a9f4dfe call first) and offerAgreement (offer call, return). A script compared each function's sequence of calls, logs, storage writes, reverts and returns, old vs new. They are identical apart from the newly named calls and the folded dominated Panic(17), one per inlined escrow update. The mem[64] chain was checked on every path in reconcileProvider and afterCollection, e.g. 'mem[64] = _100 + ceil32(_1) + ceil32(_5) + ceil32(_6) + ceil32(rds) + 192' and the struct addresses _238/_221/_690. The dropped mem[64] updates after the post-withdraw re-fetch ('_303 = mem[64]') are never read later. Uses of ext_call.return_data[0] stay in their call's scope. These paths are unreachable in execution here (escrow = 0x0), so they were checked by reading. Leftover partial call-buffer writes such as 'mem[mem[64] + 96] = 0x7a8df28b..' and 'mem[132] = _param1' (P8) remain, fewer than before. The diff's big hunk headers pair old cancelAgreement lines with new reconcileAgreement lines because the two are nearly identical.",
+  "summary": "No regression. The free-memory-pointer and dead-store fixes cut the text by a third and decode every escrow call, event payload and return that round 1 found as raw memory. The struct-member naming (stor1/2/3), raw sha3 accesses and the getEscrowAccount name remain."
+}

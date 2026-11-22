@@ -1,0 +1,18 @@
+{
+  "id": "c00182",
+  "text_changed": true,
+  "lines_old": 2009,
+  "lines_new": 1985,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "ERC4626 mulDiv blocks unchanged (mint/deposit changed only in a hex constant)"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "toHexString loops in the role reverts unchanged"},
+    {"n": 3, "kind": "artifact", "status": "still", "note": "immutables read as 0"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "permit: ecrecover is now 'ecrecover(sha3(Bytes(2, 0x1901), _7, sha3(PERMIT_TYPEHASH, _owner, spender, value, _2, deadline)), v, r, s)' instead of a raw memory buffer, and the dead hashing/argument writes are gone (76 -> 52 lines). P6 9 -> 0 elsewhere (blacklist slot, EIP-712 fields byte 0x0f, interface id).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 10, "P5": 0, "P6": 0},
+  "notes": "Diff 215 lines, 8 changed functions: 7 display-only (P6 hex), permit read in full: same checks and nonce increment. The ecrecover output slot is now read as mem[mem[64]] because the dead 'mem[64] += 32' bump was dropped (consistent with the old mem[mem[64] - 32]).",
+  "summary": "No regression: permit's signature recovery is decoded and shorter, and P6 is gone; the mulDiv and toHexString findings stand."
+}

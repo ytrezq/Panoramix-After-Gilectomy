@@ -1,0 +1,18 @@
+{
+  "id": "c00106",
+  "text_changed": true,
+  "lines_old": 3002,
+  "lines_new": 2883,
+  "changed_functions": 10,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "canCall's first argument still Bytes(28, uint128(caller >> 32)), Bytes(4, uint32(caller)) (6 lines)."},
+    {"n": 2, "kind": "naming", "status": "still", "note": "checkpoints[account].field_128 for length >> 128 unchanged."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "updateRewardTokens' storage clearing range (max(_14 + sha3(18), sha3(18))) and the merged sqrt Newton steps unchanged."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "permit and delegateBySig: ecrecover's arguments decoded (ecrecover(sha3(Bytes(2, 0x1901), domain, structHash), v, r, s)) instead of raw memory, and the unneeded free-pointer bump around it dropped consistently. emergencyWithdraw: dead mapping-key and checkpoint-struct writes removed; Checkpoints.latest() printed as one select (_6 = stor10.length and stor10[stor10.length - 1].field_48) instead of a 4-line if/else; EmergencyWithdraw event data decoded (caller, _pid). Calls in the deposit/withdraw functions resolved. P2 23 -> 10 lines with mem[mem[64] len, regex P2 9 -> 5, P6 5 -> 0.",
+  "patterns": {"P1": 0, "P2": 5, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 1.1k lines over 10 functions. The 3 'if not X.length' removed in emergencyWithdraw are the Checkpoints.latest selects now printed with Python 'and' (0 when the array is empty, the last value otherwise), which is exact. In permit and delegateBySig the ecrecover result moved from mem[mem[64] - 32] to mem[mem[64]] because the 32-byte bump is no longer printed. Checked that nothing later reads mem[64].",
+  "summary": "No regression. ecrecover and event arguments are decoded, dead memory writes removed, and the checkpoint reads are shorter. The round-1 findings (split caller, field_128, clearing range) are unchanged."
+}

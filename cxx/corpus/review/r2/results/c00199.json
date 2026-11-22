@@ -1,0 +1,16 @@
+{
+  "id": "c00199",
+  "text_changed": true,
+  "lines_old": 1597,
+  "lines_new": 1512,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "tokenURI not changed (its only hunk is the context of the moved unknownbc70b354); the toString loop is still rotated."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "unknownd045a0dc (lzReceiveSimulate) parameters now numbered by calldata word (_param3.._param7 after the 3-word Origin struct; the old names were off by one); unknown21eb730b's transferFrom and 2637a450 calls named, its custom errors (0x5373352a, 0xf6ff4fb7) and event data decoded; unknownc0e78528 58 -> 36 lines; memory struct decoding in unknownb98bd070 uses the struct base instead of a fresh mem[64] read; bytes arguments of 0x9a6d49cd reverts split into length and data; P2 3 -> 1.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 917 lines read hunk by hunk: calls and events identical in count (the extra 'call' matches are continuation lines of call arguments); storage writes unchanged; unknownbc70b354 and other functions only moved.",
+  "summary": "No regression; the parameter numbering fix corrects lzReceiveSimulate's names, and several calls, errors and events are decoded."
+}

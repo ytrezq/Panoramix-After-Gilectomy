@@ -1,0 +1,54 @@
+{
+  "id": "c00150",
+  "text_changed": true,
+  "lines_old": 5606,
+  "lines_new": 5231,
+  "changed_functions": 16,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "The immutables still read as 0 (pool, bVault, poolId...). Not a decompiler error."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "The rotated allocation loops (P3, 10) are now do-while loops, 'while True: ... if t != 1: continue / break', with no copied first iteration. The double indirection mem[mem[...]], the enum-checking encode loops and managePoolBalance's raw-memory call remain (P2 unchanged in deposit 16, withdraw 7)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "initialDeposit((address,uint256)[]) 0xa186a843",
+      "lines": "the function's last 20 lines (joinPool, setSwapEnabled, SetSwapEnabled)",
+      "decompiled": "mem[mem[64] + 228] = 0 / call 0x0 with: args mem[mem[64] len _211 + 32 * _216 + 32 * _226 + 32 * _234 + ceil32(_243) - mem[64] + 612] / mem[mem[64]] = 0xe01af92c... / mem[mem[64] + 4] = 1 / call 0x0 with: args mem[mem[64] len 36] / mem[mem[64]] = 1 / log SetSwapEnabled(bool enabled=mem[mem[64]])",
+      "old": "call 0x0.joinPool(bytes32 poolId, address sender, address recipient, (address[],uint256[],bytes,bool) request) with: args 0, this.address, this.address, 128, 128, ... / call 0x0.setSwapEnabled(bool enabled) with: args 1 / log SetSwapEnabled(bool enabled=1)",
+      "source": "AeraVaultV1.sol initialDeposit: bVault.joinPool(poolId, address(this), address(this), joinPoolRequest); setSwapEnabled(true) -> pool.setSwapEnabled(true); emit SetSwapEnabled(true)",
+      "issue": "Three effects that were decoded are now raw memory (P2 9 -> 11 here). joinPool lost its name and arguments, setSwapEnabled(true) shows args mem[mem[64] len 36], and the event's argument is mem[mem[64]]. After the joinPool encoding, mem[64] is printed as 'mem[64] = 32 * _216 + mem[64] + 256', relative to itself, and the calls built at the new mem[64] are no longer resolved. The same calls are decoded in enableTradingWithWeights.",
+      "rule": "Keep the free-memory pointer's value as base + offset across an update written relative to itself (mem[64] = mem[64] + k becomes base + k), so memory written at mem[64] afterwards is addressed from that base and calls built there are decoded.",
+      "verified": "reading only (text_check run --per-selector 16: 0 different, but this path needs a pool at the zeroed immutable)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all functions decoding getPoolTokens or allocating arrays: withdrawIfBalanceUnchanged, depositIfBalanceUnchanged, deposit, withdraw, finalize, initialDeposit, setGuardian, holding, getTokens, getHoldings...",
+      "lines": "e.g. withdrawIfBalanceUnchanged's balance-check loop; setGuardian's stor7 copy; holding's return",
+      "decompiled": "mem[32 * _2 + 32 * _8 + 64 * _19 + 32 * _25 + 32 * _35 + 32 * _42 + 32 * s + ceil32(_3) + ceil32(_4) + ceil32(_5) + ceil32(_7) + 384] > mem[...]  |  stor[sha3(sha3(_guardian, 7)) len (-32 * _9 - 32 * _15 - ceil32(return_data.size) + max(32 * _9 + 32 * _15 + ceil32(return_data.size) + 224, 64 * _9 + ...) - 193) / 32] = ...",
+      "old": "_49 = mem[64] ... mem[_49 + 32 * idx + 32] > mem[_26 + 32 * idx + 32]  |  stor[sha3(sha3(_guardian, 7)) len (max(mem[64] + 32, mem[64] + 32 * N + 32) - mem[64] - 1) / 32] = ...",
+      "source": "AeraVaultV1.sol: memory arrays (getPoolTokens' tokens and balances, the amounts arrays) indexed in loops",
+      "issue": "Each allocated array's base, which the old text named (_9, _19, _49 = mem[64]), is now printed as its absolute address: the sum of every earlier allocation and return-data size. Lines with 4+ such terms went 10 -> 359, with 8+ terms 1 -> 152, and lines over 240 characters 2 -> 36. The same array is sometimes named (_19) and sometimes expanded in one function (initialDeposit).",
+      "rule": "When the free-memory pointer's value is a sum of several symbolic sizes, bind it to a variable at the allocation and address that allocation's contents from the variable. Substitute the value only when it is a constant or a single term. Also simplify max(p + a, p + b) - p to max(a, b).",
+      "verified": "reading only (counts by regular expression over both texts)"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "deposit, depositIfBalanceUnchanged, initialDeposit, and others: the SafeERC20 'did not succeed' revert (9 places)",
+      "lines": "e.g. initialDeposit, after 'if not mem[_249 + 32]:'",
+      "decompiled": "mem[mem[64]] = 0x08c379a0... / mem[mem[64] + 4] = 32 / mem[mem[64] + 36] = 42 / mem[mem[64] + 68] = 0x5361666545524332303a204552433230206f7065726174696f6e20646964206e / revert with mem[mem[64] len 100], 0x6f74207375636365656400000000000000000000000000000000000000000000",
+      "source": "SafeERC20._callOptionalReturn: require(abi.decode(returndata, (bool)), \"SafeERC20: ERC20 operation did not succeed\")",
+      "issue": "The revert data are now split: the first 100 bytes come from memory and the last word is a literal. All of it is constant, the standard Error(string) encoding of a 42-byte message. c00034 prints the same revert as Error(string reason), 32, 42, 'SafeERC20: ...'.",
+      "rule": "When every byte of the revert data is known (memory words written with constants, plus literal words), evaluate the whole range, and print an Error(string) encoding as revert with 'message'.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "Returns decode as Array(len=..., data=...) (getHoldings, getNormalizedWeights, getTokens...: Array forms 1 -> 12). updateWeightsGradually(start, end, Array(...)) is decoded in cancelWeightUpdates, enableTradingWithWeights and updateWeightsGradually, and setSwapEnabled(1) in enableTradingWithWeights. Their events decode (CancelWeightUpdates, UpdateWeightsGradually, the enable event). claimGuardianFees' SafeERC20 transfer is named, transfer(caller, _82), with literal reverts. Bounds and allocation checks implied by the loop bound or by an identical earlier check are dropped (Panic(50)/Panic(65)). The 'len _x - mem[64] + k' forms are folded. Array lengths read as variables (_2, _19) rather than mem[ceil32(return_data.size) + 128]. P3 10 -> 0 (do-while), P6 42 -> 0, P2 66 -> 63.",
+  "patterns": {"P1": 0, "P2": 63, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Structural review: the diff is 5878 lines and the functions were reordered. I compared each of the 16 changed defs by calls, events, storage writes, reverts and loops, read the small ones line by line, and read the changed call/log/revert lines of the big ones. Every call keeps its count in every function, and so do storage writes. The only lost decodings are in initialDeposit (regression 1). The 'while True' loops are the old rotated loops, 10 in both. text_check run --per-selector 16 (both worlds): 611 + 144 guessed-param calls same, 0 different, per world.",
+  "summary": "Two medium regressions. initialDeposit's joinPool, setSwapEnabled and SetSwapEnabled lost their decoding. Allocated array bases are now printed as long absolute sums instead of named pointers (359 lines with 4+ terms, 10 before). Otherwise better: returns, updateWeightsGradually calls and events decoded, redundant bounds checks dropped, rotated loops gone, P6 gone."
+}

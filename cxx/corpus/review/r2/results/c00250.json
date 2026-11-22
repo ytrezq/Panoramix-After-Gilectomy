@@ -1,0 +1,28 @@
+{
+  "id": "c00250",
+  "text_changed": true,
+  "lines_old": 1214,
+  "lines_new": 1054,
+  "changed_functions": 5,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "partly", "note": "release()'s call-data copy loop is gone and its transfer is named, with literal SafeERC20 reverts. The selector is still decimal (2835717307, 4 lines), and the recipient prints as two byte slices (new finding 1). The remaining P2 line is the fallback's forward of msg.data."}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "release() (829), and the same in the owner transfer at 604, which already had it in round 1",
+      "lines": "825, 829",
+      "decompiled": "call token.transfer(address recipient, uint256 amount) with: args Bytes(28, beneficiary >> 32), Bytes(4, uint32(beneficiary)), _121",
+      "source": "GraphTokenLock.release: currentBalance... token.safeTransfer(beneficiary, amountToRelease)",
+      "issue": "The newly decoded transfer shows its recipient as two byte slices of beneficiary instead of 'beneficiary', the same form as c00034's transfers. The slices come from the selector's read-modify-write of the word that overlaps the address.",
+      "rule": "Merge adjacent slices of one value: Bytes(28, x >> 32) followed by Bytes(4, uint32(x)) is the 32-byte word x when x < 2**224 (here a 160-bit address).",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "initializeFromL1's parameters now follow their calldata words: _param4 = owner, _param5 = beneficiary ... _param8 = endTime, with unused word 3 (l1Address) skipped. The old names were shifted by one. release's transfer is decoded, its copy loops are gone, and the SafeERC20 and vesting reverts are literals. approve/revokeProtocol read the return value directly. P6 19 -> 0, P2 2 -> 1, 1214 -> 1054 lines.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "I read the whole diff (5 defs). The fallback keeps its split on calldata.size >= 4 (both arms already duplicated in round 1). Its early stops became nested ifs ('if uint8(stor59) != 1: stop' -> 'if uint8(stor59) == 1: ...'): equivalent. Both source loops (approveProtocol, revokeProtocol) are unchanged whiles. text_check run --per-selector 16, both worlds: 675 + 16 guessed-param calls same, 0 different.",
+  "summary": "No regression. Parameter names of the unknown initializer now follow their calldata words, release's transfer is decoded and its copy loops gone. The recipient still prints as two byte slices."
+}

@@ -1,0 +1,19 @@
+{
+  "id": "c00248",
+  "text_changed": true,
+  "lines_old": 1264,
+  "lines_new": 1240,
+  "changed_functions": 4,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "still", "note": "The eight role entries are still separate variables (storAD46, storEF99...). def storage is unchanged."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "exp2's argument is still unbound and repeated in cap, distributeInflation and changeInflation, which did not change."},
+    {"n": 3, "kind": "simplification", "status": "partly", "note": "ecrecover now takes its arguments, ecrecover(sha3(Bytes(2, 0x1901), _7, sha3(...)), v, r, s), and the dead message writes are gone. The signer is still read back from memory: 'if mem[mem[64] + 12 len 20]: _14 = mem[mem[64]]'."},
+    {"n": 4, "kind": "artifact", "status": "still", "note": "The immutables still read as 0. Not a decompiler error."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "permit's ecrecover is decoded and its dead memory writes dropped. The dropped mem[64] bump is compensated exactly (mem[mem[64] - 32] -> mem[mem[64]]). The role constant and eip712Domain's fields print with whole bytes (0x0ec560a5..., 0x0f00...).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "I read the whole diff (81 lines: a constant, eip712Domain, renounceInflationBeneficiary's event, permit). Round 1's P1 count of 219 was the '(365 * 24 * 3600)' divisor, a one-year duration that the header's regular expression does not count. It is unchanged. No source loops. text_check run --per-selector 16, both worlds: 499 + 128 guessed-param calls same, 0 different.",
+  "summary": "No regression. permit's ecrecover is decoded (round-1 finding 3 partly fixed), and the hex constants print with whole bytes. The role-naming and exp2 findings remain."
+}

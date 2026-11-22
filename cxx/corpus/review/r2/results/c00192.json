@@ -1,0 +1,41 @@
+{
+  "id": "c00192",
+  "text_changed": true,
+  "lines_old": 1167,
+  "lines_new": 1177,
+  "changed_functions": 3,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "The Initializable slot is no longer factored by 3600 (now stor[0xf0c57e16...6a00]), but this read is still not matched to storF0C5, the def storage name of the same slot."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "permit(address,address,uint256,uint256,bytes) (ERC-1271 path)",
+      "lines": "1159-1174",
+      "decompiled": "if _59: allowance[owner][spender] = amount / _62 = mem[64] / mem[mem[64]] = amount / log Approval(.., uint256 value=mem[mem[64] len _62 - mem[64] + 32]) / stop / _64 = mem[64] / mem[mem[64]] = 0x08c379a0... / mem[_64 + 68] = 0x557364635661756c742f696e76616c69642d7065726d6974... / revert with memory from mem[64] len _64 - mem[64] + 100",
+      "old": "if not _59: revert with 'UsdcVault/invalid-permit' / allowance[owner][spender] = amount / log Approval(.., uint256 value=amount)",
+      "source": "UsdcVault.permit: require(SignatureChecker-style isValidSignature(...) == 0x1626ba7e, 'UsdcVault/invalid-permit'); allowance[owner][spender] = value; emit Approval(owner, spender, value)",
+      "issue": "The revert reason string is lost: it prints as Error(string) memory writes and a raw 'revert with memory' whose length keeps '_64 - mem[64]'. The Approval value prints as a memory slice instead of amount. The cause is the free-pointer update now printed in the 'else' arm after the isValidSignature call: after the join mem[64] is unknown, so _62/_64 are opaque and are no longer matched to the following mem[64] reads. Same values (lengths 32 and 100).",
+      "rule": "A variable bound to a read of mem[64] equals any later read of mem[64] as long as no write to mem[64] comes between, even when the value of mem[64] is unknown after a join. Fold x - mem[64] to 0, forward the words written at mem[x] to their reads, and then recognize the Error(string) revert and the event data as before.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "permit(address,address,uint256,uint256,bytes) (ERC-1271 call encoding)",
+      "lines": "1136-1143",
+      "decompiled": "while idx < _38 - _44 + ceil32(signature.length): ... / mem[2 * _38 - _44 + 2 * Mask(250, 5, signature.length + 31) + 32] = 0 / args mem[_38 + ceil32(signature.length) + 32 len _38 - _44 + ceil32(signature.length)]",
+      "old": "_47 = mem[_44] / while idx < _47: ... / mem[_38 + _47 + ceil32(signature.length) + 32] = 0 / args mem[_38 + ceil32(signature.length) + 32 len _47]",
+      "source": "abi.encodeWithSelector(IERC1271.isValidSignature.selector, digest, signature) copied for the staticcall",
+      "issue": "The encoded length is forwarded from its write into every use instead of the bound variable _47, and in the padding address ceil32 shows up as '2 * Mask(250, 5, signature.length + 31)'. Same values, harder to read.",
+      "rule": "Keep a length word read back from memory as its variable when the forwarded expression is longer. Print 2 * (x + 31 & ~31) as 2 * ceil32(x) and keep the sum in its original form.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "initialize's Initializable slot no longer factored by 3600 (P1 2 -> 0). 0x0100...00 * v in permit's ecrecover packing shown with whole bytes (P6 1 -> 0).",
+  "patterns": {"P1": 0, "P2": 2, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 76 lines over 3 functions (initialize, two hunks in permit), read in full. The new permit tail is semantically equal to the old: same check, write, event and revert data, with the if-arms swapped and an explicit stop. Only the display regressed. Pack regex P2 2 lines.",
+  "summary": "One medium readability regression: in permit's ERC-1271 path the 'UsdcVault/invalid-permit' revert string and the Approval value fall back to raw memory, because the free pointer becomes unknown after a join. The Initializable-slot P1 is fixed."
+}

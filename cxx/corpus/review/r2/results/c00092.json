@@ -1,0 +1,17 @@
+{
+  "id": "c00092",
+  "text_changed": true,
+  "lines_old": 3409,
+  "lines_new": 3233,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "coverage", "status": "still", "note": "Still aborts at the same point: right after the second 6-digit colour string of generateSVGImage. The SVG, both Base64.encode calls and the return are still lost."},
+    {"n": 2, "kind": "loop", "status": "still", "note": "The sigfigs loop is still 'while _N:' with a loop-carried condition (10 such loops)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "New def SafeMath.mul(a, b, errorMessage), used at 5 sites, each under 'if a:' (so the helper's missing a == 0 branch never matters); its revert data are exact, including the 31 stale memory bytes after the codecopied 33-byte message. Memory locals of the params struct are forwarded to calldata (int24(cd[_param1 + 324]) for int24(mem[448]), s = uint24(cd[_param1 + 36] >> 136) for mem[172 len 3], i.e. tokenToColorHex(quoteTokenAddress, 136); asserts against constant or computed lengths: assert idx - 1 < 6, escapedBytes length = symbol length + quotesCount). The 42-char address copy after ' Address: ' is now one copy line ('0x', mem[_5653 + 34 len 40]) instead of a loop (whiles 81 -> 80). P6 17 -> 0. Text 3409 -> 3233 lines.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 3036 lines (one 3200-line function), reviewed by structure. All loops are aligned by the string constant written before each: every loop is kept, apart from the address copy that became a copy line; counter renames t/u/s only. Ifs 531 -> 515, reverts 58 -> 53, requires 65 -> 64: SafeMath.mul's inline overflow tests moved into the helper. 1 'Decompilation aborted' at the same source point as before; no return in the text, as before.",
+  "summary": "No regression. Readability improved (SafeMath.mul helper, memory locals forwarded to calldata, one copy loop converted, whole-byte hex), but the function still aborts before the SVG, Base64 and the return."
+}

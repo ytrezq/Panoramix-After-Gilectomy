@@ -1,0 +1,16 @@
+{
+  "id": "c00255",
+  "text_changed": true,
+  "lines_old": 1198,
+  "lines_new": 1122,
+  "changed_functions": 3,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "commitValidatorCommittee's for-with-break is still 'while True: if s >= stor151.length: _14 = 0; break'."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "commitValidatorCommittee (unknown740211ce, 53 -> 34 lines) drops the dead ValidatorAttr memory copies (P8). Its three real Panic(65) allocation checks remain, with one mem[64] update, and the leader test reads the storage fields directly (uint8(validators[stor151[s]].field_256) and not ..field_264 and bool(..field_272)). In both committee getters the allocation chain is resolved to offsets from one base (_3, _109, _107); the 192-byte struct check that both arms of the latest/snapshot branch repeated is hoisted above it, as is the 64-byte commit-info check. The return is decoded (return 96, uint64 word, bool, s, mem[_107 + 256 len 224 * s] instead of mem[mem[64] len 96], ...). A bounds test reads stor151.length instead of mem[192].",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 518 lines, read in full (3 functions). Loops unchanged (whiles 7, same places). Ifs/reverts -2 in each getter: the hoisted duplicate allocation checks. That is exact because both arms began with the same check and the branch tests (stor154 <= stor157, the latest/snapshot choice) have no side effects. uint32 fields are read back as 'Bytes(28, 0), mem[_109 + 476 len 4]' (uint32 of the word at _109 + 448), as obscure as before.",
+  "summary": "No regression. Dead struct copies are gone, allocation checks merged, and the getters' returns are decoded. The for-with-break loop shape is unchanged."
+}

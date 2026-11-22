@@ -1,0 +1,29 @@
+{
+  "id": "c00163",
+  "text_changed": true,
+  "lines_old": 3309,
+  "lines_new": 3079,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "'floor32(max(31, x))' copy tails unchanged (20 in exit, also executeMetaTransaction)"},
+    {"n": 2, "kind": "simplification", "status": "fixed", "note": "the 7 toList struct-allocation loops are no longer rotated: 'while True: _53 = mem[64] ... mem[s] = _53 / if u != 1: s = s + 32; u = u - 1; continue / break' (a do-while; the first struct is no longer allocated before the loop, 'while idx - 1' 7 -> 0)"}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "mapToken(address,address,bytes32), receive (_fallback), exit(bytes)",
+      "lines": "mapToken new 52-96; _fallback 13-16 and its 4 reverts; exit 1821-1827 and 1945-1947",
+      "decompiled": "_22 = mem[64] / mem[mem[64] + 32] = address(rootToken) / ... / _23 = mem[64] / mem[mem[64]] = 96 / ... / while idx < mem[_23]: ... / call stateSenderAddress with: args mem[_37 len -_37 + _45]  |  _2390 = mem[64] / mem[mem[64]] = 0x41539d4a... / static call checkpointManagerAddress with: args mem[mem[64] len _2390 - mem[64] + 36]",
+      "source": "RootChainManager._mapToken: stateSender.syncState(childChainManagerAddress, abi.encode(MAP_TOKEN, abi.encode(rootToken, childToken, tokenType))); exit: checkpointManager.headerBlocks(headerNumber); predicate.exitTokens(...)",
+      "issue": "Where mem[64] comes from a join, two reads of it with only stores at mem[64] + k (k >= 0, above slot 64) between them stay distinct (_22/_23, _3/_4), and even '_2390 - mem[64]' with no store to slot 64 between them does not fold. So mapToken's syncState call, the receive function's lockTokens call and its 4 Error(string) reverts, and exit's headerBlocks/exitTokens calls stay raw (P2), although remapToken's identical _mapToken code is now fully decoded ('syncState(address receiver, bytes data) with: args childChainManagerAddress, Array(len=192, data=sha3('MAP_TOKEN'), 64, 96, ...)').",
+      "rule": "A store at an address >= the free-pointer floor (or at mem[64] + k, k >= 0, with mem[64] >= 96) does not change mem[64]; reads of mem[64] with only such stores between them are one value, so x - x folds to 0 and the call's argument region becomes exact.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "remapToken's syncState call is decoded with its nested abi.encode payload and its two copy loops are gone (whiles 54 -> 52). depositEtherFor's lockTokens shows 'Array(len=32, data=call.value)'. The rotated toList allocation loops are fixed (P3). Dead hash-scratch, msg.data padding and struct allocations are dropped in the role-checked functions; initializeEIP712 now reads 'domainSeperator = sha3(..., sha3('RootChainManager'), ...)'. In exit, redundant asserts are dropped ('assert 2 < len' under 'assert 8 < t'; 'assert 0 < _132' and 'assert 0 < 2 * _132 - 1' inside 'else' of 'if not _132'; the always-true 'if 2 * _132 != 1'), and payload reads resolve to fixed addresses ('assert 9 < t'). P6 (20) is gone.",
+  "patterns": {"P2": 9, "P4": 2},
+  "notes": "Functions were reordered by size, so I used per-function diffs. Small functions read in full; exit(bytes) (1,903 changed lines) by structure: calls 2/2 (still raw), whiles 40/40, reverts 24/24, requires 70/70, asserts 63 -> 60. The multiset difference of asserts shows exactly the 3 implied ones above, the rest being re-indented or rewritten with resolved addresses. The trailing bytes of the Error(string) reverts in cleanMapToken/remapToken moved from 'mem[mem[64] + 113 len 19]' to 'mem[mem[64] + 305 len 19]'. That is consistent: the dead 2 x 96-byte allocations (and their mem[64] bumps) are no longer printed, so mem[64] now means the value before them. 'while idx < mem[_23]' in mapToken re-reads a length that the old text held in _27 (equivalent: the body writes above it).",
+  "summary": "No regression. P3 rotations fixed, remapToken's state-sync call decoded, implied asserts and dead scratch writes dropped, P6 gone. The remaining raw calls (mapToken, receive, exit) all come from free-pointer reads after a join not being identified."
+}

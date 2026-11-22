@@ -1,0 +1,49 @@
+{
+ "id": "c00154",
+ "text_changed": true,
+ "lines_old": 5801,
+ "lines_new": 3612,
+ "changed_functions": 14,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "80 of the 92 revert-reason copy loops now fold to `revert with 'MATH64_ADD_OVERFLOW'` etc. (118 quoted reverts). 12 loops remain where the reason is one of two constant strings at a join (EXECUTE_PAYMENT_NUM/TIME, 6 per execute function)."
+  },
+  {
+   "n": 2,
+   "kind": "loop",
+   "status": "fixed",
+   "note": "removeBudget/setBudget now print `while uint64(block.timestamp) > uint64(stor[s].field_64): if not uint64(t): revert 'FINANCE_COMPLETE_TRANSITION'`, and the budget writes and SetBudget once after the loop (logs 3 -> 1)."
+  },
+  {
+   "n": 3,
+   "kind": "loop",
+   "status": "still",
+   "note": "payment loop still `while True` with _nextPaymentTime's arms in the exit tests (2944-2955 and the 2 other copies)."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "executePayment(uint256), receiverExecutePayment(uint256)",
+   "lines": "3073-3079, 3210-3216, 3410-3416, 3547-3553 in executePayment and the same 4 sites in receiverExecutePayment (16 revert lines)",
+   "decompiled": "mem[_908 + 320] = 0x08c379a0... ; mem[_908 + 324] = 32 ; ... while idx < _1633: mem[idx + mem[64] + 68] = mem[_1635 + idx] ... revert with memory from mem[64] len floor32(_1632) + 100",
+   "old": "mem[mem[64]] = 0x8c379a0... ; mem[mem[64] + 4] = 32 ; ... revert with Error(string reason), 32, mem[mem[64] + 36 len floor32(_1032) + 64]",
+   "source": "Finance.sol _executePaymentAtLeastOnce: revert(ERROR_EXECUTE_PAYMENT_NUM) / revert(ERROR_EXECUTE_PAYMENT_TIME)",
+   "issue": "Where the free-memory pointer differs between the outer arms (_908 + 320 vs _908 + 192), the Error(string) header is now written relative to `_908` but the copy loop and the revert still use `mem[64]`, so the revert is no longer recognized as `Error(string reason)` and shows as a raw memory range. Where the pointer is the same in both arms (2982) the Error form is kept.",
+   "rule": "When mem[64] at a join is a phi of base + k_i, express the writes after the join in the same terms as the arms (or keep the arms mem[64]-relative), so that the Error(string) payload is matched on the join's buffer.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "Revert reasons folded to constant strings (Error(string) copy lines 340 -> 11, whiles 139 -> 39); the period-transition loop reads as in the source everywhere (`while timestamp > endTime: if not t: return 0 / revert`), with the duplicated tails of removeBudget/setBudget gone; NewTransaction logs fully decoded (`reference=Array(len=0, data='')`); hasPermission's bytes argument decoded as `Array(len=64, data=...)`; SafeMath.sub helper added and used (`SafeMath.sub(transactionsNextIndex, 1)`); guard-first reverts; `mem[_179] == 1` after the token call -> `ext_call.return_data[0] == 1`; recoverToVault's balance call named `balanceOf`; P6 (141) gone; 2,189 fewer lines.",
+ "patterns": {
+  "P2": 8,
+  "P4": 2
+ },
+ "notes": "Reviewed by structure (6.8k-line diff): per-function multisets of calls, logs, storage writes, reverts and loops compared after normalizing variable numbers; every difference is a folded revert string, the transition-loop rewrite, a decoded log/argument or hex padding. transferToVault only moved in the text. recoverToVault's join now writes `transaction[concat(mem[0])].field_1088` (P4, 2 lines) where the old text had `stor[_208 + 4].field_64` with `_208 = sha3(id, 6)`: mapping named, key less direct (neutral). The `_newPeriod` code is still printed in both arms of `if not stor[s + 1]` in each transition loop (P12, 11 loops). Dead `mem[0]` save/restore pairs reduced 18 -> 6 (P8).",
+ "summary": "Large improvement: revert strings folded, the transition loop unrotated with single tails, logs and ACL arguments decoded; one low regression where 4 one-of-two-string revert sites (8 lines) per execute function lost their Error(string) form. The payment loop is still `while True`."
+}

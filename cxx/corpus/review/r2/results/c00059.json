@@ -1,0 +1,39 @@
+{
+  "id": "c00059",
+  "text_changed": true,
+  "lines_old": 18899,
+  "lines_new": 10234,
+  "changed_functions": 22,
+  "old_findings": [
+    {"n": 1, "kind": "semantics", "status": "fixed", "note": "No GAS variable is left (old: 2 '_1 = gas_remaining'); every borrowIndex call in the claimComp loops shows its own 'gas gas_remaining'."},
+    {"n": 2, "kind": "loop", "status": "partly", "note": "The markets loop is now 'loop1: while s < _272' and the borrowers loop 'while t < _1254', both testing their real bounds at the head. The suppliers loop is still rotated in all 3 claimComp: holders[0] is loaded before a 'while True' whose test 'if w + 1 >= mem[_6]: continue loop1' is at the bottom, and its 'break' (the sub_ underflow) falls into an Error(string) copy block after the loop (7303-7466)."},
+    {"n": 3, "kind": "semantics", "status": "fixed", "note": "unknownb8a83e94 now passes two separate Array(len, data) arguments, in the right order, and no trailing head word."},
+    {"n": 4, "kind": "simplification", "status": "fixed", "note": "0 logs and 0 returns are left as raw memory (old: 49 logs, 4 returns), e.g. CompSpeedUpdated(newSpeed=SafeMath.div(10**18 * _759, _787) * compRate / 10**18)."},
+    {"n": 5, "kind": "simplification", "status": "partly", "note": "270 of the 279 revert-string copy loops are now 'revert with 'text''. 9 remain, all where the string pointer is a phi of several allocations: refreshCompSpeeds 3455-3471 and its 3 inlinings, claimComp x3 after the suppliers loop, and unknownf1e9ee8b x2."},
+    {"n": 6, "kind": "simplification", "status": "still", "note": "CarefulMath error codes are still threaded through phi variables. Only the dominated 'if mem[_149]' arm of mulScalarTruncateAddUInt was folded."},
+    {"n": 7, "kind": "simplification", "status": "still", "note": "assert field_224 != block.number, the distributed (bn*s - f*s)/(bn - f), the dead else arm, and the totalUtility 'divide by zero' test are all still there (refreshCompSpeeds 3370-3415, 3768)."},
+    {"n": 8, "kind": "simplification", "status": "still", "note": "The storage range clear with max(...) is unchanged in exitMarket."},
+    {"n": 9, "kind": "simplification", "status": "still", "note": "markets[concat(Bytes(12, 0), mem[32 * s + 172 len 20])] keys and the code.data[24287 ...] zero fill are unchanged. 16 such keys remain (old 23); the drop comes from the peeled iterations that were removed."},
+    {"n": 10, "kind": "simplification", "status": "still", "note": "The functions concerned changed only for the constant 9 * 10**17."},
+    {"n": 11, "kind": "naming", "status": "still", "note": "Unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "mintAllowed(address,address,uint256), transferAllowed(address,address,address,uint256) and the other distributeSupplierComp inlinings",
+      "lines": "1717-1790; 5392-5436",
+      "decompiled": "mem[_168 + 96] = SafeMath.sub(_178, mem[_168]) ... (_178 * _1 - mem[_168] * _1) / (1000000000000000000 * 10**18) (8 uses); transferAllowed dst: mem[mem[64] + 320] / mem[mem[64] + 384] read 15 times",
+      "old": "_179 = mem[_168] ... (_178 * _1 - _179 * _1) / ...; _2039 = mem[mem[64]]; _2042 = mem[_2026]",
+      "source": "ComptrollerLegacy.sol distributeSupplierComp: Double memory supplierIndex = ...; Double memory deltaIndex = sub_(supplyIndex, supplierIndex)",
+      "issue": "A memory word the old text loaded once into a variable is now re-read at every use. Each line grows by a memory expression, and the struct field stays unnamed. This is minor next to the gains in the same blocks.",
+      "rule": "When a memory word with no store in between is used more than twice, bind it to one variable at its first read instead of repeating the read.",
+      "verified": "reading only; text_check run --per-selector 16: 0 different of 2246 calls"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "The text is 46% shorter. Calls are now named with decoded arguments (P2 111 -> 0, e.g. static call address(_172).borrowIndex()), and constants show whole bytes (P6 291 -> 0). 0.9e18 prints as 9 * 10**17 (P1 2 -> 0). 270 revert-string copy loops became 'revert with' lines. Event data and returns show values. Dominated SafeMath.sub and ext_code.size checks are folded. The Exp[] allocation loops are no longer peeled (while True with the test at the bottom). The GAS and _become findings are fixed.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Reviewed by structure (the diff is 22954 lines, and functions were reordered, so each function was diffed separately): for all 22 changed functions, the counts of while/call/log/revert/require/assert/return/stop/storage writes were compared, every changed while was classified, and each dropped require/assert was explained (dominated ext_code.size on the same address in the same iteration; mul asserts folded into SafeMath.mul; peeled claimComp copies). Read in detail: refreshCompSpeeds (523 lines, also inlined into _setCompRate/_dropCompMarket/_addCompMarkets), the mintAllowed diff, the getAccountLiquidity and exitMarket diffs (snapshot words renamed consistently: _1 is now return_data[96]), the transferAllowed dst block, and the claimComp loop skeletons. The exitMarket getAccountSnapshot revert is unchanged and still exact. SafeMath div/div2 swapped names, with every use renamed consistently. The new pack header has no pattern counts; P1-P6 come from regexes that reproduce round 1's header counts. 9 revert-string copy loops (P7) remain.",
+  "summary": "No real regression: one low readability cost, where memory words are re-read instead of held in a variable. The text is 46% shorter and calls, events, returns and revert strings are now readable. Round 1's GAS and _become findings are fixed; the claimComp suppliers-loop rotation and 9 phi-pointer revert copies remain."
+}

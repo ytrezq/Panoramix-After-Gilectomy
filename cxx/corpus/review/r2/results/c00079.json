@@ -1,0 +1,56 @@
+{
+  "id": "c00079",
+  "text_changed": true,
+  "lines_old": 8525,
+  "lines_new": 7520,
+  "changed_functions": 16,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "branchless min/max still printed as xor-multiply: 195 lines in both texts"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "transient[8] re-tested right after being set to 1, dead arm kept: 36 'if not transient[8]' in both texts"},
+    {"n": 3, "kind": "simplification", "status": "partly", "note": "46 range checks now read 'require ext_call.return_data[k] == uint16(ext_call.return_data[k])' (16 before), but 176 lines still slice return_data[k len 2] (former mem[_N + k len 2] slices became return-data slices); the same check prints both ways across functions"},
+    {"n": 4, "kind": "artifact", "status": "still", "note": "solc immutables as 0: 'if caller:' EVC check, calls to 0x0"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown0e308a5e, liquidate, unknownca19bcd4, unknown4b3d1223, canLiquidate and the other changed functions",
+      "lines": "7141-7160 (unknown0e308a5e) and 73 lines with 6+ ceil32 terms",
+      "decompiled": "mem[_618 + ceil32(_12) + ceil32(_14) + ceil32(_15) + ceil32(_17) + ceil32(_18) + ceil32(_20) + ceil32(_21) + ceil32(return_data.size)] = 0x50d25bcd...",
+      "old": "_655 = mem[64] / mem[64] = ceil32(return_data.size) + mem[64] / mem[_655 + ceil32(return_data.size)] = 0x50d25bcd...",
+      "source": "AaveV3CollateralVault.sol: consecutive external calls (getAssetPrice, latestAnswer...) each allocating return memory",
+      "issue": "With the free-memory-pointer fix, offsets are printed as the full sum of every earlier return size from one base, so bookkeeping lines grow: 73 lines carry 6+ ceil32 terms (28 before), 156 lines exceed 240 chars (102 before). Most are dead selector/return-copy writes of calls that are now decoded.",
+      "rule": "Drop memory writes that only build the calldata of a call printed with decoded arguments, and of return-data copies never read; when a free-memory value is a sum of more than a few terms, bind it to a variable once and print offsets from it.",
+      "verified": "reading only (line counts by script)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "skim, borrow, redeemUnderlying, withdraw, deposit, repay, unknown4b3d1223, unknownca19bcd4 (2), liquidate (2), unknown0e308a5e",
+      "lines": "1912-1914, 2415-2417, 2964-2966, 3515-3517, 4117-4119, 4753-4755, 5129-5131, 5813-5815, 5949-5951, 6486-6488, 6672-6674, 7277-7279",
+      "decompiled": "if mem[_353 + ceil32(_16) + 254 len 2] >= 128: revert with 0x85e98beb / if not (ext_call.return_data[16 len 16] >> mem[_353 + ceil32(_16) + 254 len 2]) % 2:",
+      "old": "_386 = mem[_353 + ceil32(return_data.size) + 224] ... if uint16(_386) >= 128: ... if not (mem[_389 + 16 len 16] >> uint16(_386)) % 2:",
+      "source": "AaveV3CollateralVault.sol: the eMode/collateral bitmap test on getReserveData(...).id (uint16)",
+      "issue": "The reserve id, held by a named variable in the old text, is now re-read as a 2-byte memory slice at a long address, twice per site (12 sites). Same value, harder to read.",
+      "rule": "A memory load of bytes an earlier variable already captured (same address, no write in between) prints as that variable; a low n-byte slice of it prints as uint(8n)(var).",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize (approve x3), borrow (transfer), deposit and unknown4b3d1223 (permit2 transferFrom), unknown0e308a5e (transferFrom x2)",
+      "lines": "1282-1286, 1301-1305, 1452-1456, 2521, 3938-3946, 5305-5315, 7391-7398, 7420-7426",
+      "decompiled": "mem[_274 + 36 len 28] = uint128(_14 >> 32) / call _15.approve(address spender, uint256 amount) with: args Bytes(28, uint128(_14 >> 32)), Bytes(4, uint32(_14)), 0",
+      "source": "SafeERC20.forceApprove/safeTransfer/safeTransferFrom and Permit2.transferFrom (abi.encodeCall)",
+      "issue": "Calls decoded now, but the address argument after a masked selector store is split into two byte pieces in 7 calls and 4 copy lines, and 11 redundant 'mem[p + 36 len 28] = x >> 32' writes re-state bytes already there. The same pattern folds correctly elsewhere (transferFrom with _408).",
+      "rule": "Bytes(28, x >> 32) followed by Bytes(4, uint32(x)) is x for any 256-bit x: fold it. A masked store prints only the bytes it changes; bytes it writes back unchanged are not a write.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "248 calls are now named with decoded arguments (P2 255 -> 3: debtOf, repay, getReserveData, getAssetPrice, approve, transfer, permit2 transferFrom...). All 53 'revert with memory' now show custom errors (0x302a624a, 0x111c379d, 0x2755faea, 0x85e98beb, SafeERC20FailedOperation 0x5274afe7, 0x9773bb71 with two bytes args and exact padding). 7 returns and 8 event payloads are decoded (T_Deposit(_amount), T_Borrow(amount, receiver), T_Skim(balance - old total), Initialized(1)). P1 30 -> 0, P6 4 -> 0 (0x0c00c962). Many dead memory writes are gone (8525 -> 7520 lines), and two if/else-with-revert blocks became early reverts.",
+  "patterns": {"P1": 0, "P2": 3, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 9098 lines (functions reordered), reviewed by structure: per-function diffs plus a skeleton comparison (control flow, calls, storage/transient writes, events, reverts, returns) of the 16 changed functions, with variable renumbering and mem[_N] -> ext_call.return_data[0] normalized away. Skeletons match one for one, except 2 if/else-with-revert merged into early reverts (redeemUnderlying, repay) and one early revert turned into 'if _1291: ... else: revert' (unknown0e308a5e 7457, P10-like, cosmetic). Checked by hand: unknownfc472b4f in full; rebalance stor1 = _155 - _5 (repay's return value, as before); initialize forceApprove (first approve's target now printed as ext_call.return_data[0], no call lost); unknown0e308a5e: the overflow check of div * price is now explicit before the * stor62 check (it was inside SafeMath.mul before), same order, all Panic(17); liquidate and unknown4b3d1223: reordered sums and products have the same terms; every ext_call.return_data[0] substituted for mem[_N] has no call in between. Return-data reads now sometimes precede the success check (_3 = ext_call.return_data[0]), harmless. The only while (claimRewards) is unchanged.",
+  "summary": "No semantic regression: 248 calls named, all reverts/events decoded, P1/P6 gone, 1000 lines shorter. Two low readability regressions (long ceil32 offset sums; the reserve id re-read as a memory slice) and one new low finding (address arguments split into Bytes(28)/Bytes(4))."
+}

@@ -1,0 +1,27 @@
+{
+ "id": "c00300",
+ "text_changed": false,
+ "lines_old": 84,
+ "lines_new": 84,
+ "changed_functions": 0,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "coverage",
+   "status": "still",
+   "note": "Text unchanged: performNextStage still aborts at the stored internal-function-pointer call."
+  },
+  {
+   "n": 2,
+   "kind": "artifact",
+   "status": "still",
+   "note": "Text unchanged."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "none (text unchanged)",
+ "patterns": {},
+ "notes": "No diff file: the new text is identical to round 1's.",
+ "summary": "Unchanged text; round 1's abort in performNextStage and the immutables artifact remain."
+}

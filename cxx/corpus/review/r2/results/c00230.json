@@ -1,0 +1,16 @@
+{
+  "id": "c00230",
+  "text_changed": true,
+  "lines_old": 188,
+  "lines_new": 188,
+  "changed_functions": 11,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "11 of the 12 short address constants now print 40 digits (0x09f533db...); PoolManagerV300Implementation (0x50a960d5) = 0x0055c00b... starts with a whole zero byte and still prints 38 digits (0x55c00ba4...ce): 'whole bytes' drops leading zero bytes instead of padding to the address width"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Address constants with a leading zero nibble now print with all 40 digits, so they read and search as addresses.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 85 lines, read in full: only the 11 constant lines change (globalAdmin and 10 unknownXXXXXXXX getters); no other change. Suggested rule for the rest: a value used as an address (here: returned by a getter whose return is 20 bytes wide) prints as 40 hex digits, keeping leading zero bytes.",
+  "summary": "Display fix applied: 11 of 12 short addresses are now full width; one address with a leading 0x00 byte still prints 38 digits. No regression."
+}

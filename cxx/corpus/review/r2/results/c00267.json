@@ -1,0 +1,40 @@
+{
+  "id": "c00267",
+  "text_changed": false,
+  "lines_old": 528,
+  "lines_new": 528,
+  "changed_functions": 0,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "artifact",
+      "status": "still",
+      "note": "text unchanged"
+    },
+    {
+      "n": 2,
+      "kind": "simplification",
+      "status": "still",
+      "note": "text unchanged"
+    },
+    {
+      "n": 3,
+      "kind": "simplification",
+      "status": "still",
+      "note": "text unchanged"
+    }
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "none (text unchanged)",
+  "patterns": {
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "No diff file; the old and new texts are byte-identical (checked with cmp). The new pack header lists no regex pattern.",
+  "summary": "Text unchanged; the round-1 findings stand as they were."
+}

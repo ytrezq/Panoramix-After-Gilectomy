@@ -1,0 +1,17 @@
+{
+  "id": "c00082",
+  "text_changed": true,
+  "lines_old": 2013,
+  "lines_new": 1988,
+  "changed_functions": 9,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "Addresses after the ABI encoding are still long symbolic sums (e.g. mem[32 * _27 + ceil32(return_data.size) + 32 * cd[_param3 + 4] + 352]); the free-memory-pointer forwarding now writes them out instead of mem[64]."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "The DKG state ladder (phi of constants compared with 2) is unchanged."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "All raw calls decoded (P2 4 -> 0): seize(...), setRewardIneligibility as unknown942f6892(Array(len=_27, ...), block.timestamp + stor254), __ecdsaWalletHeartbeatFailedCallback(walletID, X, Y), refund(gasUsed + offset, caller). GAS reads now sit where the code reads them: gasStart after the ABI-decoding checks (was printed before them), and the second gasleft() is one variable used by both the checked subtraction and refund's argument (was two gas_remaining reads in one condition). Events DkgResultChallenged / DkgMaliciousResultSlashed(/Failed) decode with indexed fields and a string Array. operatorToStakingProvider is keyed by address(ext_call.return_data[0]) instead of a concat slice. The (bool, string) return of isDkgResultValid and the event string fold their copy loops (whiles 32 -> 30).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 6, "P5": 0, "P6": 0},
+  "notes": "Diff of 635 lines, read by function (9 changed). The added revert in notifyOperatorInactivity (unknown9879d19b) is the SafeMath.add(block.timestamp, stor254) check printed explicitly before the argument copy loop instead of inside a later memory write. Only memory writes lie between the two positions, so it is exact, and it matches argument-evaluation order. The skeleton changes are the folded copy loops.",
+  "summary": "No regression. Every raw call is decoded, GAS reads are placed and shared correctly, events decode, and the string copy loops fold. The long symbolic memory addresses of the DKG functions remain."
+}

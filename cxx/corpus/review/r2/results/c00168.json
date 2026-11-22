@@ -1,0 +1,45 @@
+{
+  "id": "c00168",
+  "text_changed": true,
+  "lines_old": 2265,
+  "lines_new": 2041,
+  "changed_functions": 6,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "still", "note": "initialize unchanged (other contract's parameter names)"},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "propose fixed: all 13 calls named (gOHM.balanceTo, getPriorVotes, sOHM.circulatingSupply, timelock.GRACE_PERIOD), 24 raw reverts -> 16 'revert with ...' messages; execute's executeTransaction and cancel's cancelTransaction stay raw; queue's queueTransaction got worse (regression 1)"},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "propose's tail still stores through the joined pointer: proposals[concat(mem[_123])].field_0 = mem[_123] ..."},
+    {"n": 4, "kind": "loop", "status": "still", "note": "cancel unchanged (rotated loop)"},
+    {"n": 5, "kind": "simplification", "status": "still", "note": "initialize unchanged (shared revert block)"}
+  ],
+  "regressions": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "queue(uint256) (_queueOrRevert)",
+      "lines": "queue new 110-129 (text ~1170)",
+      "decompiled": "call timelock.mem[_89 + ceil32(return_data.size) + 2 * Mask(250, 5, stor[s + sha3(sha3(proposalId, 11) + 5)].length + 31) + 2 * Mask(250, 5, ...) + 320 len 4] with: gas gas_remaining / args mem[... + 324 len 128], block.timestamp + _2, mem[... + 484 len ...]",
+      "old": "call timelock.queueTransaction(address target, uint256 value, string signature, bytes data, uint256 eta) with: args address(stor[s + sha3(sha3(proposalId, 11) + 3)]), stor[s + sha3(sha3(proposalId, 11) + 4)], 160, ceil32(_123) + 192, block.timestamp + _2, mem[... len ceil32(_123) + ceil32(_126) + 64]",
+      "source": "GovernorOHMega._queueOrRevert: timelock.queueTransaction(target, value, signature, data, eta)",
+      "issue": "The call that round 1 named and decoded now prints a memory slice in the function-name position (its selector, stored just above, is not read back), and target, value and the two offsets collapse into 'mem[... len 128]'. Same defect as c00007 (26 texts have '.mem[mem[64] len 4]').",
+      "rule": "Resolve the selector from the word stored at the call's input address (top 4 bytes) by the same forwarding used for the arguments; when it cannot be resolved, print the call unnamed with raw arguments, never an expression as the name.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "queue(uint256), getActions(uint256)",
+      "lines": "queue new 60-130 (16 lines over 240 chars, was 3; max 283 -> 682); getActions 'mem[mem[64] + 32] = _32 - mem[64] + 32 * proposals[proposalId].field_768 + 160'",
+      "decompiled": "mem[_89 + 2 * Mask(250, 5, stor[s + sha3(sha3(proposalId, 11) + 5)].length + 31) + 2 * Mask(250, 5, stor[s + sha3(sha3(proposalId, 11) + 6)].length + 31) + 320] = 0xf2b06537... / mem[_89 + ceil32(return_data.size) + 96 * ((stor[...].length + 31) / 32) + ...]",
+      "old": "_102 = mem[64] / _109 = mem[64] / _110 = mem[_89] / ... / mem[_109 + ceil32(_110) + ceil32(_113) + 256] = 0xf2b06537...; getActions: mem[mem[64] + 32] = 32 * mem[128] + 160",
+      "source": "_queueOrRevert: keccak256(abi.encode(target, value, signature, data, eta)) and the queueTransaction encoding; getActions' return encoding",
+      "issue": "The named bases and lengths are inlined as long storage expressions, and 'ceil32(x) + ceil32(x)' prints as '2 * Mask(250, 5, x + 31)', '3 * ceil32(x)' as '96 * ((x + 31) / 32)' (22 Mask(250, 5, ...) lines, 0 before). In getActions, '_32 - mem[64]' is no longer folded where round 1 showed '32 * mem[128] + 160'.",
+      "rule": "Keep a variable for a multi-use base or length; print k * ceil32(x) as such (ceil32 is (x + 31) & ~31; dropping the top mask bit under a factor 2 is exact but unreadable); fold a - mem[64] when a is a read of mem[64] with no store to slot 64 since.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "propose is much clearer: every gOHM/sOHM/timelock call is named with arguments and every require prints its message ('proposer votes below proposal threshold', 'one live proposal per proposer, found an already active proposal', 'addition overflow'...). Events are decoded: ProposalExecuted(id), ProposalQueued(id, eta), VoteCast with reason=Array(len=0, data='') (round 1's '128, 0'). queue's txHash is now 'sha3(address(...), value, 160, ceil32(...) + 192, eta, ...)'. Raw-argument calls 8 -> 3; P6 (25) gone. Text 224 lines shorter.",
+  "patterns": {"P2": 3},
+  "notes": "Per-function diffs (functions reordered). castVote, castVoteBySig, execute, getActions and queue read in full; propose (1,044 -> 832 lines) by structure: calls 13/13 (all now named), whiles 21/21, requires 49/49, raw reverts 24 -> 0 with 16 string reverts, the event and return unchanged, proposals[concat(mem[_123])] writes unchanged (35). cancel, initialize and state did not change.",
+  "summary": "Two regressions: queue's timelock.queueTransaction call, named in round 1, now shows a memory slice as its name with collapsed arguments (medium), and queue/getActions addresses are longer and obscure (low). propose is now fully readable (calls named, messages decoded), events are decoded, and P6 is gone."
+}

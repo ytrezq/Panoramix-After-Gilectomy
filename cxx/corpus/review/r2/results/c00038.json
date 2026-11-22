@@ -1,0 +1,77 @@
+{
+ "id": "c00038",
+ "text_changed": true,
+ "lines_old": 2725,
+ "lines_new": 2546,
+ "changed_functions": 11,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "naming",
+   "status": "fixed",
+   "note": "the expectedAssetAmount write now prints `stor155[sha3(Bytes(20, _param1), idx)].field_256 = _122` (1446); `stor1` (the __gap fixed array) is gone from def storage."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "request ids are now `sha3(Bytes(20, asset), nonce)` and P4 is gone (unlockQueue clean); in initiateWithdrawal (1109-1111) only the first write uses `stor153[_param1]`, the next two key on the nonce read back from a long memory address (new finding 2)."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "unknowna2ccd14f (unlockQueue / _unlockWithdrawalRequests loop)",
+   "lines": "1439-1442",
+   "decompiled": "_122 = min(SafeMath.div(mem[_18 + ceil32(_3) + ceil32(_5) + 96] * stor155[sha3(Bytes(20, _param1), idx)].field_0, mem[_18 + ceil32(_3) + ceil32(_5) + 128]), stor155[...].field_256)",
+   "old": "_122 = min(SafeMath.div(_6 * stor155[concat(mem[0])].field_0, _7), stor155[concat(mem[0])].field_256)   (_6, _7 = the two price call results)",
+   "source": "LRTWithdrawalManager._unlockWithdrawalRequests: payoutAmount = min(request.rsETHUnstaked * rsETHPrice / assetPrice, request.expectedAssetAmount)",
+   "issue": "The two prices, printed as the variables `_6`/`_7` before, are now raw reads of the memory struct where they were stored, with 4-term addresses, repeated in the loop's overflow check, min and test (lines of about 300 characters).",
+   "rule": "A word stored below the free-memory pointer (an allocated struct field) is not overwritten by later writes at or above that pointer, which only grows; fold reads of it to the stored value or the variable that held it.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "unknown90b341c6 (address,address,bytes)",
+   "lines": "1276-1283",
+   "decompiled": "mem[mem[64]] = 32 ; mem[mem[64] + 32] = cd[_param3 + 4] ; mem[mem[64] + 64 len ..] = call.data[..] ; mem[..] = 0 ; log 0xca2245f2..: Array(...) ; mem[mem[64]] = mem[ceil32(_1) + 212] ; mem[mem[64] + 32] = mem[ceil32(_1) + 244] ; log 0xca13475b..: mem[mem[64] len 64], ...",
+   "old": "log 0xca2245f2..: Array(...) ; log 0xca13475b..: mem[ceil32(_1) + 212 len 64], indexed _param2, indexed _param1",
+   "source": "two emits after the ETH-or-token payout",
+   "issue": "After the join of the ETH and token paths (mem[64] differs), the 6 memory writes that build the two logs' data are now printed, and the second log reads `mem[mem[64] len 64]` instead of the source words; the same logs elsewhere (954, 1819) stay folded.",
+   "rule": "Fold log data written at the free-memory pointer into the log even when the pointer is a phi at a join (the data are written after the join, at an offset from the same pointer); then drop the writes whose only reader is the log.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "unknown90b341c6, unknown2a25f7a9, unknownb182c377 (6 calls)",
+   "lines": "1243, 1728, 2079, 2332, 2445, 2478",
+   "decompiled": "call _param1.transfer(address recipient, uint256 amount) with: args Bytes(28, uint128(_param2 >> 32)), Bytes(4, uint32(_param2)), mem[ceil32(_1) + 244]",
+   "source": "SafeERC20.safeTransfer / safeApprove(token, to, amount)",
+   "issue": "The calls are now named, but the address argument is printed as two byte slices of the same word (split where the selector store's read-modify-write ends), instead of `_param2`.",
+   "rule": "Merge adjacent slices Bytes(k, x >> 8(32-k)) ++ Bytes(32-k, low bits of x) of one value back into x (address(x) when x fits in 160 bits).",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "unknownc5a67b01 (initiateWithdrawal)",
+   "lines": "1107-1111",
+   "decompiled": "_78 = stor153[_param1] ; stor155[sha3(Bytes(20, _param1), stor153[_param1])].field_0 = _param2 ; stor155[sha3(Bytes(20, _param1), mem[ceil32(_7) + ... + mem[64] + 52])].field_256 = ...",
+   "source": "requestId = getRequestId(asset, nonce); withdrawalRequests[requestId] = WithdrawalRequest(...)",
+   "issue": "The same key is printed two ways in three consecutive writes: after the first storage write the nonce is read back from memory, although a variable holding it is printed just above.",
+   "rule": "When a memory word holds a value already bound to a variable, print the variable instead of re-reading the memory after an unrelated storage write.",
+   "verified": "reading only"
+  }
+ ],
+ "improvements": "About 35 calls named with decoded arguments (P2 41 -> 4): getContract, getAssetPrice, balanceOf, withdrawETH, transfer/transferFrom/approve, burnFrom, redeem; custom errors decoded (0x69e93ab7, 0x9fd55ef6, 0x51a00b14, 0x8af62472); OpenZeppelin's `_revert` now reads `if not mem[r]: revert with 'SafeERC20: low-level call failed'` then bubbles the return data; guard-first `if not ext_call.success`; logs and returns decoded (`return t, s`, `log ...: s, Array(...)`); finding 1 fixed; P6 gone; 179 fewer lines.",
+ "patterns": {
+  "P2": 4
+ },
+ "notes": "Per-function normalized diffs (functions were reordered). The checked `balance - stor165` (same source in unknown7e6204e6 and unknown4ea00fd9) swapped forms: an explicit Panic(17) test before `require ext_code.size(stor161)` in the first (the bytecode order), `SafeMath.sub` inside the call arguments in the second; both are dead under the dominating `balance > stor165` (P11), so the order is not observable. unknown6359b872 changed only by hex padding.",
+ "summary": "Calls, errors, logs and returns are much clearer and both round-1 findings are fixed or mostly fixed. Two regressions: the unlock loop's prices are now raw memory reads (medium), and one log pair after a join prints its memory writes and a raw `mem[mem[64] len 64]` (low)."
+}

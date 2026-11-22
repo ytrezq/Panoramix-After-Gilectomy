@@ -1,0 +1,33 @@
+{
+  "id": "c00193",
+  "text_changed": true,
+  "lines_old": 2047,
+  "lines_new": 2007,
+  "changed_functions": 6,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "partly", "note": "The bogus stor5/stor6 declarations are gone. applyChainUpdates now prints the remotePools set of remoteChainConfigs[sel] as stor108[sel].field_1280 plus raw slots (stor[sha3(_585, sha3(uint64(_578), 108) + 6)]) instead of stor5[_586]/stor6[_586]. stor1..stor4 remain."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "setChainRateLimiterConfigs is fixed: custom errors with their three arguments, ConfigChanged/ChainConfigured logs decoded, fields read from calldata. Still raw: 27 'revert with memory' (releaseOrMint, applyChainUpdates), releaseOrMint's transfer call, 2 logs, 2 returns."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "The refill product is still distributed ('block.timestamp * r - lu * r')."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "The 10**d helper and the duplicated decimals block in releaseOrMint are unchanged (only display changes there)."},
+    {"n": 5, "kind": "naming", "status": "still", "note": "Database parameter names unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getRemotePools (unknowna42a7b8b)",
+      "lines": "~606-617",
+      "decompiled": "if uint1(stor109[concat(mem[32 * s + 160])]): ... mem[_40] = _36 / if uint1(stor109[concat(mem[0])]): ... mem[0] = sha3(mem[0], 109) / mem[_40 + 32] = stor[sha3(mem[0])]",
+      "old": "_34 = sha3(mem[32 * s + 160], 109) / if uint1(stor[_34]): ... mem[0] = _34 / mem[_40 + 32] = stor[sha3(_34)]",
+      "source": "TokenPoolUpgradeable.getRemotePools: remotePools[i] = s_remotePoolAddresses[remotePoolHashes[i]] (bytes, copied to memory)",
+      "issue": "The same mapping entry is first stor109[concat(mem[32 * s + 160])] and then, after the store at the free pointer, stor109[concat(mem[0])]: the scratch word is no longer resolved, and the slot variable the old text kept is gone (P4 1 -> 6).",
+      "rule": "Bind a keccak of scratch memory at the point where it is computed (or use the pointer's floor to keep the scratch words known across stores at mem[64] + k).",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "40 fewer lines. P1 8 -> 0: the TokenBucket mask now reads 0xffffffffffffffffffffff00ffffffff0000..., the OverflowDetected-style selector 0xa9cb113d. P6 5 -> 0. setChainRateLimiterConfigs is rewritten from memory slices to calldata fields, with decoded custom errors and logs (revert with mem-slice payloads 4 -> 0, raw logs 4 -> 2).",
+  "patterns": {"P1": 0, "P2": 1, "P3": 1, "P4": 6, "P6": 0, "P7": 15, "P8": 120, "P10": 32, "P11": 25, "P12": 7, "P18": 90},
+  "notes": "Diff (339 lines) read in full (7 defs changed, including def storage). Loops unchanged (28 whiles). The P4 increase comes from getRemotePools' scratch-memory keys (regression). The allocation check in setChainRateLimiterConfigs now reads 'mem[64] + 192 < mem[64] + 96': the first bump was dropped as dead, consistent within the text.",
+  "summary": "Clear gains in setChainRateLimiterConfigs and in constants (P1, P6), and the bogus stor5/stor6 names are gone. One low regression: getRemotePools' mapping slot is now keyed by unresolved scratch memory after a free-pointer store."
+}

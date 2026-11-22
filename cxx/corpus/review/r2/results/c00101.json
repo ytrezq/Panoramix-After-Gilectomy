@@ -1,0 +1,57 @@
+{
+  "id": "c00101",
+  "text_changed": true,
+  "lines_old": 13906,
+  "lines_new": 8102,
+  "changed_functions": 19,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "still", "note": "def storage still has 'stor10 is fixed array of uint256 at storage 10' and every inlined ensureInitializedCumulativeFactorsPool still reads transcoders[t].lastFeeRound as stor10[_253] (e.g. 1003-1004); 91 -> 31 lines only because dead writes around it were dropped."},
+    {"n": 2, "kind": "simplification", "status": "fixed", "note": "keccak scratch writes 1510 -> 7: 2 in the unchanged delegatorStatus, 5 'mem[0] = ...field_1536' that feed a printed sha3(mem[0], ...)."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "delegatorStatus did not change."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "1000000000 * 10**18 (218 lines), '> -1 /' checks (105) and distributed products remain."},
+    {"n": 5, "kind": "simplification", "status": "still", "note": "Decoding the calls makes it more visible: 82 'require x == address(x)' against 214 'x == x[12 len 20]'. The 12 P4 keys 'concat(mem[0])' became 'concat(Bytes(12, 0), ext_call.return_data[12 len 20])' (18 lines)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "reward(), rewardWithHint, rewardForTranscoder(WithHint) (unknown1a8c41f8/unknownb556966a); bond, bondWithHint, bondForWithHint",
+      "lines": "1513-1530, 1590-1669 (reward); same in the 3 others; 93 lines in all",
+      "decompiled": "if -_75 + _15 < (-1 * _75 * stor[sha3(_7, sha3(caller, 4) + 3) + 1] + _15 * stor[...]) / 10**6: ... nextRoundTotalActiveStake = -_75 + _107 + _115 + _15 ... log Reward(..., amount=-_75 + _15)",
+      "old": "if _62 - _75 < (_62 * stor[sha3(_7, sha3(caller, 4) + 3) + 1] - _75 * stor[...]) / 10**6: ... nextRoundTotalActiveStake = SafeMath.add(_115, _62 - _75 + _107) ... amount=_62 - _75",
+      "source": "BondingManager.sol:971 transcoderRewards = totalRewardTokens.sub(treasuryRewards); :1551-1552 percOf(_rewards, transcoderRewardCut), _rewards.sub(...)",
+      "issue": "Differences now print with the negated term first ('-b + a' for 'a - b'), and distributed products as '-1 * b * x + a * x'. Leading unary minus: 9 -> 93 lines; '-1 *': 0 -> 28 lines (7 per reward function). Exact, but harder to read than before.",
+      "rule": "When printing a sum, put a positive term first (a - b, not -b + a), and print a term with coefficient -1 as a subtraction (a*x - b*x, never -1 * b * x).",
+      "verified": "reading only (old 1973/2106/2219 vs new 1515/1599/1669)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "reward(), rewardWithHint, unknown1a8c41f8, unknownb556966a (increaseTotalStake, transcoder already in the pool)",
+      "lines": "1656-1658 (reward)",
+      "decompiled": "if nextRoundTotalActiveStake > ~(-_75 + _15): revert with Panic(17) / nextRoundTotalActiveStake = -_75 + _15 + nextRoundTotalActiveStake",
+      "old": "nextRoundTotalActiveStake = SafeMath.add(nextRoundTotalActiveStake, _62 - _75)",
+      "source": "BondingManager.sol:1395 nextRoundTotalActiveStake = nextRoundTotalActiveStake.add(_amount);",
+      "issue": "A checked addition whose check sits right before its write is no longer folded into SafeMath.add: one line became three. (The other add2/add site of tryToJoinActiveSet, 1593-1599, now checks right after insert, as the bytecode and source :1501 do. That order is correct.)",
+      "rule": "When 'if a > ~b: revert Panic(17)' is immediately followed by a use of a + b, with nothing in between, fold both into SafeMath.add(a, b), as before.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "transferBond, bondForWithHint (inlined pendingStakeAndFees / cumulativeFactorsPool memory structs)",
+      "lines": "7366-7403 (transferBond) and about 70 lines in the two functions",
+      "decompiled": "mem[_1771 + ceil32(_10) + ceil32(_11) + ceil32(_12) + ceil32(_13) + ceil32(return_data.size) + 96] = stor[sha3(...field_1280, ...) + 3] / if not mem[_1771 + ceil32(_10) + ... + 416]: ...",
+      "old": "_458 = mem[64] (after the last call) / mem[_458 + ceil32(return_data.size) + 96] = stor[...]",
+      "source": "BondingManager.sol:1327-1329 EarningsPool.Data memory startPool = cumulativeFactorsPool(...); endPool = latestCumulativeFactorsPool(...)",
+      "issue": "The struct base is now _1771 = mem[64] read after the first of four calls, with the three later pointer bumps folded into every field address. Each field read or write of startPool/endPool carries a five-term sum where the old text had one term. Correct, consistent with the writes shown, but longer.",
+      "rule": "When an address sum built from a free-memory-pointer value is used more than once, bind the pointer where the struct is allocated (_p = mem[64]) and print fields as mem[_p + k].",
+      "verified": "reading only (writes 7366-7370 match reads 7387-7403)"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Raw-memory calls 386 -> 0: currentRound, getContract(name), createReward, trustedTransferTokens, trustedWithdrawETH, trustedBurnTokens, transferFrom and paused are named with their arguments. The BondingVotes checkpoint unknowne35c3e43 shows the 7 arguments of _checkpointBondingState, and the SortedDoublyLL delegatecalls show (7, id, key, hints). All 41 'revert with memory' now show their messages. Bond, Rebond, EarningsClaimed and Transcoder(De)Activated arguments are decoded. Keccak scratch writes 1510 -> 7. A check common to both arms is hoisted. P1, P4 and P6 are 0. The text is 42% shorter.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 15,412 lines, reviewed by structure. For each of the 19 changed functions I compared, between the old and new text, the counts of calls, logs, storage writes, reverts, requires and ifs, and diffed the control-flow and effect lines with local names normalized. Calls, logs and storage writes are identical in number everywhere. Each drop in reverts/ifs is a check moved into SafeMath.sub/add/add2 with the same Panic(17), at the same point or in the bytecode's order: the EarningsClaimed fees sub, the withdrawRound add in unbond, the deactivationRound add2 in slashTranscoder. The reward family's +2 reverts are R2 and its add2 sibling. One extcodesize check common to both arms is hoisted above the if. Checked against source: tryToJoinActiveSet's check order, increaseTotalStake's structure, slashTranscoder's minter-then-sub order before trustedBurnTokens, unbond's 'caller must be bonded' as two checks (Unbonded, Pending), and the mem[64] chains of unbond and transferBond (no hidden pointer write between uses). Families (bond/bondWithHint/bondForWithHint, unbond*, rebond*, rebondFromUnbonded*, reward*) changed alike, differing only in hints. The createReward parameter names _tokenImage/_tokenRarity come from the signature database (normal).",
+  "summary": "No semantic regression. Every call is now named with its arguments, all revert messages and events are decoded, and the dead scratch writes are gone (13906 -> 8102 lines). Three low readability regressions: differences printed as '-b + a' and '-1 * b * x', one SafeMath.add unfolded in the reward family, and longer memory-struct addresses in transferBond and bondForWithHint."
+}

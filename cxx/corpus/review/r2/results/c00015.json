@@ -1,0 +1,59 @@
+{
+  "id": "c00015",
+  "text_changed": true,
+  "lines_old": 3214,
+  "lines_new": 3113,
+  "changed_functions": 74,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "loop",
+      "status": "still",
+      "note": "The Pendle limit-order sanitizer (0x3346d3a3, 0x80c4d566, 0x2a50917c, 0x7b8b4b95) still prints the flashFills loop, the encoding and the return inside the normalFills 'while True' exit branch. Only its final mismatch revert improved: 'revert with 0xf071183b, address(...), address(_43)'."
+    },
+    {
+      "n": 2,
+      "kind": "simplification",
+      "status": "still",
+      "note": "The encodePacked word-copy loops are still whiles (83 whiles, was 85). Only the final return is folded: 'return Array(len=_2, data=mem[mem[64] + 64 len _2])' in 17 functions, and 'return memory' 17 -> 7."
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "completeQueuedWithdrawals 0x9435bb43 and 0x33404396 (unknown9435bb43, unknown33404396)",
+      "lines": "2138-2208, 2240-2310",
+      "decompiled": "loop1: while idx < cd[_param1 + 4]: / if idx < cd[_param3 + 4]: ... / while True: <4 calldata checks> / if t < <strategies.length>: ... continue / break / ... / while idx < cd[_param2 + 4]: ... / if t >= cd[_param2 + cd[32 * idx + _param2 + 36] + 36]: idx = idx + 1 / s = v / continue loop1 / ... / revert with Panic(50)",
+      "old": "while idx < cd[_param1 + 4]: if idx >= cd[_param3 + 4]: revert Panic(50) ... while t < <strategies.length>: ... / if idx >= cd[_param2 + 4]: revert Panic(50) ... while t < cd[_param2 + cd[32 * idx + _param2 + 36] + 36]: ... / idx = idx + 1 / s = v / continue",
+      "source": "EigenLayerLSTStakingDecoderAndSanitizer.sol:67-79 for (i < withdrawals.length) { if (!receiveAsTokens[i]) revert ..; ..; for (j < withdrawals[i].strategies.length) ..; for (j < tokens[i].length) .. }",
+      "issue": "Exact, but the loops are now harder to follow. The tokens[i] loop is shown as 'while idx < tokens.length', the outer index's bounds check, which never changes in that loop. Its real test (j < tokens[i].length) is an exit branch that carries the outer loop's step and 'continue loop1'. The receiveAsTokens bounds check now wraps the whole outer body, with the shared Panic(50) after it. The strategies loop became 'while True' / 'if t < len' / 'break'.",
+      "rule": "Of a loop header's exits, take the condition from the one that continues the enclosing code, not the one that leads only to a revert; print revert exits as guards in the body. An inner exit that jumps to the outer header after the outer step is the inner loop's normal exit: print the step after the inner loop. Checks before the test that are invariant and side-effect free may stay before the loop.",
+      "verified": "reading only (traced against the old text and the source; paths agree)"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "unknown0dd8dd02(array)",
+      "lines": "1800-1821",
+      "decompiled": "t = 0 / u = s / while True: require ... (4 calldata checks) / if t < cd[_param1 + cd[_param1 + cd[32 * idx + _param1 + 36] + 36] + cd[32 * idx + _param1 + 36] + 36]: ... continue / break",
+      "old": "require ... (4 checks) / t = 0 / u = s / while t < cd[...]: ...",
+      "source": "nested for over a calldata struct array member (inner bound x[i].arr.length)",
+      "issue": "The inner loop's condition moved into an 'if' inside 'while True', because the bound's calldata checks are no longer hoisted out of the loop.",
+      "rule": "Side-effect-free checks whose operands do not change in the loop may be hoisted before it; then the header holds only the test and prints as 'while t < n'.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Unknown functions' parameters are named by calldata word (_param2, _param4... where the code skips a word); this was checked against the calldata size checks. Empty-bytes returns print as \"return ''\" (21), and bytes returns as 'return Array(len=_2, data=...)'. Free-memory-pointer lengths resolve in the encodePacked chains ('mem[mem[64]] = _9 + 60'). Custom-error reverts decode their arguments. SafeMath.inc, no longer used, is dropped. 101 lines shorter.",
+  "patterns": {
+    "P1": 0,
+    "P2": 3,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff of 2,694 lines, read function by function (74 changed: 44 signature renames to _paramN, plus loop and return changes). Control-flow skeletons were compared old vs new: only SafeMath (inc dropped), unknown0dd8dd02 and the two completeQueuedWithdrawals differ. The Pendle return length is still a pointer difference ('_34 - _38', both = mem[64]), as before.",
+  "summary": "One medium loop regression: both completeQueuedWithdrawals now show the tokens[i] loop under the outer index's bounds check, with the outer step inside it and 'continue loop1'; also three inner loops became 'while True' / 'if'. Exact everywhere. _paramN naming, returns and custom-error reverts improved."
+}

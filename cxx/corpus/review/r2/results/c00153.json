@@ -1,0 +1,34 @@
+{
+ "id": "c00153",
+ "text_changed": true,
+ "lines_old": 840,
+ "lines_new": 834,
+ "changed_functions": 7,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "worse",
+   "note": "In sendCredits the return, three memory slices before, is now a raw 'return memory from mem[64] len _75 + 64 * _76 - mem[64] + 64'. The CreditsSent event, decoded before, is raw memory too. The uint32/uint64 fields are still byte slices in both encoding loops."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "sendCredits(uint32,(uint32,uint64,uint64)[]) (unknown0141e41b)",
+   "lines": "668-700",
+   "decompiled": "_64 = mem[64] ... while t < mem[128]: ... / log 0xce105e15...: mem[mem[64] len _64 + 64 * s - mem[64] + 96] / _75 = mem[64] ... return memory from mem[64] len _75 + 64 * _76 - mem[64] + 64",
+   "old": "while idx < s: ... / log 0xce105e15...: _param1, Array(len=s, data=mem[mem[64] + 96 len 64 * s]) / return mem[mem[64]], s, mem[mem[64] + 64 len 64 * s]",
+   "source": "StargateBase.sendCredits: emit CreditsSent(_dstEid, credits); return credits",
+   "issue": "The event data and the returned array are no longer decoded. _64 (and _75) equal the later mem[64] reads, since only stores at mem[64] + k come in between, but they are kept as different values. The encoding loops also bound on mem[128] instead of s, although 'mem[128] = s' was stored just before.",
+   "rule": "A load of mem[64] returns the value of the previous load or store of slot 64 when the stores in between are at mem[64] + k (k >= 0) with mem[64] at least 96. Forward constant-address stores (mem[128] = s) to later loads under the same disjointness.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "P2 1 -> 0 and P6 1 -> 0. In receiveTokenTaxi the token transfer ('call 0x0.transfer(...) with: args _param5, 0') and the endpoint sendCompose call ('unknown7cb59012(?) with: args _param5, _param4, 0, Array(...)', old 'call 0x0.mem[_32 len 4]') are decoded, its two events decoded, and the stored packed hash resolved (sha3(Bytes(4, _param1), Bytes(20, _param5), 0, ...)). Unknown functions' parameters are named by calldata word, matching the ABI (receiveTokenBus: _param1, _param4.._param7; receiveTokenTaxi: _param1, _param3.._param7; send/sendToken/redeemSend: _param1, _param4).",
+ "patterns": {},
+ "notes": "The diff is 339 lines; I read all 7 changed functions. Both source loops are still whiles (9 whiles). The zero immutables (amountLD 0, endpoint 0x0) are the round-1 artifact.",
+ "summary": "One medium regression: sendCredits' CreditsSent event and its returned array fell back to raw memory, because equal mem[64] reads are no longer unified. receiveTokenTaxi improved a lot, and parameter names now follow calldata words."
+}

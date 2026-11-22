@@ -1,0 +1,16 @@
+{
+  "id": "c00308",
+  "text_changed": true,
+  "lines_old": 828,
+  "lines_new": 815,
+  "changed_functions": 5,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The dead keccak scratch writes 'mem[0] = key; mem[32] = slot' around mapping accesses are unchanged."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "The onERC721Received calls in mint, safeTransferFrom and mintMany show their empty data as Array(len=0, data='') instead of '128, 0' or raw memory. mintMany's InvalidReceiver revert is decoded (0x64a0ae92, address), and its return-data checks read ext_call.return_data. tokenURI drops dead free-pointer updates and returns its string as '32, mem[... len ceil32(_3) + 32]'. P6 1 -> 0.",
+  "patterns": {"P6": 0, "P8": 170, "P14": 10},
+  "notes": "Diff (120 lines) read in full: supportsInterface (hex), tokenURI, mint, safeTransferFrom, mintMany. tokenURI's return buffer moved to mem[64] + 32 consistently with the dropped mem[64] updates; the dropped padding store after the decoded string is not read (the return copies exactly _3 bytes and zeroes its own tail). Source loop unchanged.",
+  "summary": "No regression: call arguments and a custom error are decoded and dead free-pointer stores dropped; the dead keccak scratch writes remain."
+}

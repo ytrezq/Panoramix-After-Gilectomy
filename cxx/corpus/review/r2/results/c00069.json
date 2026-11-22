@@ -1,0 +1,107 @@
+{
+ "id": "c00069",
+ "text_changed": true,
+ "lines_old": 22841,
+ "lines_new": 21552,
+ "changed_functions": 3,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "semantics",
+   "status": "fixed",
+   "note": "GAS now read once into a variable before the CALL and reused in the post-call threshold test (e.g. 2835 `_5518 = gas_remaining`, 2842, 2850), in all 7 SELECT loops."
+  },
+  {
+   "n": 2,
+   "kind": "coverage",
+   "status": "still",
+   "note": "execute: abort markers 14 -> 5, but no code recovered: the per-arm aborts (BASIC, UniV2, success arms) are folded into the already-aborted joins (loop-body join 20128, top-level 21550); the same paths are lost."
+  },
+  {
+   "n": 3,
+   "kind": "coverage",
+   "status": "still",
+   "note": "executeWithPermit: markers 12 -> 4, same merge into aborted joins (12781, top-level end); same paths lost."
+  },
+  {
+   "n": 4,
+   "kind": "coverage",
+   "status": "still",
+   "note": "fallback: still 9 aborts (PancakeInfinity hop loop etc.)."
+  },
+  {
+   "n": 5,
+   "kind": "simplification",
+   "status": "still",
+   "note": "action selectors still decimal (`>> 224 == 1445856556`, 12+ sites)."
+  },
+  {
+   "n": 6,
+   "kind": "simplification",
+   "status": "still",
+   "note": "`(not Mask(192, 64, L)) * L - 4 * (not Mask(...))` still printed (41 lines, e.g. 2832); `_3 >> 248 > 2` product at 6684."
+  },
+  {
+   "n": 7,
+   "kind": "simplification",
+   "status": "still",
+   "note": "P9 base-36 and 512-bit arithmetic unchanged (only hex padding changed)."
+  },
+  {
+   "n": 8,
+   "kind": "simplification",
+   "status": "still",
+   "note": "actions loop still printed 4 times per function (8 copies of `while idx < cd[_param4 + 4]`)."
+  },
+  {
+   "n": 9,
+   "kind": "simplification",
+   "status": "still",
+   "note": "`not (not a) * (not b)` still printed (17 lines, e.g. 12047)."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "fallback, execute, executeWithPermit (40 reverts TooMuchSlippage 0x97a6f3b9)",
+   "lines": "381, 401, 459 ... (40 lines)",
+   "decompiled": "_2760 = mem[mem[448] + 32] ; _2761 = mem[mem[448]] ; if ...: revert with Bytes(16, 0x97a6f3b9...), mem[mem[448] + 44 len 20], cd[88] >> 128, mem[mem[448]]",
+   "old": "mem[84] = mem[mem[448]] ; revert with Bytes(16, 0x97a6f3b9...), Bytes(20, address(_2755)), cd[88] >> 128, mem[84]",
+   "source": "SettlerBase / Take: revert TooMuchSlippage(token, minAmount, actual)",
+   "issue": "The token argument, which read as `address(_2755)` (a named variable), is now a raw 20-byte memory slice `mem[P + 44 len 20]` although `_2760 = mem[P + 32]` is assigned just above; the third argument did improve (no dead `mem[84]` write). Equivalent, slightly harder to read.",
+   "rule": "A slice mem[a + 12 len 20] of a word whose value is known (mem[a] = w, unchanged since) should print as address(w), using the variable that holds w when there is one.",
+   "verified": "reading only (equivalence: low 20 bytes of the word at P+32)"
+  }
+ ],
+ "new_findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "fallback, execute, executeWithPermit (7 unrotated SELECT loops)",
+   "lines": "2844-2854 (and the 6 other copies, e.g. 8079-8090)",
+   "decompiled": "if not ext_call.success: transient[0xcdcc..] = 0 else: if transient[..]: revert ... ; if not ext_call.success: if ... > _5518 or t + 1 == n: revert ...; t = t + 1; continue ; break",
+   "source": "Select.sol:153-170 if (_setOperatorAndTryCall(...)) break; if (isLast.or(beforeGas < beforeGasThreshold)) revert",
+   "issue": "Now that the loop is unrotated, two adjacent `if` blocks test the same `not ext_call.success` with nothing between them that changes it.",
+   "rule": "Merge consecutive if/else statements on the same condition when no statement between them can change the condition's operands.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "fallback (UniswapV4/PancakeInfinity delta checks)",
+   "lines": "918-919, 957-958, 964-965 (21 sites)",
+   "decompiled": "mem[mem[512]] = 2018293688 ; revert with 0x784cb7b8, mem[_2124 + 32]",
+   "source": "custom-error reverts built in assembly at a memory pointer",
+   "issue": "The revert is now decoded (selector and argument), but the store of the selector word that only fed the revert data is still printed (P8).",
+   "rule": "After folding memory contents into a revert's data, drop the memory writes whose only reader was that revert.",
+   "verified": "reading only"
+  }
+ ],
+ "improvements": "GAS bound once per read (finding 1 fixed); the 7 rotated SELECT loops (`while not ext_call.success`, P3) are now plain `while True` loops with no first iteration before them; ~250 `revert with memory from mem[64]` copies of return data now print as `revert with ext_call.return_data[...]`, with guard-first `if not ext_call.success`; 21 custom errors decoded (0x784cb7b8, 0x3351b260, 0x4c085bf1); calls whose selector came from memory are now named (swap x9, metadata() x9, permitTransferFrom, unknowncd0cc1ce, unknownf3cd914c, unknown4dcebcba); `return memory from mem[64]` -> `return 1`; dead restores (`mem[52] = 0`, `mem[448 len 96] = 0`) dropped; P6 32 -> 0, P2 170 -> 163; 1,289 fewer lines.",
+ "patterns": {
+  "P2": 163
+ },
+ "notes": "Reviewed by structure (33k-line diff, mostly renumbering and hex padding). Normalized variable numbers and hex, canonicalized the two benign old forms (return-data revert via mem[64], success-first if), then compared per function the multisets of calls, reverts, transient writes, returns and aborts: every difference is explained by the named selectors, decoded errors, `return 1`, the 3 SELECT first-iteration copies per function removed by the unrotation, and abort markers merged into aborted joins. Loop counts unchanged (52 while: 8 actions-loop copies, 19 while True, hop loops); balanceOf unchanged. The 67 `revert with memory from uint24(..)` after a failed transfer (pointer read from the clobbered free-memory word) are unchanged. Old 13370 / new 12599: a SELECT first call whose arm ends with no success check is the same in both texts (its join is aborted).",
+ "summary": "No semantic regression: the GAS finding is fixed, the SELECT loops are unrotated, return-data reverts, custom errors, selectors and the bool return are much clearer; the only worse spot is a revert's token argument now shown as a raw memory slice (low). Coverage, tail duplication and arithmetic findings remain."
+}

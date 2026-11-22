@@ -1,0 +1,35 @@
+{
+ "id": "c00241",
+ "text_changed": true,
+ "lines_old": 2642,
+ "lines_new": 2640,
+ "changed_functions": 14,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "allowedRoles is still raw nested keccak (stor[sha3(selector, sha3(target, 0))], 58 lines)."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "The branchless ternary is still raw: b ^ (c * (a ^ b)) (28 lines)."
+  },
+  {
+   "n": 3,
+   "kind": "simplification",
+   "status": "still",
+   "note": "The operation id keccak is still recomputed on each line (90 lines)."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "P6 43 -> 0: the selector constants of the onlyAuthorized prologue print as whole bytes (0x08d6122d..., no longer read as another selector). multicall's bytes[] return encoding reads the free-memory pointer as mem[64] instead of an extra variable, which is exact because nothing in the loop writes slot 64.",
+ "patterns": {
+  "P2": 1
+ },
+ "notes": "The diff is 444 lines; 13 of the 14 changed functions only changed hex display, and I read multicall's diff in full. Both source loops are still whiles (6 whiles). The 38 lines '7 * 24 * 3600' / '5 * 24 * 3600' are the 7-day expiration and 5-day minimum setback: small counts, correctly printed as durations (not P1).",
+ "summary": "No regression. Only display changes: whole-byte hex constants (P6 43 -> 0) and a slightly simpler multicall encoding."
+}

@@ -1,0 +1,30 @@
+{
+  "id": "c00099",
+  "text_changed": true,
+  "lines_old": 5071,
+  "lines_new": 4678,
+  "changed_functions": 22,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "onERC1155Received/BatchReceived only changed in hex display; 'while True' x6 unchanged."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "147028384 (Error selector) still decimal in 'len 4' slices (6 lines); 2^36 decimal (2 lines)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "safeBatchTransferFrom(address,address,uint256[],uint256[],bytes)",
+      "lines": "3584-3600",
+      "decompiled": "_193 = mem[64]; mem[mem[64]] = 0xbc197c81..; ...; _194 = mem[128]; mem[mem[64] + 164] = mem[128]; ...; mem[mem[64] + 100] = _193 + 32 * _194 - mem[64] + 192",
+      "old": "mem[mem[64] + 100] = 32 * mem[128] + 192",
+      "source": "ERC1155 _doSafeBatchTransferAcceptanceCheck: abi.encodeCall(onERC1155BatchReceived, (operator, from, ids, values, data))",
+      "issue": "A held read _193 = mem[64] is no longer identified with the later read of mem[64] in the same block, so the offset keeps '_193 - mem[64]' (0). Overall such lines fell 51 -> 27 in this text, so this is local.",
+      "rule": "Two reads of mem[64] with only stores at mem[64] + k (k >= 0, mem[64] above its constant floor) in between are equal; fold _193 - mem[64] to 0.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Singleton-array paths of the ERC1155 _update are resolved: the dead TransferBatch branch (with its two copy loops) and the dead ERC1155InvalidArrayLength revert are gone from unregister, unknowndfa70d8b, unknown7c300586 and unknown85f3e643, TransferSingle is decoded (value 1); onERC1155Received calls named instead of 'call address(y).mem[mem[64] len 4]'; custom errors decoded (0x4c9c8ce3, 0xaa1d49a4, 0xb398979f, 0xf74d7dd0, 0x57f447ce, 0x2a7b2d20, 0xf9165348) and proxiableUUID named in upgradeToAndCall; safeBatchTransferFrom's TransferBatch event, whose values argument was mis-decoded ('values=32 * ids.length + 96'), now shows both arrays; registry events carry their data; bytes call arguments split into length and data; hex constants show whole bytes.",
+  "patterns": {"P1": 0, "P2": 37, "P3": 0, "P4": 23, "P5": 0, "P6": 0},
+  "notes": "Diff of 2,667 lines reviewed by function: calls identical in count; event sites fewer only by the pruned TransferBatch branches (verified against unregister's old text: lengths are the constants 1 written two lines above); storage writes unchanged except key spelling (stor0[concat(mem[0])] -> the id read from the singleton array). The one-element _update loop stays a while with _117 = 1.",
+  "summary": "No semantic regression; dead batch branches pruned, receiver calls, custom errors and events decoded, and a mis-decoded TransferBatch fixed. One line in safeBatchTransferFrom keeps an unsimplified '_193 - mem[64]'."
+}

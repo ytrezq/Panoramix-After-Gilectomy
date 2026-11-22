@@ -1,0 +1,16 @@
+{
+  "id": "c00177",
+  "text_changed": true,
+  "lines_old": 1083,
+  "lines_new": 1026,
+  "changed_functions": 15,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "The verifySha2 loop is no longer rotated (the first sha256 moved into 'while True', exits equivalent), and the slot index now reads 32 * (t % 2) instead of 16 * Mask(1, 1, t). The leaf is still carried as an offset from the initial leaf (mem[...] = s + sha3(...), s = -sha3(...) + mem[0]) in all four verifiers."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "57 fewer lines. Calls whose function printed as 'avail.mem[_27 len 4]' / 'cd[...] >> 96.mem[_26 len 4]' are now named (avail.mint(address,uint256)...), with the failure path as a plain return-data revert. Logs and the boolean returns of the verifiers are decoded ('return _15 == cd[_param1 + 164] and not _16'), dead stores dropped. The _paramN fix: sendERC20 (unknown758f666f) reads calldata words 2 and 3, now named _param2/_param3 instead of _param1/_param2. P1 1 -> 0 (the initializer slot 0xf0c57e...), P6 13 -> 0 (whole-byte hex).",
+  "patterns": {"P1": 0, "P6": 0, "P8": 20},
+  "notes": "Diff (569 lines) read hunk by hunk with per-function diffs (15 functions changed, plus def storage). Checked the de-rotated verifySha2 loop against the old: same exits (on precompile failure, the leaf input and the index not halved; at the end, mem[0] and t / 2). The keccak Merkle loop keeps its 'while True' shape, with the last hash now bound in _18 inside the loop. The 3 source loops are all present (9 whiles, unchanged). A dead 'mem[mem[64]] = uint64(...)' before the decoded log remains.",
+  "summary": "No regression: the sha256 Merkle loop lost its rotation and its scaled-mask slot, calls and logs are named and decoded, and the unknown function's parameters now follow their calldata positions; the leaf-as-offset display remains."
+}

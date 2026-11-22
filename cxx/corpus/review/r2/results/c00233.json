@@ -1,0 +1,18 @@
+{
+  "id": "c00233",
+  "text_changed": true,
+  "lines_old": 2686,
+  "lines_new": 2684,
+  "changed_functions": 15,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The operation id is still re-printed in full at each use, and the branchless max is unchanged."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "setTargetFunctionRole is still printed in three arms, and its nested mapping is still raw."},
+    {"n": 3, "kind": "simplification", "status": "fixed", "note": "The Initializable slot prints as 0xf0c57e16..00 (P1 gone)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "P1 is gone (2 lines), and P6 is gone (43 lines: the 0x08d6122d selector tests). multicall's return encoder drops the temporaries _17/_18 and uses mem[64]/mem[160] directly (neutral).",
+  "patterns": {"P2": 1},
+  "notes": "Diff 455 lines, read in full: one P1 fix, multicall's encoder variables, and 37 whole-byte hex changes in the selector or-chains of the onlyAuthorized functions. No control-flow, storage, call or event change.",
+  "summary": "No regression: only the P1 slot fix, whole-byte hex, and a neutral rewrite of multicall's encoder. Round-1 findings 1 and 2 are unchanged."
+}

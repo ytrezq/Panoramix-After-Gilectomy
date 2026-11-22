@@ -1,0 +1,32 @@
+{
+  "id": "c00083",
+  "text_changed": true,
+  "lines_old": 2770,
+  "lines_new": 2676,
+  "changed_functions": 15,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "multicall/tryExecute unchanged apart from whole-byte hex; still 'while True: if s >= n:' holding the tail (3 'while True')."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "Functions not changed; raw slot arithmetic for nested-mapping struct members remains."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "'1000000000 * 10**18' still printed for 10**27."},
+    {"n": 4, "kind": "artifact", "status": "still", "note": "Delegatecalls to placeholder library addresses unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknownf06817cf()",
+      "lines": "1091, 1106-1108",
+      "decompiled": "_17 = mem[64] / ... / return memory from mem[64] len 96 * _2 + _17 - mem[64] + 64",
+      "old": "return memory from mem[64] len 96 * mem[ceil32(return_data.size) + 128] + 64",
+      "source": "return of a struct[] obtained from a library delegatecall",
+      "issue": "The array length is now forwarded (_2), but a new variable _17 = mem[64] is not cancelled against mem[64] in the return length, though nothing writes mem[64] in between (same as c00029).",
+      "rule": "While v = mem[64] holds (no store to word 64 since), rewrite mem[64] as v (or v as mem[64]) so v - mem[64] folds to 0.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Several dynamic-array arguments of delegatecalls are now decoded exactly (unknownbaa7652f/c1e09f97/41c47e3e: two Array(...) arguments instead of a garbled mix); an empty array prints as Array(len=0, data=''). Returns are decoded: unknown7ecd20bb 'return _1, Array(len=_3, data=..)' replaces an encode loop plus raw return, and 529285af/566aff6a return their struct of arrays as values (flat ABI words with offsets). Encoding copies became copy lines (566aff6a x2, 39588f1e's SafeERC20 bytes copy), and 529285af reads its 4th array straight from its decoded copy; whiles 55 -> 50. 39588f1e's calls are named (unknownb835ee64, transfer, unknown69b5330b) with arguments. Return-data reads forwarded (da1c6cfa, ee0e5215). args-mem 17 -> 9, raw returns 7 -> 4, P6 3 -> 0.",
+  "patterns": {"P1": 0, "P2": 9, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 1418 lines, read per function (the functions were reordered). All 4 source loops (delegateTreasury NFT loop, claimRewards, claimMicropoolRewards, Multicall) are unchanged. The 5 removed whiles are all ABI encode/copy loops: 7ecd20bb 1, 39588f1e 1, 529285af 1, 566aff6a 2. Checked: the 28-byte 'DELEGATE_UNDELEGATE_TREASURY' write replaces a 32-byte one whose last 4 bytes the next write covers anyway; transfer's target address(_4) is the 0x9d76ea58 call's return as before; if/require/revert counts are unchanged in every changed function.",
+  "summary": "No semantic regression. Argument and return decoding improved clearly, five encoding loops became copy lines or decoded returns, and P6 is gone. One return length now carries an unfolded '_17 - mem[64]'."
+}

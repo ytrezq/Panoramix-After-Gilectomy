@@ -1,0 +1,16 @@
+{
+  "id": "c00222",
+  "text_changed": true,
+  "lines_old": 2562,
+  "lines_new": 2560,
+  "changed_functions": 13,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "the msg.sig comparisons of _getAdminRestrictions are still unfolded in every onlyAuthorized function"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "P6 42 -> 0: the 0x08d6122d selector compared with call.func_hash now prints with whole bytes in all 12 dispatching functions. Multicall's result-encoding loop no longer copies mem[64]/mem[160] into temporaries (neutral).",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 435 lines, 13 changed functions: 12 are the one-constant P6 fix (4 lines each in the authorized functions, 1 in execute/unknownf801a698), multicall's return encoding was read in full: same loop with renamed counters, reading mem[64] and mem[160] directly, which nothing in the loop writes (all writes are at mem[64] + 64 and above).",
+  "summary": "No regression: display-only changes (P6 gone) and a neutral rewrite of multicall's encoding loop; the msg.sig dispatch finding stands."
+}

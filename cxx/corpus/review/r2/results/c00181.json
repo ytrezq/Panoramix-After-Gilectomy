@@ -1,0 +1,17 @@
+{
+  "id": "c00181",
+  "text_changed": true,
+  "lines_old": 761,
+  "lines_new": 719,
+  "changed_functions": 7,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "the '* 3600' factoring is gone: initialize now reads uint64(stor[0xf0c57e16...6a00]) next to storF0C5_64, so the shared slot is visible, but it is still not printed by its name"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "tuple parameters still decoded as raw nested calldata arithmetic (P16)"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Same LayerZero OFT changes as c00196: parameters of unknown functions now follow calldata word positions (isComposeMsgSender _param4/_param5, send _param1/_param4, lzReceiveSimulate _param1, _param3.._param7); the sendCompose payload decodes as Array(len=mem[128] + 44, data=Bytes(8, nonce), Bytes(4, srcEid), amount, composeMsg) in lzReceive and lzReceiveSimulate; the SimulationResult revert copy is a copy line (whiles 10 -> 7); P1 2 -> 0, P6 1 -> 0.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 219 lines; 7 functions changed; effect totals equal except removed copy loops. Same library code as c00196 (unknown82413eac identical; the other functions differ only by this build). The lzReceiveSimulate self-call stays raw (1 P2 line), as in round 1. Both source loops unchanged.",
+  "summary": "Improved with no regression: calldata-position parameter names, a decoded sendCompose payload, one fewer copy loop per packet function, and the Initializable slot no longer factored by 3600."
+}

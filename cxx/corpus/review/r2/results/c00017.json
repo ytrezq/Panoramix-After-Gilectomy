@@ -1,0 +1,55 @@
+{
+  "id": "c00017",
+  "text_changed": true,
+  "lines_old": 4904,
+  "lines_new": 4676,
+  "changed_functions": 10,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "checked 10**x square-and-multiply loops unchanged (6 + 2 per transfer path)"},
+    {"n": 2, "kind": "artifact", "status": "still", "note": "immutables still 0"},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "transferOwnership unchanged"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "quoteDeliveryPrice (unknown9057412d), transfer (unknown97c35146)",
+      "lines": "1213-1215, 2543-2545, 2694-2696",
+      "decompiled": "while idx < _46: / if idx >= mem[ceil32(cd[_param2 + 4]) + 160]: revert with Panic(50)",
+      "old": "while s < mem[ceil32(cd[_param2 + 4]) + 160]: (no bounds check)",
+      "source": "NttManager: for (uint256 i = 0; i < numEnabledTransceivers; i++) { address transceiverAddr = enabledTransceivers[i]; ...",
+      "issue": "The array-bounds check against the same length as the loop bound is printed again in each iteration (Panic(50) lines +3), because the body's writes through the free pointer are no longer proved to miss the array header.",
+      "rule": "The free pointer is at least the end of the last allocation (a symbolic floor, not only a constant one): writes at mem[64] + k then cannot alias an earlier array's header, and i >= len inside 'while i < len' (len unchanged) is dominated.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getTransceiverInfo (unknownb150fc55)",
+      "lines": "416-417, 421-438",
+      "decompiled": "_25 = mem[64] / ... / return memory from mem[64] len _25 - mem[64] + 96 * stor758A.length + 64; stor49BC[concat(mem[0])].field_8",
+      "old": "return memory from mem[64] len 96 * mem[32 * stor758A.length + 160] + 64; _37 = sha3(...) / stor[_37].field_8",
+      "source": "NttManager.getTransceiverInfo: return array of TransceiverInfo",
+      "issue": "After the allocating loop, mem[64] has no known floor, so the encoding loop's writes may alias it: the return length keeps _25 - mem[64] (zero), and two mapping keys at mem[0] are printed as concat(mem[0]) (P4, 2 lines; the mapping is now named, though).",
+      "rule": "A free pointer that starts above a constant floor and only grows keeps the floor through loops, so writes at mem[64] + k (k >= 0) miss [0, 96): cancel _25 - mem[64] and resolve keys written at mem[0].",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setOutboundLimit, setInboundLimit, and the 6 other functions reading decimals by a low-level staticcall",
+      "lines": "1356-1358 (and 9 more calls)",
+      "decompiled": "mem[mem[64] + 36] = Bytes(4, 0x313ce567), mem[mem[64] + 36 len 28] / mem[mem[64] + 40] = 0 / static call 0x0.mem[mem[64] + 36 len 4] with:",
+      "source": "token.staticcall(abi.encodeWithSignature(\"decimals()\"))",
+      "issue": "The copy loop is now folded, but the call's 4-byte input is printed in the function-name position as a memory slice although it was just written as the decimals() selector.",
+      "rule": "Never print a memory slice as a function name; when the call input's bytes are known (written just before), name the function from its selector.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "P6 fixed. 23 element-copy loops resolved (151 -> 128 while): encoded call data now folded, so transferFrom and the library delegatecall are decoded and SafeERC20/custom-error reverts decoded; two events print their arguments instead of raw memory. Struct-array init loop in getTransceiverInfo no longer rotated (P3), and its encode loop bounds on stor758A.length.",
+  "patterns": {"P2": 4, "P4": 2},
+  "notes": "Diff 1938 lines, reviewed function by function (10 changed). All 8 exponentiation loops of the transfer paths and the source loops are still present; the removed whiles are copies of encoded bytes. The low-level decimals() call drops a dead free-pointer update; the text stays consistent since nothing later depends on it.",
+  "summary": "Low regressions only: dominated in-loop bounds checks printed again and an uncancelled _25 - mem[64] in getTransceiverInfo's return, both from a weaker free-pointer floor. Gains: copy loops folded, calls, reverts and events decoded; the decimals() call now shows its selector as a memory slice in the name."
+}

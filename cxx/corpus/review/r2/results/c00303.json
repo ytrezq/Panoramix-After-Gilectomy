@@ -1,0 +1,16 @@
+{
+  "id": "c00303",
+  "text_changed": true,
+  "lines_old": 690,
+  "lines_new": 677,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "Only the display is fixed: the data slot now shows whole bytes (0x036b...). It is still the folded keccak constant instead of sha3(5)/sha3(6), the allocation size 'floor32(_3 - 97) + 128' and the copy while loops remain."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "exit(): the via-IR internal-function-pointer temporaries are resolved. stor[mem[_108 + 32]] now prints as stor7, the 'mem[_108] != 3: Panic(81)' check on a value just written is dropped (exact), and the dead struct writes (mem[_108] = 3 / 7, zero inits) are gone. The pointer bumps are folded into the allocation checks' cumulative offsets (mem[64] + 128 / 192 / 256), which are equivalent; later code only uses decoded calls and scratch memory.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 46 lines, read in full (name: display only; exit: function-pointer resolution). Calls, events and storage writes are unchanged; one dominated Panic(81) check removed.",
+  "summary": "No regression. exit() loses its via-IR function-pointer noise (slot resolved to stor7), and name()'s slot constant shows whole bytes."
+}

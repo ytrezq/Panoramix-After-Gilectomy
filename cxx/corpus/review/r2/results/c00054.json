@@ -1,0 +1,33 @@
+{
+  "id": "c00054",
+  "text_changed": true,
+  "lines_old": 7922,
+  "lines_new": 7166,
+  "changed_functions": 30,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "Calls printing a memory slice as their name 60 -> 0 (all named, e.g. availableBalance(), unknown0103349c, unknown13e40efb with decoded args). 'revert with memory' 98 -> 0, custom errors now 'revert with 0x1345a339'. Logs with mem[_N] data 19 -> 7: the 7 left all follow a struct-copy loop, where '_N = mem[64]' is still not matched to 'mem[mem[64]]' (e.g. 873, 3343)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "61 'while idx < 2' and 9 'while idx < 64' constant-trip struct copies, unchanged, with reads still going through two memory indirections."},
+    {"n": 3, "kind": "artifact", "status": "still", "note": "solc immutables read as 0 (LIDO / locator calls to 0x0)."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "triggerValidatorWithdrawals' loop still 'while True' with its test as the first exit."},
+    {"n": 5, "kind": "simplification", "status": "still", "note": "171 'mem[0] =' scratch lines and 23 decimal 281474976710655, unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown37749ad4, unknown96c4d514, unknownd779f380 and others (16 lines)",
+      "lines": "6515, and e.g. the overflow checks in unknown37749ad4",
+      "decompiled": "if ext_call.return_data[0] > int104(_102) - int104(mem[_56 + ceil32(min(32, _7)) + ... + 32]) + mem[_56 + ceil32(min(32, _7)) + ... + 19 len 13]:",
+      "old": "if ext_call.return_data[0] > uint104(_95) + int104(_102) - int104(_103):",
+      "source": "VaultHub.sol: VaultRecord / Int104WithCache arithmetic (totalValue - inOutDelta) in the rebalance / liability paths",
+      "issue": "Memory reads that the old text bound to variables (_95 = mem[X], _103 = mem[X + 32]) are now inlined, and a uint104 read prints as the 13-byte slice mem[X + 19 len 13]. Lines with 'len 13]' 105 -> 121, uint104(_N) 57 -> 41. Values are unchanged.",
+      "rule": "Print the low n bytes of a word as uintN(mem[X]), not as mem[X + 32 - n len n]. Keep a memory read bound to a variable when its address expression is long and it is used more than once.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Free pointer resolved: every call is named (60 call sites showed a memory slice as the name), call args decoded, most event data now values, 98 bubbled reverts printed as revert with ext_call.return_data, custom errors given as selectors with args. In unknown8a3f9a8e (forceValidatorExit) the copy loop over an empty uint64[] is gone; it now passes an explicit zero length. unknown96c4d514's early 'return 0' is merged into one return after 'if min(..):'. P6 63-digit words 85 -> 0 (whole bytes). Text 5% smaller.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 5.9k lines (reordering included), with about 1,000 lines added and 1,700 removed per function. Reviewed by structure: per-function counts of whiles, calls, reverts, logs, storage writes and returns. Count changes traced: unknown8a3f9a8e (while 2->1: zero-trip copy of new uint64[](0); revert 30->29: a dead Panic(65) on a now-constant pointer; no call lost, the extra count was a call.data line), and unknown96c4d514 (return 2->1: early return merged, log now inside 'if min(..)' as before). A dropped mem[64] update before the end of unknown96c4d514 is unobservable, and 'mem[mem[64]]' reads there are correct.",
+  "summary": "No semantic regression. Calls are all named now and revert data are clean. A minor readability loss: 16 lines inline memory reads (uint104 shown as 13-byte slices) that were variables before."
+}

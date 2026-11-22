@@ -1,0 +1,21 @@
+{
+  "id": "c00178",
+  "text_changed": true,
+  "lines_old": 1406,
+  "lines_new": 1261,
+  "changed_functions": 9,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "getConfigAtId's loop still carries the slot hash (_103 = sha3(stor2, 6) / while ... < uint64(stor[_103]); 14 lines)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "Struct members are still read back as slices (39 'len 8]' lines, now at mem[64] + 184 / + 248)."},
+    {"n": 3, "kind": "simplification", "status": "fixed", "note": "setExitConfig's first cast now 'revert with WM:UINT64_CAST_OOB'; upgrade's check is 'if not ext_call.return_data[0]: revert with WM:U:INVALID_SCHED_CALL'."},
+    {"n": 4, "kind": "simplification", "status": "fixed", "note": "The return words after the join are ext_call.return_data[...] in setExitConfig and upgrade, and unscheduleCall (unknownb5ab6dee) is decoded with its arguments (P2 4 -> 3)."},
+    {"n": 5, "kind": "simplification", "status": "partly", "note": "One address check is now 'address(ext_call.return_data[0])'; 10 'return_data[12 len 20]' slices remain (was 12)."},
+    {"n": 6, "kind": "simplification", "status": "still", "note": "'_76 = _8 < ... or 2' unchanged."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "The 7 rotated getCurrentConfig / getCurrentCycleId loops (P3) are no longer peeled: 's = stor2 / while True: test / if not test: return | if test: s = SafeMath.dec(s); continue / break'. The checked decrement's Panic(17) is now inside SafeMath.dec, which is exact (3 explicit Panic(17) lines fewer). Dead selector, argument and return-data memory writes before named calls are gone (upgrade 93 -> 58 lines, setExitConfig 233 -> 155). Two consecutive '+ 128' pointer bumps around a loop merge into '+ 256', and a final dead bump is dropped with the later offsets adjusted (+32 -> +160), which agrees with the old addresses.",
+  "patterns": {"P1": 0, "P2": 3, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 1,211 lines, read by function (9 changed). Effects are unchanged except: raw call -> unknownb5ab6dee (upgrade), Panic(17) of the checked decrement moved into SafeMath.dec (setExitConfig, unknownd326b23c, unknown1b8f1830), and one raw revert folded. The new loop form puts the test in 'while True' with if / continue / break instead of 'while s and ...' (neutral).",
+  "summary": "No regression. P3 rotations removed, the raw reverts and post-join return words resolved, unscheduleCall decoded, and the dead buffer writes dropped. The slot-hash loop variable and the struct slices remain."
+}

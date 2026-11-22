@@ -1,0 +1,58 @@
+{
+  "id": "c00077",
+  "text_changed": true,
+  "lines_old": 1946,
+  "lines_new": 1929,
+  "changed_functions": 5,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "The packed uint32[] copies keep the '(s + 7) / 32' and 's - Mask(251, 5, s + 7) / 8 - ...' offsets and still print element 0 before the loop."
+    },
+    {
+      "n": 2,
+      "kind": "loop",
+      "status": "still",
+      "note": "terminate unchanged (no hunk in it)."
+    },
+    {
+      "n": 3,
+      "kind": "simplification",
+      "status": "partly",
+      "note": "Both lines now use the mapping name, but the second key is 'mapServiceAndAgentIdAgentParams[concat(mem[0])]' (P4 2 -> 6) where the old had stor[_22] with _22 = sha3(key, 14)."
+    },
+    {
+      "n": 4,
+      "kind": "artifact",
+      "status": "still",
+      "note": "agentRegistry immutable still 0x0."
+    }
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getAgentParams(uint256), unbond/slash path (831-836), registerAgents(...)",
+      "lines": "694, 831, 836, 1052-1058 (6 lines)",
+      "decompiled": "mem[0] = uint32(mem[32 * idx + 444 len 4]) << 32 | serviceId; ... mem[_23] = uint32(mapServiceAndAgentIdAgentParams[uint32(mem[32 * idx + 444 len 4]) << 32 | serviceId].field_0); mem[_23 + 32] = uint96(mapServiceAndAgentIdAgentParams[concat(mem[0])].field_32)",
+      "source": "ServiceRegistry.sol getAgentParams / registerAgents: mapServiceAndAgentIdAgentParams[serviceAgent] (AgentParams: slots, bond)",
+      "issue": "The second member read of the same entry keeps its key as concat(mem[0]) although mem[0] was set to the key two lines above and the first member read shows it.",
+      "rule": "Resolve a one-word concat(mem[0]) key to the value last stored at mem[0] (the same rule as P4).",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "The new AgentParams[] zero-inits are do-whiles instead of 'while idx - 1' with peeled iterations (P3); implied checks dropped (registerAgents' agentInstances bounds check implied by the loop test, update's enum check on the memory copy of an already-checked field); state checks read from storage (uint8(mapServices[serviceId].field_608)); return values used directly; onERC721Received's empty bytes as Array(len=0, data=''); P6 7 -> 0.",
+  "patterns": {
+    "P1": 0,
+    "P2": 2,
+    "P3": 0,
+    "P4": 6,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff of 688 lines reviewed on every changed control line; getAgentParams only moved in the file (now line 640). Counts: registerAgents and update lose one implied check each, getAgentParams' extra 'if' is the do-while's exit test.",
+  "summary": "No regression. Zero-init loops are no longer rotated and implied checks are dropped; one mapping key is now concat(mem[0]) (P4 2 -> 6) where it was raw storage."
+}

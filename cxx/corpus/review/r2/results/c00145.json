@@ -1,0 +1,29 @@
+{
+  "id": "c00145",
+  "text_changed": true,
+  "lines_old": 3699,
+  "lines_new": 3701,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The compounding formula is still distributed into multi-kilobyte polynomials in every ERC4626 path (lines unchanged apart from whole-byte hex)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "initialize(address,address,string,string,uint256)",
+      "lines": "1608, 1625, 1632-1633, 1642-1656",
+      "decompiled": "mem[mem[64]] = _owner / log AuthorityUpdated(..): _owner ... stor[sha3(51) len _name.length / 32] = mem[160 len floor32(_name.length)] ... if mem[ceil32(_name.length) + 160] > 18446744073709551615: revert with Panic(65) ... symbol[mem[ceil32(_name.length) + 160] / 32] = ~(-1 >> 8 * (mem[ceil32(_name.length) + 160] % 32)) & ...",
+      "old": "authority = _owner / log AuthorityUpdated(..): _owner ... stor[sha3(51) len _name.length / 32] = call.data[_name + 36 len floor32(_name.length)] ... symbol[_symbol.length / 32] = ~(-1 >> 8 * (_symbol.length % 32)) & ...",
+      "source": "initialize: _setAuthority(_owner) (emit AuthorityUpdated) then the second name/symbol storage copies (ERC20 strings)",
+      "issue": "The event's memory write mem[mem[64]] = _owner is now printed. After an earlier join only a constant floor of mem[64] is known, so the write is not proven disjoint from the decoded _symbol copy. Every later read of it shows the memory word (mem[ceil32(_name.length) + 160], 9 times) instead of _symbol.length / call.data, and a Panic(65) length check, dominated by the decode's identical check of _symbol.length, is printed. Same values.",
+      "rule": "Keep a symbolic lower bound of the free pointer across joins: the minimum of the arms (here ceil32(_name.length) + ceil32(_symbol.length) + 192). A write at mem[mem[64]] then provably misses the words allocated before, and reads of them still forward to their decoded values.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "initialize's asset decimals call is now named (artistWallet.decimals()) with its try-decode shown on memory words instead of a raw copy. uint8 returns read as uint8(ext_call.return_data[0]) instead of ext_call.return_data[31 len 1] (initialize, withdraw, the permit variants). Big duration factorings removed (11510639635 * 24 * 3600 -> 994519264464000). P2 1 -> 0, P6 2 -> 0.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 272 lines over 8 functions, read in full. The call count 8->6 in initialize is the raw 'static call artistWallet' + 'args mem[..]' pair now one named call plus removed call.data lines. revert/if +1 is the dominated Panic(65) above. The first pair of string copies (to the namespaced ERC20 storage 0x52c6...03/04), before the event, still reads _name.length / _symbol.length / call.data. Only the copies after the kept event write lost the forwarding. 'mem[_40 + 36 len 4] = 826074471' writes the decimals selector in decimal (minor).",
+  "summary": "No semantic regression. Decimals call and uint8 returns are cleaner. In initialize, a newly printed event write at mem[mem[64]] blocks memory forwarding, so the second name/symbol copies read memory words and a dominated length check appears."
+}

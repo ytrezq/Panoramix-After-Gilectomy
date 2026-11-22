@@ -1,0 +1,19 @@
+{
+  "id": "c00025",
+  "text_changed": true,
+  "lines_old": 3000,
+  "lines_new": 2874,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "still", "note": "Validator struct members still declared as stor1..stor7 fixed arrays (def storage unchanged)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "slot 251 still unsplit (address(stor251 >> 80))."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "validatorIdByPubkey lookups still stor[sha3(mem[mem[64] len ...])] (9 lines); 'revert with memory' 9 -> 7 (one custom error now 'revert with 0x77e0a7fa')."},
+    {"n": 4, "kind": "loop", "status": "partly", "note": "The new Validator[](n) initialisations no longer show 'while idx - 1' (2 -> 0): one element is still printed before 'if n - 1:' and a do-while (e.g. 1404-1430); the ABI-encoding loops are 'while True' as before."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Calls named (unknownb178e38e, 18bcb284, 6ccb9d70, 9ca76b73, 08297645...; P2 22 -> 10), one custom error decoded, an event's data decoded (call.value, 64, length, data, padding), implied checks dropped (enum check on the memory copy of a checked storage value, a length check implied by ABI decoding), return values used directly (ext_call.return_data[0] instead of mem[_N]), P6 5 -> 0; 126 fewer lines.",
+  "patterns": {"P1": 0, "P2": 10, "P3": 0, "P4": 25, "P5": 0, "P6": 0},
+  "notes": "Diff of 1,723 lines over 8 functions reviewed by structure (calls, reverts, loops, storage writes per function) and by reading every changed control line. One getter-like function only moved in the file (diff shows it removed and re-added; its only change is the dropped implied enum check). The removed 'mem[_357 + _358 + 96] = 0' padding store is absorbed into the decoded log's zero padding.",
+  "summary": "No regression. Calls, one custom error and an event's data are newly decoded, implied checks dropped, P2 halved; the struct-slot naming, unsplit slot 251 and raw bytes-keyed lookups remain."
+}

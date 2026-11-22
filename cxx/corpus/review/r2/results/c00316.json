@@ -1,0 +1,14 @@
+{
+  "id": "c00316",
+  "text_changed": true,
+  "lines_old": 288,
+  "lines_new": 284,
+  "changed_functions": 2,
+  "old_findings": [],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "multicall: the delegatecall input is forwarded to calldata (args call.data[data + cd[..] + 68 len ..] instead of mem[_2 len ..]; the dead memory copy is dropped), and the failure path is 'revert with ext_call.return_data[0 len return_data.size]' as round 1 suggested. simulate: the Simulated(delegatee, data, success, result) revert now lists data padding, result length and result bytes separately instead of one merged memory read. args-mem lines 1 -> 0.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 89 lines, read in full; multicall only moved in the file. Its loop is unchanged (while idx < data.length). The data padding in simulate's revert still reads as mem[L + mem[64] + 164 len ceil32(L) - L] although it was just zeroed (cosmetic).",
+  "summary": "No regression; multicall and simulate read better (forwarded calldata, clean revert bubbling, exact revert payload)."
+}

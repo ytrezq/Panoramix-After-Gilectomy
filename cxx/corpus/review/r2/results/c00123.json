@@ -1,0 +1,53 @@
+{
+  "id": "c00123",
+  "text_changed": true,
+  "lines_old": 2939,
+  "lines_new": 2909,
+  "changed_functions": 3,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "loop",
+      "status": "still",
+      "note": "_fillUnsignedValidators in checkSignatures is unchanged apart from two keys."
+    },
+    {
+      "n": 2,
+      "kind": "simplification",
+      "status": "still",
+      "note": "insertSigners did not change."
+    },
+    {
+      "n": 3,
+      "kind": "simplification",
+      "status": "still",
+      "note": "The reward functions did not change."
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "validatorAuction(uint256)",
+      "lines": "764-770 (the aligned arm, 756-762, already used raw words)",
+      "decompiled": "return ..., bool(uint8(stor32[_param1].field_672)), 160, stor[sha3(_param1, 32) + 3].length, mem[ceil32(stor[sha3(_param1, 32) + 3].length) + 352 len 32 * (Mask(250, 5, stor[...].length) / 32) + 32]",
+      "old": "return ..., bool(uint8(stor32[_param1].field_672)), Array(len=stor[sha3(_param1, 32) + 3].length, data=mem[ceil32(stor[...].length) + 352 len ...])",
+      "source": "the public getter of the validatorAuction mapping (struct with a trailing bytes member); no source definition in the AST",
+      "issue": "The trailing dynamic bytes of the returned struct is now printed as its raw ABI words (offset 160, length, padded data) instead of Array(len=..., data=...). Same change as in c00213.",
+      "rule": "When returned data has the head/tail layout of a dynamic bytes value (offset = head size, then length n, then ceil32(n) bytes), print it as Array(len=n, data=...).",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "claimFee (96 -> 64 lines): the Merkle pair hashes decode to sha3(_11, t + leaf) / sha3(t + leaf, _11), the revert strings 'Wrong acc proof' and 'transfer failed' decode, logger.logClaimFee(caller, amount) and token.transfer(caller, amount) are named, and dead scratch stores and call buffers are dropped. checkSignatures: two validators[concat(mem[0])] keys print as validators[_505] / validators[_557] (P4 5 -> 3). P6 3 -> 0, P2 7 -> 5.",
+  "patterns": {
+    "P1": 0,
+    "P2": 5,
+    "P3": 0,
+    "P4": 3,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff of 271 lines, read hunk by hunk. validatorAuction and claimFee moved within the text (delete + add hunks). Calls, logs and storage writes are unchanged. claimFee's 'return' 1 -> 0 is the old 'if ok: stop / revert' now printed as 'if not ok: revert'. The 7 source loops are unchanged. claimFee's Merkle loop keeps its variable offset by the leaf (t + sha3(caller, accumFeeAmount)), as in round 1. Not a change, but the same pattern as reported for c00361.",
+  "summary": "No semantic regression. claimFee's calls, hashes and revert strings are decoded and two concat keys are resolved. One low cosmetic loss: validatorAuction's bytes return is printed as raw words."
+}

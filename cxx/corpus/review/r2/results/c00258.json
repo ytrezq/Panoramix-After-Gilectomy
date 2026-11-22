@@ -1,0 +1,41 @@
+{
+  "id": "c00258",
+  "text_changed": true,
+  "lines_old": 730,
+  "lines_new": 696,
+  "changed_functions": 6,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "artifact",
+      "status": "still",
+      "note": "Immutables still 0 (sender checks against 0, duplicated token-pair conjunction)."
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "withdraw(address,uint256,uint32,bytes), withdrawTo(address,address,uint256,uint32,bytes)",
+      "lines": "505-508, 576-579",
+      "decompiled": "mem[ceil32(_param4.length) + mem[64] + 356] = _param4.length / mem[... + 388 len _param4.length] = _param4[all] / ... / log 0x73d1...: caller, _param2, 96, mem[ceil32(_param4.length) + mem[64] + 356 len ceil32(_param4.length) + 32], indexed 0, indexed _param1, indexed caller",
+      "old": "log 0x73d1...: caller, _param2, Array(len=_param4.length, data=_param4[all]), indexed 0, indexed _param1, indexed caller",
+      "source": "L2ERC20ExtendedTokensBridge.sol:96, 112 emit WithdrawalInitiated(_getL1Token(l2Token_), l2Token_, msg.sender, to_, amount_, data_)",
+      "issue": "The event's bytes argument was decoded as Array(len=_param4.length, data=_param4[all]) and is now its raw ABI encoding: the offset 96 plus a memory slice holding the length, the data and the padding. The buffer is now addressed past the reused sendMessage buffer (mem[64] + ceil32(len) + 260 ...) and is no longer recognised. Still exact.",
+      "rule": "Recognise the ABI encoding of a bytes argument wherever its buffer lies: an offset word k followed, at head + k, by a length word L, L data bytes copied from a calldata parameter and zero padding to ceil32(L) is Array(len=L, data=param[all]). The base may be any symbolic pointer.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "The sendMessage call's bytes message no longer goes through a copy loop (whiles 15 -> 13). It prints as Array(len=ceil32(len) + 228, data=...) with its content visible on the line before (selector 0xa9f9e675, l1Token 0, l2Token, from, to, amount, offset 192, data); the padding length was checked. Dead bridgeBurn buffer writes are gone. The storage slot 0x013e92... shows whole bytes in def storage and the 4 mapping-key writes.",
+  "patterns": {
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff of 182 lines, read in full (6 functions; 4 only by hex display). Calls, events, storage writes and reverts are unchanged in count; only the copy loop went. The new text prints part of the sendMessage buffer before the call (selector, target 0, length, gas limit) but not the offset 96: dead or redundant writes beside a decoded call (P8).",
+  "summary": "One medium regression: WithdrawalInitiated's bytes argument, decoded before, is now a raw memory slice in withdraw and withdrawTo. The sendMessage call's message is better (no copy loop, content visible)."
+}

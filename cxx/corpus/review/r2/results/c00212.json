@@ -1,0 +1,53 @@
+{
+ "id": "c00212",
+ "text_changed": true,
+ "lines_old": 1031,
+ "lines_new": 1014,
+ "changed_functions": 5,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "naming",
+   "status": "still",
+   "note": "mint(address _to, uint256 _amount) and the event/initializer names from the signature database are unchanged"
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "wormholeBridgeOut (unknown258ad6ee)",
+   "lines": "312",
+   "decompiled": "log 0x021c8cca..: _param1, _19, _param2, Bytes(24, 0), ext_call.return_data[24 len 8], SafeMath.sub(call.value, _param3), indexed caller",
+   "old": "log 0x021c8cca..: _param1, _19, _param2, uint64(ext_call.return_data[0]), SafeMath.sub(call.value, _param3), indexed caller",
+   "source": "RenovaItemBase.wormholeBridgeOut: uint64 sequence = IWormhole(wormhole).publishMessage{value: ..}(0, payload, consistencyLevel); emit ...(.., sequence, ..)",
+   "issue": "The uint64 sequence number in the event data, printed 'uint64(ext_call.return_data[0])' before, is now two byte slices of the return data.",
+   "rule": "'Bytes(32 - n, 0), x[a + 32 - n len n]' is the word uintN(x[a]): print it as one value (merge a zero prefix and a slice of the same word).",
+   "verified": "reading only (the preceding 'require ext_call.return_data[0] == ext_call.return_data[24 len 8]' makes both equal the word)"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "wormholeBridgeIn (unknown7b0cad31)",
+   "lines": "879-901, 973-1000",
+   "decompiled": "mem[64] = ceil32(return_data.size) + ceil32(_22) + ceil32(cd[_param1 + 4]) + 32 * mem[_13 + ceil32(cd[_param1 + 4]) + mem[_13 + ceil32(cd[_param1 + 4]) + 448] + 160] + 576 / mem[ceil32(return_data.size) + ceil32(cd[_param1 + 4]) + 448] = ceil32(return_data.size) + ceil32(_22) + ceil32(cd[_param1 + 4]) + 544",
+   "old": "_29 = mem[64] / mem[64] = mem[64] + 32 * mem[..] + 32 / mem[ceil32(return_data.size) + ceil32(cd[_param1 + 4]) + 448] = _29",
+   "source": "IWormhole.parseAndVerifyVM: abi.decode of the VM struct's Signature[] array",
+   "issue": "The pointer temporaries (_29, _94, _117) are replaced by the free-memory pointer's full expression, so the allocation check and the struct field store are much longer (same pattern as c00134/c00086).",
+   "rule": "Keep a named temporary for a memory address used more than once instead of substituting the free-memory pointer's full expression at every use.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "publishMessage's arguments are decoded in order: '0, Array(len=160, data=_param1, _6, mem[224], _param2, mem[288]), stor201_160' (was the raw head words '0, 96, stor201_160, 160, ..'). The empty bytes of onERC721Received print as 'Array(len=0, data='')' in mint/safeTransferFrom/wormholeBridgeIn, where wormholeBridgeIn also loses the copy loop of that empty bytes. wormholeBridgeIn's Error(string) revert copy loop is now a copy line, and 'require mem[..+512] >= 160' reads 'require _22 >= 160'. P6 fixed (0x01ffc9a7). Whiles 10 -> 8.",
+ "patterns": {
+  "P1": 0,
+  "P2": 0,
+  "P3": 0,
+  "P4": 0,
+  "P5": 0,
+  "P6": 0
+ },
+ "notes": "Diff of 176 lines, read whole. The rotated Strings.toString loop (P3 in round 1) is unchanged.",
+ "summary": "Two low regressions: a uint64 event field became two byte slices, and wormholeBridgeIn's pointer temporaries are inlined into long expressions. publishMessage's payload, empty bytes arguments and a revert copy are now decoded."
+}

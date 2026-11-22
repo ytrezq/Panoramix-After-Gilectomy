@@ -1,0 +1,14 @@
+{
+  "id": "c00395",
+  "text_changed": false,
+  "lines_old": 24,
+  "lines_new": 24,
+  "changed_functions": 0,
+  "old_findings": [],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "None; text unchanged.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "No diff file; the new text is identical to the old.",
+  "summary": "Unchanged; round 1 found nothing to report."
+}

@@ -1,0 +1,23 @@
+{
+  "id": "c00290",
+  "text_changed": true,
+  "lines_old": 771,
+  "lines_new": 771,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "ReserveData still used through two levels of memory copies"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "CapConfig write-back still memory slices"},
+    {"n": 3, "kind": "simplification", "status": "fixed", "note": "the getReserveData selector now prints as 0x35ea6a75.. (no '* 3600')"},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "token call still in both arms of the 10 ** decimals branch"},
+    {"n": 5, "kind": "simplification", "status": "still", "note": "struct member / hasRole[0] naming unchanged"},
+    {"n": 6, "kind": "simplification", "status": "still", "note": "constant flags and supportsInterface's if/else unchanged"},
+    {"n": 7, "kind": "simplification", "status": "still", "note": "dominated checks unchanged"},
+    {"n": 8, "kind": "simplification", "status": "fixed", "note": "supportsInterface prints 0x01ffc9a7 with whole bytes"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "P1 1 -> 0 (getReserveData selector) and P6 1 -> 0 (ERC165 interface id).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 20 lines: two display-only constants (supportsInterface, exec).",
+  "summary": "No regression: two constants now print correctly, fixing round-1 findings 3 and 8; the others stand."
+}

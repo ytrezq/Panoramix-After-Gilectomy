@@ -1,0 +1,41 @@
+{
+  "id": "c00102",
+  "text_changed": true,
+  "lines_old": 2693,
+  "lines_new": 2650,
+  "changed_functions": 12,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "No longer factored by 3600 (P1 12 -> 0): the slot prints as stor[0xf0c57e16...] and register's constant as 'thawingPeriod' bytes. Still not resolved to its name: def storage splits the uint64 _initialized into storF0C5 uint8 + storF0C5_8 uint56, so the check reads uint64(stor[0xf0c5...])."}
+  ],
+  "regressions": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "releaseStake(uint256)",
+      "lines": "1016-1085 (12 lines)",
+      "decompiled": "mem[0] = caller / mem[32] = 156 / while True: _22 = stor[sha3(mem[0 len 64])] and t > 0 ... stor[sha3(mem[0 len 64]) + 3] = SafeMath.sub(stor[sha3(mem[0 len 64]) + 3], 1) / stor[sha3(mem[0 len 64])] = _3",
+      "old": "_22 = stor156[caller].field_0 and t > 0 ... stor156[caller].field_768 = SafeMath.sub(stor156[caller].field_768, 1) / stor156[caller].field_0 = _44",
+      "source": "LinkedList.sol:111-121 cursor = self.head; ... self.removeHead(...) (self = claimsLists[msg.sender])",
+      "issue": "Inside the inlined traverse loop, the slot whose key bytes were written to scratch memory once before the loop is no longer resolved. The list head, count and tail lose their mapping name and key (stor156[caller]) and print as hashes of unknown memory.",
+      "rule": "Carry known memory words into a loop when the body writes no address that may alias them (the body's stores are all at or above the free-memory floor 0x80), so sha3(mem[0 len 64]) stays sha3(caller, 156), i.e. stor156[caller].",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "releaseStake(uint256)",
+      "lines": "1086-1095",
+      "decompiled": "if not t: revert with Panic(17) / if s != -1: s = s + 1; t = t - 1; u = ..; continue / break / (after the loop) revert with Panic(17)",
+      "old": "s = SafeMath.inc(s) / t = SafeMath.dec(t)",
+      "source": "LinkedList.sol:121-122 iterations--; itemCount++;",
+      "issue": "Both forms are exact (both checks raise Panic(17)), and the new order matches the source. But the itemCount overflow check now leaves the loop through a 'break' that falls to a revert after it, so the back edge is nested under 'if s != -1'. The same traverse inlined in unknownb15d2a2c keeps the two helper lines.",
+      "rule": "Keep a check whose failing branch only reverts in place (if s == -1: revert ...) and do not route it through a loop exit; or print checked ++/-- with the helpers in their bytecode order.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "unknownb15d2a2c's two traverse loops now name the list as stor156[concat(Bytes(12, 0), Bytes(20, _7))].field_0/.field_768 instead of the fake stor3[_109]; the fake 'stor3 is fixed array' is gone from def storage. Custom error 0xddaf8f21 and several logs are decoded (log 0x13f3fa9f..: s, _233, indexed address(_8)); delegatecalls to StakeClaims are named with arguments (unknown0b2581d9, unknown374757c8, ...). New def SafeMath.add replaces an inline timestamp overflow test. P1 12 -> 0, P2 19 -> 2, P4 1 -> 0, P6 4 -> 0.",
+  "patterns": {"P1": 0, "P2": 2, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 1209 lines, read per function (releaseStake and unknown81e777a7 swapped places). Call, store and log sequences are equal in all 12 functions; releaseStake's stores move from stor156 to raw stor (the regression), b15d2a2c's from stor3/stor to stor156. Removed or added ifs: releaseStake +2 (the split inc/dec checks); b15d2a2c -1 (block.timestamp + delay overflow now inside SafeMath.add). 4f793cdc's return changed from a garbled single Array to a flat ABI word list (64, ceil32(_2) + 96, _2, ...), which is more exact but shows offsets. multicall's encode loop bound is now mem[160] instead of _19 = mem[160] (same).",
+  "summary": "Mostly improved (P1 slot fixed, fake stor3 array resolved in unknownb15d2a2c, calls/logs/errors decoded). One regression: releaseStake's inlined traverse loop lost the stor156[caller] naming (12 lines of stor[sha3(mem[0 len 64])]), and its counter checks became a break-to-revert."
+}

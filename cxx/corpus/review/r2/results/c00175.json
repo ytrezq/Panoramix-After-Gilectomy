@@ -1,0 +1,53 @@
+{
+  "id": "c00175",
+  "text_changed": true,
+  "lines_old": 2154,
+  "lines_new": 2128,
+  "changed_functions": 6,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "Operator ids are still re-read as 'Bytes(24, 0), mem[... len 8]' inside one-element concat keys (101 lines, unchanged). One concat(mem[0]) key is now storD56C_d56c4f4a[uint64(_51)]."
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown686e682c, unknown8c1d3d03, unknown36e87b12 (cluster events with uint64[] operatorIds and a Cluster struct)",
+      "lines": "309 (686e682c), 764 (8c1d3d03), 1513 (36e87b12)",
+      "decompiled": "_129 = mem[64] ... log 0x1fce24c3...: mem[mem[64] len _129 + 32 * cd[_param2 + 4] - mem[64] + 224], indexed _param1",
+      "old": "log 0x1fce24c3...: mem[mem[64] len 192], cd[_param2 + 4], mem[mem[64] + 224 len 32 * cd[_param2 + 4]], indexed _param1",
+      "source": "SSVClusters: emit ClusterLiquidated/ClusterReactivated/ValidatorAdded(owner, operatorIds, ..., cluster)",
+      "issue": "The event data used to be split into the head/struct words, the array length and the array data. It is now one raw slice whose length keeps the unfolded '_129 - mem[64]', although _129 holds mem[64] and nothing writes mem[64] in between. 3 lines.",
+      "rule": "A variable bound to a read of mem[64] equals any later read of mem[64] as long as no write to mem[64] comes between, so fold x - mem[64] to 0 and drop the unused binding. Then split the log data at the known head/array boundaries as before.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown4f4d1209 (liquidate)",
+      "lines": "2087",
+      "decompiled": "log 0x1fce24c3...: mem[mem[64] len 32 * cd[_param3 + 4] + 224], indexed mem[300 len 20]",
+      "old": "log 0x1fce24c3...: mem[_894 len -_895 + _896 + 32 * cd[_param3 + 4]], indexed _param2",
+      "source": "SSVClusters.liquidate: emit ClusterLiquidated(clusterOwner, operatorIds, cluster)",
+      "issue": "The indexed owner topic of the one ClusterLiquidated log is now the slice mem[300 len 20]. mem[288] = _param2 is written at the start and never rewritten before the log, so the old 'indexed _param2' was exact and clearer. The data length got simpler at the same time.",
+      "rule": "Forward a memory word to its last write when no write between can alias it (constant address below the free-pointer floor, writes only at mem[64] + k above it). Print the topic as the stored value.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Cluster hashes resolved: storD56C_d56c4f4a_3[...] = sha3(Bytes(4, _param4), Bytes(49, 0)) on the liquidation paths (validatorCount with zeroed fields) and sha3(mem[156 len 4], .., mem[216 len 8], mem[256], Bytes(1, bool(mem[224]))) instead of sha3(mem[_x + 32 len mem[_x]]). Struct fields copied from parameters named (mem[.. + 32] = _param4 / _param3). 'revert with memory' 3 -> 0 (ETHTransferFailed()). Removed pointer copies (_891 .. _896). P6 44 -> 0 (whole bytes, also in def storage).",
+  "patterns": {
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "P4": 1,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff of 440 lines over 6 functions, read in full. While count unchanged (41) and all 10 source loops intact. The regex P2 count (3 lines with 'mem[mem[64] len') comes from the log lines above, which were raw before too (as mem[_894 len ..]) or partly listed; the pack header lists only P4 1, so P2 is 0 by the header. Checked that no write between mem[288] = _param2 and the ClusterLiquidated logs can reach mem[288].",
+  "summary": "No semantic regression. Cluster hashes and struct fields are now resolved. Small readability losses: 3 events lost their split data (unfolded '_N - mem[64]' lengths), and liquidate's indexed owner (one log) now prints as mem[300 len 20]."
+}

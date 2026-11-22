@@ -1,0 +1,34 @@
+{
+ "id": "c00009",
+ "text_changed": true,
+ "lines_old": 2196,
+ "lines_new": 2116,
+ "changed_functions": 5,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "fixed",
+   "note": "the random word is now 'mem[_185 + 32 * idx + 1044] = sha3(sha3(3, call.data[68 len 64]), idx)', i.e. keccak(randomness, i) (new 1658)"
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "migrate's search loop unchanged: 'while -_to + address(stor[_3 + s])' (1071)"
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "fulfillRandomWords: the random-word hash is resolved (finding 1), and the GAS read now sits where the code reads it ('_1 = gas_remaining' after the Reentrant() check instead of hoisted to the top). Dead pointer bumps dropped (935 -> 853 lines). Unknown functions' parameters are named by calldata word, which matches the sources: registerProvingKey(uint256[2], uint64) -> _param3; fulfillRandomWords -> _param5 c, _param6 s, _param7 seed, _param8 uWitness, _param13 zInv, _param14 rc, _param15 onlyPremium. migrate: onMigration's bytes argument is decoded ('args Array(len=_114, data=mem[.. len _114])'), and the checked ++i is now 's = s + 1', exact because 's < mem[128]' bounds it.",
+ "patterns": {
+  "P1": 0,
+  "P2": 14,
+  "P3": 0,
+  "P4": 0,
+  "P5": 0,
+  "P6": 0
+ },
+ "notes": "Diff of 1619 lines: 5 changed functions. Two calculateRequestPrice variants (67a88db0, c07d3658) only renumber temporaries. fulfillRandomWords by structure: the four curve checks keep their order (x, y, on-curve per point; the diff only realigns them), and its calls, loops and logs are unchanged. The 'stor15[concat(mem[_185 + 948])]' key (P4 in round 1) is still there; the pack's regex does not count it.",
+ "summary": "No regression. The random-word derivation is now readable, GAS is read at its true place, parameters are named by calldata word, migrate's bytes argument is decoded, and a provably dead overflow check was dropped."
+}

@@ -1,0 +1,17 @@
+{
+  "id": "c00188",
+  "text_changed": true,
+  "lines_old": 2545,
+  "lines_new": 2511,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "All 11 SafeERC20 transfers still 'call 0x0 with: args mem[260 len 100]' after a constant-bound copy; selector still the decimal piece 2835717307."},
+    {"n": 2, "kind": "artifact", "status": "still", "note": "Immutables still 0."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "permit 78 -> 54 lines: ecrecover decoded with its four arguments and dead memory writes dropped; returnFunds prints the checked products as explicit Panic(17) checks in bytecode order (the mul check precedes the first SafeMath.div) instead of nested SafeMath.mul; claimRewardsAndRedeem(OnBehalf) and stakeWithPermit buffers addressed from a known base (_121 + k) instead of fresh mem[64] reads; unknowncd3fa04b's event data reads a known address.",
+  "patterns": {"P1": 0, "P2": 12, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 484 lines read hunk by hunk; calls, events and storage writes identical in count. returnFunds' 2 extra Panic(17) checks are the second multiplication and the '- 1' of _getExchangeRate, real checks of the bytecode; their order was checked against the source (previewRedeem, _getExchangeRate). permit and slash only moved besides the changes above.",
+  "summary": "No regression; small gains (permit's ecrecover, explicit checked arithmetic in order, known memory bases); the raw SafeERC20 transfers of round 1 remain."
+}

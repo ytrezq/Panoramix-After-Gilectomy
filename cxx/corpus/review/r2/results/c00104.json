@@ -1,0 +1,43 @@
+{
+  "id": "c00104",
+  "text_changed": true,
+  "lines_old": 4393,
+  "lines_new": 3869,
+  "changed_functions": 13,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "LibBytes.slice copy loop still rotated (while idx - 32) in preExecutionHook's 4 inlined copies; only _param3 -> _param4 renames there"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "executor call args still spread as raw words (e.g. pokeETH 1318: args Bytes(64, 0), 96, 68, 'nU?e', _v, caller, Bytes(28, 0)); collectDebit/collectCredit unchanged"},
+    {"n": 3, "kind": "artifact", "status": "still", "note": "immutables still 0"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "poke, collectInstallments, collectCollateral, swap, pokeETH, executeProposal, executeProposals",
+      "lines": "736-758, 578-600, 2682, 2973, 3049, 3732, 3808",
+      "decompiled": "mem[ceil32(_1) + ceil32(_2) + ceil32(_3) + ceil32(_5) + ceil32(return_data.size) + ceil32(_30) + 524] = _owner; static call mem[ceil32(_3) + ceil32(_4) + ceil32(_9) + ceil32(_8) + ceil32(_144) + 496 len 20].balanceOf(address account)",
+      "old": "mem[mem[64] + 4] = _owner; _244 = mem[_14 + ceil32(return_data.size) + 64] / static call address(_244).asset()",
+      "source": "ExaPlugin: abi.encodeCall arguments for executeFromPluginExternal, abi.decode of return data, IERC20(asset).balanceOf",
+      "issue": "Exact free-pointer values are printed in full at every use, so each argument store and return-data check carries a sum of up to nine ceil32 terms, and call targets read from memory are inlined as long slices. Lines over 300 chars 11 -> 120, over 500 chars 3 -> 46, lines with 4+ ceil32 terms 91 -> 681.",
+      "rule": "Bind a compound free-pointer value to a temporary at its read (p = mem[64]) and print addresses as p + k; substitute only constants or variable + constant. Keep a temporary for a memory word used as a call target.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "swap, collectCollateral",
+      "lines": "1545, 2407, 2434, 2469",
+      "decompiled": "return SafeMath.sub(_8, ext_call.return_data[0]), -_6 + _9; static call 0x0.previewDeposit(uint256 assets) with: args -_param1 - _v + _v; return -_83 + _10, -_8 + _16",
+      "source": "ExaPlugin.sol:138 amountOut = assetOut.balanceOf(msg.sender) - balanceOut; _depositUnspent / _swap amounts",
+      "issue": "The newly decoded returns and arguments print differences with the negative term first (-_6 + _9 for _9 - _6, -_param1 - _x + _y).",
+      "rule": "Order a sum's terms so a positive term comes first (_9 - _6, _y - _x - _param1).",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "P6 fixed. Parameters named by calldata word (_param4 for the bytes in the three hook functions). Calls decoded: asset(), balanceOf, markets, delay(), withdraw, deposit, previewDeposit, isFrozen, approve, transfer, unknownd14cf301(caller). Custom errors decoded: NoBalance(), Unauthorized(), Timelocked 0x774ae17d, NotNext 0xfde5ed88, Disagreement 0xb06dad04, SafeERC20FailedOperation(address). swap and collectCollateral return values instead of raw memory. In executeProposal(s) the proposal type re-tested inside a known arm is folded, removing dead REDEEM/WITHDRAW arms and dominated Panic(33) checks (about 200 lines each). pluginManifest's 3 struct-array init loops are no longer rotated (P3). stor6/stor7 hashes show their contents. 524 fewer lines.",
+  "patterns": {"P2": 5},
+  "notes": "Diff 5164 lines, reviewed by structure: per-function effects and control-statement diffs for all 13 changed blocks (storage, supportsInterface: hex padding only). Dropped Panic(33) checks verified dominated: the enum is required < 8 at decode (2495) and its arm fixes the value. 24 while blocks before and after (one renamed v -> w).",
+  "summary": "One medium regression: exact free-pointer values printed in full make argument stores, return-data checks and call targets far longer (lines over 300 chars 11 -> 120). Otherwise clear gains: many calls and custom errors decoded, returns decoded, dead enum arms folded in executeProposal(s), struct-array loops un-rotated."
+}

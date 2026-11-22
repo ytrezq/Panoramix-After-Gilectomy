@@ -1,0 +1,29 @@
+{
+ "id": "c00322",
+ "text_changed": false,
+ "lines_old": 525,
+ "lines_new": 525,
+ "changed_functions": 0,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "text unchanged"
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "text unchanged"
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "none: the text did not change",
+ "patterns": {
+  "P5": 3
+ },
+ "notes": "No diff file: the text is identical to round 1's.",
+ "summary": "Text unchanged; both round-1 findings stand."
+}

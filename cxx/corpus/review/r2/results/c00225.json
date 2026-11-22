@@ -1,0 +1,43 @@
+{
+  "id": "c00225",
+  "text_changed": true,
+  "lines_old": 1769,
+  "lines_new": 1455,
+  "changed_functions": 15,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "still", "note": "The _positions entries at folded slots are still separate variables stor624E/stor4829/storE9CE/stor7373_160 in def storage and _sanctify (26 -> 18 lines, fewer only because lines merged)."},
+    {"n": 2, "kind": "simplification", "status": "fixed", "note": "P2 10 -> 0. Both latestVault loops call factories(idx - 1) and apiVersion() by name, the lookup is stor6[token][<apiVersion string>][1] instead of stor[sha3(1, _43)], and the return is 'return s'. addNewVault's endorse (f776bf1f), 0ab322d9(_param1) and a97cefa2(this.address, 8) are decoded."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "removeRoles' dead s, name()'s '_1 * bool(_1)', the 6 '2 * Mask(250, 5, ...)' terms and removeVault's concat(mem[160]) key are all unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "addNewVault x2 (42 lines each), newVault x2 (21 each), latestVault x2 (9 each), removeVault",
+      "lines": "e.g. addNewVault (0x3080cef1) stor6 write and its AlreadyDeployed revert; newVault allocation checks 734, 910",
+      "decompiled": "stor6[address(_2)][concat(mem[ceil32(_1) + ceil32(_3) + ceil32(_4) + ceil32(_7) + ceil32(_8) + ceil32(_6) + 544 len _6])][_param2] = _param1",
+      "old": "stor6[address(_2)][concat(mem[mem[64] len mem[ceil32(_1) + ceil32(_3) + 128]])][_param2] = _param1",
+      "source": "RoleManager.sol _addNewVault: _assetToVault[_asset][_apiVersion][_category] = _vault",
+      "issue": "Memory at the free pointer is now addressed by its absolute value, a sum of every earlier allocation and return-data size, the same change as in c00150 and c00107. Lines with 4+ pointer terms went 55 -> 146 and lines over 240 characters 10 -> 14, up to 26 terms in one allocation check.",
+      "rule": "Bind a free-memory-pointer value that is a sum of several symbolic sizes to a variable where it is read (the allocation), and address that allocation's contents from it. Substitute only constants or single terms.",
+      "verified": "reading only (counts by regular expression)"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "newVault(address,uint256,string,string[,uint256]) 0xba628b27, 0x0b63a38a",
+      "lines": "42-44 of each function",
+      "decompiled": "call address(stor0[0x8c53...].field_0).unknown17bdd312(?) with: args _param1, 160, ceil32(cd[_param3 + 4]) + 192, this.address, stor4, cd[_param3 + 4], mem[... len ceil32(cd[_param3 + 4]) + ceil32(cd[_param4 + 4]) + 32]",
+      "source": "RoleManager.sol _newVault: IVaultFactory(factory).deploy_new_vault(_asset, _name, _symbol, address(this), _profitMaxUnlockTime)",
+      "issue": "The call's data are now printed exactly as raw ABI words: the head offsets 160 and ceil32(n) + 192, then the name's length and the rest of the tail as one memory slice. The old decode was wrong, Array(len=n, data=<name, symbol length and symbol>). The name and symbol strings are still not shown.",
+      "rule": "For a call to an unknown function, when a head word equals the offset of a length-prefixed region of the tail and the regions tile the tail exactly, decode each such word as a dynamic bytes argument (here two strings from calldata), which is exact for any callee.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "Every raw call is decoded (P2 10 -> 0): factories, apiVersion, endorse and the role-manager setup calls. latestVault's mapping lookup and return are resolved. removeVault's key copy is a copy line instead of a while. P6 32 -> 0: the role positions print with whole bytes (0x0a0e28..., 0x01c38a...). 27 -> 12 whiles, and the '_a - mem[64]' forms are folded (6 -> 0).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 1, "P5": 0, "P6": 0},
+  "notes": "I read the 15 changed defs' diffs. 8 of them changed only by the whole-byte hex display of the position slots. latestVault, removeVault, addNewVault x2 and newVault x2 were checked by calls, events, writes, reverts and loops: no call, event or write lost. stor6 values print without address() because def storage types stor6 as a mapping of address. Both source loops (removeRoles, latestVault) are still whiles. text_check run --per-selector 16, both worlds: 483 + 304 guessed-param calls same, 0 different.",
+  "summary": "One medium regression: free-pointer memory addressed by long absolute sums (146 lines with 4+ terms, 55 before). Round-1 finding 2 is fixed (all raw calls decoded, latestVault's lookup and return resolved). An unknown deploy call with two strings is now printed exactly as raw ABI words."
+}

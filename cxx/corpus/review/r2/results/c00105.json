@@ -1,0 +1,29 @@
+{
+ "id": "c00105",
+ "text_changed": true,
+ "lines_old": 1306,
+ "lines_new": 1304,
+ "changed_functions": 1,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "multicall still re-reads the empty context length `_33 = mem[128]` in every iteration (1120-1122)."
+  },
+  {
+   "n": 2,
+   "kind": "artifact",
+   "status": "still",
+   "note": "ADDRESSES_PROVIDER immutable still 0."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "Neutral: in multicall's result encoding the pointer and length variables `_26 = mem[64]`, `_27 = mem[160]` are replaced by direct reads (`while s < mem[160]`, `mem[u] = v - mem[64] - 64`), equivalent because the loop only writes at or above mem[64] + 64; one terminator write uses `mem[64]` instead of `_31` (the same value).",
+ "patterns": {
+  "P2": 1
+ },
+ "notes": "Whole diff read (57 lines, multicall only). The two source loops of the Pool are unchanged.",
+ "summary": "No regression and no real change: two equivalent rewrites in multicall's encoding loop."
+}

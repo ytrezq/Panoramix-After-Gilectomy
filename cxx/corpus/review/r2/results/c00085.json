@@ -1,0 +1,32 @@
+{
+  "id": "c00085",
+  "text_changed": true,
+  "lines_old": 11981,
+  "lines_new": 11053,
+  "changed_functions": 4,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "205 of the 213 calls now have their function (take, transferFrom, transfer, deposit, withdraw, settle, sync, balanceOf, exchange, getPairInfo...), and all 90 raw-selector reverts decode ('TRANSFER_FAILED', 'ETH_TRANSFER_FAILED', 'APPROVE_FAILED', ExecutionFailed...); 'revert with memory' 197->0. The 8 calls with a dynamic bytes argument (swap with hookData, lines 893, 1168, 1454, 1748, 2884, 5159, 7446, 9721) are still 'call 0x0.mem[_572 len 4]' with raw-memory args (P2)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "The dispatcher is still printed in both arms of each execute (4,559 and 4,562 lines; 58 while)."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "Calldata slice bases still recomputed in every access (201 lines with Mask(27, 5, uint32(cd[_param1 + 100]) + 31) three times or more, 175 before: the newly decoded call args)."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "'-340282366920938463463374607431768211456 * ...' and '-uint128(-int128(...))' range checks unchanged."},
+    {"n": 5, "kind": "artifact", "status": "still", "note": "immutables read as 0 (if caller: revert with 0x38bbd576, call 0x0...)."}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "execute(bytes,bytes[]), execute(bytes,bytes[],uint256)",
+      "lines": "e.g. 2807-2812",
+      "decompiled": "revert with ExecutionFailed(uint256 commandIndex, bytes message), idx, 64, _610, mem[mem[64] + 100 len _610], Bytes(-_610 + ceil32(_610), 0)",
+      "source": "UniversalRouter.sol execute: if (!success && successRequired(command)) revert ExecutionFailed({commandIndex: commandIndex, message: output});",
+      "issue": "The custom error is now named, but its bytes argument is printed as its raw ABI words (offset 64, length, data, padding) instead of one value.",
+      "rule": "When revert data are a selector and an ABI encoding whose head word is the offset of a tail (length, data, zero padding to 32), print that argument as the data slice.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "205 calls named and 90 reverts decoded (finding 1), all 197 'revert with memory' replaced by decoded reverts, success/failure branches after calls printed as early reverts (else 285->275 per execute, 84->80 in lockAcquired), P6 213->0 (hex constants in whole bytes, e.g. transient[0x0e87...]). 928 fewer lines.",
+  "patterns": {"P1": 0, "P2": 36, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 7,054 lines reviewed by structure: per-function counts of calls, reverts, requires, ifs, loops, storage and transient writes are unchanged in lockAcquired (0xab6291fe) and both execute; only else arms became early reverts (checked: 'if ext_call.success: ... else: revert' -> 'if not ext_call.success: revert ...', allocation checks kept). Several hunks read in full. A no-op 'mem[64] = _230' (same value) is dropped in lockAcquired but kept ('mem[64] = _308') in execute: harmless.",
+  "summary": "No regression. Calls and reverts are now named and decoded (205 of 213 calls, all 90 raw reverts), P6 is gone and the text is 928 lines shorter; the doubled dispatcher and the recomputed calldata offsets remain."
+}

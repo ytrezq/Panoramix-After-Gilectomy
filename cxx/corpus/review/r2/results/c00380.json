@@ -1,0 +1,16 @@
+{
+  "id": "c00380",
+  "text_changed": true,
+  "lines_old": 190,
+  "lines_new": 189,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "getUserOpHash is still a raw-memory call (P2) behind word-copy loops of the bytes fields, and the returned bytes32[] is still raw memory."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Neutral: the first bytes field of the UserOperation copy (initCode) is now addressed as '_43 + 352' (right after the 352-byte struct) instead of '_60 = mem[64]'. Its allocation check, mem[64] update, copy line and the struct's pointer field ('mem[_43 + 64] = _43 + 352') are consistent with the old text.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 24 lines (one hunk in getUserOpHashes / unknown3024e00c), all read. The other bytes fields still use mem[64]-based variables. No effect, loop or condition changed.",
+  "summary": "No regression and no real change: one allocation base is printed as struct base + 352. The round-1 raw-memory call and return remain."
+}

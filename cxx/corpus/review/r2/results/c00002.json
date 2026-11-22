@@ -1,0 +1,36 @@
+{
+ "id": "c00002",
+ "text_changed": true,
+ "lines_old": 4004,
+ "lines_new": 3612,
+ "changed_functions": 8,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "loop",
+   "status": "still",
+   "note": "every `observations = new bool[](n)` still prints the 32-chunk packing loop, inner loop and tail loop (setRegenParams now reads `while idx < uint32(observe_) / 32`, clearer; initialize/operate worse, see regression)."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "initialize(), operate()",
+   "lines": "2214-2260 (initialize), 2787-2830 (operate)",
+   "decompiled": "mem[_113 + ceil32(_5) + ceil32(_6) + ... + ceil32(_20)] = stor7_224 ; stor4.length = stor7_224 ; if mem[_113 + ceil32(_5) + ... + ceil32(_20)] >= _186: ... stor[(mem[_113 + ceil32(_5) + ... ] + 31) / 32 + sha3(4) - 1] = ... ; while idx < mem[_113 + ceil32(_5) + ... ] / 32:",
+   "old": "_183 = mem[64] ; mem[mem[64]] = stor7_224 ; ... stor4.length = mem[_183] ; if mem[_183] >= _186: ... while idx < mem[_183] / 32:",
+   "source": "Operator.sol initialize / _regenerate: _status.high.observations = new bool[](_config.regenObserve)",
+   "issue": "The array pointer, held by a short variable before, is now its exact 4- to 10-term `ceil32` sum, repeated about 14 times per site (lines of 300-550 characters). Its length word is folded to `stor7_224` once (`stor4.length`) but every other use still reads it from memory.",
+   "rule": "Keep a long symbolic pointer bound to a variable when it is used more than once. Fold mem[p] to the value stored at p across writes that cannot alias it: writes at constant addresses below the free-memory floor (mem[0] = 4) never alias a pointer at or above that floor.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "P2 89 -> 2: about 80 calls now named with decoded arguments (market, capacity, updateCapacity, isLive, closeMarket, previewRedeem, getReserveBalance, increaseMintApproval...); swap's three `revert with memory` are custom errors (Operator_WallDown, Operator_InsufficientCapacity, Operator_AmountLessThanMinimum); Swap log decoded; requestPermissions/configureDependencies return `Array(len=13/5, ...)` with `while idx < 13`; requestPermissions' struct-array init loop unrotated (no hoisted first iteration); setRegenParams' bool[] length folded to `observe_`; allocation checks that cannot fail (Panic(65) on a uint32 length) dropped; decimals read as `ext_call.return_data[31 len 1]`; 392 fewer lines.",
+ "patterns": {
+  "P2": 2
+ },
+ "notes": "Reviewed by structure (3.5k-line diff, unoptimized build): per-function multisets of calls, reverts, storage writes, logs, returns and loops compared; all differences are named calls, decoded errors/returns, removed impossible Panic(65) checks (lengths stor7_224/observe_ are 32-bit), the requestPermissions loop and the pointer rewrite. getAmountOut only moved in the text. The exact free-memory pointer makes more lines carry `ceil32` chains (lines with 4+ terms 207 -> 338), e.g. operate's `mem[mem[64] + 352]` -> `mem[_1854 + ceil32(_51) + 352]`: exact, a little longer. status() unchanged (its 2 rotated copy loops remain).",
+ "summary": "Much more readable: calls named (P2 89 -> 2), custom errors and returns decoded. One medium regression: the bool[] store in initialize and operate now repeats a 10-term pointer sum instead of a variable."
+}

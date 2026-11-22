@@ -1,0 +1,16 @@
+{
+  "id": "c00388",
+  "text_changed": true,
+  "lines_old": 103,
+  "lines_new": 103,
+  "changed_functions": 3,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The returned bytes still go through the phi pointer _3 (mem[_3], mem[_3 + 32 len _6])."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "All three forwarders now return Array(len=_6, data=mem[mem[64] + 64 len _6]) instead of '32, mem[.. len _6 + 32], Bytes(pad)'.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 28 lines, read whole.",
+  "summary": "No regression; the three bytes returns are decoded as arrays, the phi pointer of round 1 remains."
+}

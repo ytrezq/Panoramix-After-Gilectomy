@@ -1,0 +1,14 @@
+{
+ "id": "c00299",
+ "text_changed": true,
+ "lines_old": 186,
+ "lines_new": 171,
+ "changed_functions": 1,
+ "old_findings": [],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "exec's tail: the subProxy wards check now reads `if ext_call.return_data[0] != 1: revert with 'StarGuard/subProxy-owner-change'` (was a hand-built Error(string) buffer and raw `revert with memory`), the return is `return Bytes(12, 0), mem[140 len 20]` instead of `return memory`, and the dead selector and returndata stores are gone; P6 gone.",
+ "patterns": {},
+ "notes": "Whole diff read (37 lines, exec only). The returned address is still a slice of the memory struct copy (P14/P18, as in round 1). The new pack header reports no P1-P6 lines.",
+ "summary": "No regression; exec's final require and return are now decoded."
+}

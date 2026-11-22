@@ -1,0 +1,16 @@
+{
+  "id": "c00260",
+  "text_changed": true,
+  "lines_old": 715,
+  "lines_new": 619,
+  "changed_functions": 4,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "setEnforcedOptions' nested-mapping bytes write still stor[_94] (256, 259); its decode now uses the struct base _22 instead of a fresh mem[64] read."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "unknown8f6b82d0 (the LayerZero forwarder, 268 -> 179 lines): the fee struct MessagingFee(msg.value, 0) is now forwarded, so the dead NotEnoughNative check and the dead lzTokenFee > 0 branch (lzToken() call, LzTokenUnavailable, the SafeERC20 transferFrom and its two errors) are pruned, which is exact for this bytecode (source line 56); the endpoint send (2637a450) and the quote call are decoded with arguments; the event carries uint96/uint120/uint40 values instead of byte slices; 0xf6ff4fb7 (NoPeer) decoded; bytes revert arguments split into length and data; hex constants show whole bytes.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 369 lines read hunk by hunk. The 2 calls, 4 custom-error reverts and 4 requires that disappeared from unknown8f6b82d0 are the pruned dead branches, checked against SSROracleForwarderLZ.sol:56 and OAppSender._payNative/_payLzToken; the remaining effects are identical.",
+  "summary": "No regression; constant forwarding of the fee struct prunes two dead branches of the LayerZero send, and the send, event and errors are decoded."
+}

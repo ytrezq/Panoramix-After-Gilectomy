@@ -1,0 +1,14 @@
+{
+  "id": "c00214",
+  "text_changed": true,
+  "lines_old": 492,
+  "lines_new": 492,
+  "changed_functions": 4,
+  "old_findings": [],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "The LenderBitmapsSet-style event with two dynamic arrays (unknown11b5ec59, unknown9709d8e3) now prints 'Array(len=cd[_param2 + 4], data=call.data[...]), Array(len=cd[_param3 + 4], data=call.data[...]), indexed _param1'. Round 1 had mis-decoded it as one Array spanning both arrays plus the second head offset '32 * cd[_param2 + 4] + 96' as if it were a value (missed in round 1). P6 (2) gone: the 0x0b52d12d selector words print with whole bytes.",
+  "patterns": {},
+  "notes": "Diff of 38 lines read in full: two log lines and two hex constants; nothing else changed.",
+  "summary": "No regression; the two-array event is now decoded exactly (round 1's display was wrong), and P6 is gone."
+}

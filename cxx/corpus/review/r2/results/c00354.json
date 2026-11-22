@@ -1,0 +1,30 @@
+{
+  "id": "c00354",
+  "text_changed": true,
+  "lines_old": 222,
+  "lines_new": 218,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The ERC20Helper buffers are still built with split stores (selector in decimal) and copied by a while loop, so the token calls stay raw (args mem[_17 + 100 len 68]). The copy loop bound is now the constant 68 and its addresses are resolved, but one more split store is printed per call (see regressions)."},
+    {"n": 2, "kind": "artifact", "status": "still", "note": "Immutables read as 0 (calls to 0x0, new amount 0)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "migrate(uint256), migrate(address,uint256)",
+      "lines": "96, 183",
+      "decompiled": "mem[mem[64] + 36] = caller ... mem[_17 + 36 len 28] = caller >> 32 / mem[_17 + 32 len 4] = 2835717307",
+      "old": "mem[mem[64] + 36] = caller ... mem[_17 + 32 len 4] = 2835717307",
+      "source": "ERC20Helper.transfer: abi.encodeWithSelector(IERC20Like.transfer.selector, to_, amount_)",
+      "issue": "The selector store writes a whole word at _17 + 32 and keeps the low 28 bytes, which already hold caller >> 32 from the word written at _17 + 36. The new text prints those 28 bytes as a separate store of the value they already have. A redundant line in each function, adding to the split stores of finding 1.",
+      "rule": "A store whose value equals the current content of the bytes it writes (here the part of a masked word store that re-writes the preserved bytes) is a no-op: drop it and print only the changed bytes.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "The copy loops of the transfer buffers have a constant bound (68) and resolved addresses (_17 + 100 instead of mem[64]). The dead padding write after the copy is dropped. The return data copy and the success decoding use _17 + 100.",
+  "patterns": {"P1": 0, "P2": 4, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 68 lines (2 hunks, the transfer part of both migrate functions), read in full. Same semantics. Pack regex P2 4 lines.",
+  "summary": "No semantic regression; the transfer copy loops are more resolved, but each migrate prints one more redundant split store, so the raw ERC20Helper calls (finding 1) remain."
+}

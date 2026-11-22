@@ -1,0 +1,27 @@
+{
+ "id": "c00071",
+ "text_changed": false,
+ "lines_old": 89,
+ "lines_new": 89,
+ "changed_functions": 0,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "artifact",
+   "status": "still",
+   "note": "text unchanged"
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "text unchanged"
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "none: the text did not change",
+ "patterns": {},
+ "notes": "No diff file: the text is identical to round 1's.",
+ "summary": "Text unchanged; both round-1 findings stand."
+}

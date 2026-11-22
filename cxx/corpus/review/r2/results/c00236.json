@@ -1,0 +1,27 @@
+{
+ "id": "c00236",
+ "text_changed": true,
+ "lines_old": 176,
+ "lines_new": 176,
+ "changed_functions": 1,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "artifact",
+   "status": "still",
+   "note": "Immutables still read as 0."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "The two token-list getters are unchanged."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "sweep prints the owner returned by the call as address(ext_call.return_data[0]) in its check, its memory store and the transfer arguments, instead of 20-byte slices.",
+ "patterns": {},
+ "notes": "The whole 18-line diff read (sweep only). The pack lists no regex pattern.",
+ "summary": "No regression; one display improvement in sweep, round 1's two findings remain."
+}

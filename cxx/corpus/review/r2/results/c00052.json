@@ -1,0 +1,14 @@
+{
+  "id": "c00052",
+  "text_changed": true,
+  "lines_old": 716,
+  "lines_new": 716,
+  "changed_functions": 1,
+  "old_findings": [],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "isFactory (unknown6167f931) now names its parameter _param2, its calldata word: the source is isFactory(bytes32 factoryId_, address factory_) and only factory_ is read, so the old _param1 suggested the wrong argument.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 18 lines, read in full: only the parameter name of unknown6167f931 changes (def line, address check, mapping key).",
+  "summary": "One exact naming improvement from the calldata-position parameter fix; no regression (round 1 had no findings)."
+}

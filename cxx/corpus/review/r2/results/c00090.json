@@ -1,0 +1,81 @@
+{
+  "id": "c00090",
+  "text_changed": true,
+  "lines_old": 11068,
+  "lines_new": 10849,
+  "changed_functions": 10,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "enableRebalanceAndUpdateRecord: same control skeleton (775 lines); the weights loop is still split, with its loop1 label and rotated inner while."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "Raw-memory call lines 217 -> 160. Many library/index calls are now named with decoded args (setPaused, getTokens, vault, totalSupply, updateRecords, delegate unknownXXXX(?) with Array(..)). The encoded-payload copy loops are still whiles, though their bound is now the constant 68 (safeTransfer). 327 -> 326 whiles: getSwapData's return-encoding loop is folded into its return."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "The continuation after 'if totalSupply() > 0' is still printed in both arms (skeletons unchanged)."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "deleteState's empty-bytes store is still the general routine: '_231 = mem[_230]' after 'mem[mem[64]] = 0' is not folded to 0, and the conditions now mix mem[_230] and _231."},
+    {"n": 5, "kind": "simplification", "status": "worse", "note": "The peeled redeemedAmounts copy in revertEnableRebalancing(ByUser) lost its mapping: 'stor265[stor257[s]][0]' is now 'stor[sha3(mem[0])]' (regression 2); the uint96[] unpacking loop is unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "all 10 changed functions, e.g. externalRebalance (unknown30a6fb8f), getCurrentWeights (unknown96c06898), enableAndUpdatePrimaryTokens",
+      "lines": "e.g. externalRebalance's loop; 571 lines with >= 4 ceil32 terms (old 42)",
+      "decompiled": "if s >= mem[32 * _18 + ceil32(_1) + ceil32(_5) + 192]: ... _345 = mem[32 * _18 + 32 * s + ceil32(_1) + ceil32(_5) + 224]  |  _71 = mem[64 * _2 + 32 * _32 + ceil32(_3) + ceil32(_4) + ceil32(_5) + ceil32(_6) + ceil32(_7) + mem[64 * _2 + ... + 256] + 256]",
+      "old": "_25 = mem[64] ... if s >= mem[_25]: ... _345 = mem[_25 + 32 * s + 32]  |  _61 = mem[64] ... _71 = mem[_61 + mem[_61]]",
+      "source": "OffChainRebalance.sol externalRebalance: arrays decoded from the handler's return data, indexed in the loop; getCurrentWeights: abi.decode of the library's return",
+      "issue": "Variables that held the free-memory pointer at an allocation are replaced by the pointer's full symbolic value, a sum of every earlier allocation's size. Array bases and decoded words become 5-10 term sums. 315 lines now exceed 240 characters (old 35), and the text grew 27% in bytes (565 KB -> 718 KB) while losing 2% of its lines.",
+      "rule": "Keep a variable for the value mem[64] held when an object was allocated (its base), and print addresses as base + constant. Substitute the symbolic value of mem[64] only where it is a constant or a single term.",
+      "verified": "text_check run --per-selector 16: 195/195 same in both worlds (readability only)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "revertEnableRebalancing(uint256[]) (unknown98b1708d), revertEnableRebalancingByUser(uint256[]) (unknown0024eb86)",
+      "lines": "991-994, 1363-1366",
+      "decompiled": "mem[0] = stor257[s] / mem[32] = 265 / _141 = mem[64] / mem[64] = .. / mem[_141] = stor265[stor257[s]].length / if stor[sha3(mem[0 len 64])]: mem[0] = sha3(mem[0 len 64]) / mem[_141 + 32] = stor[sha3(mem[0])] / ... = stor[sha3(mem[0]) + 1 len ..]",
+      "old": "if stor265[stor257[s]].length: mem[0] = sha3(stor257[s], 265) / mem[_141 + 32] = stor265[stor257[s]][0] / ... = stor[sha3(sha3(stor257[s], 265)) + 1 len ..]",
+      "source": "OffChainRebalance.sol:574 uint256[] memory amounts = redeemedAmounts[token];",
+      "issue": "Inside the loop, the store at _141 (the old mem[64]) is no longer proven disjoint from the hash scratch words. The mapping read stays raw sha3(mem[0 len 64]) on the line right after the same value prints as stor265[stor257[s]].length, and element 0 and the copy source lose the mapping. sha3(mem[..]) lines 10 -> 18.",
+      "rule": "mem[64] keeps the floor 0x80 through loop headers and joins (every store to it writes a constant >= 0x80 or mem[64] plus a non-negative size). So a store at mem[64] + k never overlaps mem[0..63]: forward the scratch words into the sha3 and print the mapping access.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "revertEnableRebalancing, revertEnableRebalancingByUser, getCurrentWeights, enableRebalance, enablePrimaryTokens, enableRebalanceAndUpdateRecord, enableAndUpdatePrimaryTokens (7 calls)",
+      "lines": "e.g. the handler call after getTokenInformation in each",
+      "decompiled": "static call mem[_161 + ceil32(return_data.size) + 76 len 20] with: args mem[mem[64] len 36]  |  call mem[_84 + ceil32(return_data.size) + 76 len 20].unknown8dc3ec4e(?) with: args address(_9), address(_80)",
+      "old": "_203 = mem[_161 + ceil32(return_data.size) + 64] ... static call address(_203) with: ...",
+      "source": "IHandler(tokenRegistry.getTokenInformation(token).handler).getTokenBalance(..) / getUnderlying(..)",
+      "issue": "The call target, the handler member of the decoded struct, was a named value address(_203). It is now a raw 20-byte memory slice expression on the call line. The args of getCurrentWeights' call improved at the same time.",
+      "rule": "Print mem[a + 12 len 20] as address(mem[a]). Keep the binding of a word that was read into a variable before later memory stores, rather than re-reading it at its use.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "revertEnableRebalancing, revertEnableRebalancingByUser, getCurrentWeights (bound values re-expanded)",
+      "lines": "e.g. the updateTokenListAndRecords encode in revertEnableRebalancing; the getTokenInformation decode",
+      "decompiled": "_167 = mem[64] ... mem[mem[64] + 36] = _167 + 32 * _168 - mem[64] + 96  |  require mem[_161 + mem[_161]] == bool(mem[_161 + mem[_161]]) (next line uses _163)  |  mem[_181] = mem[_161 + _163 + mem[_161 + _163 + 96]]",
+      "old": "mem[_167 + 36] = 32 * _168 + 96  |  require mem[_161 + _163] == bool(..)  |  mem[_181] = _178",
+      "source": "abi.encode of the address[]/uint96[] arguments; abi.decode of the TokenInfo struct",
+      "issue": "Folds the old text made are lost: '_167 - mem[64]' is no longer 0 with no store to mem[64] in between, and words bound to _163/_178/_213 are printed again as their memory expressions next to lines that still use the variable.",
+      "rule": "x = mem[64] with no store to mem[64] in between makes 'x - mem[64]' 0. A load bound to a variable is printed through that variable at every later use of the same unchanged location.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "revertEnableRebalancing(uint256[]), revertEnableRebalancingByUser(uint256[])",
+      "lines": "2 reverts (TransferHelper failure path inside the redeem loop)",
+      "decompiled": "mem[mem[64]] = 0x08c379a0.. / mem[mem[64] + 4] = 32 / mem[mem[64] + 36] = 45 / mem[mem[64] + 68] = 0x5472616e..7472 / revert with mem[mem[64] len 100], 0x616e73666572206661696c65..",
+      "source": "TransferHelper.safeTransfer: require(success && ..., 'TransferHelper::safeTransfer: transfer failed')",
+      "issue": "The Error(string) revert is decoded only for its last word, as 100 raw memory bytes followed by a constant. The same revert reads 'TransferHelper::safeTransfer: transfer failed' in _externalSell, externalRebalance, enablePrimaryTokens and enableAndUpdatePrimaryTokens.",
+      "rule": "When every word of the revert data is a known stored value, decode the whole Error(string) payload, not only the words written after the last unresolved store.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "Many calls gain names and decoded args: setPaused, getTokens, tokenRegistry, vault, totalSupply, updateRecords, balanceOf, and delegate library calls as unknownXXXXXXXX(?) with Array(..) args. Raw-memory call lines 217 -> 160. Three TransferHelper reverts and the custom error 0x479e9def are decoded. getSwapData returns 'Array(..), Array(..)' instead of raw memory, so one encoding loop is gone. P6 21 -> 0 and P4 7 -> 0. The safeTransfer payload copy loops have the constant bound 68.",
+  "patterns": {"P1": 0, "P2": 160, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 6822 lines, reviewed by structure. A per-function comparison of calls, logs, storage writes, reverts, returns and whiles found the same sequences in every changed function apart from names and decoded reverts; 4544c93d/ec0ddfcd only show the difflib alignment of repeated blocks. The control skeletons (if/else/while/call/log/return) match line for line in all 10 functions; only conditions and names differ. Read in full: getSwapData, getCurrentWeights, externalRebalance, revertEnableRebalancing (ByUser has the same changes), and the enableAndUpdatePrimaryTokens loop over the calldata address[] (now bounded by cd[_param1 + 4] instead of mem[128], which held it). Regression 1 is the dominant effect of the new free-memory-pointer tracking on this contract: in c00204 it removed raw memory, here it mostly lengthens addresses.",
+  "summary": "No semantic change (text_check 195/195), but readability regressed. Allocation bases are substituted by long sums (571 lines with >= 4 ceil32 terms, +27% bytes), redeemedAmounts reads in the two revertEnableRebalancing functions fall back to sha3(mem[0 len 64]), and 7 call targets became raw memory slices. Improvements: many calls and reverts now named or decoded, P6/P4 gone, P2 217 -> 160."
+}

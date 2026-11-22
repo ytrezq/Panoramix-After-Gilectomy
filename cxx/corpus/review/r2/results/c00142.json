@@ -1,0 +1,42 @@
+{
+  "id": "c00142",
+  "text_changed": true,
+  "lines_old": 10756,
+  "lines_new": 10259,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "Immutables are still 0 (addressProvider calls target 0x0)."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "The concatenated length is now 'mem[_12 + 64] = s + 6' with 'if s + 6 >= 33' (getPoolState 750-757 and its copies). Still: basisPointsRate()'s selector in decimal (3714338674, 4 lines) and the '-8 * s + 208' shift. toSmallString's word is now split, see regression 2."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getPoolState(address), getMarketData(address,address), getMarketData(address), unknown3c77fd5d (getRateKeeperState)",
+      "lines": "e.g. 978-990, 1015-1017, 1724-1726, 4643-4645; 250-330",
+      "decompiled": "mem[_79 + ceil32(_2) + ceil32(_3) + ... + ceil32(_16) + ceil32(_81) + ceil32(_88) + 64] = 0x4c19386c...  |  if _79 + ceil32(_2) + ... (122 ceil32 terms, 1832 chars) ... > 18446744073709551615: revert with Panic(65)",
+      "old": "_86 = mem[64] / mem[mem[64]] = 0x4c19386c... / require _86 + mem[_86] + 31 <′ return_data.size + _86",
+      "source": "BaseCompressor/MarketCompressor: a chain of about 20 view calls on the pool (decimals(), totalSupply(), ... totalBorrowed()), each result decoded into memory",
+      "issue": "Each mem[64] read held by a variable is now replaced by its value: the sum of the ceil32 sizes of every earlier return. The never-read selector stores, return-data copies and allocation checks of the call chain now carry addresses of up to 16 terms and conditions of up to 122. Lines with 10 or more ceil32 terms went from 2 to 168, lines over 240 chars from 34 to 173, and the text grew 9% in characters (getPoolState +69%) while losing 500 lines.",
+      "rule": "When the free-memory pointer's value is a sum of more than a few terms, keep the variable that holds it ('b = mem[64]') and address relative to it, or print mem[64] itself. Writes to memory that no later read sees (selector scratch, return-data copies, mem[64] bumps) can be dropped.",
+      "verified": "reading only (counts by script over old and new texts)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getPoolState, getMarketData x2 (_appendPostfix: toSmallString of contractType + '::USDT')",
+      "lines": "757, 1466, 4385",
+      "decompiled": "_42 = (mem[_12 + s + 70 len 26] << 48 | 64022214034516) << -8 * s + 208",
+      "old": "_42 = mem[_35 + mem[_35]] << -8 * mem[_35] + 256",
+      "source": "BaseCompressor.sol:56 string.concat(contractType.fromSmallString(), '::USDT').toSmallString()",
+      "issue": "The loaded word is split into a 26-byte memory slice and the known 6-byte tail, and the tail '::USDT' prints as the decimal 64022214034516.",
+      "rule": "Print a constant byte string merged into a word as hex (0x3a3a55534454) or as a string. Splitting a loaded word is only worth it when the whole word becomes known.",
+      "verified": "reading only (64022214034516 = 0x3a3a55534454 = '::USDT')"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "77 calls are now named (P2 254 -> 177 lines): version(), contractType(), serialize(), symbol(), name(), decimals(), totalSupply(), pool(), getRates(address[]) with its Array argument, and others. Their results read as ext_call.return_data[0]. P6 is gone. The ~15 struct-array allocations no longer peel a first element (P3): each is a do-while ('while True: ... if t != 1: continue / break'). The returns of getPoolState, getLossPolicyState and getInterestRateModelState are listed word by word instead of 'return memory'. The fromSmallString length is used directly ('while idx < s').",
+  "patterns": {"P2": 177},
+  "notes": "Very long diff (4686 lines), reviewed by structure: the four small functions line by line, the four big ones by grouping changed forms (calls, returns, reverts, loops, allocation checks). No control-flow, call-target or loop change other than the P3 rotation fix, and every loop is kept. getMarkets (unknown0736779d) is barely affected (-2% chars) because its pool reads sit in a loop, where mem[64] stays symbolic. The pack has no source; MarketCompressor/BaseCompressor were read as in round 1.",
+  "summary": "Calls are named and the rotated allocations fixed. But substituting the free-memory pointer turns the long call chains of getPoolState/getMarketData into lines of up to 1832 characters (medium), and '::USDT' now prints as a decimal (low)."
+}

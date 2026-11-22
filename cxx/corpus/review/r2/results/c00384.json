@@ -1,0 +1,17 @@
+{
+  "id": "c00384",
+  "text_changed": true,
+  "lines_old": 145,
+  "lines_new": 139,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "semantics", "status": "fixed", "note": "gasLeftBefore is now read inside the loop, after loading calls[i] and before the callData copy and the call (_82 = gas_remaining). The second read follows the return-data copy (_104 = gas_remaining), and the result stores _82 - _104: per-call gas, as the source and round 1's disassembly (GAS at 0x158 and 0x1c1) show. The hoisted '_1 = gas_remaining' at the entry is gone."},
+    {"n": 2, "kind": "loop", "status": "partly", "note": "The Result[] allocation is no longer rotated ('while True: ... if t != 1: ...; continue; break', with no first element peeled). The return encoding is still a 'while True' whose exit is the return, with a length 'u - mem[64]'."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "The GAS fix corrects round 1's only high finding. The callData decode is resolved against the struct's base (_8 + 96 instead of _23 = mem[64]), the call's arguments read 'mem[mem[64] len _89]', the P3 allocation loop is gone.",
+  "patterns": {"P2": 1, "P3": 0, "P7": 3},
+  "notes": "Diff (180 lines) read in full; only multicall changed. Checked against UniswapInterfaceMulticall.multicall: gasLeftBefore = gasleft() before the call statement, gasUsed = gasLeftBefore - gasleft() after it (after ret is copied). The source loop 'while s < _70' is present. Verified by reading only, consistent with round 1's disassembly.",
+  "summary": "No regression: round 1's high finding (the GAS read hoisted out of the loop) is fixed, with both GAS reads now placed where the bytecode makes them, and the rotated allocation loop is gone."
+}

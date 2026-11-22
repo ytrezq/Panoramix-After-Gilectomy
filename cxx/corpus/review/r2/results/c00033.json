@@ -1,0 +1,54 @@
+{
+  "id": "c00033",
+  "text_changed": true,
+  "lines_old": 3641,
+  "lines_new": 3470,
+  "changed_functions": 22,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "partly", "note": "The popFront loop is no longer rotated in the 8 setters and relay: 'while True: popFront ... if _12 != sha3(call.data[0 len calldata.size]): continue / break'. The deque begin/end are still raw halves of stor4 (P15)."},
+    {"n": 2, "kind": "artifact", "status": "still", "note": "The immutables still read 0 (const token = 0, static call 0x0.getPastVotes)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "execute(address[],uint256[],bytes[],bytes32), queue(address[],uint256[],bytes[],bytes32), cancel(address[],uint256[],bytes[],bytes32)",
+      "lines": "execute 1551-1721, queue 2253-2550, cancel 3044-3385",
+      "decompiled": "mem[64] = t / mem[0] = sha3(mem[_29 + 32 len mem[_29]]) / if uint8(proposalProposer[concat(mem[0])].field_512): mem[t] = 0x08c379a0... mem[t + 68] = 0x476f7665... revert with memory from mem[64] len t - mem[64] + 132 / static call 0x0 with: args mem[mem[64] len t - mem[64] + 4] / revert with mem[mem[64] len 100], 0x6c00... / log ProposalExecuted(uint256 id=mem[mem[64]])",
+      "old": "mem[64] = v / if uint8(proposalProposer[sha3(mem[_29 + 32 len mem[_29]])].field_512): revert with 'Governor: proposal not successful' / static call 0x0.clock() / log ProposalExecuted(uint256 id=_31)",
+      "source": "Governor.execute/queue/cancel: hashProposal(...) then require(state(proposalId) == Succeeded/Queued, 'Governor: proposal not successful'); clock(); emit ProposalExecuted(proposalId)",
+      "issue": "After the hashProposal encoding loop ends with 'mem[64] = t', later reads of mem[64] are no longer resolved to t, even right after that store. All 21 string reverts of the three functions (proposal not successful, unknown proposal id, SafeCast) became raw Error(string) stores. clock() and isOperationDone lost their names (unnamed calls 13 -> 19), the ProposalExecuted/Queued/Canceled ids print as mem[mem[64]], and the proposalProposer keys became concat(mem[0]) (P4 3 -> 12).",
+      "rule": "A store mem[64] = e makes every later read of mem[64], until the next store to mem[64], equal to e, whatever e is (a loop-exit variable included). Substitute it, then fold e - mem[64] to 0, so the Error(string), call data and log buffers at e resolve as before.",
+      "verified": "reading only; text_check run --per-selector 16: 0 different (835 calls)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "hashProposal(address[],uint256[],bytes[],bytes32) and its inlinings in execute, queue, propose, cancel",
+      "lines": "669, 692-697, 1513, 2216, 2860, 3007, 3183",
+      "decompiled": "_10 = mem[64] ... mem[mem[64] + 64] = _10 + 32 * _11 - mem[64] + 160 ... mem[64] = v / mem[v] = sha3(mem[_29 + 32 len mem[_29]]) / return memory from mem[64] len v - mem[64] + 32",
+      "old": "mem[mem[64] + 64] = 32 * mem[128] + 160 ... mem[v] = sha3(mem[mem[64] + 32 len mem[mem[64]]]) / return memory from v len 32",
+      "source": "Governor.hashProposal: keccak256(abi.encode(targets, values, calldatas, descriptionHash))",
+      "issue": "A variable holding mem[64] and mem[64] itself appear in one expression, with no store in between, and are not cancelled. The return length v - mem[64] + 32 comes right after mem[64] = v and is not folded to 32.",
+      "rule": "x = mem[64] with no store to mem[64] in between gives x - mem[64] = 0; after mem[64] = v, v - mem[64] = 0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "castVoteWithReasonAndParams(uint256,uint8,string,bytes)",
+      "lines": "1364-1402",
+      "decompiled": "_241 = mem[ceil32(params.length) + 160] / while idx < _241: mem[idx + mem[64] + 192] = mem[idx + ceil32(params.length) + 192] ... / while idx < params.length: mem[idx + ceil32(_241) + mem[64] + 224] = mem[idx + 160] / log VoteCastWithParams(..., string reason=Array(len=_241, data=mem[mem[64] + 192 len ceil32(_241)]), bytes params=Array(len=params.length, data=mem[...]))",
+      "old": "log VoteCastWithParams(..., string reason=Array(len=reason.length, data=reason[all], ..., params.length, params[all], ...), bytes params=ceil32(reason.length) + 192)",
+      "source": "GovernorCountingFractional/Governor._castVote: emit VoteCastWithParams(account, proposalId, support, weight, reason, params) / emit VoteCast(...)",
+      "issue": "The two arguments are now separated correctly (the old text nested params inside reason). But the copies of reason and params into the event buffer show as 3 word-copy while loops (P7), the data as raw buffer slices, and reason's length as mem[ceil32(params.length) + 160], where the old text named reason[all], params[all] and reason.length.",
+      "rule": "A word-copy loop from a memory copy of calldata bytes into a buffer is a copy of that calldata; print the log argument as the source (reason[all]) and drop the loop.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Dead branches are folded: castVoteBySig's VoteCastWithParams branch (its params are always empty) and its 3 zero-trip copies are gone. In castVote*, two equal 'vote not currently active' tails are merged, an always-reverting arm no longer nests the rest, and uint128 weights are uint128(_1) instead of return_data[16 len 16]. isOperationPending, clock() and isOperationDone are named in state and castVote*. Relay's revert reads 'Governor: relay reverted without message'. VoteCastWithParams' two dynamic arguments are decoded right. Dead lines after reverts are dropped, and P6 10 -> 0.",
+  "patterns": {"P1": 0, "P2": 19, "P3": 0, "P4": 12, "P5": 0, "P6": 0},
+  "notes": "Reviewed by structure (3667-line diff, 22 changed functions): the counts of calls, logs, requires, reverts and whiles per function were compared; every while was classified (the 4 source loops are still while: binary search, _beforeExecute, _isValidDescriptionForProposer, popFront); the castVote, setVotingDelay, relay, unknown4bf5d7e9 and hashProposal diffs were read in detail, and the reverts, calls and logs of execute old/new. The one log fewer in castVoteBySig is a dead branch. Each castVote* lost one require, a dead line after a revert. The new pack header gives P2 19 and P4 12; P1, P3, P5, P6 come from regexes.",
+  "summary": "One medium regression: in execute, queue and cancel, the free pointer after the hashProposal encoding loop is no longer resolved, so 21 string reverts, two call names and three event ids fell back to raw memory. Copy loops also reappeared in castVoteWithReasonAndParams' event. Elsewhere it improved: dead branches folded, popFront un-rotated, more calls named, and the two-string event decoded right."
+}

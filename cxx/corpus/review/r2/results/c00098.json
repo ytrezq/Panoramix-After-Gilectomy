@@ -1,0 +1,41 @@
+{
+  "id": "c00098",
+  "text_changed": true,
+  "lines_old": 2630,
+  "lines_new": 2335,
+  "changed_functions": 18,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "partly",
+      "note": "copy whiles 24 -> 17: the Error(string) re-encoding loops are gone (15 raw Error reverts -> 0) and some lengths fold (while idx < 36), but the bytes/string word-copy loops in initialize/changeSetting/disputeAction remain"
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getChallenge(uint256), getAction(uint256)",
+      "lines": "528-540 (getChallenge), 653-664 (getAction)",
+      "decompiled": "return field_0, address(..), uint64(..), 320, field_768, ..., field_2560, stor[sha3(_challengeId, 8) + 2].length, mem[ceil32(..) + 576 len 32 * (Mask(250, 5, len) / 32) + 32]",
+      "old": "return field_0, address(..), uint64(..), Array(len=stor[sha3(_challengeId, 8) + 2].length, data=mem[ceil32(..) + 576 len 32 * (Mask(250, 5, len) / 32) + 32]), field_768, ..., field_2560",
+      "source": "Agreement.sol getChallenge/getAction: return (..., challenge.context / action.context (bytes), ...)",
+      "issue": "On the path where the length is not a multiple of 32, the returned bytes was decoded as Array(len, data) at its place; it is now the raw ABI form (head offset 320/288, then length and data appended), as on the other path. Exact, but the reader must decode the ABI.",
+      "rule": "When the data length equals ceil32(len) under the path condition (here len % 32 != 0 makes floor32(len) + 32 == ceil32(len)), print the dynamic return value as Array(len, data); use the branch condition when proving the encoding.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P6 20 -> 0 (whole-byte hex). Dynamic call arguments now print as Array(len=32, data=..)/Array(len=0, data='') (canPerform-style ACL calls, 7 more Array). All 15 raw Error(string) reverts with their copy loops are now decoded early reverts ('AGR_TOKEN_TRANSFER_FAILED', 'AGR_SENDER_CANT_CHALLENGE_ACTION', 'AGR_INVALID_SETTLEMENT_OFFER'), whiles 24 -> 17. rule shrank 520 -> 353 lines and reads as if _ruling == 4 (accept) / elif == 3 (reject) / else (void), with the same calls (onDisputableActionAllowed 1, Rejected 4, Voided 5) and events. Two event payloads decoded; a copy length folds to 36. 2630 -> 2335 lines.",
+  "patterns": {
+    "P1": 0,
+    "P2": 14,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff 1887 lines; 18 changed functions, 12 of them one-line display changes (P6 hex, Array args). The four big ones (disputeAction, settleAction, challengeAction, rule) reviewed by skeleton comparison; rule's new nesting checked against Agreement.sol rule(): accept on ruling 4, reject on 3, void otherwise, each token-transfer failure reverting with AGR_TOKEN_TRANSFER_FAILED before the callbacks, as the old shared tail did. disputeAction's closeEvidencePeriod-style call stays raw (args mem[.. len 64]), as before.",
+  "summary": "Clearer: every raw Error(string) revert is decoded, 7 copy loops gone, rule's three ruling branches read directly, P6 gone. One low regression: getChallenge/getAction return their bytes field in raw ABI form instead of Array(len, data) on one path."
+}

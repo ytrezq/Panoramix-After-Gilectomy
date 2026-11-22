@@ -1,0 +1,21 @@
+{
+  "id": "c00387",
+  "text_changed": false,
+  "lines_old": 18,
+  "lines_new": 18,
+  "changed_functions": 0,
+  "old_findings": [],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "None (the text did not change).",
+  "patterns": {
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "No diff file, and the old and new texts are byte-identical (checked with cmp). Every round-1 finding stays as it was.",
+  "summary": "Unchanged text; no regression. Round 1: Trivial and exact: the only function with code returns at its first statement, which the text shows as 'stop'."
+}

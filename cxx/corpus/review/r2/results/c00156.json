@@ -1,0 +1,43 @@
+{
+  "id": "c00156",
+  "text_changed": true,
+  "lines_old": 3145,
+  "lines_new": 2873,
+  "changed_functions": 11,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The bonding-curve polynomials are unchanged (calcPrice did not change, and the buy/sell functions still distribute the products)."},
+    {"n": 2, "kind": "naming", "status": "still", "note": "The supply mapping is still 'exists'."},
+    {"n": 3, "kind": "loop", "status": "still", "note": "migrateBatchMint/Burn still use 'while True: if s >= cd[_param1 + 4]: ...' (1054, 1414)."}
+  ],
+  "regressions": [
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "def storage; unknown46fdc6ff(uint256) (getter), unknowncca1bab6(uint256,address) (setter), the buy/sell functions",
+      "lines": "23, 66, 292, 2012-2030, 2377-2395",
+      "decompiled": "stor455 is mapping of struct of 1 slot at storage 455 / return address(stor455[_param1].field_0) / address(stor455[_param1].field_0) = _param2",
+      "old": "stor455 is mapping of address at storage 455 / return stor455[_param1] / stor455[_param1] = _param2",
+      "source": "FansCreateCoreUpgradeable: mapping(uint256 => address) projectFeeRecipient (setter and getter)",
+      "issue": "A plain mapping of addresses is now typed as a one-slot struct, because the split call arguments below read it as uint128(field_32) and uint32(field_0). The getter and setter gain field_0 and an address() cast.",
+      "rule": "Do not derive storage fields from byte pieces that only come from splitting one stored word across memory words; merge the pieces first (see the new finding).",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "unknowna792b201 (sellKeys), unknownd00b328e (buyKeys), unknown7df83ee2 (publishAndBuyKeys)",
+      "lines": "1942, 1982, 2030, 2347, 2395, 2796",
+      "decompiled": "call paymentToken.transfer(address recipient, uint256 amount) with: args Bytes(28, uint128(stor455[concat(mem[480])].field_32)), Bytes(4, uint32(stor455[concat(mem[480])].field_0)), _6 | args Bytes(28, protocolFeeRecipient >> 32), Bytes(4, uint32(protocolFeeRecipient)), _5",
+      "source": "SafeERC20.safeTransfer(paymentToken, recipient, amount): abi.encodeWithSelector(transfer.selector, to, value)",
+      "issue": "These 6 calls are now named (they were raw memory, P2), but the address argument is cut at the 32-byte boundary of the buffer into a 28-byte and a 4-byte piece. The unaligned word at offset 36 is split there.",
+      "rule": "When adjacent byte pieces of a call buffer are consecutive slices of one value (Bytes(28, v >> 32), Bytes(4, uint32(v)) with v < 2^160), merge them into the one ABI word address(v) before printing the arguments.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "Revert strings replace raw Error(string) buffers (e.g. 'ERC1155: burn from the zero address', 'burn amount exceeds totalSupply'), the balance check folds into SafeMath.sub2, and TransferSingle shows its fields. Dominated Panic(50) checks on singleton arrays of known length are folded. The transfer calls are named, and 18 revert-copy loops are gone (P7). P2 11 -> 4, P6 31 -> 0.",
+  "patterns": {"P1": 0, "P2": 4, "P3": 0, "P4": 14, "P5": 0, "P6": 0},
+  "notes": "Reviewed by structure (1704-line diff, 11 functions): calls, logs and requires are equal in number in every function. The 8 source loops still show (toHexString x2, batch loops, supply loops). The reverts that disappeared are folded dominated Panic(50) checks and one check moved into SafeMath.sub2. P4 9 -> 14 comes from the split stor455 reads. In migrateBatchMint the supply key went from exists[_78] to exists[concat(mem[_41 + 32 * t + 32])] (minor). unknown6d3839bb's Error(string) reverts after its loop are still raw (now with a folded length), and its onERC1155Received call shows the selector as mem[mem[64] len 4], partly decoded instead of fully raw.",
+  "summary": "One low naming regression (stor455 typed as a struct) and one new medium finding: 6 newly named transfer calls print their address argument as two byte pieces. Otherwise reverts, events and calls are much more readable."
+}

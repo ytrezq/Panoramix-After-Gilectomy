@@ -1,0 +1,66 @@
+{
+ "id": "c00190",
+ "text_changed": true,
+ "lines_old": 5345,
+ "lines_new": 5055,
+ "changed_functions": 6,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "fixed",
+   "note": "No 'call X.mem[_N len 4]' left (28 -> 0): maker transferFrom, Permit2 transferFrom(address,address,uint160,address), WETH transfer are named; postInteraction prints as unknownadf38ba1(?) with its exact raw words."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "The _fill tail is still printed once per amount path (fillOrder 1060 lines, fillOrderArgs 2122)."
+  },
+  {
+   "n": 3,
+   "kind": "simplification",
+   "status": "still",
+   "note": "Unchanged lines."
+  },
+  {
+   "n": 4,
+   "kind": "artifact",
+   "status": "still",
+   "note": "Immutables still read as 0."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "fillContractOrderArgs, fillOrderArgs (unknown56a75868, unknownf497df75), and the static amount-getter calls of the fills",
+   "lines": "e.g. 1236-1262 of the new text (preInteraction), 1693-1709",
+   "decompiled": "_244 = mem[64]\nmem[mem[64]] = 0x0986bdd5...\nmem[mem[64] + 4] = _param1\n...\n_268 = gas_remaining\ncall _240 with:\n    gas _268\n    args mem[_244 len ceil32(_8) + ceil32(_239) + 548]",
+   "old": "_242 = mem[64]\nmem[mem[64]] = 0x986bdd5...\nmem[_242 + 4] = _param1\n...\ncall _238 with:\n    args mem[_242 len ceil32(_8) + ceil32(_237) + 548]",
+   "source": "OrderMixin._fill: IPreInteraction(listener).preInteraction(order, extension, orderHash, msg.sender, makingAmount, takingAmount, remainingMakingAmount, data)",
+   "issue": "A variable holding mem[64] is no longer used for the writes that follow: they print as mem[mem[64] + k] (128 -> 521 such lines) while the call's argument slice still reads mem[_244 len ...], so the call no longer visibly covers the words written for it.",
+   "rule": "While '_N = mem[64]' holds (no write to mem[64] in between), print every address of that span with the same name, as before (mem[_N + k]).",
+   "verified": "reading only (text_check of the execution checks unaffected: addresses are equal)"
+  }
+ ],
+ "new_findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "fillContractOrder, fillOrder (unknowncc713a04, unknown9fda64bd)",
+   "lines": "4 places, e.g. fillContractOrder +70-73",
+   "decompiled": "if SafeMath.div(_param6 + _14 * _param7 - 1, _param6) * uint184(_param11) / uint184(_param11) != SafeMath.div(_param6 + _14 * _param7 - 1, _param6) and uint184(_param11):\n    revert with Panic(17)\nif SafeMath.div(...) * uint184(_param11) > SafeMath.mul(_14, _param10):\n    revert with MakingAmountTooLow()",
+   "source": "OrderMixin.sol _fill: if (makingAmount * amount < threshold * takingAmount) revert MakingAmountTooLow()",
+   "issue": "The SafeMath order fix makes the order of the two checked products explicit (one can fail with Panic(18), the other with Panic(17)), but prints the first product's overflow test as the raw 'a * b / b != a and b' idiom and recomputes the division three times.",
+   "rule": "To fix the order of checked operations, bind the first one to a variable in a statement before the expression (_t = SafeMath.mul(u, SafeMath.div(...)); if _t > SafeMath.mul(...)) instead of expanding its overflow test.",
+   "verified": "reading only"
+  }
+ ],
+ "improvements": "51 copy-then-revert blocks became 'revert with ext_call.return_data[0 len return_data.size]', call results read as ext_call.return_data[0], and 'if ext_call.success: ... else: revert' became guards. 28 transfer/postInteraction calls are named (finding 1). OrderFilled's hash and the fill returns no longer read from memory; simulate's SimulationResults revert shows the bytes length. fillContractOrderArgs 962 -> 884 lines, fillOrderArgs 2343 -> 2122.",
+ "patterns": {
+  "P2": 25
+ },
+ "notes": "Reviewed by structure (2715-line diff, 5 fill/simulate functions). Calls, logs, requires and ifs per function unchanged; the extra 2 Panic(17) reverts in fillContractOrder and fillOrder are the order fix above. The 6 raw 'call address(_param5) with: args mem[mem[64] len ...]' taker transfers were already raw (P2) in round 1. Two calls now read 'gas _N' from a separate '_N = gas_remaining' line (GAS fix), exact but one line longer.",
+ "summary": "No semantic regression; one low readability regression: writes before calls print as mem[mem[64] + k] while the call reads mem[_N len ...]. The selectors are now resolved, return-data reverts and results are direct, and the fill functions are shorter; the duplicated _fill tail remains."
+}

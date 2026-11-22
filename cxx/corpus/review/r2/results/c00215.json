@@ -1,0 +1,23 @@
+{
+ "id": "c00215",
+ "text_changed": true,
+ "lines_old": 1808,
+ "lines_new": 1553,
+ "changed_functions": 12,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "The copy-and-pad loops, dead 'while v < 18' and impossible branches are gone: the SafeMath64 checks print 'revert with MATH_SUB_UNDERFLOW / MATH_MUL_OVERFLOW' or a new SafeMath.sub helper (whiles 6 -> 1, the vesting loop). Left: the dead string allocations (mem[_36] = 18; mem[_36 + 32] = 'MATH_SUB_UNDERFLOW') before each check, and two arms that share one raw tail 'mem[mem[64] + 68] = mem[mem[64] + 68 len 18] << 112 / revert with memory from mem[64] len 100'."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "spendableBalanceOf, transferableBalance and onTransfer 191/191/208 -> 106/106/122 lines with the one source loop kept and 15 string-copy loops gone. forward reverts with the return data directly and with 'EVMRUN_EXECUTOR_INVALID_RETURN'; revokeVesting's hasPermission shows its bytes argument as Array(len=32, data=address(_holder)). P6 37 -> 0.",
+ "patterns": {
+  "P2": 8
+ },
+ "notes": "Reviewed function by function (1186-line diff, 12 functions; the vesting functions moved in the text and were compared by body). Calls, logs, returns and storage writes unchanged. issue, burn, mint, assign, assignVested changed only in hex display.",
+ "summary": "No regression. The vesting functions lost their revert-string copy loops and are half as long; dead string allocations and one shared raw revert tail remain."
+}

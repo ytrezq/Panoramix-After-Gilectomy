@@ -1,0 +1,55 @@
+{
+  "id": "c00040",
+  "text_changed": true,
+  "lines_old": 4652,
+  "lines_new": 4156,
+  "changed_functions": 9,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "worse", "note": "The loop-carried condition variable is gone, but the four _addPaymentToList loops are now 'while True: _c = s and due >= ...; if not _c: <rest of the function> stop; t = s; s = next'. The condition is still not in the header, and the body now holds the whole continuation (see regression 1)."},
+    {"n": 2, "kind": "loop", "status": "still", "note": "_advanceGlobalPaymentAccounting is still 'while True' with an exit test and SSA copies at break (705, 917, 1200, 1481, 1991, 2325, 2931, 3557)."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "Distributed products and 1000000000000 * 10**18 remain; '-1 *' lines 75 -> 86, leading unary minus 59 -> 69."}
+  ],
+  "regressions": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "removeLoanImpairment (unknown1cd8d07b), fund, acceptNewTerms (unknownfc1aa82f), claim: inlined _addPaymentToList",
+      "lines": "1048-1093, 2215-2268, 3389-3508, 4046-4155",
+      "decompiled": "while True: / _248 = s and mem[mem[64] + 122 len 6] >= uint48(stor13[s].field_48) / if not _248: / ...40-120 lines: list insert, payments write, logs, call... / stor0 = 1 / stop / t = s / s = uint24(stor13[s].field_24) / continue",
+      "old": "_248 = uint24(stor1 >> 24) and mem[_221 + 122 len 6] >= ... / while _248: / _248 = ...; t = s; s = uint24(stor13[s].field_24); continue / if not t: ... (continuation after the loop)",
+      "source": "LoanManager.sol:879 while (next_ != 0 && paymentDueDate_ >= sortedPayments[next_].paymentDueDate) { current_ = next_; next_ = sortedPayments[current_].next; } followed by the rest of _addPaymentToList and the caller",
+      "issue": "The code after the loop is printed inside the loop, as the exit branch ending in 'stop' (each of these 4 functions gained a stop). A 2-line loop body now spans up to 110 lines, and the reader must notice that the loop leaves only through that branch. Semantics are kept (calls, logs and writes per function are unchanged in number).",
+      "rule": "When a branch inside a loop body never returns to the loop header and every path through it ends the function, print the loop as 'while cond: body' and the branch's code after the loop. Never nest a whole continuation inside the body.",
+      "verified": "reading only (count of calls/logs/storage writes identical old/new per function)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "acceptNewTerms(address,address,uint256,bytes[],uint256) (unknownfc1aa82f)",
+      "lines": "3407-3415, 3428-3476, 3480-3501, 3509-3516",
+      "decompiled": "mem[mem[64]] = 0x08c379a0... / mem[mem[64] + 36] = 9 / mem[mem[64] + 68] = 0x4c4d3a55494e54343800... / revert with memory from mem[64] len 100 ... log 0x64020fa3...: mem[mem[64] len 96], _382, ... / log 0x76074101...: mem[mem[64] len 96] / uint24(stor13[uint24(_407 + 1)].field_0) = mem[_428 + 29 len 3]",
+      "old": "if _N > 281474976710655: revert with 'LM:UINT48' ... log 0x64020fa3...: _N, _N, block.timestamp, _N, ... / log 0x76074101...: uint48(_N), ..., ... / uint24(stor13[uint24(_N + 1)].field_0) = t",
+      "source": "LoanManager.sol _addPaymentToList / _queueNextPayment: require(... 'LM:UINT48'), PaymentInfo({...}) with _uint24/_uint48/_uint128/_uint112 casts, emit PaymentAdded(...), emit IssuanceParamsUpdated(...)",
+      "issue": "Inside the nested exit branch, memory is no longer resolved. Five Error(string) reverts (LM:UINT48, LM:UINT24, LM:UINT128 x2, LM:UINT112) print as hex memory writes plus 'revert with memory'. Two events print raw memory, and the SortedPayment/PaymentInfo copies read 3-byte memory slices instead of t, s, _388, _394. Scratch writes 38 -> 54, memory writes 157 -> 211, lines 579 -> 644.",
+      "rule": "Inside a loop whose body does not write mem[64] on the paths back to the header, keep the pre-loop value of the free-memory pointer (not only a constant floor). Then Error(string) data, event data and struct copies after the loop resolve as before.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "claim(uint256) (inlined _removePaymentFromList, in the nested exit branch)",
+      "lines": "4115-4129",
+      "decompiled": "mem[0] = stor8[caller] / ... _595 = uint24(stor13[concat(mem[0])].field_0) / if uint24(stor13[concat(mem[0])].field_24): mem[0] = uint24(stor13[concat(mem[0])].field_24); uint24(stor13[concat(mem[0])].field_0) = _595",
+      "old": "_595 = uint24(stor13[stor8[caller]].field_0) / if uint24(stor13[stor8[caller]].field_24): uint24(stor13[uint24(stor13[stor8[caller]].field_24)].field_0) = uint24(stor13[stor8[caller]].field_0)",
+      "source": "LoanManager.sol _removePaymentFromList: sortedPayments[next].previous = previous",
+      "issue": "Mapping keys are read back from the keccak scratch word mem[0], which is reassigned between uses: 5 new P4 lines (P4 4 -> 9). The old text used stor8[caller] directly. Equivalent, but the reader must track mem[0] as a variable.",
+      "rule": "Resolve sha3 scratch reads to the value last stored there and print the key expression; a mem[0] that is only a hash input is never shown as a variable.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Raw-memory calls 52 -> 16 (pool(), skim, borrower(), isBorrower, principal(), collateralAsset(), balanceOf, mapleGlobals(), mapleTreasury(), createInstance...). triggerDefault's P7 copy for createInstance became 'Array(len=96, data=this.address, ..., fundsAsset), loan << 96' (whiles 26 -> 25), and the other copy loops have the constant bound 68. claim, triggerDefault, finishCollateralLiquidation, impairLoan and fund decode all their revert strings (memory reverts 13+5+3+2+1 -> 0) and event data (claim 9 memory logs -> 0). Some revert arms are flattened. P6 32 -> 0.",
+  "patterns": {"P1": 0, "P2": 16, "P3": 0, "P4": 9, "P5": 0, "P6": 0},
+  "notes": "Diff of 4,016 lines, reviewed by structure plus the loop regions in full. Calls, logs, storage writes and reverts are unchanged in number in all 9 changed functions. Each function's 'return' +1 is the stop now inside the _addPaymentToList loop. The ifs -3/-4 are flattened arms and copy-loop tails. Dropped free-pointer bumps (removeLoanImpairment +224, impairLoan +96) are consistent: later addresses are rebased on the unbumped mem[64], and no displayed write clobbers the struct before its reads. The decimal selector 2835717307 (transfer) was already in the old text.",
+  "summary": "Many calls, reverts and events are now decoded, and one P7 copy is resolved. But the four _addPaymentToList loops now nest the whole function continuation inside the loop. In acceptNewTerms this also loses the memory resolution of five revert strings, two events and the struct copies (medium regressions)."
+}

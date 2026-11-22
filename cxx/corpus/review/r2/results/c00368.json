@@ -1,0 +1,38 @@
+{
+  "id": "c00368",
+  "round1": true,
+  "text_changed": true,
+  "abi_functions": 7,
+  "reviewed": 7,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {},
+  "findings": [
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "baseOracleHook(), manager(), poolId() and every call",
+      "lines": "1, 14-22, 24-39, 41-67, 69-163",
+      "decompiled": "const unknown06778757 = 0 / const manager = 0 / const poolId = 0 / call 0x0.unknown4f413237(?) with: args observationCardinalityNext, 0 / static call 0x0.unknown1e2eaeaf(?) with: args sha3(0, 6)",
+      "source": "V3TruncatedOracleAdapter.sol: BaseOracleHook public immutable baseOracleHook; IPoolManager public immutable manager; PoolId public immutable poolId",
+      "issue": "solc immutables read as 0 in the pre-deployment runtime code: the three getters return 0, every call goes to address 0, and the pool-state slot hashes poolId 0 (sha3(0, 6) for StateLibrary's POOLS_SLOT 6). Not a decompiler error.",
+      "rule": "None (input artifact).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "slot0()",
+      "lines": "55-67",
+      "decompiled": "require ext_call.return_data[0] == ext_call.return_data[30 len 2] ... return address(_1), int24(uint24(_1 >> 160)), Bytes(30, 0), ext_call.return_data[30 len 2], Bytes(30, 0), ext_call.return_data[62 len 2], Bytes(30, 0), ext_call.return_data[94 len 2], 0, 1",
+      "source": "(observationIndex, observationCardinality, observationCardinalityNext) = baseOracleHook.stateById(poolId); feeProtocol = 0; unlocked = true;",
+      "issue": "Each uint16 return value is printed as a zero prefix and a 2-byte slice, so the comma-separated return list shows 10 items for the 7 returned words, and the uint16 range checks read as slice comparisons.",
+      "rule": "A 32-byte word whose high bytes are known zero and whose low n bytes are a slice of word w prints as uintN(w) (here uint16(ext_call.return_data[0])); never split one returned word into several list items.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Source read from the file, since the pack found no AST definitions. slot0: extsload(sha3(poolId, 6)) -> sqrtPriceX96 = address(_1), tick = int24(uint24(_1 >> 160)), then stateById(poolId) with 3 uint16 checks, then feeProtocol 0 and unlocked 1: exact. observations: the 'index > type(uint16).max' custom error (0x02a3e605) and observationsById(poolId, uint16(index)) with its 5 checked return words, returning (rd[0], rd[96], 0, rd[128]): exact. increaseObservationCardinalityNext forwards (value, poolId): exact. observe: the calldata uint32[] is encoded for observe(uint32[], PoolId) (the array plus poolId 0); both returned int56[] are decoded with element checks (the first one discarded); new uint160[](n) is zero-filled; both arrays are returned. All 5 whiles are ABI loops with per-element checks or cleanup, none a source loop. Since round 1, only observe changed: whole-byte hex, exact free-pointer addresses, and the return now 'return Array(len=_9, data=...), Array(len=secondsAgos.length, data=...)' instead of 'return memory from mem[64] len ...'. That is an improvement.",
+  "summary": "Exact text for a small oracle adapter whose immutables read as 0 (artifact). observe's return is now decoded; the only readability issue is slot0's uint16 values split into zero-prefix/slice pairs."
+}

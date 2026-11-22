@@ -1,0 +1,65 @@
+{
+  "id": "c00324",
+  "round1": true,
+  "text_changed": true,
+  "abi_functions": 4,
+  "reviewed": 4,
+  "not_reviewed": [],
+  "source_loops": 7,
+  "loops_shown": {
+    "while": 7,
+    "copy_line": 0,
+    "unrolled": 0,
+    "aborted": 0,
+    "missing": 0
+  },
+  "spurious_while": 0,
+  "patterns": {
+    "P1": 0,
+    "P2": 22,
+    "P3": 2,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0,
+    "P7": 10,
+    "P11": 12,
+    "P12": 1
+  },
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "deploy(bytes32[],(address[],address[],address[]),(address[],address[],address[],address[])[])",
+      "lines": "186-191, 369-373, 388-395, 724, 742-744 (22 calls, 7 reverts, the log, the return)",
+      "decompiled": "_185 = mem[64] / mem[mem[64]] = 0x931b3724... / mem[_185 + 4] = this.address / call 0x0 with: args mem[mem[64] len _185 - mem[64] + 36]  |  _392 = mem[64]; mem[mem[64]] = 0x074e84fa...; revert with memory from mem[64] len _392 - mem[64] + 4",
+      "source": "DefaultPAUAssembler.sol:121-126 IPAUFactoryLike(pauFactory).deployAccessControls(address(this)) ...; :194 require(admins.length > 0, NoDefaultAdmins()); :157 emit Deployment(...); return (proxy, controller, accessControls, rateLimits, allocatorAgents)",
+      "issue": "After the calldata-decoding loop (whose body allocates), mem[64] is an opaque loop result, and 'v = mem[64]' is never cancelled against later reads of mem[64] although no store to word 64 intervenes. So every call (deployAccessControls ... removeAdmin, grantRole, revokeRole, CONTROLLER, updateIntegrations), every custom error (NoAgentAdmins, NoDefaultAdmins, ZeroDefaultAdmin), the Deployment log and the return stay raw memory.",
+      "rule": "Treat the value of mem[64] after its last store as one symbol: v = mem[64] binds v to it and any later read of mem[64] with no intervening store to word 64 is v, so v - mem[64] folds to 0 and the existing call/error/return decoding applies, even when the stored value came out of a loop.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "deploy(...) (encodings of integrationIds)",
+      "lines": "25-30, 536-549, 603-616",
+      "decompiled": "if 0 >= _615: _624 = _612 + 68 / else: mem[_612 + 68] = mem[160]; idx = 1; s = 192; t = _612 + 100; while idx < _615: mem[t] = mem[s] ... / mem[192 len floor32(-_param1 + max(_param1 + 68, _param1 + 32 * cd[_param1 + 4] + 36) - 37)] = call.data[_param1 + 68 len ...]",
+      "source": "DefaultPAUAssembler.sol:148 IControllerLike(controller).updateIntegrations(integrationIds); :157 emit Deployment(..., integrationIds, ...); abi.decode of bytes32[] integrationIds",
+      "issue": "The bytes32[] word copies are rotated (P3): the first element is copied before the loop and the loop starts at idx = 1, and the calldata copy is split into the first word plus a floor32(... max(...) - 37) remainder. One copy line would say mem[p len 32n] = mem[160 len 32n].",
+      "rule": "Undo a peeled first iteration when the peeled statements equal the body at idx = 0 under the guard n > 0; a resulting word-copy loop with no other effect is one copy line, and floor32(max(32, 32n) - 1) - ... with n >= 1 folds to 32(n - 1).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "artifact",
+      "severity": "low",
+      "function": "administeredAgentFactory(), pauFactory(), deploy(...)",
+      "lines": "3-4 (consts), 189, 202, 215, 230, 255",
+      "decompiled": "const unknown96869c09 = 0 / const unknown418ccdd0 = 0 / call 0x0 with: ...",
+      "source": "DefaultPAUAssembler.sol:82-85 address public immutable administeredAgentFactory / pauFactory",
+      "issue": "solc immutables read as 0 in the undeployed runtime code, so both getters are 0 and the factory calls target 0x0.",
+      "rule": "none (input artifact)",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No round-1 result; reviewed whole with the new pack. The old->new diff is only 3 whole-byte hex fixes (0x074e84fa NoDefaultAdmins instead of a 63-digit word). Source loops: deploy's agent loop (251), _configureAgent's 4 loops (282, 300, 318, 336), _grantDefaultAdmins (376, 429, 484: inlined 3 times), _grantRoles' allocator loop (403); all whiles. The other 20 whiles are implicit: 8 validating calldata decodes, 2 rotated bytes32[] encodes (P3), 10 address re-encodings for the event/return (counted P7). Checked in order: the 4 factory deploys and deployController(ac, proxy, rl); the agent loop (deploy(this), store allocatorAgents[i], NoAgentAdmins check, addAdmin/addActor/addGrantor/addRevoker loops, removeAdmin(this)); _grantRoles (grantRole(0, admin) with ZeroDefaultAdmin, grantRole(ALLOCATOR_ROLE 0x68bf109b.., agent), CONTROLLER() then grantRole(controller) on proxy and rateLimits); updateIntegrations under 'if mem[128]'; revokeRole(0, this) on accessControls, proxy, rateLimits; Deployment with indexed proxy and controller; the 5-value return. P11: Panic(50) bounds checks implied by the loop tests (each loop re-tests s < length). P12: 'require _param2 <= 2^64-1' in both arms of the first copy guard.",
+  "summary": "Faithful, with all 7 source loops as whiles, but nearly unreadable as calls: an uncancelled 'v - mem[64]' after the decoding loop leaves all 22 calls, the custom errors, the event and the return as raw memory; the integrationIds copies are rotated."
+}

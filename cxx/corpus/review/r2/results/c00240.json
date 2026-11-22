@@ -1,0 +1,23 @@
+{
+  "id": "c00240",
+  "text_changed": true,
+  "lines_old": 930,
+  "lines_new": 921,
+  "changed_functions": 2,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "The folded keccak slot constant of _name/_symbol is unchanged."
+    }
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "upgradeToAndCall's Address.verifyCallResult revert now reads 'Address: low-level delegate call failed', with no copy loop. supportsInterface shows 0x01ffc9a7 with whole bytes (P6 2 -> 0).",
+  "patterns": {
+    "P6": 0
+  },
+  "notes": "Diff (37 lines) read in full.",
+  "summary": "No regression; one revert decoded (a copy loop gone) and hex constants shown with whole bytes."
+}

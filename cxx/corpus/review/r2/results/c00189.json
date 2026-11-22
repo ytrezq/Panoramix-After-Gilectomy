@@ -1,0 +1,36 @@
+{
+ "id": "c00189",
+ "text_changed": true,
+ "lines_old": 1186,
+ "lines_new": 1145,
+ "changed_functions": 9,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "the rate-limit entries are now `stor6[uint32(_V)]` / `stor5[uint32(_V)]` (P4 gone here); the distributed decay arithmetic (P9) is unchanged."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "unknownc4f6d68f (setRateLimits), both RateLimitsChanged events",
+   "lines": "1032-1049, 1143",
+   "decompiled": "_54 = mem[64] ; mem[mem[64]] = 64 ; ... while s < mem[128]: ... ; log 0x0444fc29..: mem[mem[64] len _54 + 96 * cd[_param1 + 4] - mem[64] + 96]",
+   "old": "mem[mem[64]] = 64 ; ... while idx < cd[_param1 + 4]: ... ; log 0x0444fc29..: mem[mem[64] len 96 * cd[_param1 + 4] + 96]",
+   "source": "emit RateLimitsChanged(_rateLimitConfigs, _direction) after _setRateLimits",
+   "issue": "The event data length now carries `_54 - mem[64]` (0, since mem[64] is not written in between) and an extra `_54 = mem[64]` line, and the encoding loop is bounded by the memory length word `mem[128]` instead of the calldata length.",
+   "rule": "When a variable holds mem[64] and nothing between writes mem[64] (writes at mem[64] + k with k >= 32 never do), fold `v - mem[64]` to 0.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "Unknown functions' parameters follow calldata words (lzReceive-like unknownd045a0dc/unknown13137d65 now `_param1, _param3.._param7` with the unused Origin.sender word skipped; isComposeMsgSender returns `this.address == _param5`); endpoint.sendCompose's bytes argument decoded as `Array(len=n + 44, data=Bytes(8, nonce), Bytes(4, srcEid), 0, msg...)`, folding the second copy loop; the custom-error revert in unknownbd815db0 prints a copy line instead of a copy loop; Error-bytes reverts print `32, len, data`; quoteOFT-like getter returns `Array(...)`; P4 and P6 gone; 41 fewer lines.",
+ "patterns": {
+  "P2": 1
+ },
+ "notes": "Per-function normalized diffs and statement multisets. Three implicit copy loops disappeared (one per lzReceive variant, one in unknownbd815db0), each replaced by a decoded argument or a copy line; the 4 source loops are unchanged. amountLD prints 0 in sendCompose and the event because the decimal-conversion immutable is 0 (artifact). setDelegate and unknown3b6f743b changed only by renumbering.",
+ "summary": "No semantic regression; parameter numbering, compose-message arguments and several implicit copies are now clear, and the rate-limit keys are fixed. One low regression: the RateLimitsChanged log length now reads `_54 + 96 * n - mem[64] + 96`."
+}

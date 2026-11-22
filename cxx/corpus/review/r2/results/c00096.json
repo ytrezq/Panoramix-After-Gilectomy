@@ -1,0 +1,30 @@
+{
+  "id": "c00096",
+  "text_changed": true,
+  "lines_old": 7522,
+  "lines_new": 6980,
+  "changed_functions": 7,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "two-level and struct-in-mapping accesses still raw stor[sha3(...)] with their hash-scratch writes (223 lines, as before)"},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "32 Error(string) reverts now print as revert with '...' ('Non-Bean not in Well.', 'ReentrancyGuard: reentrant call', 'Balance: Insufficient internal balance'...) and custom errors as 'revert with 0x6dfcc650, 128, _283' / 'revert with 0x9996b315, _param1'; 35 remain raw where the free pointer is unresolved ('revert with memory from mem[64] len _176 + ceil32(return_data.size) - mem[64] + 100'), now with a whole-byte 0x08c379a0 (P6 gone)"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "all 7 functions (Invariable getTokensOfInterest merge; 27e047f1 / e348f82b struct and array bases)",
+      "lines": "e.g. safeTransferFrom new 79, 110-115; unknown27e047f1 'int96(mem[_180 + 64 * cd[_param2 + 4] + 480])'",
+      "decompiled": "mem[_107 + 32 * mem[128] + 32 * mem[32 * stor205.length + 160] + 64 len 32 * mem[128] + 32 * mem[32 * stor205.length + 160]] = call.data[calldata.size len 32 * mem[128] + 32 * mem[32 * stor205.length + 160]]",
+      "old": "_143 = mem[_107] / _146 = mem[64] / ... / mem[_146 + 32 len 32 * _143] = call.data[calldata.size len 32 * _143]; int96(mem[_188])",
+      "source": "LibTokens/Invariable getTokensOfInterest: new address[](a.length + b.length); LibGerminate struct (int96, int96) in transferDeposits",
+      "issue": "Now that the reads are proven unchanged, the named snapshots of array lengths (_101 = mem[A], _102 = mem[128], _143 = mem[_107]) and of allocation bases (_146, _188) are inlined as their full expressions, repeated up to 6 times per line. Exact, but harder to read: lines over 240 chars 45 -> 55, max 572 -> 611.",
+      "rule": "Keep a named variable for a value used several times when its expression is longer than a few terms (memory reads, base + size sums), even when the analysis proves it could be inlined; inline only single-use or short values.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Raw-argument calls 78 -> 48 (named calls 3 -> 28: tokens(), balanceOf(this), transferFrom with args, the LibSilo delegatecall with '_176, _param1'). 52 array bounds checks (Panic(50)) and 2 allocation checks (Panic(65)) that an identical dominating check implies are dropped; the writes between them are only to the hash scratch (mem[0], mem[32]) or above the free pointer. Events have exact fields (TransferSingle id = _param1 << 96 | uint96(_param2), InternalBalanceChanged delta, and the values of the two unnamed logs). 32 Error(string) and the custom-error reverts are decoded, and P6 (76) is gone. Text 542 lines shorter.",
+  "patterns": {"P2": 48, "P4": 30},
+  "notes": "The two functions unknown081d77ba and unknownc56411f6 changed order in the text, so the shipped diff matches the wrong pair (hunk -2941,1009 +3665,6). I reviewed all 7 functions with per-function diffs of the old and new texts (250-960 lines each), read by structure: per function the calls, events, whiles (151) and requires are unchanged. Removed Panic(50) checks were checked in their loops (getTokenEntitlementsAndBalances: 'if s >= mem[_730]' kept at the loop head, later copies dropped across scratch writes; the 'mem[_771]' copies dropped after the first; checks after a write to another array, e.g. 's >= mem[_730]' after 'mem[_771 + 32 * s + 32] = ...', are kept). Moved reads were checked, e.g. 'int96(mem[_179 + 32])' for the old _223: nothing writes _179 + 32 between line 202 and its use. stagecheck --function 0xf242432a: 320 calls, all same, but all revert early in empty and random worlds, so they do not reach these loops. The 14 rotated getNonBeanIndex loops (P3 by reading) are unchanged; the regex no longer counts them. The transferFrom selector still prints in decimal (len 4] = 599290589).",
+  "summary": "One low regression: length snapshots and allocation bases are now inlined as long expressions. Otherwise better: 52 dominated bounds checks dropped, 25 more calls decoded, events and 32 string/custom-error reverts decoded, P6 gone. Nested-mapping obscurity remains, and 35 raw reverts remain where mem[64] is unresolved."
+}

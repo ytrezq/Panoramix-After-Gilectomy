@@ -1,0 +1,28 @@
+{
+  "id": "c00036",
+  "text_changed": true,
+  "lines_old": 2872,
+  "lines_new": 2816,
+  "changed_functions": 5,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "the 4 constant-bound call-buffer copy loops (while idx < 68 / 100) remain, with the ERC20 calls raw and 6 selectors in decimal"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification", "severity": "medium",
+      "function": "acceptNewTerms (unknown70a10c89)",
+      "lines": "2547-2558, 2616-2620, 2757-2761, 2806-2811; shared revert at 2812",
+      "decompiled": "if principal > 0x7fff...ffff: / mem[mem[64]] = 0x08c379a0... / mem[mem[64] + 4] = 32 / mem[mem[64] + 36] = 15 / mem[mem[64] + 68] = 0x4d4c3a55494e543235365f43415354... / else: ... (about 260 lines) ... / revert with memory from mem[64] len 100",
+      "old": "if principal > 0x7fff...ffff: _173 = mem[64] / mem[mem[64]] = 0x8c379a0... / ... / revert with memory from mem[64] len _173 - mem[64] + 100",
+      "source": "MapleLoanInternals / acceptNewTerms: SafeCast-style 'ML:UINT256_CAST' (x2), 'ML:ANT:TRANSFER_FAILED', 'ML:INT256_CAST' requires",
+      "issue": "Four error branches lost their own revert: each now ends after building its Error(string) and falls through to a single shared 'revert with memory from mem[64] len 100' on the function's last line, up to 260 lines below. Exact (the success paths return before it), but a branch reads as if execution continued; the messages stay hex in both texts.",
+      "rule": "Do not merge a short revert tail into a common exit reached from nested branches; duplicate it into each branch, then decode each branch's Error(string) (here 'ML:UINT256_CAST', 'ML:ANT:TRANSFER_FAILED', 'ML:INT256_CAST').",
+      "verified": "reading only (structure checked: both success paths 'return memory' before 2812)"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "setPendingBorrower: isBorrower(address) named, its error decoded as 'ML:SPB:INVALID_BORROWER' and the stop made implicit; acceptNewTerms' two 'return memory' lengths fold to 32 and the mapleGlobals() input length folds to 4; P2 12 -> 10; P6 14 -> 0.",
+  "patterns": {"P1": 0, "P2": 10, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 824 lines; 5 functions changed (skim, proposeNewTerms, rejectNewTerms only in hex display). acceptNewTerms: conditions identical as a multiset; reverts 37 -> 33 because 4 per-branch raw reverts became the one shared revert. The source loop and the implicit copies unchanged.",
+  "summary": "Small improvements (a named call and error, folded lengths, P6 gone); one medium regression: acceptNewTerms' four error branches now fall through to one shared raw revert at the end of the function instead of reverting where they are."
+}

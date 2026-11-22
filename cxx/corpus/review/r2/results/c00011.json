@@ -1,0 +1,61 @@
+{
+ "id": "c00011",
+ "text_changed": true,
+ "lines_old": 5057,
+ "lines_new": 4916,
+ "changed_functions": 17,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "Set-values copies still peel the first word with the floor32(max(...)) length (e.g. 1253-1254)."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "Address elements still read back as 'Bytes(12, 0), mem[.. len 20]' (37 lines) and 5 logs still print the just-written memory word."
+  },
+  {
+   "n": 3,
+   "kind": "simplification",
+   "status": "still",
+   "note": "The 4 checked-exponentiation loops ('while u > 1') in resolveInboundLane are unchanged."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "loop",
+   "severity": "medium",
+   "function": "unknowna9cec755(array,array)",
+   "lines": "2380-2392, 2450-2462",
+   "decompiled": "s = 0\nt = 0\nwhile s < _363:\n    mem[s + mem[64]] = stor9[address(cd[64 * idx + _param1 + 36])][uint64(cd[64 * idx + _param1 + 68])][t]\n    s = s + 32\n    t = t + 1\n    continue\nt = (_363 + 31) / 32 + sha3(sha3(uint64(..), sha3(address(..), 9)))",
+   "old": "_350 = mem[64]\n...\nmem[mem[64] len ceil32(_363)] = stor[sha3(sha3(uint64(cd[64 * idx + _param1 + 68]), sha3(address(cd[64 * idx + _param1 + 36]), 9))) len (_363 + 31) / 32]\n_418 = _350 + _363",
+   "source": "a long string read from a storage mapping into memory (string memory s = map[a][b]) before keccak256(bytes(s)) is compared",
+   "issue": "Two storage-to-memory copies of a long string that round 1 printed as copy lines are while loops again, followed by a dead 't = ...' line. The variable holding mem[64] was dropped, so the loop writes to 'mem[s + mem[64]]', whose base is a memory read that is no longer visibly invariant in a loop that writes memory. Same mechanism as c00227.",
+   "rule": "Keep a variable that holds mem[64] as the name of that value instead of re-reading mem[64] across memory writes; with an invariant base, 'while s < n: mem[base + s] = stor[k + s/32]' is the copy 'mem[base len ceil32(n)] = stor[k len (n + 31) / 32]'.",
+   "verified": "reading only (compare old 2505, 2578 with new 2386, 2456)"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "unknownaf8df28b(uint256), unknown5ad6d90a(address,uint64,bytes4,array)",
+   "lines": "415; 2276",
+   "decompiled": "_30 = mem[64] ... return memory from mem[64] len _30 - mem[64] + 96 * stor14[_param1].field_0 + 128  |  mem[_285 + 64] = _284 - _285 + ceil32(_286) + ceil32(_287) + 160",
+   "old": "return memory from mem[64] len 96 * mem[32 * stor14[_param1].field_0 + 160] + 128  |  mem[_284 + 64] = ceil32(_286) + ceil32(_287) + 160",
+   "source": "ABI return encoding of struct arrays / a struct with two strings",
+   "issue": "Two reads of mem[64] with no write between (_284, _285), or a read and mem[64] itself, are no longer known equal, so differences that are 0 stay in the text (the total count of '_N - mem[64]' still fell from 33 to 29).",
+   "rule": "Reads of mem[64] with no write to word 64 between them are one value: give them one name and fold their difference to 0.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "8 of 9 rotated zero-init loops (P3) are now single do-whiles; the custom error OverflowDetected prints as 0xa9cb113d instead of a constant times 3600 (P1 6 -> 0); P6 6 -> 0. Returns with two dynamic arrays print two Array(...) values, empty bytes print as '' / Array(len=0, data=''). Custom errors 0xa0febeae, 0xf7cffcd0, 0x900b8288 print with their arguments, unknown09bebd62 and the decimals/isTokenSupported results are decoded, a raw sha3(mem[0], ..) key is resolved. Dead mapping-scratch writes 427 -> 409; unknown0f1e1f56 174 -> 118 lines.",
+ "patterns": {
+  "P2": 6,
+  "P4": 19
+ },
+ "notes": "Reviewed function by function (1607-line diff, 17 functions). Calls, logs and storage writes unchanged; one dominated enum check (Panic(33)) removed in unknown5ad6d90a, whose return is now listed word by word (same 320 + ceil32 + ceil32 bytes). The remaining 'while idx - 1' (1262) peels a single '= 96' store, within the new rotation limit.",
+ "summary": "One medium regression: two storage string copies in unknowna9cec755 are while loops again; plus a few unfolded '_N - mem[64]'. Otherwise improved: P3 rotations, the P1 selector, decoded returns and custom errors."
+}

@@ -1,0 +1,41 @@
+{
+  "id": "c00262",
+  "text_changed": true,
+  "lines_old": 1375,
+  "lines_new": 1334,
+  "changed_functions": 5,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "57 -> 51 whiles: the abi.encode copies of the action strings/bytes in cancel, execute and getActionsSetById are now copy lines. The storage copies of string[]/bytes[] in processMessageFromRoot (_queue) remain nested loops."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "processMessageFromRoot(uint256,address,bytes)",
+      "lines": "900-909; 1316-1330 (encoding offsets)",
+      "decompiled": "if isActionQueued[sha3(mem[_105 + 32], _77, 192, ...)]: mem[_86 + ceil32(_90) + ceil32(_97) + 288] = 0xecbc138c... / revert with memory from _105 + ceil32(_90) + ceil32(_97) + 288 len _86 - _105 + 4  |  mem[mem[64] + 32] = _358 + 32 * _359 - mem[64] + 224",
+      "old": "if isActionQueued[concat(mem[0])]: revert with 0xecbc138c  |  mem[_358 + 32] = 32 * mem[128] + 224",
+      "source": "BridgeExecutorBase._queue: if (isActionQueued(actionHash)) revert DuplicateAction();",
+      "issue": "The DuplicateAction custom error, clean in the old text, is a raw memory revert again: the base variables _86 and _105 (two loads of mem[64]) are not unified. For the same reason the action hash reads its first field as mem[_105 + 32] (repeated 4 times), and the ActionsSetQueued encoding prints '_358 + 32 * _359 - mem[64] + 224' where '32 * mem[128] + 224' was shown.",
+      "rule": "Two loads of slot 0x40 with no store that can reach it between them read the same value (stores at mem[64] + k, k >= 32, cannot, given the floor >= 0x80); unify them before resolving revert data, keccak inputs and offsets.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "cancel, execute, getActionsSetById",
+      "lines": "e.g. cancel 250-256, execute 573-582 (14 lines)",
+      "decompiled": "mem[_54 + 2 * Mask(250, 5, _53 + 31) + ceil32(_64) + 320] = _64",
+      "source": "abi.encode(target, value, signature, data, executionTime, withDelegatecall) (two dynamic fields in a row)",
+      "issue": "ceil32(_53) + ceil32(_53) is printed as 2 * Mask(250, 5, _53 + 31), next to plain ceil32(_53) in the same lines.",
+      "rule": "Print k * floor32(x + 31) as k * ceil32(x); do not turn a doubled multiple of 32 into a bit mask.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "Custom errors and messages resolved (InsufficientBalance(), 0xcbd8fb4c), concat(mem[0]) keys 3 -> 0: the actionHash is now decoded as the keccak of the ABI encoding. Returns: executeDelegateCall returns Array(len, data); getActionsSetById's return is split into its head words and arrays instead of 'return memory'. The call in execute shows Array(len, data) arguments. Fields named (stor6[proposalId].field_256... instead of stor[_ + 1]).",
+  "patterns": {"P2": 1, "P4": 0, "P7": 47, "P8": 40, "P14": 60},
+  "notes": "Diff (1,073 lines) read hunk by hunk; processMessageFromRoot (597-line diff) by structure, after filtering renames of loop variables (idx/s/t...) and temporaries. Loops all present (3 source loops); whiles 57 -> 51, all removed ones implicit copies. The changed functions grew 9% in characters (lines over 240 chars 3 -> 10), mainly from the decoded hashes and returns. The execute result-handling branch was restructured equivalently (store and continue on success, revert otherwise).",
+  "summary": "Mostly improvements (copy lines, decoded hashes, errors and returns). One medium regression: the DuplicateAction custom error in _queue is raw memory again (two mem[64] loads not unified), which also leaves the hash and encoding offsets partly raw. A new 2 * Mask(250, 5, x + 31) display artifact."
+}

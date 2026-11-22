@@ -1,0 +1,34 @@
+{
+ "id": "c00259",
+ "text_changed": true,
+ "lines_old": 514,
+ "lines_new": 506,
+ "changed_functions": 1,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "the bytes-argument encoding loop is gone (outboundTransfer's _data now spelled out in its args); the dead abi.decode copy loop of the returned bytes (P8) remains"
+  },
+  {
+   "n": 2,
+   "kind": "artifact",
+   "status": "still",
+   "note": "gateway/token immutables still 0x0"
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "depositToL2Locked: the approve call is decoded ('call 0x0.approve(address spender, uint256 amount) with: args 0, _param1', was raw memory). outboundTransfer's _data bytes are decoded into its argument list ('192, 288, _param5, 64, 192, caller, ..') instead of 'mem[.. len ceil32(_102) + 32]', and the word-copy loop is gone (2 -> 1 while). The bool checks of the token calls read 'require ext_call.return_data[0] == bool(ext_call.return_data[0])'. P6 fixed (0x095ea7b3).",
+ "patterns": {
+  "P1": 0,
+  "P2": 0,
+  "P3": 0,
+  "P4": 0,
+  "P5": 0,
+  "P6": 0
+ },
+ "notes": "Diff of 126 lines, read whole: one changed function. The remaining dead decode of outboundTransfer's returned bytes now addresses memory as '_93 + ceil32(_15) + ceil32(_16)' where '_96' stood: slightly longer lines in code round 1 already flagged as dead.",
+ "summary": "No regression. The approve call and outboundTransfer's bytes argument are decoded, and one copy loop is gone. The dead decode of the returned bytes remains."
+}

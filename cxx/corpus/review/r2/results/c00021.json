@@ -1,0 +1,67 @@
+{
+ "id": "c00021",
+ "text_changed": true,
+ "lines_old": 4276,
+ "lines_new": 3591,
+ "changed_functions": 6,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "getPrevAssertionHash is unchanged, and confirmEdgeByOneStepProof only lost memory lines: the edge walk still carries a hash-offset storage pointer."
+  },
+  {
+   "n": 2,
+   "kind": "naming",
+   "status": "still",
+   "note": "The edge struct is still typed as a fixed array of one-slot structs (stor1[k][9].field_72, [8].field_160)."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "multiUpdateTimeCacheByChildren(bytes32[],uint256) (unknown432bb78a)",
+   "lines": "450-469",
+   "decompiled": "_43 = mem[64] ... _44 = mem[64] ... mem[_43 + 161] = 0xda10f67c... / revert with memory from _44 + 161 len _43 - _44 + 4 / if stor2[sha3(...)] != sha3(mem[_44 + 193 len _43 - _44 + 9]):",
+   "old": "if not stor2[concat(mem[0])]: revert with 0xda10f67c / if stor2[concat(mem[0])] != sha3('UNRIVALED'):",
+   "source": "EdgeChallengeManagerLib.timeUnrivaled: firstRivals[mutualId] == 0 -> revert (0xda10f67c); firstRivals[mutualId] != UNRIVALED",
+   "issue": "Inside the loop, two reads of mem[64] with no store to slot 64 between them are kept as different variables (_43, _44). So the 4-byte custom error and the 'UNRIVALED' hash are no longer recognized and print as raw memory with '_43 - _44' lengths. The same code outside a loop (confirmEdgeByTime) now prints better than before.",
+   "rule": "A load of mem[64] returns the value of the previous load of mem[64] when no store in between can overlap bytes 64..95. With the free-memory floor at least 96, stores at mem[64] + k (k >= 0) never do.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "bisectEdge(bytes32,bytes32,bytes) (unknownc8bc4e43)",
+   "lines": "1058",
+   "decompiled": "if _59 + 1 >= mem[ceil32(cd[_param3 + 4]) + 1002] + 1: revert with 'Pre size not less than post size'",
+   "old": "if _59 + 1 >= stor1[_param1][4] + 1: (old 1134)",
+   "source": "EdgeChallengeManagerLib.sol:575-579 verifyPrefixProof(..., ce.endHeight + 1, ...); MerkleTreeAccumulatorLib.sol:344 require(preSize < postSize)",
+   "issue": "postSize (ce.endHeight + 1, from the memory copy of the edge, which 884 sets to stor1[_param1][4]) is no longer forwarded past the root and treeSize loops. It prints as a memory read here, while the same value prints as '_72 + 1' at 1423.",
+   "rule": "Print a value with the variable it was bound to (_72) or forward it to its stored value. Do not print the load again at a later point unless the stores in between provably miss the address (fresh memory above the free-memory floor).",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [
+  {
+   "kind": "semantics",
+   "severity": "low",
+   "function": "bisectEdge(bytes32,bytes32,bytes) (unknownc8bc4e43), createLayerZeroEdge (unknown05fae141)",
+   "lines": "1060-1068 (bisectEdge)",
+   "decompiled": "_155 = mem[64] / mem[mem[64]] = mem[ceil32(cd[_param3 + 4]) + 1354] / ... / while s < mem[ceil32(cd[_param3 + 4]) + 1354]: mem[_155 + 32 * s + 32] = ...",
+   "source": "MerkleTreeAccumulatorLib.sol:350 ArrayUtilsLib.slice(preExpansion, 0, preExpansion.length): require(start < end, 'Start not less than end'); new bytes32[](end - start); newArr[i] = arr[i]",
+   "issue": "The slice's checks ('Start not less than end', Panic(65) on the length, two Panic(50) in the copy loop) are gone. They cannot fire on any execution of this bytecode, since root() bounds the length to 1..64 and only fresh memory is written in between, so the text stays exact. But the text never shows the length as that checked value: the root and treeSize loops still bounds-check against mem[...1354] (999, 1040), and postSize is re-read from memory (1058). So the fact that justifies the removal is not one the decompiler visibly holds.",
+   "rule": "Drop a check only when a dominating condition proves it cannot fire. If the proof relies on a memory word staying unchanged, forward that word wherever the proof holds (print _62), so the text shows why the check is gone.",
+   "verified": "reading only (dead on every execution here; the concern is whether the removal is proven)"
+  }
+ ],
+ "improvements": "P6 50 -> 0 and P4 9 -> 2. Raw 'revert with memory' lines went from 79 to 16: require messages and custom errors are decoded ('Pre expansion root mismatch', 'Level too high', 0xda10f67c, 0x5a46ac3a with its mutual id...). Mutual-id and edge-id hashes are explicit (sha3(Bytes(1, level), originId, startHeight, startHistoryRoot, endHeight)), the refundStake event data is decoded, and the child edges' status resolves to 0, so the enum Panic(33) checks that could not fire are gone. confirmEdgeByTime's parameters are named by calldata word (_param1, _param6.._param9). The text is 685 lines shorter.",
+ "patterns": {
+  "P2": 6,
+  "P4": 2
+ },
+ "notes": "The diff is 3507 lines, so I reviewed bisectEdge and createLayerZeroEdge by structure (control flow, reverts by kind and panic code, calls, storage writes, events) and the 4 other changed functions line by line. All 9 source loops are still whiles (52 whiles before and after). appendCompleteSubTree, now flattened after its reverts, matches the source check by check. The raw 0xfdac331e revert (2823) was already raw before. The mutual-id mapping read is now repeated in full up to 5 times per block (e.g. 524-540), which is long but exact.",
+ "summary": "One medium regression: inside multiUpdateTimeCacheByChildren's loop, equal reads of mem[64] are no longer unified, so a custom error and sha3('UNRIVALED') print as raw memory. There is also a low forwarding loss in bisectEdge. Otherwise much improved: revert data decoded (79 -> 16 raw), explicit edge hashes, P6 gone."
+}

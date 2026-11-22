@@ -1,0 +1,16 @@
+{
+  "id": "c00337",
+  "text_changed": true,
+  "lines_old": 1331,
+  "lines_new": 724,
+  "changed_functions": 3,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "fixed", "note": "The overwritten scratch stores to mem[0] before each coprocessor-config access are gone (104 'mem[0] = 0x9e7b...' lines -> 0)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "P2 20 -> 0: every FHE/ACL call after the first if-join now has its function and arguments (e.g. stor9E7B_9e7b61f5.unknown9cd07acb(0, 5), caller.unknown06d4a799(_2, this.address, 0)); the two raw custom-error reverts decode (revert with 0xc6646881, _2, caller); return values read as ext_call.return_data[0]; dead scratch stores dropped; P6 7 -> 0 (0x01ffc9a7...). The text is 607 lines shorter (postTransfer 601 -> 314, preTransfer 658 -> 338).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 1,410 lines over postTransfer (unknown32d26c06), preTransfer (unknown088fedf1) and supportsInterface; reviewed by structure (same counts of calls, reverts, ifs per function) and by comparing the branch structure around the FHE calls (identical, calls now named).",
+  "summary": "No regression: all P2 calls and raw reverts are decoded and dead scratch stores removed, halving the two FHE functions."
+}

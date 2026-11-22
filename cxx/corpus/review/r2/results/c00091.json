@@ -1,0 +1,47 @@
+{
+ "id": "c00091",
+ "text_changed": true,
+ "lines_old": 5055,
+ "lines_new": 2096,
+ "changed_functions": 4,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "coverage",
+   "status": "still",
+   "note": "Same abort inside action 7 (marker at 2094, indent 2); the cut paths at 2034 and 2045 still end and fall to it."
+  },
+  {
+   "n": 2,
+   "kind": "artifact",
+   "status": "still",
+   "note": "Self-calls through the immutable ADDRESS_THIS still target 0x0."
+  },
+  {
+   "n": 3,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "Action 1's pauseUser now shows args 0x6d83..., Array(len=2, data=mem[.. len 64]) twice instead of raw head words. The 'while idx < 2' copies (726, 737) and action 5's nested copies (1515-1553) remain."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "execute(), unknown9d3d2a78",
+   "lines": "1128, 1159 and 3 more",
+   "decompiled": "/ (3650000 * 24 * 3600) + uint64(ext_call.return_data[0] >> 155)",
+   "source": "LiquidityCalcs.sol: SECONDS_PER_YEAR * FOUR_DECIMALS (365 days * 1e4)",
+   "issue": "The duration display fix turned '365 * 10**12 * 24 * 3600' into '31536 * 10**15', but a count of 3,650,000 days (10,000 years) still prints as a duration.",
+   "rule": "Print a multiple of 86400 as 'n * 24 * 3600' only when n is small (say under 1000); otherwise print the plain number or its power-of-ten form (31536 * 10**7).",
+   "verified": "reading only"
+  }
+ ],
+ "improvements": "execute 4523 -> 1564 lines with the same 47 source calls for actions 1-6: action 3's VaultConfig and getRawAmount's token are now read back from memory, so setVaultLimits' constant vaultType tests and the per-token price chain fold (the right prices 248000 and 224000 remain). Their dead branches (9 extra readFromStorage, 2 raw calls, 246 raw-memory 'X_USD_PRICE not set' reverts, 17 copy loops) are gone. Actions 2-4 calls are named with Array(...) arguments (P2 30 -> 13), addresses and words print as whole bytes (P6 272 -> 0), large durations print as 31536 * 10**15.",
+ "patterns": {
+  "P2": 13
+ },
+ "notes": "Reviewed by structure (4573-line diff, mostly one 3056 -> 285-line hunk in execute). Checked action by action against PayloadIGP142.sol: action1 5 calls, action2 8, action3 7 (getVaultAddress, 3 readFromStorage, updateUserSupplyConfigs, updateUserBorrowConfigs, setVaultAuth), action4 8, action5 the try-cast, action6 8 raw calls, plus isProposalExecutable and 9 isActionSkippable. After action 5's try/catch join the pointer is unknown, as in round 1 (raw calls of actions 6-9). unknown9d3d2a78 changed only in the duration display.",
+ "summary": "No regression. execute is a third of its old size: constant fields read back from memory fold away setVaultLimits' dead branches and getRawAmount's price chain, calls are named and decoded. The abort in action 7 and the raw calls after action 5 remain."
+}

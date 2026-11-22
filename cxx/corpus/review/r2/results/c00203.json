@@ -1,0 +1,41 @@
+{
+  "id": "c00203",
+  "text_changed": true,
+  "lines_old": 1207,
+  "lines_new": 1100,
+  "changed_functions": 10,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "setEnforcedOptions unchanged in substance: stor[sha3(mem[0], _87)] keys, the implied Panic(50) check and the raw-memory event (line 627) remain."
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "lzReceiveAndRevert (unknownbd815db0)",
+      "lines": "677-696",
+      "decompiled": "mem[ceil32(return_data.size) + ceil32(_20) + mem[64] + 68] = _20; ... revert with 0x8351eea7, 32, mem[ceil32(return_data.size) + ceil32(_20) + mem[64] + 68 len ceil32(_20) + 32]",
+      "old": "revert with 0x8351eea7, 32, mem[_18 + ceil32(return_data.size)], mem[mem[64] + 68 len mem[_18 + ceil32(return_data.size)]], Bytes(ceil32(...) - ..., 0)",
+      "source": "OAppPreCrimeSimulator.sol lzReceiveAndRevert: revert SimulationResult(abi.encode(...)) after preCrime.buildSimulationResult() (bytes argument)",
+      "issue": "The bytes argument of the custom error, shown before as length, data and zero padding, is now one raw memory slice covering all three; the same build decodes the analogous 0x9a6d49cd revert better than before (32, _84, data, padding).",
+      "rule": "Decode revert data word by word: a word known to equal n followed by n bytes copied from a source and zero padding prints as n, the source slice, Bytes(pad, 0), whatever the base expression of the buffer.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "ecrecover's input decoded (sha3(0x1901, domainSeparator, structHash), v, r, s); sendCompose's composeMsg decoded as Array(len=..., data=Bytes(8, nonce), Bytes(4, srcEid), ...); quoteOFT's empty fee array returned as Array(len=0, data=''); string returns as Array(len=_32, ...); unknown functions' params named by calldata word (lzReceive: _param1, _param3.._param7; isComposeMsgSender: _param4, _param5), P6 3 -> 0; 107 fewer lines.",
+  "patterns": {
+    "P1": 0,
+    "P2": 1,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff of 740 lines reviewed hunk by hunk on the substantive lines (calls, reverts, returns, logs; counts per function unchanged). permit and lzReceiveAndRevert drop free-pointer bumps and address their buffers from the unchanged mem[64] (e.g. ecrecover output read as mem[mem[64]] instead of mem[mem[64] - 32]): consistent within the text, the same pattern reported in c00063 and c00001.",
+  "summary": "One minor regression: SimulationResult's bytes argument is now a single raw memory slice in its revert. Otherwise better: ecrecover input, compose message and empty arrays decoded, parameters named by calldata word."
+}

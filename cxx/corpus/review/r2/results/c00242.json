@@ -1,0 +1,24 @@
+{
+ "id": "c00242",
+ "text_changed": true,
+ "lines_old": 1972,
+ "lines_new": 1817,
+ "changed_functions": 9,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "loop",
+   "status": "partly",
+   "note": "the 11 loops that peeled their first iteration (8 range(6), 3 range(32) with break) are now `s = 0; while True: ...; if s + 1 != N: s = s + 1; continue; break` with no copy before the loop; the bound is still a bottom test, and the 4 _sync_rewards loops still read `while _9 != _8: ... if s + 1 != 32` (break test as the condition)."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "No first iteration is printed before any loop any more (P3 15 -> 0; 13-line peeled copies gone, e.g. unknowna92d8b52 twice); P4 181 -> 123 as a result; unknown functions' parameters follow calldata words (unknowna92d8b52 reads words 1-3 and 5-7 of 7, now `_param5.._param7` instead of shifted `_param4.._param6`); reclaim's log data decoded (`_V, _V * stor11 / 10000` instead of `mem[576 len 64]`); claim returns a value instead of `return memory`; 155 fewer lines.",
+ "patterns": {
+  "P2": 7,
+  "P4": 123
+ },
+ "notes": "Per-function normalized diffs and statement multisets: every removed write/require belongs to a peeled first iteration now folded into the loop (each loop still runs 6 or up to 32 times); the order of the remaining statements is unchanged apart from a memory write moved before a storage write in unknown6d210f8c (unobservable).",
+ "summary": "No regression; the Vyper range loops no longer peel a first iteration and parameter numbering is fixed, though loop bounds stay as bottom tests and the four break-first loops are unchanged."
+}

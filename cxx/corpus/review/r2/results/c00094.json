@@ -1,0 +1,30 @@
+{
+  "id": "c00094",
+  "text_changed": true,
+  "lines_old": 3830,
+  "lines_new": 3696,
+  "changed_functions": 21,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "library delegatecalls still go to link placeholders"},
+    {"n": 2, "kind": "simplification", "status": "fixed", "note": "requestWithdrawFromWstETH's outer doCall now decodes (args 0x889e..., Array(len=132, data=Bytes(4, 0x19aa6257), 64, proxy, 1, _param1)); raw call args 5 -> 0; only a dead store still writes the selector as 430596695"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "requestWithdrawFromWstETH (unknown1ab9366f), cooldownSharesSUSDe (unknown2d4dcb89), the proxy doCall wrappers",
+      "lines": "2591-2641, 993, 1495-1501",
+      "decompiled": "mem[ceil32(_1) + ceil32(_2) + ceil32(return_data.size) + ceil32(_17) + 292] = _param1; call stor40.unknown3bf076b0(?) with: args stor20, mem[ceil32(return_data.size) + 228]",
+      "old": "_18 = mem[64] / mem[_18 + 32] = _param1; args stor20, _8",
+      "source": "MainnetController: abi.encodeCall arguments and abi.decode(proxy.doCall(...), (uint256)) results",
+      "issue": "Exact free-pointer values are printed in full at every use, and a decoded result held in a temporary is now printed as its memory word: lines over 300 chars 4 -> 28, lines with 4+ ceil32 terms 4 -> 80.",
+      "rule": "Bind a compound free-pointer value to a temporary at its read and print addresses relative to it; keep a temporary for a memory word read once and used later.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P6 fixed. All calls decoded (raw args 5 -> 0): doCallWithValue's (address, bytes, uint256) arguments now decode as Array(len=0, data='') plus value instead of raw words, nested approve/transfer/requestWithdrawals payloads decoded. 'MC/approve-failed' reverts decoded (raw reverts 4 -> 0). removeLiquidityCurve and requestWithdrawFromWstETH return Array(len=..., data=...) instead of copy loops plus raw memory (3 P7 loops gone, 7 -> 4 while), and a dominated Panic(50) check dropped.",
+  "patterns": {},
+  "notes": "Diff 2963 lines, reviewed function by function with control-statement diffs (all 21); the return-data decoding checks of doCall are all still present, with longer addresses. The 4 remaining whiles: 2 exponentiation helpers, 2 decode loops.",
+  "summary": "No semantic regression; free-pointer values printed in full lengthen lines (over 300 chars 4 -> 28). Improved: every call and revert decoded, copy loops turned into array returns."
+}

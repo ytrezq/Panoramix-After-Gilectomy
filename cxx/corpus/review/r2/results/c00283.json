@@ -1,0 +1,29 @@
+{
+ "id": "c00283",
+ "text_changed": true,
+ "lines_old": 929,
+ "lines_new": 929,
+ "changed_functions": 3,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "loop",
+   "status": "still",
+   "note": "executeBatch's loop is still rotated around the call's success flag (unchanged lines)."
+  },
+  {
+   "n": 2,
+   "kind": "coverage",
+   "status": "still",
+   "note": "The new pack still maps executeBatch etc. to IL1SyncPool.sol:11 with no code (a pack problem, not the decompiler's)."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "P6 3 -> 0: the Error(string) and ERC-165 selectors print as whole bytes.",
+ "patterns": {
+  "P2": 3
+ },
+ "notes": "The diff is 105 lines, which I read in full. Besides hex, the only change is the operation-hash length: sha3(mem[_7 + 32 len mem[_7]]) -> sha3(mem[_7 + 32 len -_7 + t - 32]) (15 lines). That is exact (mem[_7] was set to t - _7 - 32), neutral in length, and slightly less idiomatic than 'hash of the bytes at _7'. All 3 source loops are still whiles (24 whiles).",
+ "summary": "No regression. Only display changes: whole-byte hex constants and an explicit hash length."
+}

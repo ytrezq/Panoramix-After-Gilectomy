@@ -1,0 +1,57 @@
+{
+  "id": "c00029",
+  "text_changed": true,
+  "lines_old": 5605,
+  "lines_new": 5367,
+  "changed_functions": 9,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "args-mem lines 44 -> 28: swap's 3 onSwap, onJoinPool, onExitPool, getSwapFeePercentage, WETH deposit/withdraw now named. Still raw: the receiveFlashLoan callback, batchSwap/queryBatchSwap onSwap, SafeERC20 transfers fed by byte-copy loops (args mem[_584 + 132 len 100])."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "EnumerableMap/Set accesses still raw (stor[sha3(s, sha3(poolId, 1) + 1) + 1])."},
+    {"n": 3, "kind": "loop", "status": "partly", "note": "Copy loops 55 -> 51 (word 15 -> 14, byte 30 -> 27): swap's userData/balances encodes and bounded SafeERC20 copies improved, but see the join/exit regression."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "Branch-free max still distributed; two-part concat keys remain, now even concat(Bytes(12, 0), Bytes(20, address(x)))."},
+    {"n": 5, "kind": "artifact", "status": "still", "note": "Immutables still 0 (call 0x0.deposit / withdraw / getSwapFeePercentage)."}
+  ],
+  "regressions": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "joinPool(bytes32,address,address,(address[],uint256[],bytes,bool)), exitPool(...)",
+      "lines": "3832-3837 (joinPool), 3184-3189 (exitPool)",
+      "decompiled": "idx = 0 / s = 32 * _327 + _328 + _355 + ceil32(_2) + 64 / t = ... / while idx < _356: mem[t] = mem[s]; idx = idx + 1; s = s + 32; t = t + 32",
+      "old": "mem[_354 + ceil32(return_data.size) + 32 len 32 * _356] = mem[_354 + _355 + 32 len 32 * _356]  (old 3356, 2673)",
+      "source": "PoolBalances.sol _callPoolBalanceChange: (amountsInOrOut, dueProtocolFeeAmounts) = pool.onJoinPool(...) (abi.decode of uint256[])",
+      "issue": "Decoding the first returned uint256[] was a copy line and is now a word-copy while loop (P7). The second array was already a loop.",
+      "rule": "A loop copying n consecutive words mem[d + 32i] = mem[s + 32i] with no other effect is one copy line, whatever symbolic base d and s share. Recognize it before or independent of expanding the free-memory base.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "registerTokens(bytes32,address[],address[]), flashLoan(address,address[],uint256[],bytes)",
+      "lines": "397, 403 (registerTokens); 1012, 1024, 1030, 1035, 1041, 1044, 1089 (flashLoan)",
+      "decompiled": "while s < mem[128]:  |  mem[mem[64] + 32] = _67 + 32 * tokens.length - mem[64] + 96  |  mem[mem[64] + 68] = _82 + 32 * _86 - mem[64] + 32 * mem[32 * tokens.length + 160] + 192",
+      "old": "while idx < tokens.length:  |  mem[mem[64] + 32] = 32 * tokens.length + 96  |  mem[_82 + 68] = 32 * _86 + 32 * _92 + 192",
+      "source": "PoolTokens.sol emit TokensRegistered(poolId, tokens, assetManagers); FlashLoans.sol recipient.receiveFlashLoan(tokens, amounts, feeAmounts, userData)",
+      "issue": "Encoding loops are now bounded by raw memory reads (mem[128] for tokens.length, mem[32 * tokens.length + 160] for amounts.length) instead of the forwarded length or the temp, and ABI offsets keep _67 - mem[64] / _82 - mem[64] although _67 = mem[64] with no write in between.",
+      "rule": "Forward the known memory word into a loop condition when the body writes no aliasing address (the floor of the free-memory pointer proves it); substitute v for mem[64] while v = mem[64] holds, so v - mem[64] folds to 0.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "swap((bytes32,uint8,address,address,uint256,bytes),(address,bool,address,bool),uint256,uint256)",
+      "lines": "2466-2468, 2546-2548, 2644-2646",
+      "decompiled": "call cd[singleSwap + 4] >> 96.onSwap((uint8,...,bytes) swapRequest, uint256[] balances, uint256 indexIn, uint256 indexOut) with: args 128, ceil32(L) + 448, stor[..] - 1, stor[..] - 1, cd[singleSwap + 36], address(_191), ..., 288, L, mem[.. len ceil32(L)], n, mem[_194 + 320 len 32n]",
+      "source": "PoolSwaps.sol pool.onSwap(request, currentBalances, indexIn, indexOut) / pool.onSwap(request, tokenInBalance, tokenOutBalance)",
+      "issue": "Named now, but a tuple with a dynamic member prints as the flat list of ABI words: head offsets (128, ceil32(L) + 448, 96, 288) and lengths look like arguments, and the struct fields and arrays aren't grouped, so values can't be matched to parameters.",
+      "rule": "When decoding against a signature, resolve each dynamic head word as an offset into the tail and print the tuple, bytes and arrays as values (as already done for Array(len=.., data=..)), never the offsets.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "Calls named in swap (3 onSwap), joinPool/exitPool (onJoinPool/onExitPool with Array args, getSwapFeePercentage) and WETH deposit/withdraw; args-mem lines 44 -> 28. Logs decoded (Swap, PoolBalanceChanged, PoolBalanceManaged, ExternalBalanceTransfer). Many memory reads forwarded (mem[204 len 20] -> address(cd[singleSwap + 68]); pair keys sha3(Bytes(20, token0), Bytes(20, token1))); '- mem[64]' lines 88 -> 10. Dominated checks dropped: the BAL#500 arm under a same-iteration registered-pool check (managePoolBalance x3), repeated <= 2^64-1 checks of forwarded lengths. Dead return-data copies after ETH sends are removed (return _480). P6 3 -> 0, P4 header 2 -> 0. Copy loops 55 -> 51.",
+  "patterns": {"P1": 0, "P2": 28, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 5668 lines, reviewed by structure. The functions were reordered, so each of the 9 changed functions was cut from both texts. Call, storage-write, log and loop sequences are identical (registerTokens 17, flashLoan 18, queryBatchSwap 16, manageUserBalance 34, exitPool/joinPool 31, batchSwap 30, managePoolBalance 18), except swap: 4 encode loops became copy lines, and in join/exit the encode loop became a copy line while the decode copy became a loop. Every removed if/require is accounted for: constant-folded trailing-zero tests of 100/68-byte copies, the dominated BAL#500 arms, the forwarded-length requires, and the dead return-data copies. 8 new no-op 'mem[p + 36 len 28] = uint128(x >> 32)' write-backs of the selector insertion (same as c00097). 0 aborted.",
+  "summary": "No semantic regression; calls, logs and forwarding improved widely. Two readability regressions: joinPool/exitPool's first returned array copy fell back from a copy line to a loop, and the registerTokens/flashLoan encoders now use raw memory loop bounds and unfolded '_v - mem[64]' offsets. swap's onSwap calls are named but print flat ABI words."
+}

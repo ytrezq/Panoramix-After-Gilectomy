@@ -1,0 +1,24 @@
+{
+  "id": "c00392",
+  "text_changed": false,
+  "lines_old": 25,
+  "lines_new": 25,
+  "changed_functions": 0,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "text unchanged"
+    }
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "none (text unchanged)",
+  "patterns": {
+    "P8": 2,
+    "P11": 1
+  },
+  "notes": "No diff file; r2/dec and t01/dec texts are byte-identical. Round-1 findings stand as they were.",
+  "summary": "Text unchanged; all round-1 findings still apply."
+}

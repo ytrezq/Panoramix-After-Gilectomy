@@ -1,0 +1,20 @@
+{
+  "id": "c00228",
+  "text_changed": true,
+  "lines_old": 1189,
+  "lines_new": 930,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "fixed", "note": "deposit and withdraw: the 4 reverts print 'DepositorUniV3/exceeds-slippage' / 'exceeds-due-amt', the Deposit and Withdraw events show their data, the pool mint and collect calls are named with arguments (mint's callback data as Array(len=96, data=_param1, _param2, _param3)), burn/mint/collect results read as ext_call.return_data[...]"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "PairLimit members still read back as 'mem[ceil32(_1) + 564 len 12]' / '596 len 12' / '636 len 4' (6 lines)"},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "mulDiv still prints 2^96 in decimal next to 0x01000000000000000000000000 (8 lines)"},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "'if -_2 + ext_call.return_data[16 len 16] > ext_call.return_data[16 len 16]'"},
+    {"n": 5, "kind": "artifact", "status": "still", "note": "immutables read as 0 (roles, factory, buffer)"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Round-1 finding 1 is fixed. The ~175 dead memory writes are gone: the decoded parameter struct, the canCall and CREATE2 encodings, the zeroed PairLimit, the 6x repeated mapping-key scratch writes, the call buffers and return-data copies. The auth modifier reads '_3 = ext_call.return_data[0] or 1 == wards[caller]'. The only while (the abi.encode copy of the mint callback data) became part of the decoded call (whiles 1 -> 0). Raw calls 2 -> 0, raw reverts 4 -> 0, P6 gone. Text 259 lines shorter.",
+  "patterns": {},
+  "notes": "Per-function diffs: only deposit (unknownc82cb114) and withdraw (unknowncd8e305c) changed; both read in full except the mulDiv lines, which change only by whole-byte hex. Neutral: the mint amounts are now 'ext_call.return_data[0 len 64]' in deposit's return and event where round 1 named them _292, _293; the uint96 slice of an amount prints as 'ext_call.return_data[20 len 12]' in deposit but 'uint96(ext_call.return_data[0])' in withdraw. The new pack lists no regex pattern (P2 2 -> 0, P6 4 -> 0).",
+  "summary": "No regression. The unresolved-free-pointer finding is fixed (reverts, events, mint/collect calls decoded), and the dead memory writes and the only copy loop are gone. PairLimit slices, mulDiv constants and the subtraction-check form remain."
+}

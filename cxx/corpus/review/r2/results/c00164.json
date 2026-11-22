@@ -1,0 +1,40 @@
+{
+ "id": "c00164",
+ "text_changed": true,
+ "lines_old": 2769,
+ "lines_new": 2774,
+ "changed_functions": 6,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "tokenURI's string addresses are still full sums of earlier lengths; a few terms are folded (a resolved length gives '_121 + _127 + mem[160] + mem[224] + mem[288] + 1452')"
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "the toString loops still peel the first digit before 'while t / 10:' (one statement, within the new 2-statement rotation limit); 'call.data[calldata.size len ..]' zero-fills unchanged"
+  },
+  {
+   "n": 3,
+   "kind": "simplification",
+   "status": "still",
+   "note": "createRedemption/claimRedemption/queryGraph unchanged"
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "Returned and passed bytes are split into length and data (unknown7d7f31e0 / unknown3227470d returns '96, _16, mem[.. + 132 len _16]'; safeTransferFrom's onERC721Received data is 'Array(len=0, data='')'). P2 8 -> 2: three memory reads of call results became ext_call.return_data[0] (e.g. '_3 = ext_call.return_data[0]', 'if _148 <= ext_call.return_data[0]'). One tokenURI string piece is resolved to its literal. P6 fixed (0x01ffc9a7).",
+ "patterns": {
+  "P1": 0,
+  "P2": 2,
+  "P3": 0,
+  "P4": 0,
+  "P5": 0,
+  "P6": 0
+ },
+ "notes": "Diff of 627 lines: 6 changed functions, all read; most of unknown3227470d's diff is renumbered temporaries. The captured '_3 = ext_call.return_data[0]' is set before the success check but used only after the 'require min(32, return_data.size) >= 32', so it equals the old mem[_113]. Loops are unchanged (17 whiles).",
+ "summary": "No regression. Small improvements: bytes arguments and returns split into length and data, a few call results read directly, P6. The tokenURI address sums and rotated toString loops remain."
+}

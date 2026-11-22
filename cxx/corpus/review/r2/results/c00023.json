@@ -1,0 +1,39 @@
+{
+ "id": "c00023",
+ "text_changed": true,
+ "lines_old": 762,
+ "lines_new": 762,
+ "changed_functions": 1,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "semantics",
+   "status": "fixed",
+   "note": "isFactory (unknown6167f931) now names its address _param2, the second calldata word it reads, so the name keeps its true position; the unused first word is still not listed as a placeholder, which the N-th-word naming makes unnecessary."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "isPoolDeployer unchanged."
+  },
+  {
+   "n": 3,
+   "kind": "simplification",
+   "status": "still",
+   "note": "bytes32 ASCII keys still in hex."
+  },
+  {
+   "n": 4,
+   "kind": "simplification",
+   "status": "still",
+   "note": "activatePoolManager unchanged."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "The unknown function's parameter is numbered by its calldata word (_param2).",
+ "patterns": {},
+ "notes": "The whole 18-line diff read: one function, three lines renamed. The pack lists no regex pattern.",
+ "summary": "No regression; the parameter-position finding of round 1 is fixed, the other three remain."
+}

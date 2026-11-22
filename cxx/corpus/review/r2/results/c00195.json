@@ -1,0 +1,29 @@
+{
+ "id": "c00195",
+ "text_changed": true,
+ "lines_old": 2105,
+ "lines_new": 1932,
+ "changed_functions": 18,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "artifact",
+   "status": "partly",
+   "note": "The immutables still read as 0 (calls to 0x0), but claimRewards is now decoded: 'call 0x0.claimRewards(...) with: args Array(len=1, data=aToken), -1, _gauge, _token', so its P2 part is gone."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "RAY still prints as 1000000000 * 10**18 (81 lines) and mulDiv is still expanded (P9)."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "P1 2 -> 0 (the Initializable slot prints as one constant), P2 12 -> 2 (the 2 left are calls with arbitrary bytes data, which is right), P6 3 -> 0. claimReward shrank from 75 to 37 lines: claimRewards is decoded, the one-element address[] encoding loop is gone (1 -> 0 whiles), its dead Panic(50) on a length-1 array is dropped, and it returns ext_call.return_data[0]. getReserveNormalizedIncome, approve and decimals calls are decoded. upgradeToAndCall's raw reverts are now 0xaa1d49a4/0x4c9c8ce3 with their arguments, and the Withdraw events in redeem and withdraw are decoded.",
+ "patterns": {
+  "P2": 2
+ },
+ "notes": "I checked all 18 changed functions with per-function and normalized diffs; 9 only changed hex, duration display or line numbers. No source loop. In unknowncabc777e/unknowne25ec349, the old temporary '_10 = min(_param1, mem[_8])' is now inlined as 'min(_param1, _1)' at each use inside the expanded mulDiv. That is equivalent, but repeats the min in lines that were already unreadable (P9).",
+ "summary": "No regression. claimRewards and the Aave/approve calls are decoded, raw reverts are named, P1/P6 are gone, and the only while (an encoding loop) is removed."
+}

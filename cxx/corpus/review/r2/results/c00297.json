@@ -1,0 +1,28 @@
+{
+  "id": "c00297",
+  "text_changed": false,
+  "lines_old": 257,
+  "lines_new": 257,
+  "changed_functions": 0,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "text unchanged (no diff)"
+    }
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "none (text unchanged)",
+  "patterns": {
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "No diff file; old and new texts are byte-identical.",
+  "summary": "Text unchanged; the round-1 finding (fork arguments as a 64-byte return-data slice) stands."
+}

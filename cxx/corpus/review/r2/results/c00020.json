@@ -1,0 +1,30 @@
+{
+  "id": "c00020",
+  "text_changed": true,
+  "lines_old": 3500,
+  "lines_new": 2709,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "Immutables still 0 (rocketStorage calls on 0x0, casperDeposit 0x0)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "def storage unchanged; address(stor[3]) everywhere."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "unknown0e335206 unchanged (no hunk)."}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown96c212e8, unknown687fe439, unknowne5858f27",
+      "lines": "982-985 (unknown96c212e8) and the same block in the other two",
+      "decompiled": "if SafeMath.add(stor6, stor7) > 0: if stor7 > stor6 + stor7: revert with Panic(17); if 10**18 * stor6 / stor6 != 10**18 and stor6: revert with Panic(17); call ...unknowne17e6ac3(?) args address(stor[3]), 10**18 * stor6 / (stor6 + stor7)",
+      "source": "RocketMegapoolDelegate capital ratio: bond * 1 ether / (bond + userCapital) passed to the revenue contract",
+      "issue": "Now that the call's arguments are decoded, the overflow checks of its argument are printed before it; the add check repeats the one the enclosing SafeMath.add(stor6, stor7) already made (P11).",
+      "rule": "Drop a checked-add test on (a, b) dominated by a SafeMath.add(a, b) that did not revert.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "3500 -> 2709 lines, P2 39 -> 1: getAddress lookups, the unknown library calls (e17e6ac3, f7b65fb2, 60be2e1c, 7aab9e16, a9a94822, dd2a6244...), recycleDissolvedDeposit and both casperDeposit.deposit calls (three dynamic arguments, offsets and padding exact) decoded; claim's ETH transfer targets the withdrawal address instead of a memory slice; custom events show their data; error strings ('Contract not found', 'Megapool locked', 'Bond is at minimum', 'Invalid shares', SafeCast...) decoded instead of memory reverts; hex constant shows whole bytes.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 3,425 lines reviewed by function: calls and events identical in count in all 7 changed functions; storage writes unchanged; the +2 Panic(17) in three functions are checks moved out of SafeMath helpers in the old raw call buffer (both give Panic(17), so their order is immaterial). deposit argument lines read in full.",
+  "summary": "No regression: the text is shorter and most calls, events and revert messages that were raw memory are now decoded; only a redundant overflow check appears where a call's arguments were decoded."
+}

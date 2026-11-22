@@ -1,0 +1,32 @@
+{
+  "id": "c00039",
+  "text_changed": true,
+  "lines_old": 3132,
+  "lines_new": 2630,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "The calls of deposit, borrow, withdraw, payback, paybackFor, startAuction and buyFromAuction are now named with args (vat.frob/flux/urns/ilks/behalf, gem.join, transferFrom, balanceOf, the library delegatecall, stor119.0xb3ed4865). Deposit and AuctionStarted are decoded, and 'revert with memory' fell from 15 to 6 (Error strings such as 'Interaction/too-much-requested', 'SafeERC20: ...', 'FullMath: FULLDIV_OVERFLOW'). The 29 lines still matched as P2 are decoded calls whose ilk argument is read back from the struct copy as mem[160] (P14). A held mem[64] is still not cancelled in one encoder (regression 1)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "The uint8 + uint24 field_520 store of 'live' is unchanged (2 lines)."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "The list functions did not change."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "'1000000000 * 10**18' (61 lines) and the decimal 4-byte selectors (6) are unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "getAllActiveAuctionsForToken(address)",
+      "lines": "1080-1100",
+      "decompiled": "_29 = mem[64] / mem[mem[64]] = 32 / mem[mem[64] + 32] = _4 / (encoding loop at mem[64] + 64 + ..) / return memory from mem[64] len 192 * _4 + _29 - mem[64] + 64",
+      "old": "return memory from mem[64] len 192 * mem[ceil32(return_data.size) + 128] + 64",
+      "source": "AuctionProxy/Interaction getAllActiveAuctionsForToken: return sales; (ABI encoding of Sale[])",
+      "issue": "The returned length keeps '_29 - mem[64]', which is 0: _29 was read from mem[64] just before, and the encoder writes only at mem[64] + k with k >= 32. Same defect as c00051's Scenario[] encoder.",
+      "rule": "A store at mem[64] + k with k >= 32 (or above the free-pointer floor) cannot change mem[64], so a held read b = mem[64] stays equal to it and 'b - mem[64]' folds to 0.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Dead memory traffic is gone: the sha3 key scratch 'mem[0] = x; mem[32] = slot', the repeated CollateralType copies and the selector/argument stores of decoded calls. That is 500 fewer lines, with startAuction and buyFromAuction halved. withdraw's participant/provider test is now 'token == caller or caller == stor111[..]'. Four SafeERC20 copy loops became one copy line each. P6 is gone, and P2 (as matched) fell from 44 to 29 lines.",
+  "patterns": {"P2": 29},
+  "notes": "Diff 1747 lines, read in full for the first 460 lines (getAllActiveAuctionsForToken, startAuction, which moved and whose old and new bodies were compared directly, and withdraw). The rest (borrow, deposit, payback, paybackFor, buyFromAuction) was reviewed by grouping changed forms. Control flow is unchanged apart from merging the or-chain. The text is self-consistent where mem[64] updates were dropped: later addresses add the dropped allocation sizes, e.g. 'mem[ceil32(_1) + mem[64] + 32]' in startAuction.",
+  "summary": "Clear improvement: P2 calls, events and Error reverts are decoded, and dead memory writes are dropped (-500 lines). One low regression: '_29 - mem[64]' is not folded in getAllActiveAuctionsForToken's encoder."
+}

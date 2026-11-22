@@ -1,0 +1,28 @@
+{
+ "id": "c00064",
+ "text_changed": true,
+ "lines_old": 1347,
+ "lines_new": 1294,
+ "changed_functions": 8,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "packed uint32[] elements still raw: 'stor[(stor266[_param2].length - 1) / 8 + sha3(sha3(_param2, 266))]' with mask and shift"
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "The three rotated zero-inits of the result arrays are un-rotated ('while True: ... mem[s] = _3; if t != 1: s += 32; t -= 1; continue / break'), and their peeled first element's 11-13 lines are gone (P3). postUpgrade's '182500000000000000000 * 10**18 * 24 * 3600' is now '15768000000000000000000000 * 10**18' (P1). updateStorageWhenClose*Internal's parameters are named by calldata word, which matches the ABI: Swap occupies words 1-11, so '_param11 < 2' / 'IPOR_307' is swap.state and '_param12 <\u2032 0' is pnlValue; the old sequential names were off by one from word 10 (liquidationDepositAmount, never read). P6 fixed (0x0100..). Dead pointer bumps dropped.",
+ "patterns": {
+  "P1": 0,
+  "P2": 0,
+  "P3": 0,
+  "P4": 0,
+  "P5": 0,
+  "P6": 0
+ },
+ "notes": "Diff of 463 lines: 8 changed functions, all read (93127f21/f1f1993e change only a hex constant; the a1181142/b987c209 twins change the same way). The four source loops are unchanged.",
+ "summary": "No regression. The rotated array initialisations are now plain loops, P1/P6 are fixed, and the close-swap functions' parameters carry their true calldata positions. The raw packed-array element reads remain."
+}

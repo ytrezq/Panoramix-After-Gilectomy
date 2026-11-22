@@ -1,0 +1,29 @@
+{
+ "id": "c00035",
+ "text_changed": true,
+ "lines_old": 2618,
+ "lines_new": 1261,
+ "changed_functions": 14,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "semantics",
+   "status": "fixed",
+   "note": "onJoinPool's unreachable minting tail (Transfer, totalSupply write, return with undefined variables) is gone; the function now ends in the reverts it really reaches."
+  },
+  {
+   "n": 2,
+   "kind": "artifact",
+   "status": "still",
+   "note": "zero solc immutables (vault 0, totalTokens 0, bptIndex 0) still prune the pool logic."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "The free-memory pointer is now resolved, so the empty scaling-factor array (`mem[_13] = 0`) is known: getRate, getActualSupply, updateProtocolFeePercentageCache and disableRecoveryMode now end at `ensureInputLengthMatch` / `balances[bptIndex]` (`assert len; revert with 'BAL#103'`, or `require len` for the `new uint256[](len - 1)` case) instead of printing ~300 dead lines each (dead returns, invariant loops, BAL#003 checks); onJoinPool's dead tail gone (finding 1); getAuthorizer/canPerform calls decoded with their arguments; actionIds print as `sha3(0, Bytes(4, 0x38e9922e))`; slot 12 is now split into `stor12` (uint233) and `stor12_233` fields, so getLastJoinExitData returns `stor12_233, stor12`; the text is half as long.",
+ "patterns": {
+  "P2": 4
+ },
+ "notes": "Per-function normalized diffs and statement multisets. Every removed call, write, log, loop and revert sits after a point where all paths end with the zero immutables (an empty balances array fails `balances[0]` or the `len - 1` allocation, a non-empty one fails BAL#103); the new texts print the two complementary failures as `assert len; revert 'BAL#103'`, equivalent to the source order. Round 1 counted _calculateInvariant's loops as live in these four functions: they are dead in this bytecode (artifact), so their disappearance is correct. `while idx < 36` in disableRecoveryMode is the old `while idx < _V` call-data copy with its length now known (P7).",
+ "summary": "No regression: the dead tails caused by the zero immutables are removed (finding 1 fixed) and the authorizer calls are decoded; the text is half as long and now shows only the reachable paths."
+}

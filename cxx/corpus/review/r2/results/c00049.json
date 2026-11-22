@@ -1,0 +1,23 @@
+{
+ "id": "c00049",
+ "text_changed": true,
+ "lines_old": 2932,
+ "lines_new": 2873,
+ "changed_functions": 3,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "the selector now prints with whole bytes (0x055af781..., P6 gone); the phi-chained four-way ||, the mask test and the split delegatecall data are unchanged; the returned bytes now read `return Array(len=_V, data=...)`."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "unknown01a69331: the struct-argument call is decoded (`unknowndac30144(?)` with `args _param2, _param3, _param4, _param1, _V, _V`) and its memory build dropped, 6 return-data reverts print as `revert with ext_call.return_data[...]`, `return memory` -> `return _V`; two checks that cannot fail are gone (the enum Panic(33), implied by `require _param1 < 7` at entry, and a Panic(65) on a bounded pointer); delegatedAction returns `Array(len=_V, ...)`; the Initializable ERC-7201 slot prints as 0xf0c57e16...00 instead of `0x111f...aa0 * 3600` (P1 2 -> 0); P6 34 -> 0.",
+ "patterns": {
+  "P2": 2
+ },
+ "notes": "Per-function normalized diffs: unknown01a69331, delegatedAction, unknownb42a5bee (the P1 slot); the other 10 functions with hunks differ only by hex padding. In unknown01a69331 the intermediate `mem[64] = ...` writes inside the branches and the `mem[64] += 160` allocation are dropped; the log data after the join are addressed as `mem[mem[64] + 160 ...]`, consistent with that.",
+ "summary": "No regression; a struct-argument call, return-data reverts and returns are decoded, two impossible checks removed, and the P1/P6 display problems are gone."
+}

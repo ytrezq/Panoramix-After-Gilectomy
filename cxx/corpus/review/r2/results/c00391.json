@@ -1,0 +1,14 @@
+{
+  "id": "c00391",
+  "round1": true,
+  "abi_functions": 1,
+  "reviewed": 1,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "findings": [],
+  "notes": "Reviewed whole (no round-1 result; text unchanged). setImplementation: ABI address check, the admin check against the ADMIN_SLOT word (storB531, typed address, so the comparison is on the cleaned address) with 'NTP:SI:NOT_ADMIN', the full-word store into IMPLEMENTATION_SLOT (stor3608 = 0x3608..2bbc, the EIP-1967 slot), and ImplementationSet with its indexed address. The fallback (non-payable, as in the source): the code-size check with 'NTP:F:NO_CODE_ON_IMPLEMENTATION', then the delegatecall of the whole calldata with all gas, reverting or returning with the return data. 'delegate stor3608' uses the raw word, as the inline assembly does. No loop.",
+  "summary": "Exact and minimal: the proxy's one function and its fallback match the source line for line."
+}

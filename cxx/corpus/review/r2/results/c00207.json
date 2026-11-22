@@ -1,0 +1,29 @@
+{
+  "id": "c00207",
+  "text_changed": true,
+  "lines_old": 2967,
+  "lines_new": 2473,
+  "changed_functions": 6,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "ERC20Helper approve/transfer calls are still raw 'args mem[.. len 68]' (15 lines) after a 'while idx < 68' word copy; the length is now the constant 68 and the failure reverts are decoded ('LM:PFFL:APPROVE_FAILED'...). Ten-term ceil32 address sums remain (e.g. line 854)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "triggerDefault(address) (unknownffb43a5f) and the text's second 'triggerDefault' def (same code)",
+      "lines": "1580-1584 (and the same lines in the other copy)",
+      "decompiled": "_118 = min(A, B) / if B < _118: revert with Panic(17) / if A < _118: revert with Panic(17)   (A = ext_call.return_data[0] - min(SafeMath.add(_7, ..), ext_call.return_data[0]), B = _4 + _5 + _8 - (..)/10**6 - (..)/10**6)",
+      "old": "_118 = min(_114 - min(..), _105 + _106 + _111 - ..)  (no check: the checked subtractions were folded)",
+      "source": "LoanManager._distributeLiquidationFunds: checked 'remaining - toX' after toX = min(remaining, fees)",
+      "issue": "Two Panic(17) checks of the form 'x < min(x, y)' are now printed after _118 = min(A, B). They can never fire: an unsigned min is never above either operand. The old text had folded them.",
+      "rule": "Fold 'x < min(x, y)' and 'y < min(x, y)' (unsigned) to false and drop the dead revert.",
+      "verified": "reading only (the operands of min are textually the operands of the two checks, line 1580-1583)"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Text 2967 -> 2473 lines (165 KB -> 146 KB). All LM:* string reverts in fund, claim, triggerDefault, impairLoan and removeLoanImpairment are decoded (quoted 78 -> 116; raw 'revert with memory' gone). Calls named: poolDelegate, mapleGlobals, mapleTreasury, isBorrower, principal, repossess, borrower. Log payloads decoded (e.g. claim's 0x948106be.. and 0x1e2d80f3.. events). claim's 'if ok: log else revert' flattened to 'if not ok: revert' then the log. Two 'issuanceRate > int256.max' string checks in claim are folded into SafeMath.sub(0x7fff..ff, issuanceRate), whose helper reverts with exactly 'LM:UINT256_OOB_FOR_INT256'. The zero-padding tests after the constant-68 copy loops are dropped (always true). P6 41 -> 0, P2 41 -> 15, return-memory 2 -> 0.",
+  "patterns": {"P1": 0, "P2": 15, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 2290 lines, reviewed function by function. claim's revert count is 27 -> 25: the two removed reverts are the 'LM:UINT256_OOB_FOR_INT256' checks folded into SafeMath.sub (def SafeMath: sub reverts with that string; sub2 is the Panic(17) one, unchanged since round 1), so no revert path is lost. Evaluation order is kept: the helper is the left operand of the 'and'. triggerDefault (two defs) gains only the two dead checks reported. Lines with >= 4 ceil32 terms 59 -> 100 (base pointers substituted), but lines over 240 chars 42 -> 35. No loop in the source; 15 implicit whiles unchanged.",
+  "summary": "One low regression: triggerDefault prints two never-failing 'x < min(x, y)' Panic(17) checks. Otherwise improved: every LM:* revert decoded, calls and log payloads named, text 17% shorter. ERC20Helper calls are still raw memory behind constant-length copy loops."
+}

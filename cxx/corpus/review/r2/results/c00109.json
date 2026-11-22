@@ -1,0 +1,30 @@
+{
+  "id": "c00109",
+  "text_changed": true,
+  "lines_old": 2608,
+  "lines_new": 2563,
+  "changed_functions": 10,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "initialize did not change: the 132-byte copy loop and the extension delegatecall are as before."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "_fallback did not change."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "collect(uint256,address)",
+      "lines": "2250",
+      "decompiled": "_191 = SafeMath.mul(uint32(stor20[address(allocation[_allocationID].field_0)].field_64), min(..), concat(Bytes(4, 0x08c379a0), 32, 33, 'SafeMath: multiplication overflow', mem[mem[64] + 101 len 31]))",
+      "old": "_191 = SafeMath.mul(uint32(stor20[..].field_64), min(..), 'SafeMath: multiplication overflow')",
+      "source": "SafeMath.mul (solc 0.7 SafeMath, message 'SafeMath: multiplication overflow')",
+      "issue": "As in c00065, the helper now prints the whole Error(string) payload, with 31 padding bytes read from memory, instead of the message. Here it is one line.",
+      "rule": "Padding copied from the zero tail of a constant-stored message word is known zero; print just the message.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P1 is gone: the ParameterUpdated string 'thawingPeriod' is a plain hex word, not '0x8472..e4 * 3600'. P6 is gone, and P2 fell from 4 to 3. The outboundTransfer _data argument is one Array in unknownbb8d57c9 and unknown0a6655a0. collect's GRT transfer and RebateCollected event (8 data words) are decoded. Dead memory traffic is dropped (sha3 scratch, struct copies, selector stores). Return words are read as ext_call.return_data[0]. In unknowncbf0fdfe and unknown42f543ae the capacity SafeMath.add check now precedes the tokensUsed add, so the overflow checks keep their order (the fix).",
+  "patterns": {"P2": 3, "P4": 8},
+  "notes": "Diff 997 lines, read hunk by hunk. closeAllocation only moved (its old and new bodies differ by one blank line). Control flow, storage writes and events are unchanged apart from decoding. The reordered overflow check moves only ahead of memory writes, which a revert discards.",
+  "summary": "Improved: P1/P6 fixed, events and calls decoded, dead memory writes dropped, SafeMath check order exact. One low regression: a SafeMath.mul in collect now prints the raw Error payload with memory padding. Round-1 findings unchanged."
+}

@@ -1,0 +1,28 @@
+{
+  "id": "c00334",
+  "text_changed": true,
+  "lines_old": 879,
+  "lines_new": 846,
+  "changed_functions": 6,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "GetResponse still copies the require into every branch of the inlined error-code switch: 'uint24(_param1) != 2' 11 times, not folded under 'if 1 == _param1'. Only its dead returns changed form, to Array(...)."}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "APIRequest/TuringTx paths unknown2f7adf43 and unknown450baef0 (identical)",
+      "lines": "44-46 of each function",
+      "decompiled": "call stor1.GetResponse(uint32, string, bytes) with: args 1, 96, ceil32(cd[_param1 + 4]) + 128, cd[_param1 + 4], mem[ceil32(cd[_param1 + 4]) + ceil32(cd[_param2 + 4]) + 324 len ceil32(cd[_param1 + 4]) + ceil32(cd[_param2 + 4]) + 32]",
+      "source": "TuringHelper.sol: Self.GetResponse(rType, _url, _payload)",
+      "issue": "The signature is known (uint32, string, bytes), but the call's data are now raw ABI words: two head offsets, the string's length, and one memory slice holding the string data, the bytes' length and the bytes. The old decode was wrong (Array(len=n, data=<whole tail>) followed by a raw offset), so this is exact but no longer shows the string and bytes arguments.",
+      "rule": "With a known signature, split the tail at the offsets the head words give (each region is a length word plus ceil32(length) bytes) and print each dynamic argument from its region, here the calldata strings _param1 and _param2.",
+      "verified": "reading only; text_check run --per-selector 16: 0 different"
+    }
+  ],
+  "improvements": "GetResponse's 11 returns decode as Array(len=_param3.length, data=...). The memory copies feeding the event and return of 2f7adf43/450baef0 are copy lines instead of whiles (9 -> 5 whiles). The revert in GetResponse prints its length as a separate value. P6 26 -> 0 (0x08c379a0, 0x01ffc9a7).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "I read the whole diff. supportsInterface and 493d57d6/e86f1899 (identical) changed only by the whole-byte hex display. 2f7adf43 and 450baef0 have identical diffs. The event and return of those two still show the length inside a memory slice (log ...: 1, 64, mem[... len ceil32(_19) + 32]; return 32, mem[...]): no worse than the old 'length, mem[...]' pairs. No source loops. text_check run --per-selector 16, both worlds: 131 + 128 guessed-param calls same, 0 different.",
+  "summary": "No regression. Returns decode as Array and copy loops became copy lines. The GetResponse(uint32, string, bytes) call is now exact but raw (it was mis-decoded before), and the round-1 duplicated-require finding remains."
+}

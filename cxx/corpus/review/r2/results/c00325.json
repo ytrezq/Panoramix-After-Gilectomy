@@ -1,0 +1,29 @@
+{
+  "id": "c00325",
+  "text_changed": true,
+  "lines_old": 371,
+  "lines_new": 370,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "Strings.toString's do-while is still rotated: the first digit is written before 'while t / 10'. This is within the fix's two-statement allowance."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "registerBobaBubble(string) (unknowne9eff3c9)",
+      "lines": "321-335",
+      "decompiled": "mem[ceil32(return_data.size) + ceil32(_15) + ceil32(cd[_param1 + 4]) + 288] = _41 + 1 / mem[_41 + ceil32(return_data.size) + ceil32(_15) + ceil32(cd[_param1 + 4]) + 320 len 1] = byte(_21 % 10, ...) / _45 = mem[ceil32(return_data.size) + ceil32(_15) + ceil32(cd[_param1 + 4]) + 288]",
+      "old": "_42 = mem[64] / mem[mem[64]] = _41 + 1 / mem[_41 + _42 + 32 len 1] = byte(_21 % 10, ...) / _45 = mem[_42]",
+      "source": "Strings.toString(value): bytes memory buffer = new bytes(length) inside string.concat('Invalid request:', ...)",
+      "issue": "The string buffer's address, held in _42 = mem[64], is replaced at its 6 uses by the free pointer's 4-term symbolic value, so each line grows by about 70 characters.",
+      "rule": "Substitute the free pointer's value only when it is short; otherwise keep the variable bound where mem[64] is read.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "The ABI-decoded string length is named (_15 >=′ 128 instead of a memory read), and one whole-byte hex is printed (P6 1 -> 0).",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 51 lines, read in full; only registerBobaBubble changed. Calls, the event, the stor3/stor4 writes and the loop structure are unchanged.",
+  "summary": "One low readability regression: a buffer pointer variable is replaced by a long free-pointer sum. Otherwise unchanged."
+}

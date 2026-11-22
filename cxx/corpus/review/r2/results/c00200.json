@@ -1,0 +1,36 @@
+{
+ "id": "c00200",
+ "text_changed": true,
+ "lines_old": 998,
+ "lines_new": 949,
+ "changed_functions": 3,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "getPools (unknownbbe95837) did not change."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "unknown64754df7(address,array,bool)",
+   "lines": "last 4 lines of the function (e.g. 'log 0x5b391c3c...')",
+   "decompiled": "mem[ceil32(cd[_param2 + 4]) + mem[64] + 160] = cd[_param2 + 4]\nmem[ceil32(cd[_param2 + 4]) + mem[64] + 192 len cd[_param2 + 4]] = call.data[_param2 + 36 len cd[_param2 + 4]]\nmem[ceil32(cd[_param2 + 4]) + cd[_param2 + 4] + mem[64] + 192] = 0\nlog 0x5b391c3c...: 64, _param3, mem[ceil32(cd[_param2 + 4]) + mem[64] + 160 len ceil32(cd[_param2 + 4]) + 32], indexed _param1",
+   "old": "log 0x5b391c3c...: Array(len=cd[_param2 + 4], data=call.data[_param2 + 36 len cd[_param2 + 4]]), _param3, indexed _param1",
+   "source": "the setter's event emit (string, bool) with an indexed address, after a try-style validation staticcall",
+   "issue": "After the join of the validation call (one arm moves mem[64], the other does not), the three stores that build the event's string tail, at addresses written as 'ceil32(L) + mem[64] + k', are no longer forwarded into the log that reads those same addresses. The event, decoded in round 1, now prints its head offset 64 and a raw memory slice, plus three store lines.",
+   "rule": "Within a block with no write to word 64, an address expression containing mem[64] denotes one fixed address: forward stores to loads at the same expression and decode the log data (offset 64 -> Array(len, data)).",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "createPool (unknownf4bff5f1): the unknownba03915b call prints Array(..), _param2, Array(..) instead of one merged Array plus offsets, reverts are PoolExists() and DeployFailed(), the pool key and create2 salt are sha3(_param2, _param1), three one-byte copy loops are resolved (whiles 13 -> 10, P2 2 -> 1). unknown8d6e44fa loses its dead writes and its 'REF_ID' revert is a string. P6 3 -> 0.",
+ "patterns": {
+  "P2": 1
+ },
+ "notes": "Reviewed function by function (415-line diff, 3 functions). Calls, storage writes and requires unchanged; createPool's 1-byte copies replace loops of one iteration exactly (the following zero store overwrites the rest of the word).",
+ "summary": "One medium regression: unknown64754df7's event, decoded in round 1, now prints as raw head words and memory. createPool and unknown8d6e44fa improved."
+}

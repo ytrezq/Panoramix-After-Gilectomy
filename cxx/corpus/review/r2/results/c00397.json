@@ -1,0 +1,28 @@
+{
+  "id": "c00397",
+  "text_changed": false,
+  "lines_old": 39,
+  "lines_new": 39,
+  "changed_functions": 0,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "Text unchanged."
+    }
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "None (text unchanged).",
+  "patterns": {
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "No diff file; the new text is byte-identical to the old one (cmp).",
+  "summary": "Text unchanged; every round-1 finding stays as it was."
+}

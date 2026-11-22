@@ -1,0 +1,33 @@
+{
+  "id": "c00057",
+  "text_changed": true,
+  "lines_old": 2596,
+  "lines_new": 2425,
+  "changed_functions": 9,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "activeTerminatedGroups (packed uint64[]) elements still raw 'Mask(64, 64 * (s % 4), stor[s / 4 + sha3(133)]) >> ..'."},
+    {"n": 2, "kind": "naming", "status": "still", "note": "The request id is still named isRelayRequestInProgress (e.g. 'requestId=isRelayRequestInProgress' in the RelayEntry* logs)."},
+    {"n": 3, "kind": "simplification", "status": "partly", "note": "expireOldGroups no longer computes its flag once before the loop and again at the end. It is now 'while True: <flag> / if flag: ..; continue / break', still a flag rather than 'while E'."},
+    {"n": 4, "kind": "simplification", "status": "partly", "note": "terminateGroup: the 's >= length' Panic(50) that both exits repeated is hoisted before the side-effect-free comparison. In reportRelayEntryTimeout the stakingProviders bound check implied by the loop test is dropped. The 'while True' with two exits remains."},
+    {"n": 5, "kind": "simplification", "status": "fixed", "note": "revert with 'Group has been already terminated'."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "reportRelayEntryTimeout(uint32[]), submitRelayEntry(bytes,uint32[]) (the stakingProviders arrays)",
+      "lines": "e.g. the stakingProviders loop and the seize/slash encodings",
+      "decompiled": "mem[32 * _82 + 32 * s + ceil32(_2) + ceil32(return_data.size) + ceil32(_14) + 2 * Mask(250, 5, entry.length + 31) + 32 * groupMembers.length + 1024] = operatorToStakingProvider[..]",
+      "old": "_105 = mem[64] ... mem[_105 + 32 * s + 32] = operatorToStakingProvider[..]",
+      "source": "RandomBeacon: address[] memory stakingProviders = new address[](groupMembers.length) ... stakingProviders[i] = operatorToStakingProvider(..)",
+      "issue": "The base variable of the freshly allocated array is replaced by the sum of all earlier allocation sizes, so each element address is an 8-term expression. Same mechanism as c00090, milder here: the text is 3% smaller overall.",
+      "rule": "Keep a variable for an allocation's base (the value mem[64] held when it was allocated) and print element addresses as base + 32 * i + 32.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Calls named with decoded args: staking.seize / slash(amount, Array(..)), reimbursementPool.refund, stor120.isLocked / unlock, sortitionPool calls. RelayEntryRequested logs 'groupId=uint64(t), previousEntry=Array(len=64, data=stor137, stor138)' instead of a mis-split raw range, which drops a P7 copy loop (49 -> 48 whiles). DkgStarted's seed is 'sha3(entry[all])'. Event payloads (RelayEntryTimeoutSlashed..., CallbackFailed) are decoded. String reverts are decoded, including the 33-byte one. 'if ok: log else revert' blocks are flattened. The GAS fix puts 'gas_remaining' after the calldata checks, where the refundable modifier reads it, and the refund reads it once (_209). The checked 'block.timestamp + stor103' now stands as its own check before the encoding loop, which cannot revert. P6 6 -> 0, P2 17 -> 5, P4 5 -> 1.",
+  "patterns": {"P1": 0, "P2": 5, "P3": 0, "P4": 1, "P5": 0, "P6": 0},
+  "notes": "Diff 1609 lines, reviewed function by function with call/log/store/revert/while sequences and the full diffs of approveDkgResult, reportRelayEntryTimeout and submitRelayEntry. Every revert removed is dominated: Panic(50) bounds implied by the loop test, a duplicate merged across both exits, or an Error(string) now decoded. Every reorder is a flattened if/else with the revert first. The 8 in-bytecode source loops are all still whiles.",
+  "summary": "No semantic regression. Only milder base-pointer expansion in the stakingProviders arrays. Calls, events and reverts are decoded, duplicate checks merged, the 33-byte revert fixed, and the GAS reads correctly placed."
+}

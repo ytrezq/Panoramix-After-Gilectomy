@@ -1,0 +1,29 @@
+{
+  "id": "c00126",
+  "text_changed": true,
+  "lines_old": 3141,
+  "lines_new": 2726,
+  "changed_functions": 7,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "blockSubmission unchanged: key concat(mem[32 * s + 160]) and the event reading back a scratch word"}
+  ],
+  "regressions": [
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "send(address,uint256,uint256,bytes,bytes,bool,uint32,bytes)",
+      "lines": "2174-2175, 2322, 2398, 2401-2402, 2408",
+      "decompiled": "_174 = sha3(sha3(mem[_126 + ceil32(_127) + 128 len mem[..]]), 255) / if not uint8(debridge[sha3(mem[_126 + ceil32(_127) + 128 len mem[..]])].field_1200): ... / if _334 > stor1[_174]: / stor2[_174] = SafeMath.sub(stor2[_174], ..) / call stor4[_174].burn(uint256 _value)",
+      "old": "if not uint8(debridge[_173].field_1200): ... / if _334 > debridge[_173].field_256: / ... debridge[_173].field_512 ... / call address(debridge[_173].field_1024) with: args mem[..]",
+      "source": "DeBridgeGate.sol _send: DebridgeInfo storage debridge = getDebridge[debridgeId]; if (!debridge.exist) ...; if (_amount > debridge.maxAmount) revert TransferAmountTooHigh(); debridge.balance -= ...; IDeToken(debridge.tokenAddress).burn(...)",
+      "issue": "8 accesses to getDebridge[debridgeId] that the old text named debridge[_173].field_N now print as stor1/stor2/stor4[_174] (stor1 is also the name of the __gap array at slot 1) or with the key re-expanded as sha3(mem[..]), although _173 holds the key on both paths. The burn call is named now, but its target reads as stor4[_174].",
+      "rule": "A slot sha3(k, m) + c of a known mapping m is m[k].field_(256c): print it so; when a variable already holds k on every path, use it rather than the hashed memory it came from.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P2 15 -> 3, P6 10 -> 0, P4 9 -> 8 (native fee key now sha3(chainid, Bytes(20, 0))). Implicit copy loops 54 -> 29 whiles (sendMessage 6 -> 0, claim 18 -> 6, send 15 -> 10, sendMessage#2 6 -> 4): Sent's submissionId is now sha3 of the packed fields. _addAsset's bytes write of abi.encodePacked(token) is now the exact 20-byte short form (length byte 40, data in field_96) instead of the generic long/short branches. The SafeERC20 tails in claim are early reverts with decoded strings, without the error-string copy loops. Custom errors are decoded (TransferAmountTooHigh, TransferAmountNotCoverFees, NotSupportedFixedFee, WrongAutoArgument), PairAdded/MonitoringClaimEvent/MonitoringSendEvent have named fields, transfer/transferFrom/burn calls are named, feeDiscount fields replace memory slices, and deployAsset's two strings are now two separate Array arguments. 3141 -> 2726 lines.",
+  "patterns": {"P1": 0, "P2": 3, "P3": 0, "P4": 8, "P5": 0, "P6": 0},
+  "notes": "Diff 1927 lines; 7 changed functions (def storage, supportsInterface and deployNewAsset trivial or display-only), reviewed by skeleton comparison plus full reading of the changed regions. sendMessage(3 args) shrank 349 -> 193: with flags = 6 folded, the SEND_HASHED_DATA arm is dropped and the keccak256(data) arm kept, as the source requires; the 20-byte nativeAddress branch is the only live one. send: both arms that define _173 are now decoded (sha3(stor263[token].field_0, nativeAddress) / sha3(chainid, Bytes(20, token))). The later discount products print as SafeMath.mul where the old text used a plain '*' after the same check: neutral. def storage now says 'stor1 is fixed array of struct of 1 slot' (was 'array of array'), both odd for uint256[50] __gap. _addAsset's AssetAlreadyExist/ZeroAddress reverts stay raw ('from _119 + 52 len _118 - _119 + 4'), as before.",
+  "summary": "Much clearer: 25 copy loops folded, calls/events/errors decoded, the nativeAddress storage write exact and short, 415 lines fewer. One low naming regression: in send, 8 getDebridge accesses now print as stor1/2/4[_174] instead of debridge[_173].field_N."
+}

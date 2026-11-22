@@ -1,0 +1,27 @@
+{
+  "id": "c00385",
+  "round1": true,
+  "text_changed": false,
+  "abi_functions": 2,
+  "reviewed": 2,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "transferTwice(uint256,address,uint16,bytes32,uint256,uint32,uint32)",
+      "lines": "43, 51, 52",
+      "decompiled": "require ext_call.return_data[0] == ext_call.return_data[24 len 8] / return Bytes(64, 0)",
+      "source": "DoubleTransfer.sol:25-28 TokenBridge(_address).transferTokens(...) (returns uint64 sequence); return (0,0);",
+      "issue": "The returned uint64 range check prints as a byte-slice comparison, and 'return (0, 0)' prints as one 64-byte blob.",
+      "rule": "x == x[24 len 8] is x == uint64(x); a return of n zero words prints as n values (return 0, 0).",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No round-1 result and no diff (text unchanged); reviewed whole. purpose(): the storage-string length decode with the Panic(34) encoding check, then the string. transferTwice: ABI checks, token.transferFrom(caller, this, amount) with the bool check, Panic(17) for amount - 1 when amount < 1, transferTokens(token, 1, chain, target, fee, nonce1) and (token, amount - 1, ..., nonce2), each with extcodesize, bubbled revert and uint64 return check. All match the source. The token slot is stor1 (no getter, so no name).",
+  "summary": "Tiny, faithful, loop-free text; only two cosmetic forms (a uint64 check as a byte slice, 'return Bytes(64, 0)')."
+}

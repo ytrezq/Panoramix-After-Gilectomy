@@ -1,0 +1,20 @@
+{
+  "id": "c00327",
+  "text_changed": true,
+  "lines_old": 387,
+  "lines_new": 363,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "immutables read as 0 (asset, decimals, chainid-based DOMAIN_SEPARATOR)"},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "permit's digest is decoded: 'signer3 = ecrecover(sha3(Bytes(2, 0x1901), _22, sha3(0x6e71...26c9, owner, spender, value, _24, deadline)), v, r, s)', and the inline domain separator hashes the name; but the recovered signer is still re-read as 'mem[mem[64] + 334 len 20]' (signer3 unused), also as the allowance key"},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "mulDiv checks unchanged"},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "the short/long name copy and '_6 * bool(_6) + 128' remain"},
+    {"n": 5, "kind": "naming", "status": "still", "note": "withdraw unchanged"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "permit: the struct hash and the EIP-712 digest, raw memory slices in round 1, are now decoded expressions, and the dead encoding writes (the domain-separator buffer, the struct-hash buffer, the nonce-mapping scratch) are gone. Text 24 lines shorter.",
+  "patterns": {},
+  "notes": "Diff of 54 lines, only permit, read in full. The ecrecover output address moved from '_25 + 322' to 'mem[mem[64] + 322]'. That is consistent: the dead 'mem[64] = mem[64] + 224' bump is no longer printed, so mem[64] is the old _25.",
+  "summary": "No regression: permit's digest is now readable. The signer is still read back from memory, and the other round-1 findings remain."
+}

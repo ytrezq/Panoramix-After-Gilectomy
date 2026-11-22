@@ -1,0 +1,16 @@
+{
+  "id": "c00396",
+  "text_changed": true,
+  "lines_old": 33,
+  "lines_new": 33,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The 36-byte Panic payload is still printed as two words; the code word now shows whole bytes (0x0100..00) but still reads as 1 << 224."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Hex constant of assertionError shows whole bytes.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 11 lines read in full.",
+  "summary": "No regression; display-only change."
+}

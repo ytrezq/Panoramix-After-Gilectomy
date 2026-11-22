@@ -1,0 +1,19 @@
+{
+  "id": "c00005",
+  "text_changed": true,
+  "lines_old": 6305,
+  "lines_new": 6030,
+  "changed_functions": 4,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "Fixed in erc4626BufferWrapOrUnwrap: its custom errors (0x24775e06, 0x5274afe7, 0x1c6a5375, 0x1149424d, 0x89560ca1, 0xe2ea151b), its event and its return now decode. swap/addLiquidity/removeLiquidity are unchanged: 'revert with memory' 154 -> 138, memory event data 7 -> 6."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "concat keys unchanged (44 lines, 8 one-element)."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "-340282366920938463463374607431768211456 still on 8 lines."},
+    {"n": 4, "kind": "artifact", "status": "still", "note": "Immutables read as 0."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "erc4626BufferWrapOrUnwrap (792 -> 529 lines): balanceOf calls are named, custom errors decode with arguments, the 0x3771d13c event and the return decode, several 'if ok: else: revert' arms are flattened, and a dead 'mem[128] > 1 -> Panic(33)' enum re-check is dropped (require _param1 < 2 at entry). P3 fixed in swap/addLiquidity/removeLiquidity: the PoolData struct-array allocation loop no longer prints its first iteration before 'while idx - 1'; it is a do-while 'while True: body; if t != 1: step; continue / break'. P1 fixed: '11574062500000 * 24 * 3600' -> '999999 * 10**12'. A transient key reads sha3(token, 0) instead of sha3(mem[0], 0). P6 30 -> 0, P2 49 -> 46.",
+  "patterns": {"P1": 0, "P2": 46, "P3": 0, "P4": 8, "P5": 0, "P6": 0},
+  "notes": "Diff of 1,169 lines, read hunk by hunk. Calls, logs and storage writes are unchanged in number in all 4 changed functions, and 103 whiles before and after. The -1 revert/if in erc4626BufferWrapOrUnwrap is the dead enum check. The +1 if in the three big functions is the do-while exit test. 'require _299 - ceil32(_3) - mem[64] >=′ 32' (410, 493) equals the old '-_N + _N - ceil32(_N)' form: _299 = return_data.size + ceil32(_3) + mem[64] with no mem[64] store between. It is just not folded to return_data.size >= 32.",
+  "summary": "No regression. erc4626BufferWrapOrUnwrap's errors, calls, event and return are decoded, and P1/P3/P6 are fixed in the big functions. The raw-memory errors of swap and add/removeLiquidity remain."
+}

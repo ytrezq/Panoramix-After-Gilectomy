@@ -1,0 +1,16 @@
+{
+  "id": "c00261",
+  "text_changed": true,
+  "lines_old": 1896,
+  "lines_new": 1886,
+  "changed_functions": 9,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "Still 21 'revert with memory from mem[64]' custom-error reverts."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "unknown529dca32: the bytes length read back from memory (mem[_24]) is forwarded as _23, and its 0xe7c8d4cf revert is decoded with its bytes argument split into length and data (6 lines -> 1); hex constants show whole bytes (0x01.., 9 lines).",
+  "patterns": {"P1": 0, "P2": 2, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 293 lines; no effect differs (calls, events, writes, reverts identical in count). In unknown529dca32 the held free-pointer bases (_24, _27, _56 = mem[64]) are now spelled as sums (_21 + ceil32(_20) + ceil32(_23) + 96...), which lengthens some address lines while the forwarded lengths shorten others; the text size is unchanged (223 KB), so I count it as neutral here.",
+  "summary": "No regression; small gains in unknown529dca32 (forwarded length, decoded error) and the hex display; round 1's memory reverts remain."
+}

@@ -1,0 +1,29 @@
+{
+  "id": "c00060",
+  "text_changed": true,
+  "lines_old": 5161,
+  "lines_new": 4366,
+  "changed_functions": 15,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The VM struct is still used through slices of its decoded memory copy (e.g. 'Bytes(30, 0), mem[X + 286 len 2]', 384 slice reads), and mapping keys are still one-element concats (isTransferCompleted[concat(mem[...])], 53)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "The bytes32ToString while loop is still rotated, with SafeMath.inc(s) three times (updateWrapped 2421-2427, createWrapped 2645-2651)."}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "naming",
+      "severity": "medium",
+      "function": "attestToken, transferTokens, transferTokensWithPayload, completeTransfer* (4), upgrade",
+      "lines": "741, 756, 1209, 1734, 2975, 3349, 3735, 4182; upgrade 2225 (delegate)",
+      "decompiled": "mem[_258 + 32 len 4] = 826074471 / mem[_258 + 36] = Bytes(4, 0x313ce567), mem[_258 + 36 len 28] / mem[_258 + 40] = 0 / static call address(_257).mem[_258 + 36 len 4] with:",
+      "source": "Bridge.sol: token.staticcall(abi.encodeWithSignature(\"decimals()\" / \"symbol()\" / \"name()\")); upgradeImplementation: newImplementation.delegatecall(abi.encodeWithSignature(\"initialize()\"))",
+      "issue": "The call's 4-byte input is now recognized as its selector, but it is printed as the memory slice in the function-name position ('target.mem[a len 4]'), though the store just above puts the constant 0x313ce567 / 0x95d89b41 / 0x06fdde03 / 0x8129fc1c there. The old text was a P2 call; c00066 names the same TokenReader calls decimals()/symbol()/name().",
+      "rule": "Evaluate a selector read from memory through the store that wrote it (a word copy whose first 4 bytes are a constant), then name the call from the signature database; never print a memory expression as a function name.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "795 fewer lines. 38 copy loops became copy lines (the SafeERC20 transferFrom/transfer buffers, the verifyVM reason string, the updateDetails/publishMessage arguments). Raw reverts 55 -> 8: custom errors (InvalidSender(), 0x2ef04c88...), 'SafeERC20: ...' messages, InitializeFailed as 'revert with 0x72cff6fa, 32, len, data', Error(reason) without a loop. Calls named and decoded: publishMessage, transferFrom, transfer, mint, burn, WETH.withdraw, updateDetails. Returns resolved (parseTransferWithPayload, the sequence returns). Dead or dominated checks dropped: updateWrapped's 'idx >= mem[_101]' inside 'while idx < s'. isTransferCompleted checks are flattened to one-armed ifs. P6 31 -> 0, P2 32 -> 4.",
+  "patterns": {"P2": 4, "P3": 4, "P4": 53, "P6": 0, "P7": 32, "P8": 120, "P18": 300},
+  "notes": "The diff (4,803 lines) was reviewed by structure, function by function (15 changed): control flow, calls, reverts (Panic counts per function identical except the dropped dead Panic(50)), storage writes, loops. The 36-byte balanceOf argument copy in transferTokens(WithPayload) stays a loop: correctly, since source and destination overlap. The BytesLib.slice loop bound in completeTransfer* was rebased consistently with the other addresses. createWrapped keeps the redundant 'idx >= s' check that updateWrapped dropped, and the second loop's 'idx >= t' remains (P11). P7/P8/P18 are estimates.",
+  "summary": "No regression; a strong cleanup (copy loops, custom-error and message reverts, named calls). The remaining issues are the VM struct slices and concat keys, the rotated bytes32ToString loop, and calls whose selector now prints as a memory slice in the name position."
+}

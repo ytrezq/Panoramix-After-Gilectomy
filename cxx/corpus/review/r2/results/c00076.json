@@ -1,0 +1,28 @@
+{
+  "id": "c00076",
+  "text_changed": true,
+  "lines_old": 1398,
+  "lines_new": 1361,
+  "changed_functions": 10,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "partly", "note": "No precomputed slot variable and the mapping is named: 's = stor1[..]; while True: if stor2[_param1][_param2][_param3][uint64(s + 1)]: s = s + 1; continue / break' (unknowna0dd43fc, unknownd70b8902); the condition is not yet in the while head (new finding)."}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknowna0dd43fc (inboundNonce), unknownd70b8902 (skip)",
+      "lines": "unknowna0dd43fc +5-9",
+      "decompiled": "while True: / if stor2[_param1][_param2][_param3][uint64(s + 1)]: / s = s + 1 / continue / break",
+      "source": "MessagingChannel.sol:59 while (_hasPayloadHash(_receiver, _srcEid, _sender, nonceCursor + 1)) ++nonceCursor;",
+      "issue": "The loop test is the first statement of a 'while True' with continue/break arms instead of the while condition.",
+      "rule": "'while True: if c: B; continue (else) break' with no statement before the test is 'while c: B'.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "Logs and call arguments with two dynamic arguments now decode both arrays (and the caller word between them) in unknown697fe6b6, unknown6bf73fa3, unknown91d20fa1, unknown0c0c389e; in unknown2637a450 the calls are named (stor14.balanceOf(this.address), stor14.transfer(_13, ..)), 0x17751237 and 'SafeERC20: low-level call failed' reverts resolved, the 0x1ab700d4 log decoded as Arrays, the SafeERC20 result checks flattened. Hex constants show whole bytes. P2 6 -> 0, P6 4 -> 0.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 759 lines: per-function diffs of all 10 changed functions; effects equal (calls, requires, writes, logs). unknown2b3197b9's string return is now one slice 'return 32, mem[R + ceil32(_3) + 192 len ceil32(_3) + 32]' (neutral, as in c00014 tokenURI).",
+  "summary": "No regression: the inbound-nonce loop reads the mapping by name, multi-array logs and calls decode exactly, and the send path's calls and reverts are named; the loop test still sits inside a 'while True'."
+}

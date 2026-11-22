@@ -1,0 +1,53 @@
+{
+  "id": "c00185",
+  "text_changed": true,
+  "lines_old": 4178,
+  "lines_new": 3343,
+  "changed_functions": 12,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "amountIn is still never named: the distributed formula 1000 * _116 * _137 / (1000 * _117 - 1000 * _137 - _117 * t + _137 * t) + 1 and the sqrt arithmetic are unchanged. Only the reverts, hashes and loop exits around them changed."
+    },
+    {
+      "n": 2,
+      "kind": "simplification",
+      "status": "partly",
+      "note": "Fixed: the fee loop exits by 'break' into the outer body instead of 'continue loop1', so the unreachable 'break' and the labels are gone (4 -> 0). Fixed: the empty new bytes(0) copy loops are gone (5 whiles), the pair's swap call taking Array(len=0, data=''). Still there: the dead loop variables s and u ('u = t')."
+    },
+    {
+      "n": 3,
+      "kind": "artifact",
+      "status": "still",
+      "note": "factory and WETH still read as 0. Not a decompiler error."
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "addLiquidity, getAmountsIn, getAmountsOut and the 9 swaps (DeltaSwapLibrary.pairFor inlined)",
+      "lines": "e.g. swapExactTokensForTokens new 245-269; 25 call targets",
+      "decompiled": "_377 = mem[64] / ... / _378 = mem[64] / mem[mem[64]] = 40 / ... / mem[_378 + 72] = _377 - _378 + 85 / require ext_code.size(address(sha3(mem[_378 + 104 len _377 - _378 + 85]))) / call address(sha3(mem[_378 + 104 len _377 - _378 + 85])).swap(...)",
+      "old": "mem[_377 + 72] = 85 / _384 = sha3(mem[_377 + 104 len mem[_377 + 72]]) / require ext_code.size(address(_384)) / call address(_384).swap(...)",
+      "source": "DeltaSwapLibrary.pairFor: address(uint160(uint(keccak256(abi.encodePacked(hex'ff', factory, keccak256(abi.encodePacked(token0, token1)), INIT_CODE_HASH)))))",
+      "issue": "_377 and _378 are two reads of mem[64] with no write between, so they are equal. The new text keeps them distinct: '_a - _b + k' went 0 -> 88 lines, as the 134 '_a - mem[64]' forms vanished. So the pair hash, still unresolved here, is now inlined in each extcodesize check and call target (call address(sha3(mem[...])) 0 -> 25, call address(_N) 32 -> 6), which is longer than the named _384.",
+      "rule": "Two reads of mem[64] with no possible write to mem[64] between them are one value: unify them, fold _a - _b to 0, and resolve memory read at _b against writes at _a. Keep a long address expression used by both a check and a call in one variable.",
+      "verified": "reading only (equal: no write to mem[64] between the two reads); text_check run --per-selector 16: 387 calls same per world, 0 different"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "All 88 'revert with memory' library errors now print as literals (IDENTICAL_ADDRESSES, ZERO_ADDRESS, INSUFFICIENT_OUTPUT_AMOUNT, EXCESSIVE_INPUT_AMOUNT, 'ETH transfer failed'). WETH deposit/withdraw and balanceOf are named. The pair's swap(amount0Out, amount1Out, to, Array(len=0, data='')) is decoded and its empty copy loop dropped. addLiquidity's return is decoded (return _86, _87, ext_call.return_data[0]). The inner pair hash resolves to sha3(Bytes(20, token0), Bytes(20, token1)), and in getAmountsIn the whole CREATE2 formula is visible. Bounds checks implied by the loop bound or by path.length >= 2 are dropped. P6 109 -> 0, P2 23 -> 8, 57 -> 50 whiles.",
+  "patterns": {
+    "P1": 0,
+    "P2": 8,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Structural review (3825-line diff, functions reordered): I compared the 12 changed defs by calls, events, storage writes, reverts and loops. Calls are unchanged except for names gained. The whiles lost are the 5 empty new bytes(0) copies. The extra 'while' in getAmountsIn is the old 'loop1: while', which my count had missed. swapExactTokensForETHSupportingFee's final 'stop' became 'if not success: revert with ...': equivalent. Dropped Panic(50): 'len - 1 >= len' after SafeMath.sub (never true), 's >= len' under 'while s < len', and '0 >= len' after require path.length >= 2 with len = path.length. All implied. addLiquidity's TransferHelper call is still raw memory, now with a constant length 100. text_check run --per-selector 16: empty and random worlds 387 calls each, 0 different.",
+  "summary": "One low regression: equal mem[64] reads are no longer unified, so pair-address hashes are inlined unresolved into 25 call targets with '_a - _b + k' lengths. Otherwise much better: library reverts as literals, WETH and pair calls decoded, empty copy loops and the dead break gone, P6 gone."
+}

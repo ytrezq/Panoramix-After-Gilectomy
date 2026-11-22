@@ -1,0 +1,33 @@
+{
+ "id": "c00197",
+ "text_changed": true,
+ "lines_old": 1658,
+ "lines_new": 1507,
+ "changed_functions": 7,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "unknowndd116220 and initializeMasterTokenAndStrategy did not change: the checked-exponentiation loop and the redundant guard remain."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "mint(uint256,address), deposit(uint256,address)",
+   "lines": "1060, 1223",
+   "decompiled": "mem[_15 + 36 len 28] = caller >> 32\nmem[_15 + 32 len 4] = 599290589\n...\nmem[_15 + 196 len 100] = Bytes(4, 0x23b872dd), caller, this.address, _11",
+   "source": "SafeERC20.safeTransferFrom: abi.encodeWithSelector(token.transferFrom.selector, from, to, value)",
+   "issue": "Now that the call is decoded from the copied buffer, a leftover partial write of the first argument word (its top 28 bytes as 'caller >> 32') is printed; nothing reads it except the copy whose content is already shown. The selector next to it is still decimal (599290589 = 0x23b872dd).",
+   "rule": "Drop memory writes whose bytes are only read by a copy that is printed with its resolved content; print a 4-byte selector store in hex.",
+   "verified": "reading only"
+  }
+ ],
+ "improvements": "The SafeERC20 transferFrom calls in mint and deposit are named with their arguments and their byte-copy loops are gone (whiles 4 -> 0, P2 5 -> 0); the 'SafeERC20: low-level call failed' revert is a string; strategy.deposit is named. Dead scratch and argument writes are gone in all 7 functions (91 -> 68, 131 -> 103 lines...). Withdraw and Initialized(version=1) are decoded, a custom error prints as 'revert with 0xf47742c9', results read as ext_call.return_data[0]. P6 11 -> 0.",
+ "patterns": {},
+ "notes": "Reviewed function by function (832-line diff, 7 functions). Calls, logs, requires and storage writes unchanged; the only revert added in mint/deposit is the string form of the SafeERC20 message. The pack lists no regex pattern.",
+ "summary": "No regression: the ERC4626 flows are shorter, with SafeERC20 calls and events decoded; one leftover dead partial write in mint/deposit, and the exponentiation loop of round 1 remains."
+}

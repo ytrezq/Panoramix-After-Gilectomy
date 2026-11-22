@@ -1,0 +1,60 @@
+{
+ "id": "c00237",
+ "text_changed": true,
+ "lines_old": 1312,
+ "lines_new": 1322,
+ "changed_functions": 2,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "naming",
+   "status": "partly",
+   "note": "The Initializable slot now prints as stor[0xf0c57e16...6a00] instead of '0x111f...aa0 * 3600', but it is still printed both as that constant and as storF0C5_*. chi is still split into uint167 + uint25 and unnamed."
+  },
+  {
+   "n": 2,
+   "kind": "simplification",
+   "status": "still",
+   "note": "drip's diff * RAY is still distributed (unchanged lines)."
+  },
+  {
+   "n": 3,
+   "kind": "simplification",
+   "status": "still",
+   "note": "SafeMath.mul4 and the '-1 * x' truth test are still there (unchanged lines)."
+  },
+  {
+   "n": 4,
+   "kind": "naming",
+   "status": "still",
+   "note": "withdraw's parameters still come from another contract (assets named shares)."
+  },
+  {
+   "n": 5,
+   "kind": "artifact",
+   "status": "still",
+   "note": "Immutables still read as 0."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "permit(address,address,uint256,uint256,bytes) (the ERC-1271 fallback path)",
+   "lines": "1304-1322",
+   "decompiled": "if _59: allowance[owner][spender] = amount / _62 = mem[64] / mem[mem[64]] = amount / log Approval(..., uint256 value=mem[mem[64] len _62 - mem[64] + 32]) / stop / ... mem[_64 + 68] = 0x53557364732f696e76616c69642d7065726d6974... / revert with memory from mem[64] len _64 - mem[64] + 100",
+   "old": "if not _59: revert with 'SUsds/invalid-permit' / allowance[owner][spender] = amount / log Approval(address indexed owner=owner, address indexed spender=spender, uint256 value=amount)",
+   "source": "SUsds.permit(owner, spender, value, deadline, bytes signature): require(_isValidSignature(owner, digest, signature), 'SUsds/invalid-permit'); allowance[owner][spender] = value; emit Approval(owner, spender, value)",
+   "issue": "After the join on return_data.size, the two reads of mem[64] around 'mem[mem[64]] = amount' (_62 and the log's mem[64]) are no longer unified. So the Approval value prints as raw memory instead of 'amount', and the 'SUsds/invalid-permit' revert is raw memory (the other 3 copies of that revert are still decoded).",
+   "rule": "Keep the constant floor of mem[64] through the join (here at least 225). A store at mem[64] + k (k >= 0) then cannot touch slot 64, and a later load of mem[64] returns the earlier value.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "P1 2 -> 0 (the Initializable slot prints as one constant) and P6 1 -> 0.",
+ "patterns": {
+  "P2": 2
+ },
+ "notes": "The diff is 76 lines, which I read in full. The only source loop (_rpow) is still a while (18 whiles). The ERC-1271 call's copy-loop bound now prints as '_38 - _44 + ceil32(signature.length)' instead of _47, which is exact. The new 'mem[64] = ...' line in the return-data branch is the free-pointer update that the join now keeps.",
+ "summary": "One medium regression: permit's ERC-1271 path lost its decoded Approval value and revert string, because equal mem[64] reads are not unified after a join. Otherwise only the P1/P6 display fixes."
+}

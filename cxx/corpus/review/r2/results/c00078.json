@@ -1,0 +1,31 @@
+{
+  "id": "c00078",
+  "text_changed": true,
+  "lines_old": 6040,
+  "lines_new": 5932,
+  "changed_functions": 6,
+  "old_findings": [
+    {"n": 1, "kind": "coverage", "status": "still", "note": "swap still aborts on the main path through a non-empty bin (new 4136); the reserve write, MaxLiquidityPerBinExceeded check and loop continuation are still lost."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "State-struct mappings (reserveOfBin, shareOfBin, positions) are still raw keccak expressions with 'Bytes(29, 0), mem[a len 3]' bin ids. In getBin/getPosition some hash keys are now explicit (sha3(uint24(_1363), _2 + 1)) instead of sha3(mem[0], ..)."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "burn's 'if -16777216 * mem[32 * idx + 448 len 29]' range check unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "swap((address,address,address,address,uint24,bytes32),bool,int128,bytes) (0x911a63b7), early Swap event",
+      "lines": "the second 'log 0x3e8aae37' of swap",
+      "decompiled": "log 0x3e8aae37...: Bytes(93, 0), Bytes(3, uint24(stor5[sha3(..)].field_0)), uint24(_41), _35, indexed ..",
+      "old": "log 0x3e8aae37...: Bytes(64, 0), uint24(stor5[sha3(..)].field_0), uint24(_41), _35, indexed ..",
+      "source": "BinPool.swap / BinPoolManager: emit Swap(id, msg.sender, 0, 0, activeId, fee, protocolFee) on the zero-amount path",
+      "issue": "The activeId word is merged into the preceding zero padding: 93 zero bytes plus a 3-byte slice instead of two zero words plus a uint24 word. Same bytes, but the word boundaries of the event data are hidden. One line.",
+      "rule": "When a zero padding is followed by a word whose value fits in fewer bytes, keep the 32-byte boundary and print the word as a value (uint24(x)), not as part of the padding.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "burn (0xbc5348f2): the 4 memory-copy loops of the hook/event array encoding are gone. The Burn event shows ids as calldata and amountsOut as its memory buffer, the beforeBurn/afterBurn hook calls are named (unknown5250df39 ...) with decoded args (the BalanceDelta, as two 16-byte halves), and the source loop stays. swap and the other hooks' calls are named with decoded args (unknown5e927caa, unknown5304d44e, unknown916cc197, unknown96676b29, stor3.unknown463561cc). Bubbled reverts print as revert with ext_call.return_data. P2 13 -> 6, P6 2 -> 0.",
+  "patterns": {"P1": 0, "P2": 6, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 1.3k lines over 6 functions, reviewed on the structural deltas. In burn the remaining while is the source for-loop over ids (113). The removed ones copied uint256[]/bytes32[] for the hook and event encodings. Checked that the event reads amountsOut from memory (computed in the loop) and ids from calldata (never modified). The afterBurn delta Bytes(16, uint128(s)), Bytes(16, s >> 128) equals int128(s) << 128 | s >> 128 as used for _248. swap: call 9->11 are the two hook calls now named, if 473->471 are success-check pairs merged into bubbled reverts.",
+  "summary": "No semantic regression. Hook calls are named with decoded args and burn's encoding loops are gone. swap still aborts on its main path. One event line in swap prints its activeId word as part of the zero padding."
+}

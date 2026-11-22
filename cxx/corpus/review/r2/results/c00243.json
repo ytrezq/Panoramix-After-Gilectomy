@@ -1,0 +1,42 @@
+{
+  "id": "c00243",
+  "text_changed": true,
+  "lines_old": 1175,
+  "lines_new": 1170,
+  "changed_functions": 6,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "The InvalidSignature selector word now prints as 0x8baa579f00.. (P1 gone; 3 lines), but the revert itself is still 'revert with memory from mem[64]' instead of 'InvalidSignature()'."},
+    {"n": 2, "kind": "loop", "status": "still", "note": "The rotated, flag-driven signer search loops are unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown1d92c0bf (rotateSigners: hash of the new signer set and of the message)",
+      "lines": "670, 672, 700-717",
+      "decompiled": "mem[mem[64] + 160] = mem[192]  |  mem[mem[64]] = _2 + 64 * cd[_param1 + cd[_param1 + 4] + 4] - mem[64] + 192  |  sha3(mem[_2 + 64 * cd[..] + 256 len -_2 + s - 64 * cd[..] + 64 * cd[..] - 64])",
+      "old": "mem[mem[64] + 160] = cd[_param1 + 68]  |  mem[mem[64]] = 64 * mem[224] + 192  |  sha3(mem[_2 + 64 * mem[224] + 256 len 64 * cd[..] + 64 * cd[..] - 64 * mem[224] + 160])",
+      "source": "BaseWeightedMultisig: keccak256(abi.encode(newSigners)) and the data hash of the rotation message",
+      "issue": "Three small losses in the same block. A calldata field (the signer set's nonce) is now read back from its memory copy mem[192]. The abi.encode length keeps '_2 - mem[64]' unfolded, where the old text had '64 * n + 192'. The hashed lengths now depend on the exit value of the loop variable s ('-_2 + s - ...') instead of a closed form. The hash lines, used five times, all grow.",
+      "rule": "Forward a word stored from calldata through later reads while no aliasing store can hit it. A held mem[64] that no store can change folds to 0 against mem[64]. Replace a loop variable's exit value by its closed form (start + n * step) once the loop is done.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown64f1d85a (validateProof: message hash)",
+      "lines": "997, 1000",
+      "decompiled": "mem[..] = sha3(mem[_10 + 32 len -_10 + t - 32]) / _27 = sha3(Bytes(28, ..), 0, sha3(32, 96, ..), sha3(mem[_10 + 32 len -_10 + t - 32]))",
+      "old": "_12 = sha3(mem[_10 + 32 len mem[_10]]) / mem[..] = _12 / _27 = sha3(Bytes(28, ..), 0, sha3(32, 96, ..), _12)",
+      "source": "keccak256(abi.encode(...)) used twice (toEthSignedMessageHash)",
+      "issue": "The hash, which was named once (_12) and used twice, is now re-printed inline at both uses with a longer length expression.",
+      "rule": "Bind a sha3 used more than once to a temporary (sha3 of unchanged memory is pure between writes to that range).",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P1 is gone: the InvalidSignature selector word in the three inlined ECDSA.recover. P6 is gone (stor2016's slot). callContract's ContractCall event now shows its three dynamic arguments as three Arrays instead of one merged Array plus offsets (the several-dynamic-arguments fix). SignersRotated's data is 'Array(len=..)'. 'revert with LowSignaturesWeight()' replaces a raw-memory revert. rotateSigners' copy loop is bounded by the calldata length instead of the memory copy mem[224].",
+  "patterns": {"P2": 1},
+  "notes": "Diff 260 lines, read in full. unknown8f686dc4 only moved (identical body). No control-flow, storage, call or event change apart from decoding.",
+  "summary": "Improved: P1/P6 fixed, ContractCall's three dynamic arguments and LowSignaturesWeight decoded. Low regressions in the signer-set hashing of rotateSigners/validateProof: a forwarded calldata field, a folded length and a named hash were lost."
+}

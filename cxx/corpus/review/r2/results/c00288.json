@@ -1,0 +1,18 @@
+{
+  "id": "c00288",
+  "text_changed": true,
+  "lines_old": 771,
+  "lines_new": 655,
+  "changed_functions": 4,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "authorize functions: setLenderBitmaps (0x85513663), hasPermission and pool.deposit now named, 'SR:D:NOT_AUTHORIZED' / 'SR:D:TRANSFER_FAIL' / 'SR:D:TRANSFER_FROM_FAIL' decoded, the DepositData event and the returned shares decoded ('log 0xec28...: _param6, _param7, indexed caller' / 'return _6'); the ERC20Helper transferFrom/transfer calls stay raw behind constant-length copy loops (P7)"},
+    {"n": 2, "kind": "naming", "status": "still", "note": "deposit(uint256 usdtAmount, bytes32 token) unchanged"},
+    {"n": 3, "kind": "artifact", "status": "still", "note": "immutables still 0"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "In authorizeAndDeposit / authorizeAndDepositWithPermit: 3 calls named, 3 revert strings decoded, the event and the return decoded, the one-element array copies and their statically true Panic(50) checks removed (whiles 4 -> 2 each), the ERC20Helper copy bounds folded to the constants 68/100; in deposit / depositWithPermit the copy bound folds to 68 and its dead trailing zero store is dropped. P2 16 -> 8, P6 6 -> 0. Text 771 -> 655 lines.",
+  "patterns": {"P1": 0, "P2": 8, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 675 lines, read function by function. Every removed condition is accounted for: Panic(50) on one-element arrays (statically true), copy-loop tail tests 'if idx > len' (len now a constant), and tests now printed with their revert strings.",
+  "summary": "A clear improvement with no regression: the authorize-and-deposit paths now show their calls, errors, event and return; only the ERC20Helper transfers remain raw behind constant-length copy loops."
+}

@@ -1,0 +1,38 @@
+{
+  "id": "c00361",
+  "round1": true,
+  "text_changed": true,
+  "abi_functions": 17,
+  "reviewed": 17,
+  "not_reviewed": [],
+  "source_loops": 1,
+  "loops_shown": {"while": 1, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0, "P8": 3},
+  "findings": [
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "claim(uint256,address,address,uint256,bytes32,bytes32[]) (unknownef98231e)",
+      "lines": "135-148",
+      "decompiled": "s = 0 / while idx < cd[_param6 + 4]: if s + sha3(sha3(_param1, _param2, _param3, _param4)) < cd[32 * idx + _param6 + 36]: mem[0] = s + sha3(sha3(...)) ... / s = -sha3(sha3(_param1, _param2, _param3, _param4)) + sha3(mem[0 len 64]) / s = s + sha3(sha3(...)) / if s != _param5: revert",
+      "source": "MerkleProof.sol:122-127 bytes32 computedHash = leaf; for (uint256 i = 0; i < proof.length; i++) computedHash = Hashes.commutativeKeccak256(computedHash, proof[i]);",
+      "issue": "The loop variable holds computedHash - leaf instead of computedHash. The leaf hash sha3(sha3(...)) is added at each of its three uses in the body, subtracted in the update, and added back after the loop. Exact (text_check: all calls same), but it hides that the loop folds hashes starting from the leaf.",
+      "rule": "If a loop-carried variable v starts at 0 and every use, including its value after the loop, is v + e for a loop-invariant e, print w = v + e instead: w = e before the loop, w = <update> + e in the body (here s = leaf; s = sha3(mem[0 len 64])).",
+      "verified": "text_check run --per-selector 32 (r2 text): 451 + 128 calls, all same"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setWallet(address)",
+      "lines": "70-71",
+      "decompiled": "if not uint8(stor[sha3(caller, sha3(Bytes(64, 0)))]): revert with 0xe2517d3f, caller, 0",
+      "source": "SparkRewards.sol:62 onlyRole(DEFAULT_ADMIN_ROLE) -> _roles[0x00].hasRole[msg.sender]",
+      "issue": "With the constant role 0, the role-membership read is printed as a raw nested hash, while the same mapping prints as hasRole[role][caller] in grantRole/revokeRole and as hasRole[EPOCH_ROLE][caller] in setEpochClosed.",
+      "rule": "sha3(Bytes(64, 0)) is sha3(0, 0), the slot of key 0 in the mapping at slot 0; recognize stor[sha3(k2, sha3(k1, s))] as m[k1][k2] for constant keys as for variable ones.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "No round-1 result; reviewed whole from the r2 pack. Diff vs the t01 text: only supportsInterface's constant now prints whole (0x01ffc9a7...). Checked claim against the source: root and epoch checks, the leaf keccak(keccak(abi.encode(epoch, account, token, amount))), the commutative hash, preClaimed < cumulativeAmount, the cumulativeClaimed write, transferFrom(wallet, account, amount - preClaimed) with SafeERC20's optional-return check (0x5274afe7), the Claimed event and the return. Also checked the AccessControl functions (custom errors 0xe2517d3f, 0x6697b232; grant/revoke only on change), setEpochClosed's event-then-write order, setMerkleRoot, setWallet and the getters. Normal: event and parameter names from the signature database (Claimed 'index/recipient'), unnamed EpochIsClosed and SafeERC20FailedOperation. RoleData.adminRole prints as raw stor[sha3(role, 0) + 1]. P8: the scratch stores at 131-132 and 152 are kept.",
+  "summary": "Faithful (text_check agrees on all sampled calls) and short. The one loop, the Merkle proof fold, is printed with its variable offset by the leaf hash, and the DEFAULT_ADMIN_ROLE check prints as a raw nested hash."
+}

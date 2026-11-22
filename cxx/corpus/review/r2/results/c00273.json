@@ -1,0 +1,19 @@
+{
+  "id": "c00273",
+  "text_changed": true,
+  "lines_old": 1114,
+  "lines_new": 1092,
+  "changed_functions": 3,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "queue still copies the rest of the function into both arms of each length test (27 whiles, unchanged)."},
+    {"n": 2, "kind": "simplification", "status": "fixed", "note": "execute's errors decode (InsufficientBalance(), revert with 0x1425ea42, revert with 0x9996b315, _144) and the delegate path's self-call is 'call this.address.executeDelegateCall(address target, bytes data)' with args address(...), Array(len=_136, data=...); the two raw reverts left re-raise a call's return data, as the bytecode does."},
+    {"n": 3, "kind": "naming", "status": "still", "note": "hasRole[0][caller] still a raw slot (sha3(Bytes(64, 0)) x4)."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "packed-bool index '(s + 1) / 32' terms unchanged (11 lines)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "execute's custom errors and the executeDelegateCall self-call decoded (raw reverts 5 -> 2, both legitimate re-raises); in getActionsSetById the uint256[] copy loop became a copy line (while 9 -> 8) and the ActionsSet return is printed word by word (offsets, lengths, data slices) instead of 'return memory from mem[64] ...'; P6 1 -> 0.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 345 lines read in full. execute's bytes[] zero-init keeps its one-statement rotation ('mem[160] = 96' before 'while idx - 1', line ~208), unchanged and within the new two-statement limit.",
+  "summary": "No regression. execute's errors and self-call are now decoded and a copy loop became a copy line; queue's duplicated tails remain."
+}

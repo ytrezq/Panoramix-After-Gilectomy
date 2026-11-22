@@ -1,0 +1,29 @@
+{
+  "id": "c00339",
+  "text_changed": true,
+  "lines_old": 228,
+  "lines_new": 229,
+  "changed_functions": 3,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "DstConfigSet's data is still a raw memory range filled by the validating copy loop. Its length is now printed worse (see the regression)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setDstConfig((uint32,uint128)[]) (unknown34378d48)",
+      "lines": "100, 115",
+      "decompiled": "_3 = mem[64] ... log 0xf7b6cda3...: mem[mem[64] len _3 + 64 * cd[_param1 + 4] - mem[64] + 64]",
+      "old": "log 0xf7b6cda3...: mem[mem[64] len 64 * cd[_param1 + 4] + 64]",
+      "source": "CCIPDVNAdapterFeeLib.sol:30 emit DstConfigSet(_param)",
+      "issue": "A new variable _3 holds mem[64], and the log length keeps _3 - mem[64] unfolded although no store to mem[64] lies between. Round 1 printed 64 * len + 64.",
+      "rule": "x = mem[64] with no store to mem[64] in between gives x - mem[64] = 0; do not introduce such a variable when its only use cancels.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "The parameters of getFee/getFeeOnSend (unknowncbe56fcc, unknown7e034df8) are named after their calldata word: _param1, _param4, _param5..._param8. This shows that words 2-3 of the 8-word head are never read, and the renaming is consistent in both bodies.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 200 lines, read in full. Apart from the log length in setDstConfig, every change in the two fee functions is the parameter renaming (each body checked: requires, the router static call's arguments, the uint16 multiplier default). The source loop and the 3 implicit validating copies are unchanged.",
+  "summary": "One low regression: the DstConfigSet log length now carries an unfolded _3 - mem[64]. Unknown-function parameters are renamed by calldata position, consistently."
+}

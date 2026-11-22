@@ -1,0 +1,23 @@
+{
+  "id": "c00343",
+  "text_changed": false,
+  "lines_old": 239,
+  "lines_new": 239,
+  "changed_functions": 0,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "text unchanged"
+    }
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "",
+  "patterns": {
+    "P4": 1
+  },
+  "notes": "No diff file: the new text is identical to the round-1 text.",
+  "summary": "Text unchanged; every round-1 finding stands."
+}

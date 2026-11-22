@@ -1,0 +1,37 @@
+{
+ "id": "c00239",
+ "text_changed": true,
+ "lines_old": 1157,
+ "lines_new": 1153,
+ "changed_functions": 4,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "Calldata array elements are still raw offsets (cd[32 * idx + targets + 36], 7 lines)."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "executeBatch(address[],uint256[],bytes[],bytes32,bytes32)",
+   "lines": "769-830",
+   "decompiled": "mem[0] = sha3(mem[_68 + 32 len mem[_68]]) / if stor8[concat(mem[0])]: ... _72 = sha3(mem[0], 7) ... mem[0] = stor7[concat(mem[0])].field_0 / _76 = stor[_72] / stor7[concat(mem[0])].field_256 = stor[_72 + 1] ... stor[_87 + 1] = 0 ... stor[_87 + 4] = 0",
+   "old": "_70 = sha3(mem[_68 + 32 len mem[_68]]) / if stor8[_70]: ... stor7[stor7[_70].field_0].field_256 = stor7[_70].field_256 ... stor9[_70].field_256 = 0 ... stor9[_70].field_1024 = 0",
+   "source": "Timelock (sky PAS) executeBatch: removal of the executed operation id from the pending-id linked list (stor7/stor8) and deletion of its stored batch record (stor9[id])",
+   "issue": "The operation id is no longer bound to a variable (_70). Mapping accesses print as stor7[concat(mem[0])] while mem[0] is reassigned between uses, so the same-looking key means the id on one line and the next pointer on the next. The record's fields are raw slots (stor[_72], stor[_87 + 1..4]) instead of stor9[_70].field_N. 11 more P4 lines (1 -> 12).",
+   "rule": "After an encoding loop, keep the free-memory floor for the loop-advanced pointer. Then mem[0]/mem[32] stores cannot alias the hashed buffer, the hash binds to one variable, and mapping keys forward from mem[0] to their values (stor7[_70], stor9[_70].field_256).",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "P6 1 -> 0. executeBatch's three raw custom-error reverts are now 'revert with 0x5ead8eb5, _12, 4'. The operation-hash lengths now print as explicit expressions ('len -_10 + t - 32').",
+ "patterns": {
+  "P2": 1,
+  "P4": 15
+ },
+ "notes": "The diff is 295 lines; I read all 4 changed functions. All 3 source loops are still whiles (25 whiles). getOperation (unknown279412c5) also lost two forwards to storage (stor9[_param1].field_768 -> mem[384], field_1024 -> mem[416]) in a return that was already raw. The P4 increase is all in executeBatch.",
+ "summary": "One medium regression: in executeBatch's linked-list removal, the operation id is no longer bound, so keys print as a reassigned concat(mem[0]) and the record's fields as raw slots. The custom-error reverts improved."
+}

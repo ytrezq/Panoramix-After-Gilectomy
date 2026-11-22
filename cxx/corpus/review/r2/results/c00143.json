@@ -1,0 +1,43 @@
+{
+  "id": "c00143",
+  "text_changed": true,
+  "lines_old": 3912,
+  "lines_new": 3439,
+  "changed_functions": 18,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "def storage still 'stor2 is array of fixed array of uint16'; activeValidators elements still slot/shift/mask arithmetic (stor2[0][0] at 1130, 1175)."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "The C * 3600 factorisation is gone (stor[0xf0c57e..]), but reads are still raw uint64(stor[0xf0c5..]) and _initialized is still split into storF0C5 (uint8) + storF0C5_8 (uint56)."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "Call counts of the buy/sell functions unchanged; the transferFrom continuation is still printed before each loop exit."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "unknownbb7914a3, unknown4d4778a1 (and the call targets of unknownf57ccae9, unknown44354ade)",
+      "lines": "1799, 1812-1814; 2051, 2064-2066; 2636; 3368",
+      "decompiled": "mem[0] = Bytes(30, 0), mem[32 * s + ceil32(_1) + 190 len 2] ... call address(stor0[concat(mem[0])].field_32).unknown75cbee12(?) ... mem[0] = uint16(stor0[concat(mem[0])].field_16); mem[32] = 0; stor0[concat(mem[0])].field_256 = SafeMath.add(stor0[concat(mem[0])].field_256, ext_call.return_data[0])",
+      "old": "_166 = sha3(Bytes(30, 0), mem[... len 2], 0); call address(stor[_166].field_32)...; stor0[uint16(stor[_166].field_16)].field_256 = SafeMath.add(stor0[uint16(stor[_166].field_16)].field_256, mem[_174])",
+      "source": "sPOLController: validators[id].validatorShare call, then validators[validators[id].<target id>].totalStaked += amount",
+      "issue": "Keys are now printed as concat(mem[0]), the scratch word, which is rewritten between two consecutive lines: 'stor0[concat(mem[0])]' on 1812 is validator id's entry and on 1814 the entry of uint16(that entry.field_16), under the same spelling. Exact but misleading; the old text named both keys (8 such lines now, 0 before).",
+      "rule": "Print a mapping key read from the scratch word mem[0] as the value of the dominating store to mem[0] (here the id slice, then uint16(stor0[id].field_16)); never print concat(mem[N]) when mem[N] is written between uses.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknownf57ccae9, unknown44354ade",
+      "lines": "2661-2662, 2682-2683 (and the same pair in unknown44354ade)",
+      "decompiled": "if s >= mem[ceil32(_1) + 128]: revert with Panic(50)   (again after the calls, the same check as at 2624)",
+      "old": "checked once per iteration (old 2624-2625 only)",
+      "source": "the loop over the validator id array in the redelegation function",
+      "issue": "Bounds checks repeated after the external calls are no longer recognised as implied by the first check of the iteration: the stores in between are at the held free-memory pointer _224, which the analysis no longer separates from the array's length word.",
+      "rule": "Stores at a free-memory-pointer value above the array's allocation (constant floor kept at joins) do not alias its length word; a dominated identical bounds check is dropped.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "3912 -> 3439 lines, P2 24 -> 12: the custom events (0x224ca655, 0x995a8622, 0x5e3bbed4) show their data, totalSupply/epoch/withdrawalDelay/mint and the validator-share calls (8759c234, 75cbee12) named with arguments, custom-error reverts decoded (0x0d66c00c, 0x5c1ec12d, 0x4e24c9ce, AmountZero), dead memory writes dropped (unknownd07bc162 153 -> 84 lines); the P1 factorisation of the ERC-7201 slot is gone.",
+  "patterns": {"P1": 0, "P2": 12, "P3": 0, "P4": 8, "P5": 0, "P6": 0},
+  "notes": "Diff of 2,393 lines reviewed by function: calls and events identical in count in all changed functions; event argument renamings (_38 -> _5, _2 -> _1) checked to be the same return values; the +2 Panic(50) in two functions are the repeated bounds checks above.",
+  "summary": "Many calls, events and custom errors decoded, but mapping keys now print as concat(mem[0]) where mem[0] is rewritten between uses (two consecutive lines name different entries alike), and two bounds checks per loop are no longer recognised as redundant."
+}

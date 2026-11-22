@@ -1,0 +1,21 @@
+{
+ "id": "c00313",
+ "text_changed": true,
+ "lines_old": 796,
+ "lines_new": 764,
+ "changed_functions": 6,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "semantics",
+   "status": "partly",
+   "note": "No longer misleading: the GetResponse(uint32, string, bytes) arguments print as the exact words in order, 'args 1, 96, ceil32(L1) + 128, L1, mem[.. len ceil32(L1) + ceil32(L2) + 32]'. Still not decoded into Array(len=L1, ..), Array(len=L2, ..): the bytes length and data stay inside one memory slice although the signature is known."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "In unknown2f7adf43/unknown450baef0 the two copy loops of the returned bytes are copy lines (whiles 3 -> 1), the event prints '1, Array(len=_19, data=..)' and the function returns 'Array(len=_19, data=..)' instead of raw words. GetResponse's Error(string) revert shows the length separately. P6 22 -> 0.",
+ "patterns": {},
+ "notes": "Reviewed function by function (534-line diff; 6 functions, 3 display-only). Calls, logs, requires and storage writes unchanged; the source loop (addPermittedCallers) is unchanged. The pack lists no regex pattern.",
+ "summary": "No regression. The returned bytes are now copied, logged and returned in decoded form; the GetResponse call is exact but its string and bytes arguments are still raw words."
+}

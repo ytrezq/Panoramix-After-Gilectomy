@@ -1,0 +1,43 @@
+{
+ "id": "c00208",
+ "text_changed": true,
+ "lines_old": 2502,
+ "lines_new": 2436,
+ "changed_functions": 9,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "loop",
+   "status": "still",
+   "note": "The bytes[] element copies of the abi.encode in hashProposal/execute/queue/cancel/propose are still word-copy whiles (58 -> 56 whiles)."
+  },
+  {
+   "n": 2,
+   "kind": "naming",
+   "status": "still",
+   "note": "_roles is still 'hasRole', with adminRole as raw stor[sha3(role, 0) + 1] (2 lines)."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "execute(address[],uint256[],bytes[],bytes32), cancel(address[],uint256[],bytes[],bytes32), queue(address[],uint256[],bytes[],bytes32)",
+   "lines": "1134-1253 (execute); 1829-1998 (cancel); 2206-2260 (queue)",
+   "decompiled": "mem[64] = t / mem[0] = sha3(mem[_27 + 32 len mem[_27]]) / if uint8(proposalSnapshot[concat(mem[0])].field_512): mem[t] = 0x08c379a0... revert with memory from mem[64] len t - mem[64] + 132 / static call timelock with: args mem[mem[64] len _51 + ceil32(return_data.size) - mem[64] + 36] / revert with mem[mem[64] len 100], 0x6c00...",
+   "old": "if uint8(proposalSnapshot[sha3(mem[_27 + 32 len mem[_27]])].field_512): revert with 'Governor: proposal not successful' / static call timelock.isOperationDone(bytes32 id) with: args stor11[proposalId]",
+   "source": "Governor.execute/queue/cancel: proposalId = hashProposal(targets, values, calldatas, descriptionHash); state(proposalId) (GovernorTimelockControl: timelock.isOperationDone/isOperationPending), quorum, _cancel -> timelock.cancel(id)",
+   "issue": "After the bytes[] encoding loop of hashProposal, the loop-carried pointer t (= the new mem[64]) has no lower bound, so every store through it may hit the scratch slots and slot 64. In these three functions 15 timelock/quorum calls lose their decoding (P2 3 -> 17), 12 'Governor: ...' reverts become raw memory (6 of them as 'revert with mem[mem[64] len 100], 0x6c00...'), and the proposal key prints as proposalSnapshot[concat(mem[0])] (P4 0 -> 15) and stor9[id] as uint64(stor[sha3(mem[0 len 64])]), right after 'mem[0] = sha3(...)' and with _29 holding that value.",
+   "rule": "A pointer that starts at or above the free-memory pointer and only grows in a loop (t = t + ceil32(x) + 32) keeps that floor. With a floor of at least 128, stores through it never touch bytes 0..95, so mem[0], mem[32] and mem[64] still forward to the values stored there.",
+   "verified": "text_check run --per-selector 16 (755/755 calls the same in both worlds: the semantics are unchanged); the display was checked by reading"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "castVoteBySig went from 411 to 159 lines: its 7 raw calls are decoded (getPastTotalSupply, isOperationDone/Pending, getPastVotes) and 13 raw reverts are now ECDSA/Governor messages. propose's raw calls are decoded. In castVote and castVoteWithReason, a dead getPastVotes call after an unconditional revert is dropped and the branch is flattened equivalently. VoteCast is logged with named arguments, and uint96 return checks read 'x == uint96(x)'. P6 16 -> 0.",
+ "patterns": {
+  "P2": 18,
+  "P4": 18
+ },
+ "notes": "The diff is 2350 lines; I checked all 9 changed functions with per-function and normalized diffs. The one source loop (toHexString, 'while idx > 1') is still a while (6 inlined copies). The P2 and P4 increases are all in execute, cancel and queue, and come from the single cause in the regression. castVoteBySig and propose decreased.",
+ "summary": "One medium regression: in execute, cancel and queue, the loop-advanced memory pointer loses its floor, so timelock calls, Governor revert strings and proposal-id mapping keys are no longer decoded (P2 13 -> 18, P4 3 -> 18). The text stays exact by text_check. castVoteBySig, propose and castVote improved a lot."
+}

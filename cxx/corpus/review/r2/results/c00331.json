@@ -1,0 +1,48 @@
+{
+ "id": "c00331",
+ "text_changed": true,
+ "lines_old": 403,
+ "lines_new": 407,
+ "changed_functions": 2,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "worse",
+   "note": "the EIP-1271 calldata copy is still a word loop with the decimal selector 371636862 and a raw-memory staticcall, and its bound is now `_47 - _53 + ceil32(signature.length)` instead of `_56`, with the pad write `mem[2 * _47 - _53 + 2 * Mask(250, 5, signature.length + 31) + 32] = 0` (365-374)."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "permit(address,address,uint256,uint256,bytes)",
+   "lines": "389-405",
+   "decompiled": "if _68: allowance[owner][spender] = amount ; _71 = mem[64] ; mem[mem[64]] = amount ; log Approval(..., uint256 value=mem[mem[64] len _71 - mem[64] + 32]) ; stop / _73 = mem[64] ; mem[mem[64]] = 0x08c379a0... ; mem[_73 + 4] = 32 ; mem[_73 + 36] = 18 ; mem[_73 + 68] = 0x536b792f... ; revert with memory from mem[64] len _73 - mem[64] + 100",
+   "old": "if not _68: revert with 'Sky/invalid-permit' ; allowance[owner][spender] = amount ; log Approval(address indexed owner=owner, address indexed spender=spender, uint256 value=amount)",
+   "source": "Sky.sol permit(..., bytes signature): require(_isValidSignature(owner, digest, signature), \"Sky/invalid-permit\"); allowance[owner][spender] = value; emit Approval(owner, spender, value)",
+   "issue": "After the join of `if not return_data.size` (the returndata allocation now writes mem[64] in one arm), the decompiler no longer folds `v - mem[64]` for `v = mem[64]`, so the require message prints as a hand-built Error(string) buffer with a raw `revert with memory` and the Approval value as a memory range. Equivalent (lengths 100 and 32), much harder to read.",
+   "rule": "A variable bound to mem[64] equals mem[64] until mem[64] itself is written (writes at mem[64] + k, k >= 32, never are), also after a join where mem[64] was a phi; fold `v - mem[64]` to 0 and decode Error(string) and log data on that base.",
+   "verified": "reading only"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "permit(address,address,uint256,uint256,uint8,bytes32,bytes32), permit(address,address,uint256,uint256,bytes)",
+   "lines": "213-218, 232, 322-342 (digest); 363-374 (EIP-1271 copy)",
+   "decompiled": "mem[_8 + 224] = _7 - _8 + 66 ; ... signer = ecrecover(sha3(mem[_8 + 256 len _7 - _8 + 66]), ...) ; mem[_7 + 390] = sha3(mem[_8 + 256 len _7 - _8 + 66])",
+   "old": "_13 = sha3(mem[_11 + 32 len mem[_11]]) ; signer = ecrecover(_13, ...) ; mem[_7 + 390] = _13",
+   "source": "digest = keccak256(abi.encodePacked(\"\\x19\\x01\", DOMAIN_SEPARATOR, keccak256(abi.encode(PERMIT_TYPEHASH, ...))))",
+   "issue": "`_7` and `_8` are two reads of mem[64] with no write to it between, so `_7 - _8` is 0 and the digest is `sha3(Bytes(2, 0x1901), _6, structHash)`; the text leaves the subtraction and now inlines the raw-memory hash 3 times per overload instead of one variable. The struct hash itself did improve (decoded).",
+   "rule": "Fold the difference of two reads of mem[64] with no write to mem[64] between to 0; a hash of memory whose words are known prints as sha3 of those words.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "The permit struct hash is decoded in both overloads (`sha3(PERMIT_TYPEHASH, owner, spender, value, nonce, deadline)`); hex padding (P6 gone).",
+ "patterns": {
+  "P2": 2
+ },
+ "notes": "Whole diff read (145 lines, the two permit overloads). All changes stem from the free-memory-pointer rewrite: one helped (struct hash), the others left `v - mem[64]` / `_7 - _8` unfolded. The v,r,s permit keeps its clean `revert with 'Sky/invalid-permit'` and Approval tail. No semantic change: the same checks, writes, call, event and reverts in the same order.",
+ "summary": "One medium regression: permit(bytes)'s 'Sky/invalid-permit' revert and Approval value now print as raw free-memory buffers; the EIP-712 digest and the EIP-1271 copy also got more obscure. Only the struct hash improved."
+}

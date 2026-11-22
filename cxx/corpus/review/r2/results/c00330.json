@@ -1,0 +1,17 @@
+{
+  "id": "c00330",
+  "text_changed": true,
+  "lines_old": 188,
+  "lines_new": 188,
+  "changed_functions": 11,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "void() still rewrites 'read = stor4' twice; only its log line changed"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "kiss/diss(address[]) still read elements as cd[32 * idx + a + 36]"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "The 11 LibNote anonymous logs print their data as 'Array(len=224, data=call.data[0 len 224])' instead of '32, 224, call.data[0 len 224]'. That is exact: the note modifier logs mark..mark+288 = [0x20, 224, calldata[0:224]], i.e. abi.encode of a 224-byte bytes value.",
+  "patterns": {},
+  "notes": "Diff of 95 lines read in full: only the 11 log lines changed (stop, start, change, diss x2, rely, deny, void, kiss x2, poke); topics unchanged.",
+  "summary": "No regression; the LibNote logs now show their bytes payload decoded. Both round-1 findings remain."
+}

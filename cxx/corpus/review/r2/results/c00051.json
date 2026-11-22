@@ -1,0 +1,32 @@
+{
+  "id": "c00051",
+  "text_changed": true,
+  "lines_old": 7275,
+  "lines_new": 6981,
+  "changed_functions": 11,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "P2 fell from 91 to 79 lines: settleOptions, executeBid and handleAdjustment now show managerAdjustment (0xb99b4533), viewer.0x36996455, isAuctionLive and the 0x3a420c75/0x051e03bc calls with decoded args, and executeBid's SafeCast revert reads 'revert with 0x24775e06, _param5'. 60 of the 61 custom-error reverts are still 'revert with memory from mem[64]', and the portfolio feed calls (stor68...) are still raw memory."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "stor72 is still 1-slot elements indexed '3 * idx + k' (27 lines)."},
+    {"n": 3, "kind": "loop", "status": "still", "note": "findInArray is still rotated ('while _N - mem[...]' with a peeled bound test)."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "'if -_x - _y' (27 lines) and the 63-bit * 1e10 overflow checks are unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknownc454b613 (getScenarios), unknown366efdea (setScenarios)",
+      "lines": "426-436, 690-704",
+      "decompiled": "_4 = mem[64] ... while s < mem[128]: ... return memory from mem[64] len _4 - mem[64] + 96 * stor72.length + 64  |  log 0x3482100b..: mem[mem[64] len _213 + 96 * cd[_param1 + 4] - mem[64] + 64]",
+      "old": "while idx < stor72.length: ... return memory from mem[64] len 96 * stor72.length + 64  |  log 0x3482100b..: mem[mem[64] len 96 * cd[_param1 + 4] + 64]",
+      "source": "PMRM_2.sol getScenarios: return marginScenarios; setScenarios: emit ScenariosUpdated(_scenarios) (ABI encoding of Scenario[])",
+      "issue": "The encoder's length now keeps '_4 - mem[64]', which is 0: _4 was read from mem[64] just before, and the encoding loop writes only at mem[64] + 64 + 96*i. The loop bound reads the memory copy's length mem[128] instead of stor72.length, which was just stored there.",
+      "rule": "Writes at mem[64] + k with k >= 32 (or at any address above the free-pointer floor) never alias mem[64], so a held read b = mem[64] stays equal to mem[64] and 'b - mem[64]' folds to 0. A read of a word just stored with a known value prints as that value.",
+      "verified": "reading only (mem[128] = stor72.length at 401; no store to 64 between 426 and 436)"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P3 is gone: all 30 rotated zero-initialisations of new struct[] became do-while loops, with no peeled first element. P1 is gone (the initializer's slot is 0xf0c57e16..00, not '0x111f..a0 * 3600'). P6 is gone (whole-byte hex in the exp expansion). P4 fell from 8 to 7 ('stor73[address(_N)]'). Twelve or so calls are decoded with arguments, as is the settleOptions log ('_param1, _169, _172, _5'). The portfolio's expiry array is addressed as _11 + 416 instead of a separate mem[64] read. executeBid drops a bounds check repeated with no write in between.",
+  "patterns": {"P2": 79, "P4": 7},
+  "notes": "Diff 2658 lines, read in full except the five portfolio functions: arrangePortfolio, getMargin, getMarginAndMtM, getMarginAndMarkToMarket and getScenarioPnL (unknown61a9d4b8 and the next four) have identical diffs after normalization, so one was read. handleAdjustment (unknown9e4c9ebd) was reviewed by grouping its changed forms: P3 rotations, decoded calls, P4. No control-flow, write, event or loop changes beyond these.",
+  "summary": "Improved: the P3 struct-array rotations are gone, a dozen calls and the settleOptions event are decoded, and P1/P6 are fixed. One low regression: '_4 - mem[64]' is no longer folded in the Scenario[] encoder of getScenarios/setScenarios. Most custom-error reverts are still raw memory."
+}

@@ -1,0 +1,17 @@
+{
+  "id": "c00329",
+  "text_changed": true,
+  "lines_old": 230,
+  "lines_new": 202,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "fixed", "note": "The digest is now 'ecrecover(sha3(Bytes(2, 0x1901), _6, sha3(0x6e71edae..., address(owner), address(spender), value, _8, deadline)), uint8(v), r, s)'. The struct-hash and domain-separator memory stores are gone."},
+    {"n": 2, "kind": "artifact", "status": "still", "note": "Immutables read as 0 ('chainid and sha3(...)', 'if not chainid: _6 = 0')."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "permit's EIP-712 struct hash and digest are decoded, and the dead stores that built them are dropped (28 fewer lines). P6 3 -> 0 (the domain name hash 0x0b1461dd...).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 64 lines, read in full. The ecrecover output still goes through memory: 'mem[mem[64] + 322 len ...]' and 'address(owner) == mem[mem[64] + 334 len 20]' replace the old '_9 + 322/334'. This is consistent: the dropped bump 'mem[64] = mem[64] + 224' leaves mem[64] equal to the old _9 in the text. No other function changed.",
+  "summary": "No regression. The permit digest, the main round-1 defect, is now fully decoded, and P6 is fixed."
+}

@@ -1,0 +1,77 @@
+{
+  "id": "c00309",
+  "text_changed": true,
+  "lines_old": 495,
+  "lines_new": 499,
+  "changed_functions": 2,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "v's range check still in the invented SafeMath.mul helper; the ERC1271 static call still raw with the decimal selector 371636862 (P2)."
+    },
+    {
+      "n": 2,
+      "kind": "naming",
+      "status": "still",
+      "note": "file() unchanged (stor[_3])."
+    },
+    {
+      "n": 3,
+      "kind": "artifact",
+      "status": "still",
+      "note": "deploymentChainId = 0."
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "permit(address,address,uint256,uint256,bytes) (permit#2)",
+      "lines": "481-497",
+      "decompiled": "if _109: allowance[owner][spender] = amount; _112 = mem[64]; mem[mem[64]] = amount; log Approval(owner, spender, value=mem[mem[64] len _112 - mem[64] + 32]); stop; _114 = mem[64]; mem[mem[64]] = 0x08c379a0...; ...; revert with memory from mem[64] len _114 - mem[64] + 100",
+      "old": "if not _109: revert with 'SDAO/invalid-permit'; allowance[owner][spender] = amount; log Approval(owner, spender, value=amount)",
+      "source": "SDAO.sol permit(bytes): require(_isValidSignature(owner, digest, signature), \"SDAO/invalid-permit\"); allowance[owner][spender] = value; emit Approval(owner, spender, value);",
+      "issue": "After the join of the ERC1271 return-data branches (one arm moves mem[64], now printed), _112/_114 and the later mem[64] reads are no longer known equal: the Approval value and the revert reason, both decoded before, are raw memory with lengths '_112 - mem[64] + 32' and '_114 - mem[64] + 100', and the early revert became the tail after an 'if _109: ... stop'.",
+      "rule": "Two reads of mem[64] with no store to it between them are one value even when mem[64] is a phi of a join; with that, the log data and the Error(string) revert decode as before and the revert prints first.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "permit(address,address,uint256,uint256,uint8,bytes32,bytes32), permit(...,bytes)",
+      "lines": "295-316, 417-447",
+      "decompiled": "mem[_23 + 224] = _22 - _23 + 66 ... signer2 = ecrecover(sha3(mem[_23 + 256 len _22 - _23 + 66]), Bytes(31, 0), mem[224 len 1], r, s) (the hash repeated 3 times per permit)",
+      "old": "_28 = sha3(mem[_26 + 32 len mem[_26]]) ... signer2 = ecrecover(_28, Bytes(31, 0), mem[224 len 1], r, s)",
+      "source": "SDAO.sol permit: digest = keccak256(abi.encodePacked(\"\\x19\\x01\", block.chainid == deploymentChainId ? _DOMAIN_SEPARATOR : _calculateDomainSeparator(block.chainid), keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline))))",
+      "issue": "_22 and _23 are reads of mem[64] with no store between (equal), but the digest's length stays '_22 - _23 + 66', so the digest is an opaque raw hash now inlined at its three uses (the structHash inside it is newly resolved).",
+      "rule": "Same rule (one symbol for equal mem[64] reads): the 66-byte buffer then decodes to sha3(Bytes(2, 0x1901), _21, sha3(PERMIT_TYPEHASH, ...)) as it does in c00203; keep a variable for a hash used three times.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "permit(...,bytes)",
+      "lines": "458-466",
+      "decompiled": "while idx < _88 - _94 + ceil32(signature.length): ...; mem[2 * _88 - _94 + 2 * Mask(250, 5, signature.length + 31) + 32] = 0",
+      "source": "SDAO.sol _isValidSignature: owner.staticcall(abi.encodeWithSelector(IERC1271.isValidSignature.selector, digest, signature))",
+      "issue": "The forwarded buffer length is exact but printed as 2 * Mask(250, 5, signature.length + 31) where the same text writes ceil32(signature.length) elsewhere.",
+      "rule": "Print Mask(250, 5, x + 31) as ceil32(x) consistently.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "The permit structHash is resolved (sha3(0x6e71edae..., owner, spender, value, nonce, deadline)) in both permits; hex constants in whole bytes (0x0100...).",
+  "patterns": {
+    "P1": 0,
+    "P2": 2,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff of 145 lines read in full. Root cause of both regressions: reads of mem[64] held by variables (_22/_23, _112/_114) not identified with later reads of the same unchanged pointer, the pattern also seen in c00063, c00183, c00244.",
+  "summary": "Regressions in both permits: the bytes permit loses its decoded Approval value and 'SDAO/invalid-permit' reason (now raw memory, revert moved to the tail), and the digest becomes an opaque raw hash with an unfolded '_22 - _23' length. Only the structHash improved."
+}

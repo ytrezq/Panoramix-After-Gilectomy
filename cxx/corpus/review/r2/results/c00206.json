@@ -1,0 +1,19 @@
+{
+  "id": "c00206",
+  "text_changed": true,
+  "lines_old": 884,
+  "lines_new": 841,
+  "changed_functions": 2,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "still", "note": "wipe/wipeAll/open/addFarm did not change (parameter names from the signature database)."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "selectVoteDelegate fixed: vat.ilks(0), jug.drip(0) named, the check reads 'SafeMath.mul(_3, _2) < SafeMath.mul(_1, ext_call.return_data[0])' (ink*spot < art*rate from the decoded returns), revert 'LockstakeEngine/urn-unsafe'. multicall unchanged: its delegatecall and 'multicall failed' revert are still raw memory."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "draw/wipe/wipeAll did not change."},
+    {"n": 4, "kind": "artifact", "status": "still", "note": "Immutables read as 0 (ilk 0, vat 0x0)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "selectVoteDelegate (123 -> 80 lines): calls named and decoded, the urn-unsafe revert string decoded, the urnCan check printed as '_param1 == caller or 1 == urnCan[urn][caller]' instead of an if/else with an SSA copy, and all keccak scratch stores and call buffers dropped (memory writes 34 -> 0). P2 3 -> 1, P6 2 -> 0.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 228 lines, read hunk by hunk. selectVoteDelegate moved within the text (delete + add). multicall only gets the whole-byte constant. Calls, logs and storage writes are unchanged. The one fewer 'if' is the merged urnCan condition, which is equivalent: the else arm only had dead scratch stores besides the comparison.",
+  "summary": "No regression. selectVoteDelegate's safety check is now fully readable: named calls, decoded returns and a string revert. multicall's raw revert remains."
+}

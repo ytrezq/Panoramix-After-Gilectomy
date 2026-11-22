@@ -1,0 +1,30 @@
+{
+  "id": "c00205",
+  "text_changed": true,
+  "lines_old": 1802,
+  "lines_new": 1812,
+  "changed_functions": 3,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The selector still prints as 371636862, the 196-byte buffer copy is still a while (bound now _38 - _44 + ceil32(signature.length), the value stored in mem[_44]), and the isValidSignature staticcall is still raw memory."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "RAY printing unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "permit(address,address,uint256,uint256,bytes) (0x9fd5a6cf)",
+      "lines": "1783, 1794-1812",
+      "decompiled": "else: mem[64] = _38 + ceil32(return_data.size) + ceil32(signature.length) + 64 ... / if _59: allowance[owner][spender] = amount / _62 = mem[64] / mem[mem[64]] = amount / log Approval(..., uint256 value=mem[mem[64] len _62 - mem[64] + 32]) / stop / _64 = mem[64] / mem[mem[64]] = 0x08c379a0... / mem[_64 + 68] = 0x5374557364732f696e76616c69642d7065726d6974... / revert with memory from mem[64] len _64 - mem[64] + 100",
+      "old": "if not _59: revert with 'StUsds/invalid-permit' / allowance[owner][spender] = amount / log Approval(address indexed owner=owner, address indexed spender=spender, uint256 value=amount)",
+      "source": "StUsds.sol permit(..., bytes signature): require(_isValidSignature(owner, digest, signature), 'StUsds/invalid-permit'); allowance[owner][spender] = value; emit Approval(owner, spender, value);",
+      "issue": "The free-pointer bump of the returned-bytes allocation is now kept (correct), which makes mem[64] a join value after the if. Then the Approval value prints as raw memory instead of amount, and the 'StUsds/invalid-permit' revert as hex words plus 'revert with memory'. The success path is nested in 'if _59: ... stop' with the revert after it. _62 and _64 are each a load of mem[64] with no store before the use, so '_62 - mem[64]' is 0.",
+      "rule": "Two loads of mem[64] with no store to mem[64] between them are one value, also when mem[64] is a join value (fold _62 - mem[64] to 0). Then mem[p len 32] just written resolves, and the Error(string) revert prints its message.",
+      "verified": "reading only (old 1794-1802 vs new 1794-1812)"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P1 fixed: initialize's Initializable slot prints as 0xf0c57e16...6a00, it was '0x111f...aa0 * 3600'. P6 1 -> 0 (the v byte factor 0x0100...00).",
+  "patterns": {"P1": 0, "P2": 2, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 76 lines, read in full. The other 'StUsds/invalid-permit' reverts of the function are still decoded (4 -> 3 decoded). The v,r,s permit has the same ERC-1271 tail but is unchanged apart from the constant. The rewritten copy bound and the zero store after the copy (2 * _38 - _44 + 2 * Mask(250, 5, signature.length + 31) + 32) equal the old _47-based forms. Same root cause as c00040/c00149/c00173/c00019: the free pointer is not kept exact across a join, and equal mem[64] loads are not merged.",
+  "summary": "Only display fixes elsewhere (P1, P6). In the ERC-1271 permit, the Approval value and the invalid-permit revert fall back to raw memory and the success path is nested (medium regression)."
+}

@@ -1,0 +1,30 @@
+{
+  "id": "c00152",
+  "text_changed": true,
+  "lines_old": 1272,
+  "lines_new": 1198,
+  "changed_functions": 6,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "addShares, removeShares and processExit did not change (constant-size buffer copies still loops, token calls raw)"},
+    {"n": 2, "kind": "loop", "status": "still", "note": "processRedemptions (unknownb4dc8294) keeps 'while True: _211 = u > 0 and uint128(t) <= uint128(s) / if not _211: ... stop'; its tail changed, see regression 1"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "unknownb4dc8294 (processRedemptions(uint256))",
+      "lines": "new 135-307 (the function body after the liquidity checks)",
+      "decompiled": "if ext_call.return_data[0] >= _8: ... if _11 == _8 or _param1 <= -1 / (-_8 + _11): ... if _11 == _8 or _66 <= -1 / (-_8 + _11): if _param1 != _66: revert with 'WM:PR:LOW_LIQUIDITY' / while True: ... if uint128(t) != 0xffff...ffff: t = uint128(t) + 1 ... continue / break / revert with Panic(17)   (last line, indent 2)",
+      "old": "if mem[_58] < _56: revert with Panic(17) / if _59 != _56 and _param1 > -1 / (-_56 + _59): revert with Panic(17) / ... / if _59 != _56 and _66 > -1 / (-_56 + _59): revert with Panic(17) / if _param1 == _66: while True: ... if uint128(t) == 0xffff...ffff: revert with Panic(17) ... / else: revert 'WM:PR:LOW_LIQUIDITY'",
+      "source": "WithdrawalManager.processRedemptions: checked arithmetic of totalAssets - unrealizedLosses, shares * (totalAssets - losses), the while loop with ++ on the queue index",
+      "issue": "The four Panic(17) guards, flat 'if bad: revert' lines in round 1, now share one 'revert with Panic(17)' as the function's last line: the whole main path (about 170 lines, including the loop) is nested three levels deep under the negated conditions, and the loop's overflow exit is a 'break' that falls into that final revert. The result is exact (all four paths raise Panic(17)) but much harder to follow.",
+      "rule": "When a shared terminal block (a revert with constant data) is reached from several branches, print a copy of it at each branch ('if bad: revert ...') instead of nesting the remaining code under the inverted conditions; duplicating a terminal block never changes behaviour.",
+      "verified": "reading only (old and new skeletons compared; every path to the final revert was a Panic(17) path in the old text)"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "processRedemptions now names all 18 calls (totalSupply, unknown67e2ba23, totalAssets, asset, balanceOf(pool), redeem; raw 8 -> 0) and decodes 'WM:PR:LOW_LIQUIDITY'. Where storage is provably unchanged (only static calls between), the request copy in memory reads as storage (requests[uint128(t)].field_256), and after the branch that clears the request the text correctly goes back to the memory copy (mem[_214 + 12 len 20] for the redeem receiver). upgrade's isValidScheduledCall / unscheduleCall calls are decoded with 'Array(len=calldata.size, data=call.data[0 len calldata.size])', and their dead buffer writes dropped. Address return checks read 'require ext_call.return_data[0] == address(ext_call.return_data[0])'. P2 14 -> 4, P6 (10) gone.",
+  "patterns": {"P2": 4, "P4": 1},
+  "notes": "Per-function diffs (hex-padding-only pairs filtered): substantive changes in removeRequest, unknownb4dc8294, unknownd819a958 and upgrade; all read in full except b4dc8294's loop body, checked by structure (calls 18/18, requires 39/39, events 4/4, storage writes, the multiset of revert conditions: removed Panic(17) checks are the folded SafeMath.sub and the guards moved into the shared tail). The order of the two Panic(17) checks at the loop step was swapped (u < _275 before t == max); same revert data, no effect between them. removeRequest's token call stays a constant-size loop copy (overlapping source and destination) with raw arguments.",
+  "summary": "One medium regression: processRedemptions' Panic(17) guards now share a final revert, nesting the whole main path under inverted conditions. Otherwise better: all its calls named, memory copies read as storage where valid, upgrade's calls decoded, P6 gone. Round-1 findings remain (those functions are unchanged or keep the same loop shape)."
+}

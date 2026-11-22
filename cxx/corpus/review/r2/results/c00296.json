@@ -1,0 +1,36 @@
+{
+ "id": "c00296",
+ "text_changed": true,
+ "lines_old": 486,
+ "lines_new": 496,
+ "changed_functions": 3,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "The ERC-1271 isValidSignature calls still copy their calldata through a while and print as 'static call owner with: args mem[..]'."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "permit(address,address,uint256,uint256,bytes)",
+   "lines": "the last 20 lines of the function",
+   "decompiled": "if not return_data.size:\n    _52 = 96\nelse:\n    mem[64] = _38 + ceil32(return_data.size) + ceil32(signature.length) + 64\n    ...\nif _59:\n    allowance[owner][spender] = amount\n    _62 = mem[64]\n    mem[mem[64]] = amount\n    log Approval(owner, spender, value=mem[mem[64] len _62 - mem[64] + 32])\n    stop\n_64 = mem[64]\nmem[mem[64]] = 0x08c379a0...\nmem[_64 + 4] = 32 / mem[_64 + 36] = 19 / mem[_64 + 68] = 0x557364732f696e76616c69642d7065726d6974...\nrevert with memory from mem[64] len _64 - mem[64] + 100",
+   "old": "if not _59:\n    revert with 'Usds/invalid-permit'\nallowance[owner][spender] = amount\nlog Approval(owner, spender, value=amount)",
+   "source": "Usds.sol permit(..., bytes signature): require(_isValidSignature(owner, digest, signature), \"Usds/invalid-permit\"); allowance[owner][spender] = value; emit Approval(owner, spender, value)",
+   "issue": "The text now keeps the mem[64] update in the return-data arm of the ERC-1271 call, so mem[64] is unknown after the join, and the tail written relative to it is no longer matched: the 'Usds/invalid-permit' require became a 6-line raw-memory revert, Approval's value prints as 'mem[mem[64] len _62 - mem[64] + 32]' instead of amount, and the guard became an if/stop nest.",
+   "rule": "Revert and log data are relative to their base: when '_N = mem[64]' and no write to word 64 follows, 'from mem[64] len _N - mem[64] + k' has constant offsets whatever mem[64] is, so match the Error(string) layout and forward 'mem[mem[64]] = v' into the log data even after a join that leaves mem[64] unknown.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "The ERC-7201 Initializable slot prints as 0xf0c57e16...00 instead of a constant times 3600 (P1 2 -> 0); P6 1 -> 0; the ERC-1271 copy loop's bound is the computed length instead of a memory read.",
+ "patterns": {
+  "P2": 2
+ },
+ "notes": "Reviewed by reading the whole 76-line diff (3 functions, 1 display-only). Calls and storage writes unchanged.",
+ "summary": "One medium regression: permit(..., bytes) lost its 'Usds/invalid-permit' string revert and Approval's value to raw memory after the ERC-1271 call's join. The P1 slot constant is fixed."
+}

@@ -1,0 +1,34 @@
+{
+ "id": "c00165",
+ "text_changed": true,
+ "lines_old": 3341,
+ "lines_new": 3157,
+ "changed_functions": 7,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "unknownd76cc487's returned-bytes encoding is now a copy line + 'return Array(len=_5, ..)' (2 -> 1 while); unknownfae1ba8f still builds its call through the 132-byte word loop ('args mem[328 len 132]') and keeps its return copy loop"
+  },
+  {
+   "n": 2,
+   "kind": "artifact",
+   "status": "still",
+   "note": "'require this.address' guard unchanged"
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "P2 34 -> 1: the MCD calls are decoded with arguments (file(bytes32 what, uint256 data) with 'dsr'/'Line' and the value, drip(), Line()); 31 raw-memory call lines of unknown7571a78e and those of the two setDSR-like setters are gone, and their dead selector/argument stores dropped (1071 -> 926 lines). A new SafeMath.add (Panic 17) helper folds the explicit add check; it stays ahead of the extcodesize check, as in the bytecode. P6 fixed (0x02dac0..).",
+ "patterns": {
+  "P1": 0,
+  "P2": 1,
+  "P3": 0,
+  "P4": 0,
+  "P5": 0,
+  "P6": 0
+ },
+ "notes": "Diff of 1214 lines: SafeMath plus 6 functions, all read. unknown7571a78e's SafeMath.add appears twice (in a kept memory store and in the call args); that is harmless and keeps the Panic before 'require ext_code.size'. The new 'Array(len=.., data=..)' display of returned bytes hides the offset word; the text_check runs verify it.",
+ "summary": "No regression. The MCD setter calls are decoded (P2 34 -> 1), a SafeMath.add helper appears, and one returned-bytes encoding became a copy line; unknownfae1ba8f's word-loop call buffer remains."
+}

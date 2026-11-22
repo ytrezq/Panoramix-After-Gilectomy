@@ -1,0 +1,16 @@
+{
+  "id": "c00201",
+  "text_changed": true,
+  "lines_old": 2771,
+  "lines_new": 2062,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "fixed", "note": "The constant ErrorsLib and SafeTransferLib messages print as literal reverts ('transfer reverted', 'transferFrom returned false', 'no code', 'insufficient liquidity'...): 41 -> 1 whiles, and the one left is the source loop of extSloads. The callback data copies are gone too."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Every token call is now named and decoded: transfer(caller, x) and transferFrom(caller, this.address, x) in supply, withdraw, borrow, repay, withdrawCollateral, liquidate and flashLoan. liquidate's onMorphoLiquidate callback (cf7ea196), whose selector was read from memory, is now decoded with its forwarded bytes as Array(len, data=call.data[...]). The dead scratch and message writes are dropped (supplyCollateral 127 -> 65 lines). P2 7 -> 0, P6 41 -> 0, 2771 -> 2062 lines.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "I read the 8 changed functions' diffs (supplyCollateral and liquidate line by line, the others by calls, events, writes and reverts). Calls and events keep their counts in every function. The trailing 'stop's became inverted guards (if not _25: revert with 'transferFrom returned false'). Where a message allocation's mem[64] bump is no longer printed, the next allocation check is adjusted exactly (mem[64] + 128 < mem[64] + 64). Dead writes of the message words (mem[mem[64]] = 21 / ...) remain before the literal reverts (P8). No long pointer sums appear here (via-IR: 145 -> 142 lines with 4+ terms). text_check run --per-selector 16, both worlds: 147 + 304 guessed-param calls same, 0 different.",
+  "summary": "No regression. The round-1 finding is fixed: constant revert messages are literals, 41 -> 1 whiles. All transfers and the liquidate callback are decoded, and the dead memory writes are gone."
+}

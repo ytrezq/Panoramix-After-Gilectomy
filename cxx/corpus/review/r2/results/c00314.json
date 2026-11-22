@@ -1,0 +1,17 @@
+{
+  "id": "c00314",
+  "text_changed": true,
+  "lines_old": 343,
+  "lines_new": 323,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "The ABI coder v1 bytes copies are still word loops with partial-word masks (8 whiles). The copy of the empty bytes in outboundTransfer's abi.encode is now folded away (9 -> 8)."},
+    {"n": 2, "kind": "artifact", "status": "still", "note": "Immutables (l1Dai, l1Escrow, ...) still 0: 'if address(_l1Token): revert', transferFrom recipient 0."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "outboundTransfer: the token transfer is decoded ('call address(_l1Token).transferFrom(..) with args address(_17), 0, _amount'). The 'L1DaiGateway/call-hook-data-not-allowed' revert is decoded, its 25 unpadded tail bytes printed exactly as 'mem[_28 + 107 len 25]'. The encoding of the empty first bytes is folded to constants ('mem[_28 + 128] = 0', offsets 64 and 96), dropping a copy loop. The return is 'Array(len=32, data=ext_call.return_data[0])' instead of '32, 32, ..'.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 111 lines, all read. Folded addresses checked against the old chain: _34 = _28 + 32, _42 = _28 + 160, _52 = _28 + 32, total length '-_28 + _51 - 64'. The extraData copy now writes at 'mem[idx + mem[64] + 32]' with _22 = mem[64] two lines above and no store to mem[64] in between, so it is the same address. It only mixes '_22' and 'mem[64]' for one base within a few lines (cosmetic). No source loop.",
+  "summary": "No regression. The transfer, a revert string, the empty-bytes encoding and the bytes return of outboundTransfer are decoded. The ABI-coder copy loops and the immutables artifact remain."
+}

@@ -1,0 +1,46 @@
+{
+  "id": "c00118",
+  "text_changed": true,
+  "lines_old": 9693,
+  "lines_new": 9450,
+  "changed_functions": 7,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "solc immutables as 0 (calls to 0x0, expiry folded)"},
+    {"n": 2, "kind": "simplification", "status": "worse", "note": "the getPhantomTokenInfo staticcall now copies its 4-byte calldata with a while loop (new 472-476) and prints 'static call _param2 with: gas 30000 args mem[mem[64] len _133]', with no selector at all; 'call x.mem[.. len 4]' sites 1 -> 4"},
+    {"n": 3, "kind": "simplification", "status": "partly", "note": "raw reverts 310 -> 265: 46 decoded in the multicall/liquidation functions, but 8 decoded ones became raw in unknown85589e10 (regression 1); P2 177 -> 178"},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "encoding loop of the empty hints array still printed (new 717-724)"},
+    {"n": 5, "kind": "simplification", "status": "still", "note": "the new balance still has several names: _113, ext_call.return_data[0], and now mem[0] in place of _2 (new 465); fee still distributed"},
+    {"n": 6, "kind": "simplification", "status": "still", "note": "compareBalances search loops still 'while True' with the bounds checks the test implies"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "unknown85589e10 (partiallyLiquidateCreditAccount)",
+      "lines": "341-616 (e.g. 341, 362-365, 374-385, 411, 495-497, 511-516, 536-541, 573-596, 607, 659-661, 679-681)",
+      "decompiled": "_92 = mem[64] ... mem[mem[64]] = 0x234b893b.. / revert with memory from mem[64] len 4 ... call 0x0.mem[mem[64] len 4] with: args mem[mem[64] + 4 len 96], _param3 ... static call 0x0 with: args mem[mem[64] len 36] ... log 0xfb2a92d9..: mem[mem[64]], indexed _param1, indexed _param2",
+      "old": "mem[64] = _76 + ceil32(return_data.size) + 32 * n + 480 ... revert with 0x234b893b ... call 0x0.addCollateral(address payer, address creditAccount, address token, uint256 amount) with: args caller, _param1, 0, _param3 ... static call 0x0.priceOracle() / contractToAdapter(address) / unknownd5c2f486(?) / unknowne09357a4(?) ... revert with TargetContractNotAllowedException() ... revert with 'Address: low-level call failed' / 'Address: call to non-contract' ... log 0xfb2a92d9..: 10000 * _129 / uint16(_126)",
+      "source": "CreditFacadeV3.sol partiallyLiquidateCreditAccount: _revertIfNotLiquidatable, _addCollateral, _tryWithdrawPhantomToken, _externalCall (Address.functionCall), emits",
+      "issue": "mem[64], set to _76 + ceil32(return_data.size) + 448 at line 321, is read back as unknown at 341 (the old text kept it across the struct copy at _76 + ceil32(return_data.size) + k), so everything after is raw memory: 5 named calls lose name and arguments, 2 calls print 'call 0x0.mem[mem[64] len 4]', 8 decoded reverts become 'revert with memory', and an event payload becomes mem[mem[64]] although the line above stores it. The text stays faithful.",
+      "rule": "Writes at b + k with b = _76 + ceil32(return_data.size), k < 448, after the allocation check b + 448 <= 2^64 - 1 and _76 >= the constant floor, cannot reach address 64: keep the known mem[64] across them. Independently, forward 'mem[p] = v' into a following read of mem[p] (and of the selector bytes mem[p len 4]) even when p = mem[64] is symbolic.",
+      "verified": "reading only (per-function counts: named calls 10 -> 5, raw reverts 5 -> 13, raw call args 10 -> 15)"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "unknown85589e10 (partiallyLiquidateCreditAccount)",
+      "lines": "472-476, 582-586",
+      "decompiled": "_133 = mem[_128 + ceil32(return_data.size)] / while idx < _133: mem[idx + mem[64]] = mem[_128 + idx + ceil32(return_data.size) + 32] ... / while idx < _214: mem[idx + mem[64] + 68] = mem[_188 + idx + 32] / revert with memory from mem[64] len ceil32(_214) + 68",
+      "old": "static call _param2.mem[_128 + ceil32(return_data.size) + 36 len 4] with: gas 30000 / revert with 'Address: low-level call failed'",
+      "source": "OptionalCall.staticCallOptionalSafe(token, abi.encodeWithSelector(getPhantomTokenInfo.selector), 30_000); Address.functionCall's revert(errorMessage)",
+      "issue": "Two memory-to-memory copies that the old text folded (a 4-byte constant calldata, a constant error string) are now printed as while loops (P7), one of them only to build a revert: 2 loops more in the function (6 -> 8).",
+      "rule": "A copy loop mem[d + i] = mem[s + i], i < n, whose source bytes are known constants (and n is known) is the constant itself; print the call's selector and the revert's string from it.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "In the 6 multicall/liquidation functions (unknown92beab1d, unknownebe4107c, unknown7e2ca9db, unknown36b2ced3, unknowne3f46b26, unknown2b4e6251) 46 raw reverts are decoded, 'if ext_call.success and return_data.size >= 32: ... else: revert' became early reverts that bubble the return data, the 15 zero-init loops of struct arrays are no longer rotated (P3 15 -> 0, now do-while 'while True: ... if u != 1: continue; break' with no peeled first iteration), and a few calls are named (unknown4fc0e3a8...). P6 48 -> 0. 9693 -> 9450 lines.",
+  "patterns": {"P1": 0, "P2": 178, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 4929 lines (functions reordered), 7 changed functions reviewed by structure (skeleton comparison of control flow, calls, writes, events, reverts) and unknown85589e10 in full (+129/-92). The six multicall/liquidation functions only show the improvements listed; control flow and calls are unchanged. In unknown85589e10 everything stays faithful (each store is printed just before its raw use), and some raw lengths fold ('len 4' instead of '_235 - mem[64] + 4'). The regression starts right after the decoding of the calcDebtAndCollateral struct, before its address[] loop. while count 155 -> 157, both new loops in unknown85589e10.",
+  "summary": "Improved in the six multicall/liquidation functions (46 reverts decoded, P3 loops no longer rotated), but partiallyLiquidateCreditAccount regressed (medium): mem[64] is lost mid-function, so 5 calls, 8 reverts and an event fall back to raw memory and two constant copies became while loops."
+}

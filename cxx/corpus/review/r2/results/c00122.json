@@ -1,0 +1,53 @@
+{
+ "id": "c00122",
+ "text_changed": true,
+ "lines_old": 1582,
+ "lines_new": 1510,
+ "changed_functions": 7,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "semantics",
+   "status": "fixed",
+   "note": "RewardTokenAddressesUpdated now prints _oldAddresses=Array(len=old, data=mem[224 ..]) and _newAddresses=Array(len=new, data=mem[32 * old + 256 ..]), each decoded at its own offset."
+  },
+  {
+   "n": 2,
+   "kind": "loop",
+   "status": "still",
+   "note": "verifyBalances (unknown1a1a1571) changed only in hex display."
+  },
+  {
+   "n": 3,
+   "kind": "naming",
+   "status": "still",
+   "note": "The beacon-roots staticcall is still named ROOT4146650865() with Bytes(28, ..) data."
+  },
+  {
+   "n": 4,
+   "kind": "simplification",
+   "status": "still",
+   "note": "stakeEth's repeated struct-member writes are unchanged."
+  },
+  {
+   "n": 5,
+   "kind": "simplification",
+   "status": "still",
+   "note": "transferToken/withdraw unchanged."
+  },
+  {
+   "n": 6,
+   "kind": "artifact",
+   "status": "still",
+   "note": "Immutables still read as 0."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "Calls with several dynamic arguments are decoded: stakeEth's unknownafe76887 (hash, Array(len=32, credentials), amount, Array(signature)) and the beacon deposit(pubkey, withdrawal_credentials, signature, root) as four arguments; verifyDeposit's second proof call is named unknown334a88fb(?) with arguments (was raw); the EIP-7002 request call shows 'args call.data[pubkey], Bytes(8, amount)'. The withdrawal-credentials comparison folds to 'this.address | 0x0200..00 == _param4'. Dead memory and scratch writes are gone (unknown522e4245 134 -> 104, unknown0d304174 121 -> 88). P6 4 -> 0.",
+ "patterns": {
+  "P2": 9
+ },
+ "notes": "Reviewed function by function (646-line diff, 7 functions, 1 display-only). Calls, logs, requires and storage writes unchanged. In unknown0d304174 the later mem[64] updates were dropped as dead and no line reads mem[64] after them, so the leftover 'mem[64] = 128' is harmless.",
+ "summary": "No regression; round 1's high finding (the misdecoded event) is fixed and several calls with dynamic arguments are now decoded. The loop, naming and struct-store findings remain."
+}

@@ -1,0 +1,17 @@
+{
+  "id": "c00129",
+  "text_changed": true,
+  "lines_old": 3073,
+  "lines_new": 2418,
+  "changed_functions": 13,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "The immutables CAKE, WETH and nonfungiblePositionManager still read 0."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "The accumulateReward call inside the updatePools/massUpdatePools loops is now decoded (call address(ext_call.return_data[0]).unknown214a6fe2(?) with args uint32(block.timestamp)), and the 'mem[0] = s' scratch lines are gone. upkeep's safeTransferFrom still cuts the address into pieces (mem[176 len 16] = receiver >> 32; args Bytes(28, receiver >> 32), Bytes(4, uint32(receiver)), lines 643-653)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "P2 41 -> 1: position-manager and LM-pool calls are named with arguments in harvest, withdraw, increaseLiquidity, decreaseLiquidity, add and the others. String reverts replace raw Error(string) buffers (e.g. increaseLiquidity 9 -> 14, add 4 -> 9), event data and returns show values (0 raw), and no 'x - mem[64]' is left (old 71). 11 copy loops are gone (P7). The text is 21% shorter, and P6 15 -> 0.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 23, "P5": 0, "P6": 0},
+  "notes": "Reviewed by structure (2971-line diff, 13 functions): calls, logs, requires and reverts are equal in number in every function. The 3 source loops (multicall, updatePools, massUpdatePools in set/add/upkeep) are unchanged. Only copy loops disappeared, and multicall changed only for one hex display. P4 18 -> 23: withdraw and increaseLiquidity now write poolInfo[concat(mem[0])].field_1024/field_1280 where the old text wrote raw stor[_253 + 4]/stor[_253 + 5] (the mapping and field are now named, but the key is the memory scratch word), so this is neutral. The remaining P2 is multicall's delegatecall data (unchanged).",
+  "summary": "No regression. Calls, reverts, events and returns are now readable almost everywhere (P2 41 -> 1), copy loops are gone, and text_check finds 0 differences. Only the immutables artifact and the split transferFrom data remain from round 1."
+}

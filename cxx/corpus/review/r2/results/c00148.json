@@ -1,0 +1,85 @@
+{
+  "id": "c00148",
+  "text_changed": true,
+  "lines_old": 12902,
+  "lines_new": 12641,
+  "changed_functions": 26,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "fixed",
+      "note": "updatePriceOracle/updateLossPolicy now 'log UpdatePriceOracle(token=_param1, oracle=address(_128))' and 'return address(_128)' (9554-9557, 10703-10704)."
+    },
+    {
+      "n": 2,
+      "kind": "simplification",
+      "status": "partly",
+      "note": "The two strings are now two Array arguments in previewCreateMarket, previewCreateCreditSuite and createMarket; createMarket's first Array still carries its padding as a memory slice 'mem[cd[_param3 + 4] + mem[64] + 132 len ceil32(..) - ..]' (11083)."
+    },
+    {
+      "n": 3,
+      "kind": "simplification",
+      "status": "worse",
+      "note": "_creditFactories is now named but as P4 'stor3[concat(mem[0])]' (9574, 10721); the _indexes member is still raw sha3, and stor1's _values member lost its array form (see regression 1)."
+    },
+    {
+      "n": 4,
+      "kind": "simplification",
+      "status": "partly",
+      "note": "Fixed: 'return address(_N)' in the update*/create functions and the decoded UnauthorizedFactoryException reverts. Still there: 'return Bytes(12, 0), ext_call.return_data[12 len 20]' in previewCreate*, the selectors stored in decimal (e.g. 'mem[_1000 + 32 len 4] = 1254072153'), and max(192, 32n + 160) in getPeripheryContracts."
+    },
+    {
+      "n": 5,
+      "kind": "artifact",
+      "status": "still",
+      "note": "Immutables read as 0, as before; curatorName is now printed as ''."
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "removePeripheryContract (unknownb09e9641), addPeripheryContract (unknown47c5cf8c), getPeripheryContracts (unknownfefdcfa0)",
+      "lines": "81-104, 411-431, 604-639",
+      "decompiled": "stor[sha3(sha3(mem[_36 + mem[_36]] << -8 * mem[_36] + 256, 1)) + stor[sha3(_param1, sha3(mem[_36 + mem[_36]] << -8 * mem[_36] + 256, 1) + 1)] - 1] = stor[sha3(sha3(mem[_36 + mem[_36]] << ..., 1)) + stor1[mem[_36 + mem[_36]] << ...].field_0 - 1]  |  mem[160] = stor[sha3(sha3(_param1, 1))]  |  while idx < stor1[_param1].field_0",
+      "old": "stor1[concat(mem[0])][stor[sha3(_param1, sha3(mem[0], 1) + 1)] - 1] = stor1[concat(mem[0])][stor1[concat(mem[0])].length - 1]  |  mem[160] = stor1[_param1][0]  |  while idx < stor1[_param1].length",
+      "source": "EnumerableSet.sol _add/_remove/values on _peripheryContracts[domain]: set._values.push(value), set._values[toDeleteIndex] = lastValue, set._values.pop(), set._values.length",
+      "issue": "stor1 is now typed as a 2-slot struct (right), but its first member, a dynamic array, lost its array notation: '.length' became '.field_0' and every element became raw 'stor[sha3(sha3(k, 1)) + i]' (13 raw lines, up from 8). The P4 fix also replaced 'mem[0]' with the full key expression 'mem[_36 + mem[_36]] << -8 * mem[_36] + 256', repeated about 20 times in removePeripheryContract, so its lines doubled in length.",
+      "rule": "When a struct member's slot holds a length and sha3(member slot) + i is accessed, print it as an array member (stor1[k].field_0[i], stor1[k].field_0.length), and member 1 as a mapping (stor1[k].field_256[v]). Bind a key expression that is used more than twice to a temporary.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "the 12 configure/emergencyConfigure functions and the 9 hook-running functions (the _executeHook loop)",
+      "lines": "e.g. 730-734, 5801-5803, 10790-10793",
+      "decompiled": "while idx < _13: / if idx >= mem[ceil32(_1) + ceil32(_2) + ceil32(_3) + 192]: revert with Panic(50)",
+      "old": "while s < mem[ceil32(_1) + ceil32(_2) + ceil32(_3) + 192]: (no bounds check)",
+      "source": "MarketConfigurator.sol:1077-1080 uint256 len = calls.length; for (uint256 i; i < len; ++i) { calls[i].target ... }",
+      "issue": "The loop now tests the cached length, as the bytecode does, but keeps the bounds check on the re-read length word. That check is implied: the word was just set to _13, and nothing in the loop writes below the free-memory pointer. Panic(50) lines go from 87 to 105, including one new exact duplicate check in updateLossPolicy (10790-10793), where only a read separates it from the first.",
+      "rule": "Carry the free-memory pointer's floor symbolically (at least the end of the last allocation), so a write at or above it cannot alias an earlier allocation's length word. Then mem[L] == _13 inside the loop and the bounds check is dead. Drop a check identical to one that dominates it with no write in between.",
+      "verified": "reading only (_13 = the decoded length, stored to the array's length word at 5763; the loop writes only at mem[64]-relative addresses and mem[0..63])"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "addToken, shutdownCreditSuite, shutdownMarket, updateInterestRateModel, updateRateKeeper, createCreditSuite (the factory hooks onAddToken... 0x25680c1b, 0x7f85c181, 0x8e6a8823, 0x4abf9f59, 0x1177eee5, 0x224b5eea)",
+      "lines": "5872-5890, 6833-6851, 7803-7821, 8755-8773, 9904-9922, 11862-11880",
+      "decompiled": "mem[_133 + 36 len 28] = uint128(_param1 >> 32) / mem[_133 + 32 len 4] = 627575835 / call address(stor2[_param1].field_0).unknown25680c1b(?) with: args Bytes(28, uint128(_param1 >> 32)), Bytes(4, uint32(_param1)), address(_126), address(_4)",
+      "source": "abi.encodeCall(IMarketFactory.onAddToken, (pool, token, priceFeed)) and the other hooks",
+      "issue": "These six calls were raw memory (P2) and are now decoded with their selector and arguments, but the first argument is split into 'Bytes(28, uint128(x >> 32)), Bytes(4, uint32(x))' instead of x. A no-op line re-storing those 28 bytes is printed before the selector store, which is still decimal.",
+      "rule": "The selector store's read-modify-write keeps the low 28 bytes of the word, so the bytes at p+36.. are unchanged: drop the re-store. Adjacent slices Bytes(k, x >> 8(32-k)) and Bytes(32-k, x mod 2^(8(32-k))) of the same word x are x.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "P6 is gone (117 lines; '0x08c379a0..'). P4 fell from 86 to 4 lines ('stor4[address(_81)]'). P2 fell from 118 to 112: the six factory hook calls are named. Allocations are now addressed from their own pointer ('args mem[_91 + 64 len _93]') instead of re-read mem[64]. UnauthorizedFactoryException, 'Address: low-level call failed' and 'call to non-contract' reverts are decoded. ExecuteHook's data is 'Array(len=..)'. Error(string) data show the length. 10 copy loops became copy lines (504 while, down from 514). The fixes for round-1 findings 1 and 2 hold.",
+  "patterns": {
+    "P2": 112,
+    "P4": 4
+  },
+  "notes": "Very long diff (9462 lines, 26 functions), reviewed by structure: every changed line was grouped by normalized form, and each form was checked against the source and the old lines. The 12 configure diffs are identical after normalization, as are addToken/shutdownMarket/shutdownCreditSuite, updateInterestRateModel/updateRateKeeper and updatePriceOracle/updateLossPolicy. Control flow, call targets, storage writes and events are unchanged apart from the decoding above. The function set is unchanged; unknownb09e9641 only moved.",
+  "summary": "Mostly improved: decoded hook calls, reverts, events and returns, P6 and most P4 gone, round-1 findings 1 and 2 fixed. Regressions: stor1's EnumerableSet array member lost its array notation, with the key repeated in full (medium), and _executeHook's loop keeps an implied bounds check (low)."
+}

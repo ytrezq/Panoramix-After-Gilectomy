@@ -1,0 +1,78 @@
+{
+  "id": "c00066",
+  "text_changed": true,
+  "lines_old": 9655,
+  "lines_new": 8080,
+  "changed_functions": 15,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "Most keys now resolve (daily counters' reads, mediatorBalance, limits, message records), as do the FailedMessageFixed/TokensBridged log fields and most SafeMath/SafeERC20 reverts. Still raw: the AMB bridge calls (requireToPassMessage/ConfirmMessage), gasLimitManager.requestGasLimit, the onTokenBridged callback (P2, 22 lines), and keys/reverts built from two mem[64] reads in handleNative*, relay*, deploy* (see regression 1)."},
+    {"n": 2, "kind": "loop", "status": "partly", "note": "129 -> 75 copy loops. Fixed-length copies (SafeERC20 transfer/transferFrom, TokenReader calls, ABI string copies) are now copy lines. Variable-length ones (bridge message data, callback data, abi.decode strings) stay while loops, and floor32(max(31, n)) remains in the 7 tails."},
+    {"n": 3, "kind": "simplification", "status": "partly", "note": "Dead key buffers are gone in initialize, withinExecutionLimit, handleBridgedTokens and fixFailedMessage; they remain in handleNative*, deploy*, relay* and onTokenTransfer (e.g. 5999-6003). Memory-store lines 4020 -> 3495."},
+    {"n": 4, "kind": "simplification", "status": "partly", "note": "P1 fixed (claimTokens 514 shows 0x6fde8202...). '_6 = _4 <= 0' (533) and 'mem[_340 + 32] = cd[calldata.size]' (TokenReader new string(32)) are still there."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "relayTokens (both), relayTokensAndCall, onTokenTransfer, deployAndHandleBridgedTokens(AndCall)",
+      "lines": "e.g. relayTokens(address,uint256) 4113-4136; deployAndHandleBridgedTokens 2813-2822; deployAndHandleBridgedTokensAndCall 3541-3564",
+      "decompiled": "_393 = mem[64] / _394 = mem[64] / ... if stor0[sha3(mem[_394 + 135 len _393 - _394 + 39])] <= 0  |  revert with memory from _617 + 100 len _616 - _617 + 100",
+      "old": "if stor0[sha3('executionDailyLimit', Bytes(20, 0))] <= 0  |  if stor0[sha3(Bytes(30, 'dailyLimit'...))] <= 0  |  revert with 'SafeMath: addition overflow'",
+      "source": "TokensBridgeLimits.sol withinLimit/withinExecutionLimit: dailyLimit(address(0)) > 0, executionDailyLimit(address(0)) > 0; totalSpentPerDay(...).add(_amount)",
+      "issue": "Two loads of mem[64] (on consecutive lines in deployAndHandleBridgedTokens) are no longer known to be equal. So the limit(0) key (6 functions) and the SafeMath revert message (5 functions), which the old text resolved, are raw memory again; handleNative* show the same raw forms (raw before too).",
+      "rule": "Two loads of slot 0x40 with no store that can reach that slot between them read the same value. Stores at mem[64] + k with k >= 32 cannot reach it, given the pointer's constant floor >= 0x80. Unify such variables before resolving buffers, keccak inputs and revert data relative to them.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "handleBridgedTokensAndCall, handleNativeTokensAndCall, deployAndHandleBridgedTokensAndCall (receiver callback)",
+      "lines": "1312, 1623, 3746",
+      "decompiled": "mem[_521 + floor32(max(31, -_508 + _521 - ceil32(_data.length) - 64))] = mem[_508 + ceil32(_data.length) + floor32(max(31, -_508 + _521 - ceil32(_data.length) - 64)) + 64] & ~(256**(...)) | ...  (481 chars)",
+      "old": "_524 = mem[_521] / ... mem[_520 + floor32(max(31, _524))] = ... (220 chars)",
+      "source": "BasicOmnibridge.sol:420 _recipient.call(abi.encodeWithSelector(onTokenBridged.selector, _token, _value, _data))",
+      "issue": "The copy length used to be a variable. It is now its four-term expression, repeated six times in the masked tail line and in 'idx =' and 'args mem[... len ...]'. The line grows from 220 to 294-481 characters.",
+      "rule": "Keep a name for a multi-term value used several times in one statement (or fold the word loop and masked tail into a copy line; floor32(max(31, n)) = floor32(n)).",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "claimTokens (new decode), and the fee mint/transfer in handle*/deploy*/relay*/onTokenTransfer (10 lines, same before)",
+      "lines": "552, 563-566; 759, 948, 1204, 1451, 2852, 3634, 4245, 5320, 6350, 7465",
+      "decompiled": "mem[_15 + 36 len 28] = uint128(_to >> 32) / call address(_token).transfer(address recipient, uint256 amount) with: args Bytes(28, uint128(_to >> 32)), Bytes(4, uint32(_to)), ext_call.return_data[0 len 28], Bytes(4, uint32(ext_call.return_data[28 len 4]))",
+      "source": "SafeERC20.safeTransfer(_token, _to, balance); _distributeFee mint(feeManager, fee)",
+      "issue": "The call is named and its arguments are right, but each word is split where the copy's 32-byte chunks fall (offset 4), instead of reading '_to, ext_call.return_data[0]'. No-op re-stores of bytes already there are also printed: 'mem[a len 28] = uint128(x >> 32)' and 'mem[_303 + 40 len 28] = uint224(mem[_303 + 40 len 28])'.",
+      "rule": "Merge adjacent slices that are consecutive pieces of one value (Bytes(28, x >> 32) ++ Bytes(4, uint32(x)) = x; r[0 len 28] ++ r[28 len 4] = r[0 len 32]); drop a store whose value equals the memory it overwrites.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "handleBridgedTokens(AndCall), handleNativeTokens(AndCall), deployAndHandleBridgedTokens(AndCall)",
+      "lines": "804-805, 1008/1012, 1262-1263, 1511/1515, 2897-2898, 3692-3693",
+      "decompiled": "_104 = SafeMath.sub(_value, _83) / _106 = SafeMath.sub(_value, _83)",
+      "source": "BasicOmnibridge._handleTokens: valueToBridge = valueToBridge.sub(fee) (one check)",
+      "issue": "The bytecode makes one checked subtraction (the old text had one 'if _83 <= _value'). The new text prints two SafeMath.sub calls for the two copies of the result, which reads as two checks.",
+      "rule": "When two variables receive the same checked expression on the same path, print the check once and copy the result (_106 = _104).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "fixMediatorBalance, relayTokens (both), onTokenTransfer, relayTokensAndCall",
+      "lines": "e.g. 2038 (fixMediatorBalance), 4297/4332/4636 (relayTokens), relayTokensAndCall '_ = _data.length > 0 or 0xd7405481... == call.func_hash'",
+      "decompiled": "if 0xd740548100000000000000000000000000000000000000000000000000000000 == call.func_hash:  (20-45 line arm)",
+      "source": "BasicOmnibridge.sol:306 withData = _data.length > 0 || msg.sig == this.relayTokensAndCall.selector",
+      "issue": "Inside a function reached only through its own selector, the comparison is constant: false in fixMediatorBalance, relayTokens and onTokenTransfer (empty _data), true in relayTokensAndCall. So dead arms (the AndCall encodings, or the plain ones) are printed. This was there in round 1 too, but not reported.",
+      "rule": "In a function body reached only after the dispatcher's test call.func_hash == S, fold call.func_hash to S.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "1,575 fewer lines. 20 calls are newly named: TokenReader name/symbol/decimals/NAME/SYMBOL/DECIMALS, maxGasPerTx, destinationLane, claimTokens' transfer. P4 80 -> 0, P6 66 -> 0, P1 4 -> 0, P2 66 -> 22, copy loops 129 -> 75. Dominated duplicate SafeMath.add checks are dropped, and counters print as '+= _value'. SafeMath sub/mul helpers replace inline revert loops. The message records use the returned id. The TokensBridged/FailedMessageFixed values are named, and onTokenTransfer returns 1. The SYMBOL fallback's dead arm is dropped. The GAS fix shows: the callback's gasBefore is now read just before the call (the old text read it in _3 much earlier, which round 1 missed).",
+  "patterns": {"P2": 22, "P7": 75, "P8": 600, "P11": 0},
+  "notes": "The line diff was misaligned by function reordering (9,386 lines), so each def was diffed separately; 15 functions plus def storage and def SafeMath changed. Reviewed by structure (control flow, calls, storage writes, events, reverts, loops) for fixMediatorBalance, deployAndHandle*, relayTokens (both), relayTokensAndCall and onTokenTransfer; the rest read in full. relayTokens(a,u) and (a,a,u) differ only by the receiver, in both texts; relayTokensAndCall and onTokenTransfer show the same changes. In handleNative*, mem[64] is a join (189/250) before _7/_8 are read: the first totalExecutedPerDay key resolves but the revert and later keys stay raw. Constant keys of address(0) print as sha3(Bytes(30, 0x6461...)) rather than 'dailyLimit', Bytes(20, 0). The P8 count is an estimate; 20 of the 95 whiles are the source loop (TokenReader).",
+  "summary": "A large cleanup (named calls, resolved keys and logs, fewer copy loops and dead stores, GAS read placed right). One medium regression: two equal mem[64] reads are no longer unified, so 11 limit keys and SafeMath reverts that were resolved before are raw memory again in the relay and deploy paths."
+}

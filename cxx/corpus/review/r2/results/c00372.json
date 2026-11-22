@@ -1,0 +1,14 @@
+{
+ "id": "c00372",
+ "text_changed": false,
+ "lines_old": 111,
+ "lines_new": 111,
+ "changed_functions": 0,
+ "old_findings": [],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "none: the text did not change",
+ "patterns": {},
+ "notes": "No diff file: the text is identical to round 1's (no round-1 findings).",
+ "summary": "Text unchanged; clean as in round 1."
+}

@@ -1,0 +1,40 @@
+{
+  "id": "c00084",
+  "text_changed": true,
+  "lines_old": 2005,
+  "lines_new": 1960,
+  "changed_functions": 6,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "partly",
+      "note": "buildSimulationResult is now 'static call caller.unknown8e9e7099(?)' and the SimulationResult error 'revert with 0x8351eea7, 32, _20, ..' (1529, 1555); the self call stays 'call this.address.mem[_21 len 4]' (1516), now beside args written at mem[mem[64] + k]."
+    },
+    {
+      "n": 2,
+      "kind": "simplification",
+      "status": "still",
+      "note": "Tuple parameters still raw calldata arithmetic (P16)."
+    },
+    {
+      "n": 3,
+      "kind": "simplification",
+      "status": "still",
+      "note": "Dead 'if idx >= 42' checks (11 lines) and stor9C35 (2) unchanged."
+    }
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "unknown13137d65's call now has decoded arguments (Array(len=mem[128] + 44, data=Bytes(8, _param3), Bytes(4, _param1), 0, message..)) and its memory-to-memory copy loop is gone; eip712Domain (unknown84b0196e) returns 0x0f.., 224, offsets, lengths and both strings; Error(string) reverts show the length as a value; call-failure forwards are one line. P6 5 -> 0.",
+  "patterns": {
+    "P1": 0,
+    "P2": 1,
+    "P3": 0,
+    "P4": 12,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff 518 lines: per-function diffs of the 6 changed functions; calls, requires, writes, logs unchanged in count.",
+  "summary": "No regression: two calls and a custom error in the PreCrime path are decoded, a copy loop folded and eip712Domain's return decoded; the self call and the tuple-parameter arithmetic remain."
+}

@@ -1,0 +1,66 @@
+{
+  "id": "c00065",
+  "text_changed": true,
+  "lines_old": 2836,
+  "lines_new": 2651,
+  "changed_functions": 12,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "The distributed 'block.timestamp * a - b * a' in calculateVDHT and its inlined uses is unchanged."
+    },
+    {
+      "n": 2,
+      "kind": "simplification",
+      "status": "worse",
+      "note": "The 29 reverts with raw padding remain ('revert with Error(string reason), 32, 33, '...', mem[.. len 31]'), and the same raw payload now also appears in 18 SafeMath.mul calls that printed the plain message (regression 1)."
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknowna898e935, unknownd1e8af0c, unknown6ef4a2e6, tokenURI and the other stake functions (18 SafeMath.mul calls)",
+      "lines": "849, 859, 960-991, 1837-1841, 2336, 2536-2575 (18 lines)",
+      "decompiled": "_47 = SafeMath.mul(stake[_param1].field_0, 10**18, concat(Bytes(4, 0x08c379a0), 32, 33, 'SafeMath: multiplication overflow', mem[mem[64] + 101 len 31]))",
+      "old": "_47 = SafeMath.mul(stake[_param1].field_0, 10**18, 'SafeMath: multiplication overflow')",
+      "source": "SafeMath.mul(a, b): require(c / a == b, \"SafeMath: multiplication overflow\")",
+      "issue": "To make the revert data exact past the message, these helper calls print the whole Error(string) payload, including 31 padding bytes read from memory. They are much longer than before, though the padding is the zero tail of the copied string's last word.",
+      "rule": "When the padding is copied from the tail of a word stored as a constant (the message's last chunk, whose low bytes are 0), it is known zero: print just the message. Only print the raw slice when the padding is really unknown.",
+      "verified": "reading only (18 lines with the concat form, 0 before)"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "safeTransferFrom (both), newStake, unknown6ef4a2e6 (_checkOnERC721Received / transfer call data)",
+      "lines": "1595, 1754, 1988, 2251",
+      "decompiled": "mem[_69 + 36 len 28] = caller >> 32 / mem[_69 + 32 len 4] = 353073666",
+      "old": "mem[_69 + 32 len 4] = 353073666",
+      "source": "abi.encodeWithSelector(IERC721Receiver(to).onERC721Received.selector, _msgSender(), from, tokenId, _data)",
+      "issue": "Each selector store after the first argument now prints an extra line that re-stores the 28 bytes already in memory. The read-modify-write keeps them unchanged, so the line is a no-op. Same artifact as c00148.",
+      "rule": "A masked store that writes back the bytes memory already holds (the kept part of a read-modify-write) is a no-op: drop it.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "unknown6ef4a2e6 (unstake pool tokens: IERC20(pool).transfer(msg.sender, poolTokenAmount))",
+      "lines": "2356-2361",
+      "decompiled": "call address(stake[_param1].field_512).transfer(address recipient, uint256 amount) with: args caller, Bytes(28, stake[_param1].field_800), Bytes(4, uint32(stake[_param1].field_768))",
+      "source": "DhedgeStakingV2.sol safeTransfer(msg.sender, stake.stakedPoolTokenAmount)",
+      "issue": "The transfer is newly decoded (it was raw memory), but the amount is split around the selector's read-modify-write. Its high 28 bytes are named stake[..].field_800, a member that does not exist (the struct has 14 one-slot fields).",
+      "rule": "Adjacent slices Bytes(28, x >> 32) and Bytes(4, uint32(x)) of the same word are x. Never name a sub-slice of a storage field as a field at a non-member offset.",
+      "verified": "reading only (stake fields are field_0 .. field_3328 by 256; field_800 appears only here)"
+    }
+  ],
+  "improvements": "P6 is gone and P2 fell from 6 to 4 lines. unknownd1e8af0c and unknown6ef4a2e6 replace explicit overflow checks with raw-memory reverts by SafeMath.mul/add/sub, and their transfer/transferFrom calls and 'ERC721: owner query for nonexistent token' reverts are decoded. Return words are read as ext_call.return_data[0], and dead struct copies are dropped (tokenURI 304 -> 269 lines). unknown07e0b773's parameters are renumbered by calldata word (_param8 and _param13 unused).",
+  "patterns": {
+    "P2": 4
+  },
+  "notes": "Diff 1336 lines. unknownd1e8af0c and tokenURI moved, so their old and new bodies were diffed directly. The rest was read hunk by hunk or grouped by form. Control flow, storage writes and events are unchanged apart from decoding.",
+  "summary": "Calls and reverts are better decoded, and P6 is gone. Low regressions: 18 SafeMath calls now print the raw Error payload with memory padding, a no-op re-store follows each onERC721Received selector, and a newly decoded transfer splits its amount under a fictional field_800."
+}

@@ -1,0 +1,16 @@
+{
+  "id": "c00141",
+  "text_changed": true,
+  "lines_old": 2174,
+  "lines_new": 2117,
+  "changed_functions": 4,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "close()'s packed-key word-copy loop and mask are gone (getAddress(sha3('contract.addressrocketMinipoolManager'))); the packed copies in stake/preDeposit remain (whiles 8 -> 7)"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "close() 113 -> 56 lines: the RocketStorage lookup is getAddress(bytes32 id) on sha3('contract.addressrocketMinipoolManager'), the follow-up calls are named (getMinipoolExists(this), destroyMinipool()), and the raw Error(string) reverts are decoded ('Contract not found', 'Minipool already closed', 'Node ETH balance was not successfully transferred to node operator'). P2 5 -> 3, P6 7 -> 0 (refund, stake, unknown54efc6e5 are display-only).",
+  "patterns": {"P1": 0, "P2": 3, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 230 lines, 4 changed functions; close() read in full: same checks, call order and EtherWithdrawn event. The ETH-transfer revert now prints the plain string: on that path every byte above mem[64] is still unwritten (the only earlier writes are the getNodeWithdrawalAddress call buffer and the return-data copy below it), so the zero padding is exact. The destroyMinipool target is the getAddress result saved in _3 before the getMinipoolExists call.",
+  "summary": "No regression: close() is now short and fully decoded (named RocketStorage key and calls, plain revert strings), one copy loop gone, P2/P6 reduced."
+}

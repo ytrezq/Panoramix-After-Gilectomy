@@ -1,0 +1,41 @@
+{
+  "id": "c00131",
+  "text_changed": true,
+  "lines_old": 4308,
+  "lines_new": 4092,
+  "changed_functions": 12,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "updateTokenList's calldata-to-storage copy is still a while loop plus the max(...) tail clear; only its call got a name"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown05414b41",
+      "lines": "3168-3170, 3183-3187, 3197-3201, 3796-3800, 3810-3814",
+      "decompiled": "if not mem[_68 + 32]: mem[mem[64]] = 0xee89a6dc00.. / revert with memory from mem[64] len 4  |  call 0x0 with: args mem[mem[64] len _83 + ceil32(cd[_param4 + 4]) + 128 * cd[..] - mem[64] + 260]",
+      "old": "if not mem[_68 + 32]: revert with 0xee89a6dc  |  call 0x0 with: args mem[mem[64] len 128 * cd[..] + 228], cd[_param4 + 4], call.data[_param4 + 36 len cd[_param4 + 4]], Bytes(ceil32(cd[_param4 + 4]) - cd[_param4 + 4], 0)",
+      "source": "the custom error raised when a price/weight is zero, and the bytes argument of the external call, in unknown05414b41's two halves",
+      "issue": "Four reverts that were decoded are raw again (the selector store is on the line above), and the call's decoded bytes tail is gone, because the call data now sit at _83 + ... while the length is measured from mem[64]. Faithful but harder to read.",
+      "rule": "Forward 'mem[p] = sel << 224' into 'revert(p, 4)' (and into call data) even when p = mem[64] is symbolic; relate a variable read of mem[64] (_83) to later mem[64] values by the allocations in between, so lengths like _83 + k - mem[64] fold.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown05414b41",
+      "lines": "3190-3191, 3306-3307, 3803-3804, 3919-3920",
+      "decompiled": "if not mem[_68 + 32]: revert ... 0xee89a6dc / (overflow check) / if not mem[_68 + 32]: revert with Panic(18)  |  if t == 10**18: revert ... 0x23d359a3 / ... / if t == 10**18: revert with Panic(18)",
+      "old": "if not mem[_68 + 32]: revert with 0xee89a6dc / (overflow check) / s = 10**18 * cd[_param1 + 36] / mem[_68 + 32]  (no second test)",
+      "source": "checked division by a divisor the code has just required to be non-zero",
+      "issue": "A division-by-zero Panic(18) test is now printed although the same condition was tested two lines above (with no write in between), 4 sites (P11). Probably a side effect of keeping the order of checks that fail differently.",
+      "rule": "Keep the order of checks that fail differently, but drop a check whose condition a dominating check on the same unchanged value already makes false.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P2 75 -> 38 and P6 16 -> 0: 26 calls named (isTokenEnabled, balanceOf, whitelistedUsers, safeModule.unknown880841fe with its bytes argument decoded as Array(len=68, data=Bytes(4, 0xa9059cbb), caller, ...)), 16 reverts and 8 event payloads decoded (raw reverts 53 -> 33). In the four safeModule loops the 'if x == token: ... else: revert' nests became early reverts (0x7ac7f97c, 0x73bf9e5f). Loops over the copied token array read 'while s < mem[128]' without the redundant Panic(50) test. One P7 copy loop is gone (while 69 -> 65), copy lengths fold (while v < 100, args mem[_334 + 132 len 100]), and two memory-read tests now use variables (if not _14). 4308 -> 4092 lines.",
+  "patterns": {"P1": 0, "P2": 38, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 2929 lines, 12 changed functions, reviewed by skeleton comparison (control flow, calls, writes, events, reverts) plus the changed regions read in full: unknown191eb90e, the safeModule loop of unknown0473d2bb (renames idx->s, s->t consistent), the zero-divisor parts of unknown05414b41, the transferFrom copy of unknowncf4f4dc6. 'call X.mem[mem[64] len 4]' displays 17 -> 24: calls that were fully raw (static call stor409 with: args mem[..]) now show the selector as a memory slice, neutral. As in c00079, the masked selector store adds a redundant 'mem[p + 36 len 28] = caller >> 32' line (2 sites, 2528 and its twin). The 0x23d359a3 revert and the stor409 calls were raw before too.",
+  "summary": "Clearly better overall (P2 halved, 16 reverts decoded, loops tidier, one copy loop gone), with two low regressions in unknown05414b41: four 0xee89a6dc reverts and one call's bytes tail fell back to raw memory, and four redundant Panic(18) tests appeared."
+}

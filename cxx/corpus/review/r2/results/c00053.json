@@ -1,0 +1,46 @@
+{
+ "id": "c00053",
+ "round1": true,
+ "abi_functions": 2,
+ "reviewed": 2,
+ "not_reviewed": [],
+ "source_loops": 0,
+ "loops_shown": {
+  "while": 0,
+  "copy_line": 0,
+  "unrolled": 0,
+  "aborted": 0,
+  "missing": 0
+ },
+ "spurious_while": 0,
+ "patterns": {
+  "P7": 1,
+  "P14": 5
+ },
+ "findings": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "createTimelock(address,(uint256,uint256,address,uint128,address[],address[],bytes4[],uint16[],uint16[],bytes[][],bytes32)) (unknownb441ff24)",
+   "lines": "161-167, 191-203",
+   "decompiled": "_19 = mem[64] ; mem[mem[64] + 32] = cd[_param2 + 324] ; mem[_19 + 64] = caller << 96 ; _20 = mem[64] ; mem[mem[64]] = _19 - mem[64] + 52 ; mem[64] = _19 + 84 ; _22 = sha3(mem[_20 + 32 len mem[_20]]) ... create2 ... code: mem[mem[64] len _19 + 32 * _29 - mem[64] + 22790] ; _33 = mem[64] ; mem[mem[64]] = block.timestamp ; log 0x45d37205..: mem[mem[64] len _33 - mem[64] + 32], ... ; return memory from mem[64] len _35 - mem[64] + 32",
+   "source": "TimelockFactory.sol:40-53 new Timelock{salt: keccak256(abi.encodePacked(params.salt, msg.sender))}(safe, ...); emit TimelockCreated(timelock, block.timestamp, msg.sender); return timelock",
+   "issue": "After the ABI decode the free-memory pointer is symbolic, and every expression of the form `v - mem[64]` with `v = mem[64]` just read stays unfolded, so the salt hash, the init-code range, the event data and the return value all print as raw memory ranges; they are `sha3(cd[_param2 + 324], Bytes(20, caller))`, `mem[_19 + 84 len 32 * _29 + 22706]` (creation code plus constructor arguments), `block.timestamp` and `return create2.new_address`.",
+   "rule": "A variable bound to mem[64] equals mem[64] until a write to mem[64] itself (writes at mem[64] + k, k >= 32, never are), so fold `v - mem[64]` to 0 and `mem[64]` to v; then a hash, log or return over [v, v + n) reads the words stored there.",
+   "verified": "reading only (lengths checked: 52 = 32 + 20; 22706 = 22482 code + 6 head words + length word)"
+  },
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "createTimelock (unknownb441ff24)",
+   "lines": "168-181",
+   "decompiled": "_23 = mem[128] ; _24 = mem[160] ; _25 = mem[192] ; _26 = mem[224] ; _27 = mem[256] ; ... mem[_19 + 22598] = _23 ...",
+   "source": "TimelockFactory.sol:43-49 the constructor arguments params.minDelay, params.expirationPeriod, params.pauser, params.pauseDuration, params.hotSigners",
+   "issue": "The constructor arguments are read back from the decoded struct in memory (mem[128]..mem[256], P14) instead of the calldata values stored there at lines 18-23, because the decode loops' writes at symbolic addresses (all at or above 480) are not proven disjoint from those words.",
+   "rule": "Writes at addresses at or above the free-memory floor (here 480, the value of mem[64] when the decode loops start, which only grows) cannot alias words below it; fold reads of those words to the stored values.",
+   "verified": "reading only"
+  }
+ ],
+ "notes": "Small contract, read in full. No source loop is reached (the Timelock constructor is not in this runtime). The 8 whiles are implicit: the ABI decode of the struct's 5 dynamic arrays (address[] x2, bytes4[], uint16[] x2, each with per-element validation, readable `while idx < end`) and bytes[][] (outer and inner loop, inner bytes as copy lines), and the abi.encode of hotSigners into the constructor arguments (`while idx < _29: mem[s] = Bytes(12, 0), mem[t + 12 len 20]`, P7). All 11 struct fields are decoded and validated although only six are used (real code). The init code is copied from code.data[1867 len 22482] with the six head words and the array appended; the create2 failure bubbles the return data, as solc does. timelockCreationCode returns the creation code as a constant Array; the fallback reverts. Function and event names are unknown to the signature database (unknownb441ff24, log 0x45d37205...). No diff since round 1 (text unchanged).",
+ "summary": "Faithful and complete; the struct decode is verbose but correct. The salt hash, init-code range, TimelockCreated data and the returned address stay as raw free-memory ranges because `v - mem[64]` is never folded."
+}

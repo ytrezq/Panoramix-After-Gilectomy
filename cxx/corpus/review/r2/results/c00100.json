@@ -1,0 +1,30 @@
+{
+  "id": "c00100",
+  "text_changed": true,
+  "lines_old": 2794,
+  "lines_new": 2693,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "slash's inlined varint loops unchanged (33 whiles, same rotated form)."},
+    {"n": 2, "kind": "loop", "status": "still", "note": "undelegateShares/undelegateTokens' search loop unchanged (undelegateTokens' hunk only moves initializeValidator)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getBondedValidatorsTokens()",
+      "lines": "509-529",
+      "decompiled": "_15 = mem[64]; mem[mem[64]] = 32; ... while s < mem[128]: ... return memory from mem[64] len _15 + 64 * max(1, bondedValAddrs.length) - mem[64] + 64",
+      "old": "while idx < bondedValAddrs.length: ... return Array(len=bondedValAddrs.length, data=mem[mem[64] + 64 len 64 * max(1, bondedValAddrs.length)])",
+      "source": "Staking.sol:536-543 return infos (dt.ValidatorTokens[] memory of bondedValAddrs.length elements)",
+      "issue": "The function's only result, decoded before as an array of 64-byte structs, is now a raw memory return whose length keeps '_15 - mem[64]' (0, _15 being mem[64] read just before); the encoding loop's bound is the memory length word mem[128] instead of bondedValAddrs.length.",
+      "rule": "Two reads of mem[64] with only stores at mem[64] + k in between are equal (fold _15 - mem[64] to 0), and forward the store mem[128] = bondedValAddrs.length past them; the return then decodes as Array(len, data) again.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "verifySignatures/verifySigs messages decoded (ECDSA, 'Quorum not reached', 'Signers not in ascending order'); validatorNotice's ValidatorNotice event, whose data argument was mis-decoded ('bytes data=ceil32(_key.length) + 128'), now shows key and data correctly; getDelegatorInfo's return decoded field by field; the rotated zero-initialisation loops (getBondedValidatorsTokens, getDelegatorInfo) are no longer rotated (P3); slash's raw stor[_527 + 3] / stor[_527 + 7] and validatorStatus[concat(mem[0])] are now validatorStatus[address(_526)].field_768 / field_1792.",
+  "patterns": {"P1": 0, "P2": 2, "P3": 0, "P4": 2, "P5": 0, "P6": 0},
+  "notes": "Diff of 1,167 lines read hunk by hunk (slash's 23 hunks by effects: calls, events, writes identical apart from naming). initializeValidator's ValidatorNotice data range moved from mem[64] to _75 + 128, the same bytes. updateMinSelfDelegation and initializeValidator only moved.",
+  "summary": "Mostly improvements (messages, events, getDelegatorInfo's return, P3 rotations, slash naming); one regression: getBondedValidatorsTokens' decoded array return became raw memory with an unsimplified '_15 - mem[64]'."
+}

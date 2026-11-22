@@ -1,0 +1,27 @@
+{
+ "id": "c00374",
+ "text_changed": true,
+ "lines_old": 213,
+ "lines_new": 161,
+ "changed_functions": 1,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "the second approve and the transfer are now named with decoded arguments (`args Bytes(64, 0)`, `args caller, _3 - _5`), their copy loops (P7) are gone and their failures read `revert with 'TransferHelper: APPROVE_FAILED' / 'TRANSFER_FAILED'`; the first approve's amount still prints as two byte slices (`ext_call.return_data[32 len 28], Bytes(4, uint32(...))`, line 69)."
+  },
+  {
+   "n": 2,
+   "kind": "artifact",
+   "status": "still",
+   "note": "immutables still 0 (migrate reverts at the first extcodesize check)."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "The two TransferHelper calls after the first are decoded and named, the two word-copy loops and the empty-calldata copy for the ETH refund are gone, both 100-byte Error(string) reverts fold to their messages, and returndata allocations are written relative to the known pointer; 52 fewer lines.",
+ "patterns": {},
+ "notes": "Whole diff read (141 lines, migrate only). The dropped returndata copies in the ETH refund branch lie below the new mem[64], so the stale revert padding `mem[mem[64] + 103 len 29]` that round 1 checked is unaffected. The approve(router, 0) arguments print as `Bytes(64, 0)` because the router immutable is 0 (artifact). The new pack header reports no P1-P6 lines.",
+ "summary": "No regression; the TransferHelper approve/transfer calls and their reverts are now decoded, leaving only the first approve's split amount and the zero immutables."
+}

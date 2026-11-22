@@ -1,0 +1,16 @@
+{
+  "id": "c00271",
+  "text_changed": true,
+  "lines_old": 1276,
+  "lines_new": 1197,
+  "changed_functions": 9,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "still", "note": "getPastVotes / getPastTotalSupply unchanged (field_128 of the length slot in the inlined sqrt)"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "permit and delegateBySig: ecrecover now prints its arguments (ecrecover(sha3(Bytes(2, 0x1901), domainSeparator, structHash), v, r, s)) instead of a raw memory range; the dead digest/argument stores, the eip712 hash-input stores and the dead Checkpoint-struct stores in transfer/transferFrom/mint/burn/burnFrom/delegate are dropped; P6 1 -> 0.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 517 lines; 9 functions changed, effect totals all equal. Checked by hand: the ecrecover output is read where it is written (the dropped 'mem[64] = mem[64] + 32' is unobservable: only custom-error reverts and a symbolic event follow), and in the checkpoint push the dropped allocation and second-struct stores leave '_103 = mem[mem[64] + 32]' reading the stored field_48, as before. The single source loop unchanged.",
+  "summary": "Improved with no regression: ecrecover calls are decoded and dead memory stores are dropped; the round-1 naming finding in the inlined sqrt is unchanged."
+}

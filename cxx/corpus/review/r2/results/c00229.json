@@ -1,0 +1,23 @@
+{
+ "id": "c00229",
+ "text_changed": true,
+ "lines_old": 1478,
+ "lines_new": 1279,
+ "changed_functions": 8,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "loop",
+   "status": "still",
+   "note": "getModulesPaginated unchanged (flag-rotated `while _11`)."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "GAS reads bound where read: requiredTxGas now prints `_1 = gas_remaining` (startGas), `_2` (the call's gas argument) and `_6` after the call, where the old text printed the post-call `gas_remaining` twice in `_1 - gas_remaining`; execTransaction binds gasUsed's two reads (`_139`, `_157`), `gasleft() - 2500` and the token transfer's `gas() - 10000`. 20+ `revert with memory` decoded to 'GS010'...'GS026'; isValidSignature, checkTransaction, checkAfterExecution and gasToken.transfer named; ecrecover shows its digests (EIP-712 and eth_sign prefix); ExecutionSuccess/ExecutionFailure logs decoded; `return bool(success)`; P6 gone; 199 fewer lines.",
+ "patterns": {
+  "P2": 2
+ },
+ "notes": "Per-function normalized diffs and statement multisets; checked every GAS site of requiredTxGas, execTransaction and setup against the source (Safe execTransaction/handlePayment/transferToken): each bound read sits where the source reads gasleft()/gas(). The binding costs one line where GAS is read just before a CALL with a SUB between (`_V = gas_remaining` / `gas _V - 10000`). removeOwner and simulateAndRevert changed only in hex padding.",
+ "summary": "No regression; the GAS reads are now exact (requiredTxGas's post-call read was printed twice before), and the Safe's GS errors, calls, digests and events are decoded."
+}

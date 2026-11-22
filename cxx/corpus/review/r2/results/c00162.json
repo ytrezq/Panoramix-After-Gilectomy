@@ -1,0 +1,17 @@
+{
+  "id": "c00162",
+  "text_changed": true,
+  "lines_old": 2327,
+  "lines_new": 2214,
+  "changed_functions": 6,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The 'if idx >= 42 / 66: revert with Panic(50)' checks of toHexString are unchanged."},
+    {"n": 2, "kind": "artifact", "status": "still", "note": "The token immutables still read 0."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "balanceOf, transfer and the other token calls are named with arguments (P2 12 -> 1, unnamed calls 9 -> 1). Return values are read from ext_call.return_data instead of memory, events and string reverts are decoded (placeOrder, unknown82e93cb5), and 2 revert-copy loops are gone. 0 'x - mem[64]' are left (old 15), and P6 7 -> 0.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Reviewed by structure (1288-line diff, 6 functions): calls, logs, requires and reverts are equal in number in every function. The source loop (toHexString, 'while idx > 1') is unchanged. Only copy loops disappeared. The remaining P2 is a SafeERC20 transfer through a phi buffer (2174, raw before too). Minor: 3 new lines 'mem[_453 + 36 len 28] = uint128(stor3 >> 96)' re-store bytes of the address word written just before (the same value), an artifact of splitting the unaligned call-data word, as in c00156.",
+  "summary": "No regression. Token calls, return values and events are now decoded (P2 12 -> 1), and the single source loop is unchanged."
+}

@@ -1,0 +1,30 @@
+{
+  "id": "c00019",
+  "text_changed": true,
+  "lines_old": 2079,
+  "lines_new": 1957,
+  "changed_functions": 15,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "Decoded now: batchSetTripleData's triple id sha3(0x23ad11f0..., atom ids) in the call args and the log, and batchSetUserBalances' Deposited event data. Still raw: batchSetAtomData's atom ids (1815-1823). Regressed: the counter-triple id (see the regression)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "batchSetTripleData still 'while True: if s >= n: stop', and 'not stor25[t] or 2' is still printed."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "batchSetTripleData(address[],bytes32[3][]) (unknowne5ef6cc4)",
+      "lines": "1243-1265",
+      "decompiled": "_10 = mem[64] / mem[mem[64] + 32..128] = ... / _11 = mem[64] / ... mem[_10 + 192] = 0xe7cbc1eb... / mem[_10 + 224] = sha3(0x23ad11f0..., ...) ... delegate ...unknown7b9c8fa4(?) with: args sha3(0x23ad11f0..., ...), sha3(mem[_11 + 192 len _10 - _11 + 64]), call.data[...]",
+      "old": "delegate ...unknown7b9c8fa4(?) with: args _13, sha3(0xe7cbc1eb0e9b3f8688b0bc91a8278f7d2867f14f2a10dc3f0d9fcfdc32dada12, _13), call.data[...]",
+      "source": "MultiVault batchSetTripleData: counterTripleId = getCounterIdFromTripleId(tripleId) = keccak256(abi.encodePacked(COUNTER_SALT, tripleId))",
+      "issue": "The counter-triple id, printed before as sha3(0xe7cbc1eb..., _13), is now a hash of raw memory with the length '_10 - _11 + 64'. _10 and _11 are both loads of mem[64] with no store to mem[64] between them, so the input is exactly the two words just written at _10 + 192. The triple id beside it improved.",
+      "rule": "Two loads of mem[64] with no store to mem[64] between them are one value: fold _10 - _11 to 0, then a sha3 of 64 bytes just written resolves to sha3(word1, word2).",
+      "verified": "reading only (1243-1248: only mem[mem[64] + k], k >= 32, is stored between the two loads)"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "The 6 return copy loops after the MultiVaultLib delegatecalls (createAtoms(For), createTriples(For), depositBatch, redeemBatch) and their 'return memory' became 'return Array(len=_5, data=mem[...])' (whiles 28 -> 22; _5 is the decoded array length). batchSetTripleData's triple id and log key, batchSetUserBalances' custom error 0xbdd4a699 and Deposited event (matches the source's 9 fields) are decoded. A dead scratch block is dropped. multicall reads its bound once, as the encoder does. P1 fixed (selector 0x218e250d printed whole, it was '0x262dad...0 * 3600'). P6 13 -> 0 (hasRole slot 0x02dd7b..., interface id 0x01ffc9a7).",
+  "patterns": {"P1": 0, "P2": 4, "P3": 0, "P4": 4, "P5": 0, "P6": 0},
+  "notes": "Diff of 632 lines, read hunk by hunk. batchSetTripleData only moved within the text (shown as delete + add). Calls, logs and storage writes are unchanged in number. The 7 source loops are unchanged; only implicit return copies were removed.",
+  "summary": "No semantic regression. Six return copy loops became decoded Array returns, and a triple id, an event, a custom error and the P1/P6 constants are now decoded. One low regression: the counter-triple id hash became raw memory because two equal mem[64] loads are not merged."
+}

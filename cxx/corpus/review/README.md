@@ -1,7 +1,7 @@
 # The manual review of the decompiled contracts
 
 Every contract of the corpus is compared by hand with its source, by reviewers
-(agents), in tranches of 600. The review looks at three things:
+(agents), in tranches of 400. The review looks at three things:
 
 - loop detection;
 - the exactness of the semantics;
@@ -15,6 +15,7 @@ The fixes it leads to are not specific to a language or a compiler.
 | `INSTRUCTIONS.md` | what a reviewer does, and the schema of its result file |
 | `tNN/results/ID.json` | a tranche's results: one file per contract |
 | `tNN/summary.md`, `tNN/findings.jsonl` | a tranche's results put together, by `tools/review_summary.py` |
+| `r2/` | round 2 over the first tranche of 400, after the fixes round 1 led to: its instructions, one result per contract, `summary.md`, `regressions.jsonl`, `new_findings.jsonl` (by `tools/review_round2.py`) |
 
 ## The contracts
 
@@ -35,8 +36,9 @@ The fixes it leads to are not specific to a language or a compiler.
 - **Order:** first the contracts `compare_largest.py` compared (each project's
   largest own contract), then the others, the largest bytecode first.
 
-The result is 9,859 contracts, of which 8,838 have distinct bytecode, in 15
-tranches.
+The result is 9,859 contracts, of which 8,838 have distinct bytecode, in 23
+tranches of 400. Round 1 cut them in tranches of 600, so its `t01` covers the
+first 600 ids.
 
 ## Running a tranche
 
@@ -59,3 +61,28 @@ Each reviewer reads `INSTRUCTIONS.md` and one batch, and writes
 
 The results are copied into `review/tNN/results/`. The packs and the texts can be
 made again, so they aren't kept.
+
+## Round 2: after the fixes
+
+Round 1 (`t01`, 586 of its 600 contracts) led to fixes:
+
+- GAS reads;
+- the free-memory pointer;
+- SafeMath's exact revert data and check order;
+- ABI data with several dynamic arguments;
+- unknown functions' parameters by place;
+- hex in whole bytes and durations;
+- dead lines after ending branches;
+- rotations.
+
+Round 2 runs on the first tranche of 400 with the decompiler after those
+fixes (cxx23 at bc67cddf5c). It decompiles the 400 again. For each contract, a
+reviewer reads the diff from round 1's text to the new one, beside the source
+and round 1's findings. The reviewer checks every change, gives each round-1
+finding a status (`fixed`, `still`, `partly`, `worse`, `gone`), and reports
+regressions. The contracts round 1 hadn't reviewed are reviewed whole.
+
+`r2/summary.md` has the result: the statuses, the regressions by kind and
+severity, the causes the reviewers name, and the execution checks of the same
+400.
+

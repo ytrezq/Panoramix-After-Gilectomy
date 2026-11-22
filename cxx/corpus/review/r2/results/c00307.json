@@ -1,0 +1,14 @@
+{
+  "id": "c00307",
+  "text_changed": true,
+  "lines_old": 308,
+  "lines_new": 308,
+  "changed_functions": 1,
+  "old_findings": [],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "withdrawFromAppChain (unknown45183873): the connector call's arguments are decoded as 'args _param3, Array(len=64, data=_param1, ext_call.return_data[0])', which is exactly outbound(msgGasLimit_, abi.encode(receiver_, unlockAmount)) (Controller.sol:116-119). The old text printed five raw words '_param3, 64, 64, _param1, ext_call.return_data[0]'.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 11 lines (one changed line), checked against the source. The round-1 result had no findings (P9 noted in patterns); unchanged otherwise.",
+  "summary": "No regression: the one change decodes the connector call's bytes argument exactly."
+}

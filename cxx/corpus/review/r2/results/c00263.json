@@ -1,0 +1,36 @@
+{
+  "id": "c00263",
+  "text_changed": true,
+  "lines_old": 1091,
+  "lines_new": 1067,
+  "changed_functions": 5,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "loop",
+      "status": "partly",
+      "note": "call and CallExecuted now appear once, inside the loop, and the overflow-test header is gone (SafeMath.inc); the loop is still entered mid-body: index-0 element checks before 'while True', exit test 'if SafeMath.inc(d) >= targets.length' after the event"
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "scheduleBatch, executeBatch",
+      "lines": "747-753 (scheduleBatch), 845-860, 957-972 (executeBatch): 8 lines",
+      "decompiled": "timestamp[sha3(mem[_v + 32 len -_v + t - 32])]",
+      "old": "timestamp[sha3(mem[_v + 32 len mem[_v]])]",
+      "source": "TimelockController.hashOperationBatch: keccak256(abi.encode(targets, values, payloads, predecessor, salt))",
+      "issue": "The hashed length is now the end-pointer difference with the negative term first, instead of the length word stored just before.",
+      "rule": "When the length word mem[p] was just stored and not changed, print len mem[p]; otherwise order the sum positive-first (t - p - 32).",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P6 fixed. executeBatch no longer prints the first call and its event before the loop (one call, one CallExecuted, one raw revert fewer each) and uses SafeMath.inc for the counter (a new SafeMath helper). The bytes getter (unknown6ae00723) returns Array(len, data) instead of an offset and raw memory.",
+  "patterns": {
+    "P2": 2
+  },
+  "notes": "Diff 276 lines, read per function (5 changed). 28 while before and after.",
+  "summary": "Low regression only (negative-first hash length in the operation-id keys); executeBatch's rotation is reduced (no duplicated call/event) but the loop is still entered mid-body."
+}

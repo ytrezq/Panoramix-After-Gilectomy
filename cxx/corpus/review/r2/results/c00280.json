@@ -1,0 +1,46 @@
+{
+ "id": "c00280",
+ "text_changed": true,
+ "lines_old": 753,
+ "lines_new": 723,
+ "changed_functions": 4,
+ "old_findings": [],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "swapAndBridgeWithERC20, swapAndBridgeWithETH (unknown20da841e, unknownfef6981a), unknown05cc32ce, quoteExactInput",
+   "lines": "201, 353, 443, 603, 693; 90-96",
+   "decompiled": "call 0x6cd9..d8a3 with: args mem[_51 + ceil32(_4) + ceil32(_6) + ceil32(cd[_param1 + 4]) + 224 len mem[_51 + ceil32(_4) + ceil32(_6) + ceil32(cd[_param1 + 4]) + 192]]  |  if 32 * _7 + ceil32(return_data.size) + 32 * mem[mem[192] + 128] + 192 < 32 * _7 + ceil32(return_data.size) + 160 or ..",
+   "old": "call 0x6cd9..d8a3 with: args mem[_65 + 32 len mem[_65]]  |  _14 = mem[64] / if mem[64] + 32 * mem[mem[192] + 128] + 32 < mem[64] or ..",
+   "source": "SafeERC20.forceApprove: _callOptionalReturn(token, approvalCall) retry after approve(spender, 0); quoteExactInput's abi.decode of the returned arrays",
+   "issue": "The 5 remaining raw-memory calls (forceApprove's retry of the same approvalCall buffer) and the allocation checks now spell the free-memory pointer's full expression where a temporary stood, so the lines are 2-3 times longer.",
+   "rule": "Keep a named temporary for a memory address used more than once instead of substituting the free-memory pointer's full expression at every use.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "unknownfef6981a, unknown20da841e, unknown05cc32ce (6 lines)",
+   "lines": "522, 586, 185 ...",
+   "decompiled": "mem[mem[64] + 36] = caller ... _8 = mem[64] ... mem[_8 + 36 len 28] = caller >> 32 / mem[_8 + 32 len 4] = 599290589  |  mem[_32 + 36 len 28] = 0xcbbb8035cac7d4b3ca7abb74cf7bdf90",
+   "source": "SafeERC20.safeTransferFrom / forceApprove: abi.encodeCall(token.transferFrom, (from, to, value))",
+   "issue": "Now that the calls are decoded, the unchanged 28-byte part of the selector word's read-modify-write is printed as a store of the bytes already there (as in c00003).",
+   "rule": "A memory store whose value equals the bytes the location already holds (from an earlier store with no write between) is a no-op: drop it.",
+   "verified": "reading only"
+  }
+ ],
+ "improvements": "P2 20 -> 5: transferFrom(caller, this, amount), approve(spender, SafeMath.add(..)) and approve(spender, 0), allowance(this, spender), WETH deposit() with its value, and the bridge call's 'args 32, 160, this.address, .., call.data[..]' tuple are decoded. Custom errors print as 'revert with 0x2f040fc3' instead of raw memory, and the final log and return use plain values ('log ..: call.value - _2, _5, _param3, ext_call.return_data[0]', 'return _5, ext_call.return_data[0]').",
+ "patterns": {
+  "P1": 0,
+  "P2": 5,
+  "P3": 0,
+  "P4": 0,
+  "P5": 0,
+  "P6": 0
+ },
+ "notes": "Diff of 927 lines: 4 changed functions, all read. The source loop (_validatePoolsExist) is unchanged. The 'call' count rises only because more calls are named.",
+ "summary": "One low regression: the remaining raw-memory calls and allocation checks spell the free-memory pointer out in full. One low new finding: no-op 28-byte stores. Most calls, errors, the log and the return are now decoded."
+}

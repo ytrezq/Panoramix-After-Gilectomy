@@ -1,0 +1,30 @@
+{
+  "id": "c00376",
+  "text_changed": true,
+  "lines_old": 134,
+  "lines_new": 130,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "partly", "note": "SetCheckpoint's loop lost its three dominated 'assert t < len' re-checks. The 'return true' writes now follow the loop, which is exact because the only non-reverting exit is that break. The loop is still 'while True' over memory-array arithmetic."},
+    {"n": 2, "kind": "semantics", "status": "partly", "note": "ecrecover args, NewCheckpointVote's data and the bool return are decoded. The admins key is still 'stor0[concat(Bytes(12, 0), mem[_27 + 12 len 20])]' instead of stor0[address(signer)] (see the new finding)."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "GetAllAdmin's code.data zero-fill and the hash-scratch stores unchanged."}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "SetCheckpoint(uint256,bytes32,bytes32,uint64,uint8[],bytes32[],bytes32[])",
+      "lines": "96-104, 117",
+      "decompiled": "signer2 = ecrecover(sha3(..), uint8(_22), _24, _26) # precompiled / mem[_27 len min(32, return_data.size)] = ext_call.return_data[..] / require stor0[concat(Bytes(12, 0), mem[_27 + 12 len 20])] / require mem[_27 + 12 len 20] > address(u) / ... u = mem[_27]",
+      "source": "oracle.sol:107-110 address signer = ecrecover(...); require(admins[signer]); require(uint256(signer) > uint256(lastVoter)); lastVoter = signer;",
+      "issue": "The recovered address is bound to signer2, but signer2 is never used: the admins key, the ordering check and lastVoter all read the precompile's output from memory (mem[_27], mem[_27 + 12 len 20]). The old text used a variable (_30) for these.",
+      "rule": "When a call's output word is copied to memory and bound to a name, print later reads of that unchanged memory word through the name (address(signer2)).",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "ecrecover printed with its four arguments, the NewCheckpointVote event with named fields, and 'return bool(_41)' replace three raw memory ranges. Dominated array bound asserts are removed. The checkpoint writes are printed once after the loop.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 1, "P5": 0, "P6": 0},
+  "notes": "Diff 72 lines, all read and checked against oracle.sol:106-123. The removed asserts re-check v[t], r[t] and s[t] for the event after the same checks guarded the ecrecover arguments. The arrays' lengths sit below the free pointer, untouched by the stores at _27... The loop's other exit is the 'require t < mem[128]' revert (the source's trailing revert()), so moving the writes after 'break' keeps the semantics. 'u = mem[_27]' reads the signer stored by the precompile; the event stores do not touch _27.",
+  "summary": "No regression. ecrecover, the vote event and the bool return are decoded, dominated asserts dropped, and the success writes moved after the loop. The recovered signer is still read from memory rather than through its name."
+}

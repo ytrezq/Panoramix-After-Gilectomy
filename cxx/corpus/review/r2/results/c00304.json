@@ -1,0 +1,29 @@
+{
+  "id": "c00304",
+  "text_changed": true,
+  "lines_old": 431,
+  "lines_new": 410,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "immutables still 0x0 (the calls now keep their names and args)"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "set((bytes32,uint256)[]) (unknown474d857f)",
+      "lines": "345-347",
+      "decompiled": "_163 = return_data.size + _91 + ceil32(_3) + ceil32(_4) + 96 / require -_91 + _163 - ceil32(_3) - ceil32(_4) - 96 >=′ 32",
+      "old": "_163 = return_data.size + _152 / _164 = _152 / require _163 - _164 >=′ 32",
+      "source": "SPBEAM.set: abi.decode of the rate getter's return (uint256)",
+      "issue": "The return-data size check after the join now carries the free pointer's full value on both sides, negative term first; it means return_data.size >= 32.",
+      "rule": "Keep the free-pointer read in a temporary at a join (p = mem[64]) and cancel equal terms across the difference; order sums positive-first.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "The rate getter calls are decoded (unknown538af037(ext_call.return_data[0]) x3, unknown30cffa04(...) x2; P2 15 -> 0 by the header), the two 'SPBEAM/delta-above-step' reverts are decoded, and the Cfg fields are read as uint16(stor2[id].field_0/16/32) instead of slices of their memory copy (valid: only static calls lie between the load and the uses).",
+  "patterns": {},
+  "notes": "Diff 224 lines, all in set(): read in full with a control-statement diff. The single source loop is unchanged.",
+  "summary": "One low regression (a longer, negative-first return-size check); calls, reverts and struct fields are now readable."
+}

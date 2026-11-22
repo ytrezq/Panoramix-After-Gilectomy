@@ -1,0 +1,28 @@
+{
+  "id": "c00238",
+  "text_changed": false,
+  "lines_old": 523,
+  "lines_new": 523,
+  "changed_functions": 0,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "Unchanged text: the AddressSet _indexes mapping is still raw stor[sha3(x, sha3(key, 109) + 1)]."
+    }
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "None: no diff (the new text is byte-identical to the old).",
+  "patterns": {
+    "P1": 0,
+    "P2": 1,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "No diff file; old and new texts compared byte for byte (identical). Round-1 findings carried over unchanged.",
+  "summary": "Text unchanged since round 1; its one low finding (raw AddressSet index slots) stays."
+}

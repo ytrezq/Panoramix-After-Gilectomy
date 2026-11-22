@@ -1,0 +1,41 @@
+{
+  "id": "c00132",
+  "text_changed": true,
+  "lines_old": 1866,
+  "lines_new": 1826,
+  "changed_functions": 7,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The packed slots stay uint256; the no-op 'stor5 = uint8(stor5) | 256 * (stor5 / 256)' is still printed (2 lines)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknownae692cdd (getLockedUnstETHDetails), unknown63ed8d25, unknown70002e66",
+      "lines": "575, 1333, 1373, 1389, 1070",
+      "decompiled": "_26 = mem[64] ... return memory from mem[64] len _26 + 160 * cd[_param1 + 4] - mem[64] + 64  |  log 0xa988...: mem[mem[64] len 32 * _1 + _57 - mem[64] + 64]  |  mem[mem[64] + 36] = _82 + 32 * _83 - mem[64] + 96  |  args mem[mem[64] len 32 * _86 + u - mem[64] + 32]  |  log 0xfefc...: mem[mem[64] len _128 + 32 * cd[_param1 + 4] - mem[64] + 96]",
+      "old": "len 160 * cd[_param1 + 4] + 64  |  len 32 * _1 + 64  |  = 32 * _1 + 96  |  len 32 * _1 + 32 * _86 + 132  |  len 32 * mem[128] + 96",
+      "source": "Escrow.sol getLockedUnstETHDetails return encoding; WithdrawalsBatchesQueue events and the withdrawal-queue call encodings",
+      "issue": "Same mechanism as c00047: a new variable holding mem[64] is not identified with later reads of mem[64], so return, event and call lengths and an ABI offset that were constants print as pointer differences ('- mem[64]' lines 9 -> 13). One length uses a finished loop's final counter u instead of its closed form.",
+      "rule": "A variable set to mem[64] equals later reads of mem[64] reached without a store to 64..95: fold v - mem[64] to 0. After a loop, express an induction variable by its closed form (start + step * count).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown63ed8d25 (requestNextWithdrawalsBatch path), unknownae692cdd",
+      "lines": "1327, 1339, 1347, 1350, 1362-1367; 560",
+      "decompiled": "_1 = min(cd[_param2 + 4], ...) / mem[448] = min(...) ... while s < mem[448]: ... if 0 >= mem[448]: ... if cd[_param2 + 4] != mem[448]: ... mem[mem[64] + 36] = mem[448]  |  while s < mem[128]:",
+      "old": "while idx < _1: ... if 0 >= _1: ... if cd[_param2 + 4] != _1: ... = _1  |  while idx < cd[_param1 + 4]:",
+      "source": "WithdrawalsBatchesQueue / Escrow: uint256[] memory ids = new uint256[](count) and the loops over it",
+      "issue": "A memory word known to equal a named value (mem[448] = _1, mem[128] = cd[_param1 + 4]) is no longer replaced by it after an un-peeled loop. Conditions, a revert argument and loop bounds now read the raw word, and the loop counters are renamed s (were idx).",
+      "rule": "Forward a memory word through loops whose stores provably cannot reach it (stores at fresh allocations above the pointer floor, or at addresses >= its end), and print it as the value stored there.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "The rotated zero-initialisation (P3) is now a do-while. Two dynamic array arguments decode as 'Array(...), Array(...)' in the unknownc97912d8 / unknowne3afe0a3 calls; previously the second array was glued to the first. The events of unknownf84288d2 and unknownbbbd6eb1 decode to Arrays. The call printed as '0x0.mem[mem[64] len 4]' is now unknown2ca7d9fa. The final custom error of unknownf84288d2 folds to 'revert with 0x040f73ec' with the assert after it. Dominated bounds checks (3 Panic(50), one Panic(33)) are dropped exactly. Struct fields re-read from memory now print as their storage values.",
+  "patterns": {"P1": 0, "P2": 6, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 513 lines, read by function (7 changed). Calls, events and storage writes are unchanged except the raw -> named call. The 3 fewer reverts in unknownbbbd6eb1 are bounds checks implied by 'idx < cd[_param1 + 4]' (each array was allocated with that length). In unknownf84288d2 the free-memory pointer is written out as '32 * _4 + ceil32(_1) + 160...', so the mapping key mem[_14 + 32 * idx + 32] grows to mem[32 * _4 + 32 * idx + ceil32(_1) + 192] (neutral, longer).",
+  "summary": "Two low regressions: pointer-difference lengths and offsets (5 lines) and a named value replaced by raw mem[448] / mem[128] in conditions and loop bounds. Improvements: both dynamic array arguments and two events decoded, custom errors folded, dominated checks dropped, P3 gone."
+}

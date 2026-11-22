@@ -1,0 +1,40 @@
+{
+ "id": "c00018",
+ "text_changed": true,
+ "lines_old": 3920,
+ "lines_new": 3734,
+ "changed_functions": 14,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "OZ 5's panic code still prints as 'Panic(uint256), 17 ^ 3 * (not d)' (4 lines: 535, 1156, 1172...)."
+  },
+  {
+   "n": 2,
+   "kind": "artifact",
+   "status": "still",
+   "note": "Immutables still read as 0 (onlyBeforeSale always reverts, zero minimum balances)."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "low",
+   "function": "getLBPoolImmutableData() (unknown0ca89848), getLBPoolDynamicData() (unknowne565c29e), getTokenInfo, getMinTokenBalances",
+   "lines": "1072-1073, 1066-1080 (getLBPoolImmutableData); 33 lines with 3+ ceil32 terms (old: 2)",
+   "decompiled": "mem[32 * _2 + 32 * _12 + 32 * _16 + ceil32(_3) + ceil32(return_data.size) + 672] = 0",
+   "old": "mem[_24 + 32] = 0 (old 1063)",
+   "source": "LBPool.getLBPoolImmutableData: new uint256[](2) for startWeights/endWeights after decoding getPoolTokens/getTokenInfo results",
+   "issue": "Addresses the old text gave relative to one mem[64] variable now spell out every earlier allocation (three array lengths and two return sizes), so stores, allocation checks and returned slices are much longer for the same meaning.",
+   "rule": "When the free-memory pointer is written, bind its new value to one variable and print later addresses relative to that variable.",
+   "verified": "reading only"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "P1 8 -> 0 (25 * 10**13 * 3600 -> 9 * 10**17), P2 2 -> 0 (Vault totalSupply/getPoolConfig decoded), P6 2 -> 0. 9 return-copy loops are gone: getTokens, getCurrentLiveBalances, getMinTokenBalances and getTokenInfo return 'Array(len=..., data=...)', and getLBPoolImmutableData returns its struct. Bounds checks implied by a constant or dominating length were dropped (getMinTokenBalances 12 -> 6 reverts). The hook parameters are named by calldata word (onAfterAddLiquidity: _param4, _param5, _param7, _param8, skipping the unread uint256 at word 6). onSwap's lines after 'revert with InvalidToken()' are dropped and its if-chain flattened, with the same set of custom errors.",
+ "patterns": {},
+ "notes": "The diff is 2660 lines; I checked all 14 changed functions with normalized per-function diffs (control flow, reverts by error, calls, loops, returns). All 4 source loops are still whiles (21 whiles: only return/copy loops were removed). The 600-line onSwap branch that needs tokenIndex outside {0..3} and below 2 was already unreachable, and is still printed. The pack header lists no P1-P6.",
+ "summary": "No semantic regression. One low readability regression: some memory addresses are now long sums of earlier allocations. Improvements: decoded Vault calls, explicit array and struct returns, P1/P2/P6 gone, implied bounds checks and dead lines removed."
+}

@@ -1,0 +1,31 @@
+{
+  "id": "c00062",
+  "text_changed": true,
+  "lines_old": 7086,
+  "lines_new": 6785,
+  "changed_functions": 11,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "partly", "note": "The SpendingLimitLib daily/monthly do-whiles are no longer rotated: no first iteration before the loop, just 'while True: checks; if block.timestamp > uint64(f(s)): s = f(s); continue; break' (canSpend 2286-2297, canSpendSingleToken 3281, applicableSpendingLimit 1928). The variable still lags one step, so f(s) is still written in the checks, the condition, the step and the result line."},
+    {"n": 2, "kind": "simplification", "status": "partly", "note": "P1 fixed: the slot now reads stor[0xf0c57e...6a00]. Still there: the same slot read both as uint64(stor[...]) and storF0C5_64 in one line, the P15 split (storF0C5 = 1 / storF0C5_8 = 0), and the dead 'if not storF0C5_64: revert with 0xd7e6bcf8' (89-95)."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "'Bytes(12, 0), mem[x + 12 len 20]' address conversions (62 lines) and uint64 memory-struct slices are unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "getSafeCashData (71e5a923), getUserTotalCollateral (0d8f21be), getMaxSpendDebit (0ac3e50d), canSpend (9a664ee1) and the other changed views",
+      "lines": "e.g. 1489-1518 (0d8f21be), 1075-1118 (0ac3e50d), 4187-4245 (71e5a923)",
+      "decompiled": "require 32 * _14 + ceil32(_1) + ceil32(_10) + ceil32(_11) + mem[32 * _14 + ceil32(_1) + ceil32(_10) + ceil32(_11) + 160] + 191 <′ return_data.size + 32 * _14 + ceil32(_1) + ceil32(_10) + ceil32(_11) + 160  |  mem[32 * _14 + ceil32(_1) + ceil32(_10) + ceil32(return_data.size) + 196] = _param1",
+      "old": "require _31 + mem[_31] + 31 <′ return_data.size + _31  |  mem[mem[64] + 36] = _param1",
+      "source": "abi.decode of the returned arrays/structs; abi.encode of call arguments (CashLens.sol)",
+      "issue": "Each variable holding a load of mem[64] (_31, _82, ...) is now replaced at every use by its value, an expression of up to 13 terms (32 * _a + ... + ceil32(_x) + ... + N). The ABI decode checks, the bounds and the buffer writes become 200-400 characters: lines over 240 chars rose from 173 to 250, and the 11 changed functions grew 11% in characters while losing 301 lines.",
+      "rule": "Substitute a free-pointer value only when it is a constant or a short (one- or two-term) expression; otherwise keep the variable bound at its load as the named base of the buffer.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P3 9 -> 0: the zero-init struct-array loops ('while idx - 1') are now do-while forms, and canSpendSingleToken's inner canSpend loop is 'while u < _790' with no rotated first iteration. A uint256[] encoding loop in canSpend became a calldata copy line. Calls now show selectors or names (getData, hasDebt, balanceOf, debtOf, getCollateralTokens, unknownXXXX(?)), and one delegate call's arguments are decoded. Return values carry their reason strings ('No token preferences provided', 'Only one token allowed in Credit mode'), and returned/checked values read ext_call.return_data[0] instead of mem[_N]. A dead Panic(50) before 'Transaction already cleared' was dropped (the length is already known nonzero). P1 2 -> 0, P6 23 -> 0, P2 96 -> 56.",
+  "patterns": {"P2": 56, "P3": 0, "P7": 18, "P8": 380, "P11": 30, "P14": 300, "P15": 3, "P18": 100},
+  "notes": "The diff (5,513 lines) was reviewed by structure, function by function (11 changed): loops, calls, returns, reverts. Checked: the two canSpend loops that became one loop plus a copy line (the copy reads the calldata that the memory array was copied from); the dropped bounds check (dominated by 'if not _36: return'); the do-while forms are equivalent to the rotated ones. The loop count per function is unchanged except canSpend 15 -> 14 (that copy line). Minor: one reason string still prints as hex (canSpend 2565 'Array(len=27, data=0x4e6f...)'). The P7/P8/P11/P14/P18 counts are estimates carried from round 1.",
+  "summary": "Loops are better (no rotated loops left), calls are named and returns resolved, but substituting long free-pointer expressions for the mem[64] variables makes the ABI decode and encode lines much longer (medium readability regression; 250 lines over 240 characters)."
+}

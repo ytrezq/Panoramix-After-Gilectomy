@@ -1,0 +1,35 @@
+{
+  "id": "c00257",
+  "text_changed": false,
+  "lines_old": 1247,
+  "lines_new": 1247,
+  "changed_functions": 0,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "naming",
+      "status": "still",
+      "note": "text unchanged"
+    },
+    {
+      "n": 2,
+      "kind": "artifact",
+      "status": "still",
+      "note": "text unchanged"
+    },
+    {
+      "n": 3,
+      "kind": "simplification",
+      "status": "still",
+      "note": "text unchanged"
+    }
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "",
+  "patterns": {
+    "P2": 6
+  },
+  "notes": "No diff file: the new text is identical to the round-1 text.",
+  "summary": "Text unchanged; every round-1 finding stands."
+}

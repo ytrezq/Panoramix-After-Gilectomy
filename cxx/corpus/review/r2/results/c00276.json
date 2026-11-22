@@ -1,0 +1,16 @@
+{
+  "id": "c00276",
+  "text_changed": true,
+  "lines_old": 539,
+  "lines_new": 539,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "transferAndCall unchanged: the Transfer value, the ERC677 event data and tokenFallback stay raw memory after the bytes copy."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "unknown90b51d43: the one-element concat key is resolved, stor9[concat(mem[0])] -> stor9[address(_15)] (mem[0] holds the low 20 bytes of _15 = mem[mem[64]]); P4 1 -> 0.",
+  "patterns": {"P1": 0, "P2": 3, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 11 lines: a single changed line.",
+  "summary": "No regression; one P4 key resolved, everything else unchanged."
+}

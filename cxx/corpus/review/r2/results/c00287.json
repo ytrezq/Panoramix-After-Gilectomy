@@ -1,0 +1,41 @@
+{
+  "id": "c00287",
+  "text_changed": true,
+  "lines_old": 418,
+  "lines_new": 421,
+  "changed_functions": 10,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The scratch stores of implementation() remain (decimal 1549851163, and 'Bytes(4, 0x5c60da1b), mem[.. len 28]'), unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "naming",
+      "severity": "low",
+      "function": "def storage; migratorForPath, implementationOf, defaultImplementation, setDefaultVersion, disable/enableUpgradePath, registerImplementation, createInstance, upgradeInstance",
+      "lines": "4, 6, 30, 34, 37, 61, 106, 136, 175, 181, 190, 257-269, 342-367, 390-405",
+      "decompiled": "implementationOf is mapping of struct of 1 slot at storage 0 / return address(implementationOf[version_].field_0) / mem[_29 + 36 len 28] = uint128(implementationOf[toVersion_].field_32)",
+      "old": "implementationOf is mapping of address at storage 0 / return implementationOf[version_]",
+      "source": "MapleProxyFactory: mapping(uint256 => address) public implementationOf; mapping(uint256 => mapping(uint256 => address)) public migratorForPath",
+      "issue": "New no-op write-back lines of the selector insertion (the 28 bytes after the selector, already holding the top of the address argument) read the slot as field_32. That retypes both address mappings as one-slot structs, so every access, including the getters, becomes address(X[k].field_0).",
+      "rule": "Drop a memory write of the bytes the location already holds (the read-modify-write of a selector insertion), and do not infer storage member types from reads that only feed such dead or no-op writes.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "loop",
+      "severity": "medium",
+      "function": "upgradeInstance(uint256,bytes)",
+      "lines": "393-401",
+      "decompiled": "_47 = mem[ceil32(_1) + ceil32(_2) + 128] / mem[mem[64] + 100] = mem[ceil32(_1) + ceil32(_2) + 128] / idx = 0 / while idx < _47: mem[idx + mem[64] + 132] = mem[idx + ceil32(_1) + ceil32(_2) + 160] ... / if idx > _47: mem[_47 + mem[64] + 132] = 0",
+      "old": "mem[mem[64] + 100] = arguments_.length / mem[mem[64] + 132 len ceil32(arguments_.length)] = arguments_[all], mem[...] / if ceil32(arguments_.length) > arguments_.length: mem[...] = 0",
+      "source": "MapleProxyFactory/Proxied upgrade: migrator call abi.encodeWithSelector(..., migrator_, arguments_)",
+      "issue": "The encoding of arguments_ for the migrator call was a copy line from calldata and is now a byte-copy while loop from the memory copy (at ceil32(_1) + ceil32(_2) + 128, written at lines 337-339), with its length read back from memory instead of arguments_.length.",
+      "rule": "Forward the memory copy of a calldata array (mem[p] = cd length, mem[p + 32 len n] = calldata) to later reads when no store in between may alias it; then the word loop is a copy of arguments_[all] and prints as one line.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "upgradeInstance's implementation-set call buffer now has constant bounds (while idx < 36, args mem[_29 + 68 len 36], trailing zero folded to mem[_29 + 104] = 0) and its return copy is placed at known offsets; createInstance's migrator copy has a known bound (ceil32(arguments_.length) + 100). These calls remain raw (P2 3) because the byte loops are not turned into copy lines.",
+  "patterns": {"P1": 0, "P2": 3, "P3": 0, "P4": 5, "P5": 0, "P6": 0},
+  "notes": "Diff 208 lines, read in full. 7 of the 10 changed functions differ only by the retyping (address(X.field_0)). whiles 3 -> 4 (the new loop in upgradeInstance); P4 4 -> 5 (the new write-back line has a concat key). 'static call caller.mem[.. + 196 len 4]' (implementation() with its selector unresolved) is unchanged since round 1 (line 349), not reported again. CREATE2 lines unchanged.",
+  "summary": "Two regressions: no-op selector write-back lines retype implementationOf/migratorForPath as structs (every access now 'address(X.field_0)'), and upgradeInstance's arguments_ copy fell back from a copy line to a byte loop. Otherwise unchanged."
+}

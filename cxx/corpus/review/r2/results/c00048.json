@@ -1,0 +1,34 @@
+{
+ "id": "c00048",
+ "text_changed": true,
+ "lines_old": 3687,
+ "lines_new": 3399,
+ "changed_functions": 12,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "partly",
+   "note": "accept and update now read the agreement fields from calldata ('revert with 0xe4576396, 600, uint32(cd[_param1 + 228]), uint32(cd[_param1 + 260])', 'revert with 0x66925f97, caller, address(...)'). offer, getAgreementDetails and getMaxNextClaim still read memory byte slices (163 lines; old: 204; glued Bytes(k, 0) arguments 29 -> 19)."
+  }
+ ],
+ "regressions": [
+  {
+   "kind": "simplification",
+   "severity": "medium",
+   "function": "collect(uint8,bytes) (unknown7f07d283)",
+   "lines": "1481, 1499",
+   "decompiled": "call address(stor436D[_1 << 128].field_256).unknown9081e3a6(?) with: gas 1500000 args Bytes(28, uint128(_1) << 96), Bytes(4, 0), _45 + ... / call _165.unknowna0a8bd89(?) with: args Bytes(28, uint128(_1) << 96), Bytes(4, 0), _164",
+   "old": "args _1 << 128, ... / args _1 << 128, _160",
+   "source": "RecurringCollector._collect: callbacks to the payer/receiver with (bytes16 agreementId, uint256 tokens)",
+   "issue": "The bytes16 agreement-id argument, one ABI word (_1 << 128), is now printed as two pieces split at the 28th byte. Each callback seems to take three arguments, while it takes two. The bytes are the same.",
+   "rule": "Merge adjacent pieces of one call-data word (Bytes(28, x << 96), Bytes(4, 0)) back into one 32-byte value (x << 128) before listing the arguments, and print one argument per ABI word.",
+   "verified": "reading only (the same bytes; the display misleads)"
+  }
+ ],
+ "new_findings": [],
+ "improvements": "P1 2 -> 0 (the Initializable slot prints as 0xf0c57e16...6a00 instead of 0x111f...aa0 * 3600) and P6 86 -> 0. update and accept shrank from 414/444 to 296/302 lines: the EIP-712 digest, the copy of the encoded agreement to storage and the custom-error arguments are decoded from calldata. Panic(65) checks implied by a dominating allocation check were dropped (update, accept), along with 'if len > 31' and the partial-word tail write whose outcome is known.",
+ "patterns": {},
+ "notes": "The diff is 1592 lines; I checked all 12 changed functions with per-function and normalized diffs. 6 of them only changed hex or duration display or variable numbers. No source loop and no while (still 0). Both enum Panic(33) checks of accept are still present (the diff only realigned them). Long-address lines did not grow here (3+ ceil32 terms: 96 -> 72). 44 texts of the round-2 corpus contain 'Bytes(28, uint128', so the split argument may recur elsewhere.",
+ "summary": "One medium regression: in collect, two callbacks print the bytes16 agreement id as two argument pieces. Otherwise improved: P1/P6 gone, update/accept much shorter, with custom-error arguments read from calldata instead of byte slices."
+}

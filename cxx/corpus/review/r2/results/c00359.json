@@ -1,0 +1,29 @@
+{
+  "id": "c00359",
+  "text_changed": true,
+  "lines_old": 396,
+  "lines_new": 392,
+  "changed_functions": 2,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "artifact",
+      "status": "still",
+      "note": "Immutables still read as 0, so the two reserve loops stay dead (not counted)."
+    },
+    {
+      "n": 2,
+      "kind": "simplification",
+      "status": "partly",
+      "note": "The setReserveFreeze/setReservePause calls are now named with decoded arguments (address(_48), _param1), and the two events decoded (_param1, indexed asset). The reserve-list call and decoding are still printed twice."
+    }
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "P2 2 -> 0: both calls in the reserve loops are decoded, and the loop events print their data.",
+  "patterns": {
+    "P2": 0
+  },
+  "notes": "Diff (52 lines) read in full: unknownc3aa13b5 (pauseAllMarkets) and unknowne0f2b5d1 (freezeAllMarkets).",
+  "summary": "No regression; the calls and events of the (immutable-dead) reserve loops are now named and decoded."
+}

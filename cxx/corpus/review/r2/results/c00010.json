@@ -1,0 +1,17 @@
+{
+  "id": "c00010",
+  "text_changed": true,
+  "lines_old": 1676,
+  "lines_new": 1625,
+  "changed_functions": 4,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "getRollupExitRoot and its copies did not change."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "getRollupExitRoot and its copies did not change."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Calls with several dynamic arguments now decode them separately. verifyPessimisticTrustedAggregator's two calls show Array(len=196, data=...) for their packed public inputs. attachAggchainToAL's create call shows both bytes arguments (lengths _45/_48, data, padding) where one merged memory slice stood. updateRollupByRollupAdmin's call shows Array(len=0, data=''). Its dead 'mem[64] > 2**64-1 -> Panic(65)' check is dropped, and its keccak scratch stores and call buffers go (memory writes 36 -> 7). P6 6 -> 0 (role 0x084e94f3...).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 3, "P5": 0, "P6": 0},
+  "notes": "Diff of 383 lines, read hunk by hunk. initialize only moved within the text, plus the whole-byte constant. Calls, logs and storage writes are unchanged. updateRollupByRollupAdmin's version check reads 'mem[ceil32(min(32, _1)) + 128 len 2] << 240' where the old text had Mask(16, 240, _12). That is the same word (no store to it between), so it is neutral. attachAggchainToAL's Panic(65) check now spells the pointer sum instead of mem[64], which is neutral. The 5 source loops are unchanged.",
+  "summary": "No regression. Multi-dynamic-argument calls are decoded, a dead allocation check and dead stores are dropped, and P6 is fixed."
+}

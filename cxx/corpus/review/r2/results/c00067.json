@@ -1,0 +1,32 @@
+{
+  "id": "c00067",
+  "text_changed": true,
+  "lines_old": 5548,
+  "lines_new": 4888,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "setPoolFee's loop is unchanged: still 'while s / 10**18 < 0x01000000000000000000000000' (the toUint96 guard), with the real test and epilogue inside the body (new 824-906) and the first iteration before the loop."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "processExpirations' loop test still carried in a flag (_379 = z < now / 28 days or y + 1 < now / 91 days ...) in every copy."},
+    {"n": 3, "kind": "simplification", "status": "partly", "note": "Struct stores still go through memory slices ('len 12/16]' lines 214 -> 206). In setPoolFee's first iteration, reads of mem[_314 + 112 len 16] are now the storage fields (stor9[0][..].field_384)."},
+    {"n": 4, "kind": "artifact", "status": "still", "note": "Immutables read as 0: 'if caller' checks and calls to 0x0, unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown79087997 (inlined processExpirations, reward-per-share update)",
+      "lines": "4459-4461",
+      "decompiled": "if (10**18 * block.timestamp * x - 10**18 * s * x) / (block.timestamp * x - s * x) != 10**18 and block.timestamp * x - s * x: revert with Panic(17) / _2151 = u + SafeMath.div(10**18 * block.timestamp * x - 10**18 * s * x, v)",
+      "old": "_2151 = u + SafeMath.mul(block.timestamp * x - s * x, 10**18) / v",
+      "source": "StakingPool.sol processExpirations: accNxmPerRewardsShare += elapsed * rewardPerSecond * ONE_NXM / rewardsSharesSupply",
+      "issue": "One of the 9 copies of this line lost the SafeMath.mul form. Its overflow check is printed separately with 10**18 distributed over the difference. The division inside 'if v:' is printed as SafeMath.div, although the enclosing test makes its zero check dead. Same values.",
+      "rule": "Recognize the check 'if (c*a)/a != c and a: revert Panic(17)' followed by c*a as SafeMath.mul(a, c) before distributing c over a. Print a division whose divisor is non-zero on every path (dominating 'if v:') as a plain '/'.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Underflow checks of the tranche-expiry subtraction folded into 'u = SafeMath.sub(u, ..)' (the old separate checks before the log; same Panic(17), and the log is discarded on revert). Dominated bounds checks dropped where the array length is a known constant (mem[_349] = 8 in 'while idx < 8', one-element arrays). SafeCast reverts decoded as strings ('SafeCast: value doesn't fit in 96 bits'...) and printed as guards. Custom errors as selectors instead of 'revert with memory'. P2 22 -> 5, P6 56 -> 0, 'len _N - mem[64]' lengths 73 -> 21. Durations: 91 * 10**18 * 24 * 3600 now 7862400 * 10**18. Text 10% smaller.",
+  "patterns": {"P1": 0, "P2": 5, "P3": 0, "P4": 3, "P5": 0, "P6": 0},
+  "notes": "Diff of 3.8k lines over 8 functions (unknown79087997 alone 441/979). Reviewed by structure, tracing every revert-count change: the Panic(17) removals are the subtraction checks moved into SafeMath.sub at the end of the processExpirations loop body (same check, after the TrancheExpired log). The Panic(50) removals are bounds checks of arrays whose length word is a known constant (8 or 1), dominated by the loop condition or the constant index. In setPoolFee two Panic(17) checks swapped order, which is unobservable (same revert data). The while count is unchanged (76).",
+  "summary": "No semantic regression. The text is 10% shorter, with decoded SafeCast messages, folded subtraction checks and dominated bounds checks dropped. One line in unknown79087997 lost its SafeMath.mul form. setPoolFee's loop (finding 1) is unchanged."
+}

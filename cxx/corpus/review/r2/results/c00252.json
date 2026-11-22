@@ -1,0 +1,16 @@
+{
+  "id": "c00252",
+  "text_changed": true,
+  "lines_old": 961,
+  "lines_new": 912,
+  "changed_functions": 6,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "BondingManager calls still target 0x0 (immutables)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "'ZERO_LOCK_AMOUNT' reverts resolved (were raw memory with a P1 constant '0x66b5.. * 3600') in getMigrateUnbondingLocksParams and migrateUnbondingLocks, whose lock-amount loops now read ext_call.return_data[0] and drop the bounds check implied by the loop test; migrateSender's and migrateDelegator's ecrecover arguments are decoded (ecrecover(sha3(Bytes(2, 0x1901), _15, sha3(0, _l1Addr, _l2Addr)), v, r, s)); migrateDelegator 142 -> 105 lines. P1 2 -> 0, P2 2 -> 0, P6 4 -> 0.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 706 lines: per-function diffs and effects for the 6 changed functions (calls, requires, writes, logs equal). Neutral: the unbonding loop head is now 'while s < mem[128]' (mem[128] = _unbondingLockIds.length set at 597) instead of 'while idx < _unbondingLockIds.length'; dropped free-pointer bumps shift later offsets consistently (mem[mem[64] + 132] for the old mem[mem[64] + 4]). text_check run --per-selector 32 (r2): 867 + 867 same, 0 different.",
+  "summary": "No regression: reverts, call results and ecrecover arguments are decoded and the patterns are gone; only the immutable artifact remains."
+}

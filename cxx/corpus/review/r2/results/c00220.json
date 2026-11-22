@@ -1,0 +1,53 @@
+{
+  "id": "c00220",
+  "text_changed": true,
+  "lines_old": 1568,
+  "lines_new": 1480,
+  "changed_functions": 6,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "still",
+      "note": "OZ branch-free min still literal with the queue size recomputed inside; now repeated in 5 lines instead of 10 (the peeled iteration is gone)"
+    },
+    {
+      "n": 2,
+      "kind": "simplification",
+      "status": "still",
+      "note": "queue data mapping still raw keccak arithmetic (4 lines)"
+    },
+    {
+      "n": 3,
+      "kind": "artifact",
+      "status": "still",
+      "note": "verifier immutable still 0"
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "sendSpecifiedReceipts (unknowna9a85614)",
+      "lines": "409-417",
+      "decompiled": "if cd[32 * idx + _param2 + 36] != sha3(this.address, _param1, stor2, stor7[...]): / mem[_18 + 160] = 0x08c379a0... / mem[_18 + 164] = 32 / mem[_18 + 196] = 58 / mem[_18 + 228] = 0x54656c65... / mem[_18 + 260] = 0x6e6f74... / revert with memory from _19 + 160 len _18 - _19 + 132",
+      "old": "if cd[32 * idx + _param2 + 36] != sha3(mem[_19 + 32 len mem[_19]]): revert with 'TeleporterMessenger: message ID not from source blockchain'",
+      "source": "TeleporterMessenger.sendSpecifiedReceipts: require(calculateMessageID(...) == messageID, \"TeleporterMessenger: message ID not from source blockchain\")",
+      "issue": "The hash is now decoded, but the revert that followed it, named in round 1, is raw memory again with the message as hex words: _18 and _19 are both reads of mem[64] with no write to it in between, and are not identified, so the Error(string) at _18 + 160 is not matched with the revert range at _19 + 160.",
+      "rule": "Two reads of mem[64] with no write to mem[64] between them are equal: unify them before matching a revert or call input range with the stores that fill it.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Named string reverts 35 -> 39 and raw reverts 8 -> 4 ('insufficient gas', 'zero blockchain ID', 'receipt not found', 'SafeERC20TransferFrom: balance not increased'); the message-ID hash decodes as sha3(this.address, _param1, stor2, stor7[...]); a 'return memory' became a value; P3 2 -> 0 (the zero-init loops have no peeled iteration); P2 3 -> 1, P6 8 -> 0, P1 2 -> 0; checks now name the parameters (_param3, _param4) instead of memory reads.",
+  "patterns": {
+    "P1": 0,
+    "P2": 1,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff of 1,436 lines; 6 functions changed, effect totals equal except the +1 'if' of the converted rotation in unknowna9a85614 and unknown62448850; condition diffs checked by hand. All 4 source loops unchanged (whiles).",
+  "summary": "Mostly improved (more named reverts, decoded message-ID hash, rotations without peeled iterations), with one medium regression: the 'message ID not from source blockchain' revert, decoded in round 1, is raw memory again because two equal reads of mem[64] are not unified."
+}

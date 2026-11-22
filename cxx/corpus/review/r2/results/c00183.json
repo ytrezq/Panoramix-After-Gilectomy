@@ -1,0 +1,53 @@
+{
+  "id": "c00183",
+  "text_changed": true,
+  "lines_old": 1817,
+  "lines_new": 1816,
+  "changed_functions": 9,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "fixed",
+      "note": "The command-executed key prints as sha3(0x957705a3..., _279) in the duplicate check, the set and the reset after a failed command (stor4[sha3(...)] = 0), no more raw-memory hashes."
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "execute(bytes)",
+      "lines": "1329-1348 (7 lines)",
+      "decompiled": "_280 = mem[64]; mem[mem[64] + 32] = ...; mem[mem[64] + 64] = _279; _281 = mem[64]; ... mem[_281 + 96] = _280 - _281 + _287; if sha3(mem[_281 + 128 len _280 - _281 + _287]) != 0x5763814b...: (x6)",
+      "old": "mem[_280 + 96] = _287; if sha3(mem[_280 + 128 len _287]) != 0x5763814b...: (x6)",
+      "source": "AxelarGateway.sol execute: commandHash = keccak256(abi.encodePacked(commands[i])); if (commandHash == SELECTOR_DEPLOY_TOKEN) ... (6-way dispatch)",
+      "issue": "_280 and _281 are reads of mem[64] with no store to it in between (equal), but their difference is no longer folded, so the six command-hash tests carry the length '_280 - _281 + _287' and base _281. Same root cause as the c00063 regression (16 texts corpus-wide).",
+      "rule": "Reads of mem[64] with no store to mem[64] between them hold the same value: one symbol, so '_a - _b' folds to 0.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "execute(bytes)",
+      "lines": "1250-1256, 1338-1341 (7 lines)",
+      "decompiled": "if idx >= mem[32 * _17 + ceil32(_1) + ceil32(cd[transactionBytecode + cd[transactionBytecode + 36] + 36]) + ceil32(cd[transactionBytecode + cd[transactionBytecode + 68] + 36]) + 316]:",
+      "old": "_23 = mem[64] ... if idx >= mem[_23]: ... _286 = mem[_23 + 32 * idx + 32]",
+      "source": "AxelarGateway.sol execute: (..., bytes32[] memory commandIds, string[] memory commands, bytes[] memory params) = abi.decode(data, ...)",
+      "issue": "The commands array pointer _23 is expanded into its 150-character allocation expression at each use.",
+      "rule": "Keep a variable for a held mem[64] value whose expression is long; substitute only short ones.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Round-1 finding fixed (command-executed key); events with several dynamic arguments decoded exactly (ContractCall / ContractCallWithToken: string destinationChain=Array(...), string destinationContractAddress=Array(...), bytes payload=Array(...); TokenMintLimitUpdated(symbol=Array(...), limit)); a revert's bytes argument split into length and data; the duplicate check reads _17 != _22 or _17 != mem[_45]; P6 8 -> 0.",
+  "patterns": {
+    "P1": 0,
+    "P2": 9,
+    "P3": 0,
+    "P4": 4,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff of 551 lines read in full on its substantive lines (function counts unchanged; burnToken only moved). The dispatch, the self-call and the Executed event are unchanged.",
+  "summary": "Minor regressions in execute: an unfolded difference of two equal mem[64] reads in the six command-hash tests, and the commands array pointer expanded into a long address. Otherwise better: the command-executed key is resolved everywhere and the events' dynamic arguments are decoded."
+}

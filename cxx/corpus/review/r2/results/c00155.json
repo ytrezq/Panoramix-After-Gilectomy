@@ -1,0 +1,28 @@
+{
+  "id": "c00155",
+  "text_changed": true,
+  "lines_old": 2185,
+  "lines_new": 1562,
+  "changed_functions": 10,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "fixed", "note": "args-mem lines 68 -> 0: gem, usds, mapleGlobals, isInstanceOf (unknown305c9e05 args 'PSM', _param1), operationalAdmin (unknown0b52d12d), approve, buyGem, withdraw, previewRedeem, tout are named. The require messages (MSS:SPSM:INVALID_GEM/USDS/PSM...) are decoded; '- mem[64]' lines 75 -> 0."}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setPsm(address) (4 approve calls)",
+      "lines": "1414-1417, 1442-1445, 1504-1507, 1530-1533",
+      "decompiled": "call _81.approve(address spender, uint256 amount) with: args Bytes(28, uint128(_param1 >> 32)), Bytes(4, uint32(_param1)), -1",
+      "source": "MapleSkyStrategy.sol:150 ERC20Helper.approve(fundsAsset_, newPsm_, type(uint256).max)",
+      "issue": "Decoded now, but the spender prints as two byte slices instead of _param1. The selector insertion rewrites the top 28 bytes of the address word (same as c00097). Spenders held in storage (psm, _82) print correctly.",
+      "rule": "Concatenated slices Bytes(k, x >> 8(32-k)), Bytes(32-k, x mod 2^(8(32-k))) of one word x are x.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "This unoptimised build's free-memory chains are resolved: every call is named with arguments, every Error(string) revert prints its message, P6 17 -> 0, and the 6 decimal selector writes are gone (selectors now show as Bytes(4, 0x095ea7b3) in copy lines). Dead selector/argument stores before decoded calls are dropped. Event data decoded (0x9276f1..: _102; 0x7f9a30..: amount, _10). Text 2185 -> 1562 lines.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 2556 lines, reviewed by structure: each of the 10 changed functions was cut from both texts (they were reordered). Call, storage-write, log and loop sequences are identical (11/11, 4/4, 9/9, 16/16, 27/27, 30/30, 32/32, 21/21); if/require/revert counts are equal, except f6de0bd2 and 67e2ba23 (+1 if, +1 revert): the checked currentTotalAssets - lastRecordedTotalAssets is now its own 'if X - stor7 > X: revert Panic(17)' line instead of SafeMath.sub inside the mul test. That is exact (the bytecode has the check), though the enclosing X > stor7 already implies it (P11). setPsm's 6 approvals match ERC20Helper.approve (approve 0, then the amount when nonzero); values are as in the old text. Some lines mix the base names _46 and mem[64] for the same value (setPsm 94-135).",
+  "summary": "No regression. The simplest form of the free-memory problem is fixed: all 68 raw calls are named with their arguments and every require message is decoded. Only the split byte-slice spender of the approve calls remains odd."
+}

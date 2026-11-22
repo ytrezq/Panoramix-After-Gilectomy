@@ -1,0 +1,16 @@
+{
+  "id": "c00080",
+  "text_changed": true,
+  "lines_old": 2164,
+  "lines_new": 2024,
+  "changed_functions": 4,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "copy whiles 7 -> 1 and mint's second safeTransferFrom is now 'call address(_to).transferFrom(...)' with its arguments; one Error(string) re-encoding loop remains (removeAsset's strategy branch, 1254)"}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "P6 11 -> 0, P2 2 -> 0, copy whiles 7 -> 1. The SafeERC20/functionCall tails of mint, setStrategy and removeAsset are early reverts with decoded strings ('SafeERC20: low-level call failed', 'OTV1B: ERR removing collateral token', 'OTV1B: ERR removing MEM token') instead of re-encoding loops. The two token calls after copies are named (transferFrom, approve). The mint path's two SafeMath overflow checks use SafeMath.add, and Transfer/Minted/StrategySet have named fields. Initialized is no longer mis-decoded: the old text showed name as one Array spanning both strings and symbol as an offset, the new prints the exact ABI words (caller, 224, ceil32(name_.length) + 256, ...).",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 707 lines, 4 changed functions (removeAsset, setStrategy, mint, init) reviewed by skeleton comparison and the changed regions read in full. Checked by disassembly: the 35-byte literal 'ICHIERC20: mint to the zero address' lies in the code's data section and is copied with CODECOPY of exactly 35 bytes, so the trailing 'mem[mem[64] + 103 len 29]' in the decoded revert (and 'mem[mem[64] + 110 len 22]' after the 42-byte SafeERC20 string) is exact, not lost zeros.",
+  "summary": "No regression: copy loops 7 -> 1, every SafeERC20 tail decoded, calls after copies named, P2/P6 gone, and Initialized's misleading decoding replaced by the exact ABI words."
+}

@@ -1,0 +1,42 @@
+{
+  "id": "c00088",
+  "text_changed": true,
+  "lines_old": 2561,
+  "lines_new": 2512,
+  "changed_functions": 1,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "factory immutables still 0x0"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "DeployConfig still addressed by raw calldata offset chains"}
+  ],
+  "regressions": [
+    {
+      "kind": "loop",
+      "severity": "low",
+      "function": "deploy(...) (unknown8505cab9)",
+      "lines": "1168-1189, 2277-2294",
+      "decompiled": "s = 0 / while True: / require cd[...] <′ ... / require cd[...] ... / require not _1407 / if s < cd[...]: <body> / s = s + 1 / continue / break",
+      "old": "require cd[...] <′ ... / require cd[...] ... / require not _1407 / s = 0 / while s < cd[...]: <body>",
+      "source": "SharesDeployer: for (uint256 i; i < config.<array>.length; i++) { ... config.<array>[i] ... } over calldata arrays",
+      "issue": "The calldata validation requires of the loop header are now printed inside a while True, with the loop test as an if and a trailing break, where the old text printed them once before a plain while s < len. The old form was exact: the checks are pure and loop-invariant.",
+      "rule": "Statements of a loop header that are pure and loop-invariant (requires on calldata, their temporaries) may be printed once before the loop, which then shows as while cond:; the two-statement rotation limit should not apply to such invariant checks.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "deploy(...) (unknown8505cab9)",
+      "lines": "786, 939",
+      "decompiled": "call address(_1659).mem[mem[64] len 4] with: gas gas_remaining",
+      "source": "a no-argument call on a deployed component (4-byte call data)",
+      "issue": "A call whose input is the 4 bytes just written at mem[64] prints that memory slice in the function-name position (old: args mem[mem[64] len _v - mem[64] + 4]).",
+      "rule": "Never print a memory slice as a function name; resolve the selector from the word written at the call's input start, or keep it in args.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "P6 fixed. About 75 raw call and revert lengths simplified from len _v - mem[64] + k to len k; the first deployProxy call decodes its bytes argument as Array(...). The struct-array init loop is no longer rotated (P3 fixed: while idx - 1 with a peeled iteration became a do-while with none).",
+  "patterns": {"P2": 107},
+  "notes": "Diff 879 lines, all in deploy() (2469 lines): reviewed by structure with a control-statement diff; calls, storage writes and reverts unchanged apart from the lengths. 35 while before and after.",
+  "summary": "One low loop regression: two calldata-array loops now print as while True with their invariant header checks inside. Otherwise better call/revert lengths and the P3 rotation fixed."
+}

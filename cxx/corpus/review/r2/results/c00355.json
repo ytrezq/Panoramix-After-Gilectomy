@@ -1,0 +1,26 @@
+{
+  "id": "c00355",
+  "round1": true,
+  "abi_functions": 20,
+  "reviewed": 20,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "renounceOwnership(), transferOwnership(address)",
+      "lines": "70-74, 112-116",
+      "decompiled": "_1 = stor[5] / owner = 0 / log OwnershipTransferred(address indexed previousOwner=address(_1 >> 8), address indexed newOwner=0)",
+      "source": "OZ 4.9 Ownable._transferOwnership: address oldOwner = _owner; _owner = newOwner; emit OwnershipTransferred(oldOwner, newOwner);",
+      "issue": "The previous owner is read as the whole packed slot 5 and extracted by a shift, although def storage names the field 'owner' (slot 5, offset 8).",
+      "rule": "A whole-slot read used only through one declared field's extraction (address(x >> 8) for a field at offset 8) is a read of that field: bind '_1 = owner' and print previousOwner=_1.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "OpenZeppelin 4.9 ERC20 + ERC20Burnable + Pausable + Ownable (crytic ExampleToken). The pack has the source only for pause/unpause/mint; the other 17 functions were checked against lib/openzeppelin-contracts (ERC20.sol, ERC20Burnable, Ownable, Pausable). All match: the unchecked balance and allowance updates appear as '+=' / '-=', the checked ones as SafeMath.add or an explicit Panic(17). _spendAllowance skips the max allowance and reverts 'insufficient allowance' before _approve's zero-address checks. increaseAllowance's checked add comes before _approve's checks, as argument evaluation does. The storage-string getters carry the Panic(34) encoding check. The fallback reverts (no fallback/receive in the source). No source loops; the string copies in name()/symbol() are Array(...) expressions. Text unchanged since round 1 (no diff); this contract had no round-1 result.",
+  "summary": "Clean and faithful ERC20/Ownable/Pausable text; the only blemish is the previous owner read as a raw packed slot in the two ownership functions."
+}

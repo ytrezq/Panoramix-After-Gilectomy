@@ -1,0 +1,30 @@
+{
+  "id": "c00254",
+  "text_changed": true,
+  "lines_old": 1631,
+  "lines_new": 1527,
+  "changed_functions": 5,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "forceApprove's retry calls are now named: approve(_5, 0) and approve(Bytes(12, 0), mem[176 len 20], call.value), the latter with the spender still a memory slice. Its revert messages are literal and the transfer in 5b232acd is named. The first approve attempt still goes through the 'while idx < 68' copy and prints args mem[228 len 68] (P2 14 -> 8). The selector is still decimal (157198259, 13 lines)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "setPath keeps the bounds check implied by its loop condition and the two bytes.concat copies as whiles. Its '- mem[64]' lengths are replaced by '_45 - _48 + ...' forms, which read worse (regression 1)."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "setPath(address,address,address[],uint24[],address) 0xbd154e31",
+      "lines": "the encodedPaths store after the concat loops (about 12 lines, and the same in the loop body)",
+      "decompiled": "mem[_48 + 55] = _45 - _48 + _49 + _55 / if _45 - _48 + _49 + _55 > 18446744073709551615: ... / stor305[_param1][_param2] = 2 * _45 - 2 * _48 + 2 * _49 + 2 * _55 + 1 / ... ~(-1 >> 8 * _45 - 8 * _48 + 8 * _49 + 8 * _55) & _78",
+      "old": "mem[mem[64]] = _45 + _49 + _55 - mem[64] + 55 / if mem[_61] > 18446744073709551615: ... / stor305[_param1][_param2] = 2 * mem[_61] + 1",
+      "source": "MocSwapperV3MultiHop.sol setPath: encodedPath = bytes.concat(encodedPath, abi.encodePacked(fee, token)); encodedPaths[tokenIn][tokenOut] = encodedPath",
+      "issue": "_45 and _48 are reads of mem[64] with no write to mem[64] between, so the concat's length is _49 + _55. The new text substitutes '_45 - _48 + _49 + _55' for the old mem[_61] in about ten places and distributes it inside products (2 * _45 - 2 * _48 + ...). The same unification gap as c00185.",
+      "rule": "Unify reads of mem[64] with no possible write to mem[64] between them, so _45 - _48 folds to 0. Do not distribute a constant factor over a sum that is itself a named length.",
+      "verified": "reading only; text_check run --per-selector 16: 0 different"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "The forceApprove retries and the SafeERC20 transfer are named, the 'SafeERC20: low-level call failed' copy loops became literal reverts, and P2 14 -> 8, P6 12 -> 0, 32 -> 20 whiles. The '_a - mem[64]' forms are gone (4 -> 0).",
+  "patterns": {"P1": 0, "P2": 8, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "I read the 5 changed defs' diffs: setPath line by line, the 4 swap functions by calls, events, writes, reverts and loops. No call, event or write is lost. The router's exactInput call is unchanged (args 32, 128, ...). Long pointer sums barely changed here (21 -> 24 lines with 4+ terms). The source loop of setPath is still a while. text_check run --per-selector 16, both worlds: 259 + 128 guessed-param calls, 0 different (2 evm inconclusive).",
+  "summary": "One low regression: setPath's concat length is now '_45 - _48 + _49 + _55' (equal mem[64] reads not unified) and distributed in its storage write. Otherwise better: approve retries and transfer named, literal SafeERC20 reverts, P2 14 -> 8, P6 gone."
+}

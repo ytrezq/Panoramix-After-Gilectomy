@@ -1,0 +1,37 @@
+{
+  "id": "c00333",
+  "round1": true,
+  "abi_functions": 15,
+  "reviewed": 15,
+  "not_reviewed": [],
+  "source_loops": 0,
+  "loops_shown": {"while": 0, "copy_line": 0, "unrolled": 0, "aborted": 0, "missing": 0},
+  "spurious_while": 0,
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0, "P7": 5, "P8": 4, "P11": 30, "P12": 30},
+  "findings": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "Get42(uint32,uint256) (unknowne86f1899), GetRandom(uint32,uint256) (unknown493d57d6)",
+      "lines": "552-751, 345-544",
+      "decompiled": "if uint24(_param1) != 1: if uint24(_param1) != 10: ... else: mem[128] = 29 / mem[160] = 'TURING: Incorrect input state' / if 2 == _param1: return _param2 / mem[192] = 0x08c379a0.. ... (15 arms) ... while idx < _68: mem[_69 + idx] = mem[idx + 160] ... revert with memory from mem[64] len _66 + ceil32(_67) - mem[64] + 32",
+      "source": "TuringHelper.sol:101-103 require(rType == 2, string(GetErrorCode(rType))); return _random; GetErrorCode:53-68 (rType & 0x00ffffff compared with 1, 10..20)",
+      "issue": "Each of the 15 GetErrorCode arms ends with 'if 2 == _param1: return _param2', which is dead there (uint24(_param1) is 1 or 10..20), followed by a memory-built Error(string), a shared copy loop and a raw revert: about 200 lines for a 3-line function. In the same text GetResponse prints the identical chain as direct 'revert with \"TURING: ...\"' lines.",
+      "rule": "x == c implies uint24(x) == c mod 2^24, so in a branch where uint24(x) == k != 2 the test x == 2 is false: fold it. The revert data of each arm are then constants, printed as revert with '<string>'; the function becomes 'if x == 2: return _param2' plus the per-code reverts.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "TuringTx(string,bytes) (unknown2f7adf43), TuringTxV2(string,bytes) (unknown450baef0)",
+      "lines": "220-222 and 239-256; 301-303 and 320-337",
+      "decompiled": "call stor1.GetResponse(uint32, string, bytes) with: args 1, 96, ceil32(cd[_param1 + 4]) + 128, cd[_param1 + 4], mem[.. len ceil32(cd[_param1 + 4]) + ceil32(cd[_param2 + 4]) + 32] ... while idx < _19: mem[..] = mem[..] ... log 0xfde6d9b9..: 1, 64, mem[.. len ceil32(_19) + 32] / return 32, mem[.. len ceil32(_19) + 32]",
+      "source": "TuringHelper.sol:143-145 bytes memory response = Self.GetResponse(1, _url, _payload); emit OffchainResponse(0x01, response); return response; (127 with rType 0x02000001)",
+      "issue": "The string and bytes arguments are printed as raw ABI words (offsets 96 and ceil32(len) + 128, the first length, then one memory slice holding the rest), the returned bytes is decoded with a copy loop (P7), and the event and the return show the raw (offset, length, data) layout instead of the bytes value.",
+      "rule": "When head words are offsets to [len, data] blocks of the same buffer, print each as Array(len, data) (here _url[all], _payload[all]); a return or event field encoded as (offset, len, data) is Array(len, data), and a copy loop whose source is the decoded bytes is that value.",
+      "verified": "reading only"
+    }
+  ],
+  "notes": "Boba TuringHelper (solc 0.8.9). No explicit loop in the source; the 5 whiles are implicit copies (P7): the Error(string) data in Get42, GetRandom and GetResponse, and abi.decode of the returned bytes in TuringTx/TuringTxV2. All 15 ABI functions and the fallback (plain revert) read in full against TuringHelper.sol and Ownable: onlyOwner/onlyPermittedCaller checks, storage writes (permittedCaller as stor2, Self as stor1), events (printed by topic hash, names absent from the database), Self.Get42(2, 42) / GetRandom(1, 0) / GetResponse(1 or 0x02000001, ...) calls with bubbled reverts, GetErrorCode's 0x00ffffff mask (uint24 tests) and its evaluation before the rType == 2 test (require evaluates its message first). The Error(string) offsets and lengths in Get42/GetRandom (68 + ceil32(L)) are exact. GetResponse's last two codes (20, unknown) still share one memory-built revert. The diff from the round-1 text shows only improvements: whole-byte hex, GetResponse returns Array(len, data), the event/return copy loops of TuringTx folded, and the GetResponse call arguments no longer mis-decoded (the old text printed one Array spanning both strings). P11/P12: the 30 dead 'if 2 == _param1' tests and their duplicated revert setup.",
+  "summary": "Faithful, loop-free contract; readability suffers in Get42/GetRandom (15 arms with dead returns and memory-built reverts where GetResponse shows direct reverts) and in TuringTx/V2, whose string/bytes call arguments, return and event stay in raw ABI form."
+}

@@ -1,0 +1,63 @@
+{
+  "id": "c00043",
+  "text_changed": true,
+  "lines_old": 8188,
+  "lines_new": 7959,
+  "changed_functions": 13,
+  "old_findings": [
+    {"n": 1, "kind": "coverage", "status": "still", "note": "executeActionDirect keeps its 8 aborts at the same places; no path completes, no payback/logger"},
+    {"n": 2, "kind": "coverage", "status": "still", "note": "still one path to 'log ActionEvent'/return; automation path, RatioNotHigherThanBefore and TargetRatioMiss still lost. Abort lines 11 -> 7 only because 4 were merged into the final abort (see regressions)"},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "38 selectors still stored in decimal ('len 4] = 2835717307')"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification", "severity": "medium",
+      "function": "executeActionDirect(bytes) (and the same root cause elsewhere)",
+      "lines": "2236-2244, 2659-2665 (getFeeForTokens), 2674-2678 (getAddr), 2641-2647 (WETH deposit), 2806-2810 (NonContractCall)",
+      "decompiled": "_1375 = mem[64] / mem[mem[64]] = 0x93b18854... / mem[_1375 + 4] = 0x91bfbd87... / static call 0x2877...f5b with: args mem[mem[64] len _1375 - mem[64] + 36]; _1270 = mem[64] ... mem[mem[64]] = _1270 - mem[64] + 192; _2180 = mem[64] / mem[mem[64]] = 0x304619b5... / revert with memory from mem[64] len _2180 - mem[64] + 4",
+      "old": "static call 0x2877...f5b.getAddr(bytes4 _id) with: args 0x91bfbd87...; mem[mem[64]] = 192; revert with NonContractCall()",
+      "source": "DFSExchangeCore/McdRepayComposite (registry.getAddr(id), feeRecipient.getFeeAddr(), discount getFeeForTokens, TokenUtils.depositWeth, SafeERC20/Address NonContractCall)",
+      "issue": "A pointer read from mem[64] is now kept in a variable but no longer identified with later reads of mem[64] before the next write to it, so 'p - mem[64]' never folds to 0. Five calls named in round 1 are raw again (getFeeForTokens, getAddr, getFeeAddr, unknown16d2a88c, WETH deposit()), six decoded reverts are raw again (NonContractCall x2, 'SafeERC20: ERC20 operation did not succeed' x2, Error(string) x2); lines with an unfolded '_N - mem[64]' 147 -> 157.",
+      "rule": "Between 'p = mem[64]' and the next write to mem[64], mem[64] equals p: rewrite every read of mem[64] there as p (or p as mem[64]) before simplifying, so 'p - mem[64]' is 0 and the call/revert input range is recognized.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification", "severity": "medium",
+      "function": "executeActionDirect(bytes), executeAction(bytes,bytes32[],uint8[],bytes32[])",
+      "lines": "2249 (store), 2323, 2364, 2396-2420, 2510-2555; 7143, 7184, 7218, 7232 (20 lines)",
+      "decompiled": "mem[_1270 + 256] = 0x6b175474...71d0f ... if mem[_1270 + 268 len 20] != 0xeeee...eeee: static call mem[_1270 + 268 len 20].decimals() ... _6515 = ext_code.hash(mem[_1270 + 268 len 20]) ... call mem[_1270 + 268 len 20].transfer(...)",
+      "old": "static call 0x6b175474...71d0f.decimals(); _6515 = ext_code.hash(0x6b175474...71d0f); the ETH-placeholder tests on the constant were folded",
+      "source": "McdRepayComposite: exchangeData.srcAddr = DAI_ADDR; DFS sell and TokenUtils (if (_token == ETH_ADDR) ...)",
+      "issue": "The DAI address stored into the struct at mem[_1270 + 256] is no longer forwarded to its reads (DAI constant lines 41 -> 31, 20 lines read it back from memory), so calls target 'mem[_1270 + 268 len 20]' and tests 'token != 0xeeee...' that are always true keep their dead ETH branches (eth.balance paths); this also inflates executeActionDirect (2522 -> 2616 lines).",
+      "rule": "Forward a store at p + k to later loads at p + k while every intervening write is provably disjoint; a pointer q read from mem[64] after 'mem[64] = p + n' (with mem[64] only increased on the path) satisfies q >= p + n, so writes at q + j (j >= 0) cannot alias [p, p + n).",
+      "verified": "reading only"
+    },
+    {
+      "kind": "coverage", "severity": "low",
+      "function": "executeAction(bytes,bytes32[],uint8[],bytes32[])",
+      "lines": "7318-7326, 7717-7727, 7774-7778 (old aborts 7555, 7928, 7976, 7978)",
+      "decompiled": "else: if mem[_6928]: revert with memory ... / mem[mem[64]] = 0x08c379a0... / mem[mem[64] + 4] = 32 / mem[mem[64] + 36] = 32   (block ends; next statement is the function's last line, the abort at 7911)",
+      "old": "... mem[mem[64] + 36] = mem[_6424] / ...  # Decompilation aborted, sorry",
+      "source": "SafeERC20.safeTransfer / forceApprove paths and the payback int conversion in McdRepayComposite._paybackDebt",
+      "issue": "Four aborted paths lost their own abort marker and now fall out of nested blocks into the shared final abort, so they end silently; one ends right after building an Error(string) header with no revert, which reads as if execution went on. Coverage is unchanged.",
+      "rule": "Keep the abort marker at the end of each path that stops; do not hoist or merge abort markers into a common tail.",
+      "verified": "reading only (structure)"
+    },
+    {
+      "kind": "simplification", "severity": "low",
+      "function": "parseInputs(bytes), unknownbc8c70c0, executeAction, executeActionDirect",
+      "lines": "1000, 1026 and 4 more",
+      "decompiled": "mem[2 * Mask(250, 5, _16 + 31) + ceil32(_28) + ceil32(_callData.length) + 2144 len ceil32(_28)] = ...",
+      "old": "while loops with addresses 'idx + ceil32(mem[...]) + mem[64] + 704'",
+      "source": "abi.encode of the parsed params (implicit copies)",
+      "issue": "ceil32(_16) appearing twice in an address is printed as '2 * Mask(250, 5, _16 + 31)' (6 lines).",
+      "rule": "Print Mask(256 - 5 - k, 5, x + 31) of a value known to fit as ceil32(x), and combine like terms only after that rewrite (2 * ceil32(x)).",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P2 193 -> 153: the vat/manager/spotter calls (urns, ilks, par, dai, frob, join), DAI transfer/approve, getAssetPrice and isProxy are named; custom errors decoded (IntOverflow() x5, 0xf1474319 with its argument x8, SafeERC20 low-level x3, 'Eth send fail'); ActionEvent decoded; getCdpInfo and getRatio return values instead of 'return memory', with the overflow check folded into SafeMath.add; 13 bytes-copy loops became copy lines (78 -> 65 whiles); P6 37 -> 0, P1 1 -> 0; a dead 'return _160' removed; uint80 checks print as '== uint80(x)'.",
+  "patterns": {"P1": 0, "P2": 153, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 5,738 lines reviewed by structure for executeAction and executeActionDirect (calls, reverts, events, aborts per path), by hand for the 11 small functions. executeAction's extra calls come from the urns/ilks/dai tail now duplicated into the ETH-send branch; its 4 vanished aborts were merged into the final abort (same coverage). The 4 decimals() calls are all still present (2 now target the memory read). No source loop (all whiles implicit). Lines with 8+ ceil32 terms 8 -> 20, longest line 805 -> 1236.",
+  "summary": "Many calls and custom errors are now decoded and 13 copy loops became copy lines, but a held free-memory pointer not identified with mem[64] turns 5 named calls and 6 named reverts raw again, and a DAI constant stored through it is no longer forwarded, which keeps dead ETH branches (both medium). Coverage of the two main functions is unchanged; 4 abort markers were merged away (low)."
+}

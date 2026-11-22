@@ -1,0 +1,33 @@
+{
+  "id": "c00235",
+  "text_changed": true,
+  "lines_old": 2808,
+  "lines_new": 2773,
+  "changed_functions": 13,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "The onlyAuthorized functions changed only in hex display; the call.func_hash selector chain is still printed 2-3 times per function."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "Raw keccak arithmetic for TargetConfig/Role mapping members unchanged."},
+    {"n": 3, "kind": "simplification", "status": "partly", "note": "execute/schedule now expand the operation id as sha3(caller, target, 96, len, data, padding); schedule's custom-error revert (0x813e9459, id) and its return are decoded. Still raw: execute's custom-error reverts (revert with memory from _136 + ceil32(..) + 160 len _135 - _136 + 68), the execution-id hash sha3(mem[.. len _135 - _136 + 64]) and the OperationScheduled bytes length 2 * Mask(250, 5, L + 31) - ceil32(L) + 32."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "cancel/consumeScheduledOp unchanged; the same repetition now also appears, longer, in execute/schedule (see regression)."},
+    {"n": 5, "kind": "simplification", "status": "still", "note": "Time.Delay typing unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "execute(address,bytes), schedule(address,bytes,uint48)",
+      "lines": "2417-2468 (execute), 1405-1422 (schedule)",
+      "decompiled": "uint48(stor40C6_40c6c8c2_2[sha3(caller, _target, 96, _data.length, _data[all], Bytes(ceil32(_data.length) - _data.length, 0))].field_0) ... (24 times) / return sha3(caller, _param1, 96, ...), uint32(_110 + 1)",
+      "old": "_93 = sha3(mem[_91 + 32 len mem[_91]]) ... return _93, uint32(_110 + 1) / _138 = sha3(mem[_136 + 32 len mem[_136]])",
+      "source": "AccessManagerUpgradeable.sol:504-506 operationId = hashOperation(caller, target, data); return (operationId, nonce)",
+      "issue": "The operation id is now shown with its contents, but the temporaries _93/_138 that named it are gone, so the full keccak expression is inlined in every storage key, revert, log and return (24 lines; lines over 240 chars 18 -> 22).",
+      "rule": "Bind a pure expression used more than once (here a keccak of calldata-derived words) to one named temporary at its first use (common-subexpression elimination).",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P1 2 -> 0: the Initializable slot prints as stor[0xf0c57e16...] instead of '0x111f... * 3600'. P6 42 -> 0 (all onlyAuthorized functions differ only by this). schedule's revert and return are decoded and the OperationScheduled data partly decoded (_89, caller, _param1, 128, bytes). Dead scratch writes (mem[0]/mem[32] before mapping reads) are dropped in schedule. 'revert with memory' 10 -> 9.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 824 lines. 10 of the 13 changed functions differ only by whole-byte hex (0 lines after normalizing leading zeros); initialize changes only the P1 slot; schedule (unknownf801a698) and execute were read in full. If/require/revert/while counts are unchanged in all 13. In schedule the text no longer bumps mem[64] for the dropped hash buffer, consistently: the log buffer stays at mem[64] + ceil32(L) + 160.., as the old _90 + ceil32(L) + 160.., and nothing else reads mem[64].",
+  "summary": "No semantic regression. The Initializable slot (P1) and hex display are fixed, and execute/schedule now show what the operation id hashes. As a cost, that long hash is repeated about 24 times where temporaries named it before."
+}

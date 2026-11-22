@@ -1,0 +1,17 @@
+{
+  "id": "c00013",
+  "text_changed": true,
+  "lines_old": 3489,
+  "lines_new": 3300,
+  "changed_functions": 15,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "The 18 memory-to-memory copies are still while loops. All 18 now have a constant size ('while idx < 68/100', 9 had a variable bound), but the ERC20Helper token calls that follow still take raw memory ('call token_ with: args mem[... len 68]')."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "The exponentiation loop is still 'while Mask(255, 1, t)' (6 copies)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "Free pointer resolved around the Maple globals and token calls: calls named (factory.mapleGlobals(), isBorrower(address), collateralAsset.balanceOf(address)), the pause check shown with its argument (args call.func_hash), revert strings decoded ('ML:SPB:INVALID_BORROWER', 'L:PAUSED', 'ML:DF:INSUFFICIENT_COLLATERAL'; 'revert with memory' 13 -> 4), events with value data (PendingBorrowerSet, CollateralPosted, Funded). In acceptNewTerms, the copies of mem[64] (_124, _134) are folded, so 'args mem[mem[64] len _134 - mem[64] + 68]' is now 'len 68'. Durations: 10**12 * 24 * 3600 is now 864 * 10**14. P2 (regex) 42 -> 22, P6 13 -> 0.",
+  "patterns": {"P1": 0, "P2": 22, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff of 2k lines over 15 functions, read function by function on the structural deltas. Call-count changes come from call.func_hash / call.data lines merged into named calls. if-count drops are 'if not ext_call.success' + 'revert with memory' pairs now printed as one bubbled revert. In acceptNewTerms the commitment hash length is now the written value (-_13 + t - 32) instead of mem[_13]: equal, neutral. Selectors written as 4-byte memory slices still print in decimal (2835717307), unchanged from round 1.",
+  "summary": "No regression. Names, revert strings and event data are resolved across the token and globals calls. The unoptimized build's constant-size copy loops still keep the ERC20Helper calls raw (finding 1)."
+}

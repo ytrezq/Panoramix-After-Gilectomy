@@ -1,0 +1,30 @@
+{
+  "id": "c00075",
+  "text_changed": true,
+  "lines_old": 3702,
+  "lines_new": 3603,
+  "changed_functions": 11,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "still", "note": "mulDiv polynomials unchanged (lines over 240 chars 174 -> 174, max 1,546)"},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "getAssets / 0x6d53ae1e unchanged"},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "checked-exp blocks unchanged"}
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "changeNameAndSymbol(string,string)",
+      "lines": "event at the end of the function",
+      "decompiled": "log NameAndSymbolChanged(string _name, string _symbol): 64, ceil32(_name.length) + 96, _name.length, mem[ceil32(_name.length) + ceil32(_symbol.length) + 288 len ceil32(_name.length) + ceil32(_symbol.length) + 32]",
+      "source": "emit NameAndSymbolChanged(_name, _symbol)",
+      "issue": "Round 1 mis-decoded this event (_name as an Array over both strings' data, _symbol = ceil32(_name.length) + 96, an offset); the new text no longer claims a wrong value, but falls back to raw head words and one slice instead of decoding the two strings that the fix for several dynamic arguments targets.",
+      "rule": "Decode ABI data with several dynamic members by following each head offset to its length word (here 64 -> _name.length, ceil32(_name.length) + 96 -> _symbol.length) and print each as Array(len, data); fall back to raw words only when an offset is unknown.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "P1 fixed: the OZ Initializable slot prints as stor[0xf0c57e16...6a00] instead of '0x111f...aa0 * 3600'. Custom errors are decoded ('revert with 0xf6e2d1bb, cd[...]', 0x227bc153, 0x9996b315 AddressEmptyCode, 0x1425ea42 FailedInnerCall; raw reverts 20 -> 14), and RedeemRequestsFulfilled's data is 'Array(len=cd[_param1 + 4], data=call.data[...])'. In unknowncbca70d5 the rate-limit refill computation, duplicated in all three branches, is printed once before them with storage fields instead of struct memory slices; 'min(X + storFED5_48, storFED5_80)' replaces the if/else, exact because the bound fits 32 bits. SafeERC20 copies now have constant bounds ('while idx < 100' / '< 68') and constant argument sizes. P6 (13) gone.",
+  "patterns": {"P2": 14},
+  "notes": "Per-function diffs (hex-padding-only pairs filtered): 11 functions changed, 5 of them only by whole-byte hex. deposit, mint and ded61c22 read in full: the SafeERC20 call-data copies stay loops and the calls raw because the copy overlaps its source (destination 68 or 100 bytes above a 96/128-byte word copy), unlike c00093 where the gap allowed a copy line. Each also gained an identity-like store 'mem[_119 + 36 len 28] = caller >> 32' (13 lines, as in c00093). No call, event, storage write or loop was lost (whiles 34/34, named calls 45/45).",
+  "summary": "No regression. P1 and P6 fixed, custom errors and one event decoded, and a triplicated refill computation merged. mulDiv expansion, raw SafeERC20 calls (overlapping copies) and raw two-string event data remain."
+}

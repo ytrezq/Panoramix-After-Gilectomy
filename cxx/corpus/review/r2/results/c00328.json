@@ -1,0 +1,27 @@
+{
+ "id": "c00328",
+ "text_changed": true,
+ "lines_old": 181,
+ "lines_new": 181,
+ "changed_functions": 1,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "RAD and RAY still print as 1000000000000000000000000000 * 10**18 and 1000000000 * 10**18 (unchanged lines)."
+  },
+  {
+   "n": 2,
+   "kind": "artifact",
+   "status": "still",
+   "note": "Immutables still read as 0."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "P6 2 -> 0: CALLBACK_SUCCESS_VAT_DAI and its comparison print as 64 hex digits (0x0cceaa4e...).",
+ "patterns": {},
+ "notes": "The diff is 20 lines (2 hunks): only the 63-digit constant changed, in the constant list and in vatDaiFlashLoan's callback check. No loops.",
+ "summary": "No regression: the only change is the whole-byte hex constant (P6 2 -> 0)."
+}

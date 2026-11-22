@@ -1,0 +1,43 @@
+{
+  "id": "c00139",
+  "text_changed": true,
+  "lines_old": 4675,
+  "lines_new": 3741,
+  "changed_functions": 15,
+  "old_findings": [
+    {"n": 1, "kind": "simplification", "status": "partly", "note": "returns (14), event payloads (16) and call arguments (40) are no longer raw memory (return 0, _76, _77), and the redundant 2nd bounds check of holders[j] in claimComp's grant loop is gone; still: locals at fixed mem[128..416] (135 lines), loop bound re-read from mem[576] (12), first assets[i]/holders[i] check kept under its own bound"},
+    {"n": 2, "kind": "loop", "status": "still", "note": "the 11 storage address[] copies are still rotated whiles ('while ... > idx + 32' with the first element peeled)"},
+    {"n": 3, "kind": "simplification", "status": "partly", "note": "stor[_N] mapping temporaries 25 -> 18 (e.g. compSupplySpeeds[address(_84)] now named); 1e36 still printed as 1000000000000000000 * 10**18 (92 lines)"}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "borrowAllowed, claimComp(address), claimComp(address,address[]), claimComp(address[],address[],bool,bool)",
+      "lines": "2489-2492, 2929-2938, 3024-3036, 3220-3229, 3315-3327, 3578-3587, 3677-3689 (27 lines)",
+      "decompiled": "if SafeMath.sub(_331, _334) != (_331 * SafeMath.div(10**18 * ext_call.return_data[0], mem[_220]) - _334 * SafeMath.div(10**18 * ext_call.return_data[0], mem[_220])) / SafeMath.div(...) and SafeMath.div(...):",
+      "old": "if mem[_335] != SafeMath.div(10**18 * mem[_339], mem[_220]) * mem[_335] / SafeMath.div(10**18 * mem[_339], mem[_220]) and SafeMath.div(...):",
+      "source": "Comptroller.sol distributeBorrowerComp/distributeSupplierComp: borrowerDelta = mul_(borrowerAmount, deltaIndex), deltaIndex = sub_(borrowIndex, borrowerIndex)",
+      "issue": "Once the delta is known as a - b, the product (a - b) * x is printed distributed as a * x - b * x, with x repeated (lines grow from 172 to 293 chars); 27 lines, none before. In mintAllowed and the other single-distribution functions the same product is kept as SafeMath.mul(x, a - b).",
+      "rule": "Don't distribute a product over a difference when it duplicates a non-trivial factor; print (a - b) * x, which is the same value mod 2^256.",
+      "verified": "reading only"
+    },
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "mintAllowed, repayBorrowAllowed, seizeAllowed, _setCompSpeeds (2), redeemAllowed (2), borrowAllowed, transferAllowed (2), claimComp x3 (6)",
+      "lines": "852-854, 930-932, 1020-1022, 1859-1861, 1931-1933, 1988-1990, 2169-2171, 2465-2467, 2674-2676, 2748-2750, 2891-2893, 2988-2990, 3182-3184, 3279-3281, 3477-3479, 3540-3542, 3641-3643",
+      "decompiled": "if mem[_31 + 64] >= 0x0100...00: revert with 'new index exceeds 224 bits' / uint224(compSupplyState[cToken].field_0) = mem[_31 + 68 len 28]",
+      "old": "_37 = mem[_33] / if _37 < 0x100...00: uint224(compSupplyState[cToken].field_0) = uint224(_37)",
+      "source": "Comptroller.sol updateCompSupplyIndex/updateCompBorrowIndex: supplyState.index = safe224(add_(Double({mantissa: supplyState.index}), ratio).mantissa, \"new index exceeds 224 bits\")",
+      "issue": "The new index, a named variable before, is now re-read from memory, and the stored value is a 28-byte slice of the local (17 sites). The revert decoding and the flattening around it are improvements; this part reads worse.",
+      "rule": "A memory load of a word an earlier variable already holds (same address, no write in between) prints as that variable; the low n bytes of a word print as uint(8n)(x), not mem[a + 32 - n len n].",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P2 40 -> 0 and P6 31 -> 0: all calls named (getAccountSnapshot, getUnderlyingPrice, totalSupply, borrowIndex, balanceOf, COMP transfer). 24 'revert with memory' are decoded ('new index exceeds 224 bits', 'block number exceeds 32 bits', 'market must be listed', 'only admin can set comp speed'), 14 returns too (return 0, _76, _77 / return 15, Bytes(64, 0) / return 4 on shortfall), and 16 events now have named fields. The safe224 if/else became early reverts. seizeAllowed's two listed tests merged into one 'or'. claimComp's 4-arg overload now prints its supplier holder loop once (only the supply index update is still in both arms) and 'market must be listed' as an early revert. _setCompSpeeds' loop reads 'while idx < cTokens.length'. 25 * 10**13 * 3600 now prints as 9 * 10**17. The liquidity sums are built from values (SafeMath.mul(markets[..].field_256, exchangeRate) / 10**18) instead of memory. 4675 -> 3741 lines.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 5096 lines (functions reordered), reviewed function by function (15 changed): skeleton comparison of control flow, calls, storage writes, events, reverts and returns, plus full reading of mintAllowed, seizeAllowed, getAccountLiquidity, redeemAllowed's two paths and claimComp(address[],address[],bool,bool) against Comptroller.sol. redeemAllowed's arms are swapped (non-member path first, return 0; member path returns 0 or 4 via '_225 = _215 and 4'), as in the source. New explicit 'if a - b > a: revert Panic(17)' lines replace the hidden SafeMath.sub of deltaIndex at the same place, before the balanceOf call. In claimComp's borrower arm the supply update has no block.number check because the borrow update already did it (dominating, as before). Inside one function the dropped mem[64] bumps leave several addresses relative to the same base (redeemAllowed 2166-2171), consistent. The function-start 'mem[64] = 128' lines are new and harmless. The pack header lists no regex pattern.",
+  "summary": "No semantic regression: all calls, reverts, returns and events decoded, the safe224 checks flattened, P2/P6 gone, 934 lines shorter. Two low readability regressions: (a - b) * x printed distributed in 27 lines, and the new COMP index re-read as memory slices at 17 sites."
+}

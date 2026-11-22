@@ -1,0 +1,41 @@
+{
+  "id": "c00246",
+  "text_changed": true,
+  "lines_old": 2751,
+  "lines_new": 2714,
+  "changed_functions": 13,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "partly",
+      "note": "The setTargetFunctionRole selector now prints with whole bytes (P6 42 -> 0). The onlyAuthorized prologue and the selector loop printed three times are unchanged."
+    }
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknownf801a698 (schedule(address,bytes,uint48)), execute(address,bytes)",
+      "lines": "schedule 632-648, execute 2358-2408",
+      "decompiled": "if not uint48(stor2[sha3(caller, _param1, 96, cd[_param2 + 4], call.data[_param2 + 36 len cd[_param2 + 4]], Bytes(ceil32(cd[_param2 + 4]) - cd[_param2 + 4], 0))].field_0): ... (the same sha3 at 10 lines in schedule, 15 in execute)",
+      "old": "_94 = sha3(mem[_92 + 32 len mem[_92]]) / if not uint48(stor2[sha3(mem[_92 + 32 len mem[_92]])].field_0) ... revert/log/return with _94",
+      "source": "AccessManager.hashOperation(caller, target, data) = keccak256(abi.encode(caller, target, data))",
+      "issue": "The operation id is now resolved to its content, which is better, but the variable that held it (_94, _147) was dropped. So a 150-character hash is repeated at every storage access, revert, log and return, and lines over 240 characters went from 16 to 20.",
+      "rule": "Bind a non-trivial expression used more than twice to one variable at its first use (keep _94 = sha3(caller, _param1, 96, ...)) and print the variable at the other uses.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "The operation-id hash shows its fields (caller, target, data) instead of a memory slice. schedule's AccessManagerAlreadyScheduled revert is decoded (revert with 0x813e9459, id), its OperationScheduled log shows _90, caller, _param1, and it returns (id, nonce) as values. Hash scratch writes are dropped, and P6 42 -> 0.",
+  "patterns": {
+    "P1": 0,
+    "P2": 1,
+    "P3": 0,
+    "P4": 0,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff of 868 lines, 13 functions; most hunks are only the whole-byte hex display (compared after normalizing hex). Real changes are in multicall (the result-encoding loop renamed, same structure), schedule and execute. whiles, calls, logs, requires and reverts are equal in number in every function, and both source loops are unchanged. execute's custom-error reverts (0x6dfcc650, 0x60a299b0, ...) are still raw memory, now as 'from _145 + ceil32(_data.length) + 160 len _144 - _145 + 68', where _144 and _145 both read mem[64] with no store in between (unfolded, as raw as before).",
+  "summary": "One low regression: the resolved operation-id hash is repeated at every use instead of held in a variable. Otherwise schedule's revert, log and return are decoded and the selector constants print with whole bytes."
+}

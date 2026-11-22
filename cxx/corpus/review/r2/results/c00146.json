@@ -1,0 +1,29 @@
+{
+  "id": "c00146",
+  "text_changed": true,
+  "lines_old": 1012,
+  "lines_new": 884,
+  "changed_functions": 8,
+  "old_findings": [
+    {"n": 1, "kind": "artifact", "status": "still", "note": "E-CLP parameters and the Vault are immutables read as 0; computeBalance/computeInvariant/onSwap still fold into reverts."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "unknown2aa881f8() (38 lines), unknowndd292ce4() (6 lines)",
+      "lines": "e.g. 647-650, 665",
+      "decompiled": "mem[64] = 32 * _2 + ceil32(_3) + ceil32(return_data.size) + 32 * mem[32 * _2 + ceil32(_3) + mem[32 * _2 + ceil32(_3) + 672] + 672] + 704",
+      "old": "_x = mem[64] ... mem[64] = _x + ceil32(return_data.size) + 32 * mem[_x + mem[_x]] + 32",
+      "source": "abi.decode of the Vault's returned arrays (getPoolData / getTokenInfo style getters)",
+      "issue": "Base variables of return-data buffers and decoded arrays are replaced by the full symbolic free-memory pointer. Nested 'mem[base + mem[base]]' decodes then repeat the 4-term base three times per line: 44 lines with >= 4 ceil32 terms (old 0), and the text is 12% larger in bytes with 13% fewer lines. Same mechanism as c00090.",
+      "rule": "Keep a variable for the value mem[64] held when a buffer was allocated, and print decode addresses relative to it.",
+      "verified": "reading only"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "Returns decoded: getTokenInfo returns 'Array(len=_2, ..), Array(len=_8, ..), Array(len=_20, ..), Array(len=_28, ..)' instead of raw memory (return-memory 5 -> 1). Whiles 22 -> 16: six ABI re-encoding loops of returned arrays are gone. Vault calls named (totalSupply, getPoolConfig...). P6 2 -> 0, P2 3 -> 0.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 920 lines, reviewed function by function. The call/log/store/revert sequences are unchanged apart from named calls. The removed whiles are encode copies of returned arrays (P7), replaced by the Array(..) return values, whose addresses match the copies' former destinations. No source loop.",
+  "summary": "Low regression: base-pointer substitution lengthens the decode lines of two getters. Returns and Vault calls are now decoded, removing six encode loops."
+}

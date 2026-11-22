@@ -1,0 +1,29 @@
+{
+  "id": "c00159",
+  "text_changed": true,
+  "lines_old": 2145,
+  "lines_new": 2018,
+  "changed_functions": 9,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "partly", "note": "The peeled first iteration is gone from preseed (both range(10) loops), batch_set_delegation_status and tokenURI's _uint_to_string loop: each is now 'while True: ... _x = mem[N]; mem[N] = mem[N] + 1; if _x + 1 != K: continue / break'. The bound is still tested at the bottom rather than as 'while i < K'. batch_cancel_boosts and the _burn_boost loops are unchanged."},
+    {"n": 2, "kind": "loop", "status": "still", "note": "name/symbol/base_uri/tokenURI still copy storage strings with a loop whose bound is an early return. Only the peeled first word (mem[256] = stor4) is gone."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "Memory-resident locals are unchanged."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "concat(mem[N]) keys remain (P4 55 -> 33; the drop comes from the removed peeled copies)."},
+    {"n": 5, "kind": "simplification", "status": "still", "note": "The boost arithmetic is still 2-3K-character repeated expressions (preseed 1304-1323)."},
+    {"n": 6, "kind": "simplification", "status": "still", "note": "cancel_boost and batch_cancel_boosts are unchanged."},
+    {"n": 7, "kind": "simplification", "status": "still", "note": "Raw calldata indexing such as cd[32 * mem[8576] + 8228] is unchanged."},
+    {"n": 8, "kind": "simplification", "status": "still", "note": "The 512 unrolled lines are unchanged."},
+    {"n": 9, "kind": "simplification", "status": "still", "note": "The functions concerned are unchanged."},
+    {"n": 10, "kind": "simplification", "status": "partly", "note": "P5 23 -> 17: the identity copies of tokenURI's peeled iteration are gone with it; the others remain."},
+    {"n": 11, "kind": "semantics", "status": "fixed", "note": "preseed's locked__end and balanceOf calls each show their own 'gas gas_remaining'; no GAS variable is left."},
+    {"n": 12, "kind": "naming", "status": "still", "note": "token_expiry is unchanged."},
+    {"n": 13, "kind": "coverage", "status": "still", "note": "The Vyper immutables artifact is unchanged."},
+    {"n": 14, "kind": "simplification", "status": "still", "note": "'or False', self-assignment and the other leftovers remain."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "There are no peeled loop iterations left (P3 7 -> 0). preseed shrank from 199 to 108 lines and tokenURI from 90 to 70, losing their duplicated first iterations (calls, logs and identity copies). The GAS reads are fresh at each call, and whole-byte hex is printed.",
+  "patterns": {"P1": 0, "P2": 1, "P3": 0, "P4": 33, "P5": 17, "P6": 0},
+  "notes": "Diff of 510 lines, 9 functions, all read. The call/log/require/revert counts that dropped in preseed (4->2 calls, 6->3 logs), batch_set_delegation_status (2->1 logs) and tokenURI (one memcopy revert) are exactly the removed peeled iterations. Both preseed loop bodies were checked against PreseededVotingEscrowDelegation.vy:1021-1036 (delegator != ZERO_ADDRESS tests, _create_boost, _setApprovalForAll). Loops: all 20 source/implicit loops are still present (16 whiles, 3 copy lines, 1 unrolled). get_token_id, create_boost and extend_boost changed only in hex display.",
+  "summary": "No regression. Every peeled first iteration is gone (preseed, batch_set_delegation_status, tokenURI, the string getters) and the hoisted GAS reads are fixed. The other round-1 readability findings, all in unchanged functions or Vyper idioms, remain."
+}

@@ -1,0 +1,46 @@
+{
+  "id": "c00070",
+  "text_changed": true,
+  "lines_old": 2535,
+  "lines_new": 2327,
+  "changed_functions": 8,
+  "old_findings": [
+    {
+      "n": 1,
+      "kind": "simplification",
+      "status": "partly",
+      "note": "word-copy loops 30 -> 24: the encodePacked keys of constant strings and addresses (interestEnabled, totalExecutedPerDay, minCashThreshold, investedAmount) now fold into sha3(...) in disableInterest and executeSignatures; the message-hash copies remain"
+    },
+    {
+      "n": 2,
+      "kind": "loop",
+      "status": "still",
+      "note": "addressArrayContains still printed as 'while True' with the exit test first (executeSignatures, executeSignaturesGSN)"
+    }
+  ],
+  "regressions": [],
+  "new_findings": [
+    {
+      "kind": "simplification",
+      "severity": "low",
+      "function": "executeSignatures(bytes,bytes) (new lines); the same display already in investDai, unknown0fd6d528, unknownc2a2872d",
+      "lines": "1700, 1715-1719, 1748 (and 275-278, 390-422, 559-590, unchanged)",
+      "decompiled": "stor0[sha3(0x696e766573746564416d6f756e74dc035d45d973e3ec169d2276ddab16f1e407, '8O')] = _394  |  stor0[sha3('totalExecutedPerDay', Bytes(13, block.timestamp / (24 * 3600) >> 152), Bytes(19, uint152(block.timestamp / (24 * 3600))))] = SafeMath.add(stor0[sha3('totalExecutedPerDay', block.timestamp / (24 * 3600))], _141)",
+      "source": "BasicForeignBridge / InterestConnector: uintStorage[keccak256(abi.encodePacked(\"investedAmount\", _token))], keccak256(abi.encodePacked(\"totalExecutedPerDay\", _day))",
+      "issue": "Packed keys are printed cut at 32-byte words rather than at their parts: 'investedAmount' and the USDS address become one hex word plus '8O' (the address's last two bytes shown as ASCII), and the day index is split into Bytes(13)/Bytes(19) on the write while the read on the same line prints it whole. Readable only by decoding the hex.",
+      "rule": "Print sha3 of packed data by the stored parts (string literal, 20-byte address, 32-byte word); show bytes as a string literal only when they come from one, and merge Bytes(k, x >> 8(32 - k)) with Bytes(32 - k, x mod 2^(8(32 - k))) back into x.",
+      "verified": "reading only"
+    }
+  ],
+  "improvements": "disableInterest 98 -> 37 lines and executeSignatures 515 -> 368: the solc 0.4 encodePacked copy loops and masks for constant-string keys collapse into sha3('interestEnabled', Bytes(20, address(_token))) etc., and the dead hashing scratch writes are gone. P1 1 -> 0 (0x6fde8202 selector argument), P6 12 -> 0. onMessage's unknown parameters are now named after their calldata words (_param2.._param6, the unused messageId being word 1). 2535 -> 2327 lines.",
+  "patterns": {
+    "P1": 0,
+    "P2": 22,
+    "P3": 0,
+    "P4": 27,
+    "P5": 0,
+    "P6": 0
+  },
+  "notes": "Diff 527 lines, 8 changed functions; executeSignatures and disableInterest read in full, the others are display-only (P1/P6 hex, parameter names, line order). Each folded key matches the old word writes: string literal then address or day index. The SafeMath.add replacing the old explicit assert prints 'assert a + b >= a' in def SafeMath, as solc 0.4 SafeMath does, with the same operand order (total, amount). executeSignaturesGSN's text is unchanged apart from one hex constant.",
+  "summary": "No regression: the solc 0.4 encodePacked key loops are folded into readable sha3 keys (6 copy loops gone, two functions much shorter), P1/P6 fixed. A low display issue remains in the new keys (packed string+address cut at 32-byte words, '8O')."
+}

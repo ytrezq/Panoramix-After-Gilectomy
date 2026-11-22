@@ -1,0 +1,23 @@
+{
+ "id": "c00072",
+ "text_changed": true,
+ "lines_old": 1793,
+ "lines_new": 1793,
+ "changed_functions": 6,
+ "old_findings": [
+  {
+   "n": 1,
+   "kind": "simplification",
+   "status": "still",
+   "note": "The 0.6 string decode/encode copy loops (name, symbol, convertTo, upgradeToV2, initialize) are unchanged."
+  }
+ ],
+ "regressions": [],
+ "new_findings": [],
+ "improvements": "rules() returns two Array(..) values instead of one merged Array plus an offset. convertTo's five SafeMath.mul calls now carry their exact revert data, concat(Bytes(4, 0x08c379a0), 32, 33, 'SafeMath: multiplication overflow', mem[_10 + 101 len 31]): the message is code-copied with its exact length (33) into a 132-byte revert, so its last 31 bytes are stale memory (the price-oracle call's currency string), which round 1's plain string hid. P6 4 -> 0.",
+ "patterns": {
+  "P2": 3
+ },
+ "notes": "Reviewed by reading the whole 88-line diff (6 functions, 4 display-only). The stale padding was checked in the disassembly: 0x5418-0x543c writes the selector, 32 and 0x21, then CODECOPY(ptr + 68, 0x5d47, 0x21), and reverts 132 bytes from ptr.",
+ "summary": "No regression: the rules() return is decoded and convertTo's overflow reverts are now exact, at the cost of longer helper arguments; the string copy loops of round 1 remain."
+}

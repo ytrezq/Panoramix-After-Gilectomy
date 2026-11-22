@@ -1,0 +1,20 @@
+{
+  "id": "c00024",
+  "text_changed": true,
+  "lines_old": 7656,
+  "lines_new": 7356,
+  "changed_functions": 19,
+  "old_findings": [
+    {"n": 1, "kind": "loop", "status": "still", "note": "The 7 'while _N:' flag loops are unchanged."},
+    {"n": 2, "kind": "naming", "status": "still", "note": "field_288/289/32/33: 20 lines, unchanged."},
+    {"n": 3, "kind": "simplification", "status": "still", "note": "26 dead 'if idx >= 42/66' bounds checks in the hex loop."},
+    {"n": 4, "kind": "simplification", "status": "still", "note": "4294967296 * (..) on 6 lines, unchanged."},
+    {"n": 5, "kind": "artifact", "status": "still", "note": "Immutables still 0 (delegate 0x0, auditor calls)."}
+  ],
+  "regressions": [],
+  "new_findings": [],
+  "improvements": "initialize (unknownafefdf7f) parameters are numbered by calldata word (_param2 uint8, _param4 uint128, _param5 address, _param8 uint128, matching the ABI; were _param3.._param5). All MarketUpdate-style logs 0x582b1291 print 'block.timestamp, x' instead of raw memory, the liquidate event 0x67bb48f9 shows its three data words, liquidate returns a value instead of 'return memory', a custom error 0xb06dad04 is resolved, and memory reads of call results became ext_call.return_data[0]. Checked subtractions/additions hidden inside empty-revert requires (SafeMath.sub inside mulDivUp's require) are now printed before them, in bytecode order. P1 13 -> 0, P2 1 -> 0, P6 1 -> 0.",
+  "patterns": {"P1": 0, "P2": 0, "P3": 0, "P4": 0, "P5": 0, "P6": 0},
+  "notes": "Diff 3704 lines: reviewed by structure plus per-function diffs of withdrawAtMaturity, unknown1a5b9e62, lock, liquidate, repayAtMaturity. Calls, requires, writes and logs counts are equal in every changed function; the extra 'revert with Panic(17)' lines (7) are the order fix. Neutral: repayAtMaturity's penalty 'if W > SafeMath.add(DC, W)' became 'if DC > W + DC: Panic(17)' then 'if W > W + DC: Panic(17)' (the add check, then the sub check of actualRepayAssets - debtCovered; the second is implied by the first, P11). deposit/mint only moved. text_check run --per-selector 32 (r2): empty 2499 same, random 2414 same + 85 inconclusive, 0 different.",
+  "summary": "No regression. Logs, call results, liquidate's return and initialize's parameter numbering are now right, and the time-unit and hex displays are clean; the round-1 findings (flag loops, invented field names) remain."
+}

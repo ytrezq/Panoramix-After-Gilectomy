@@ -1,0 +1,31 @@
+{
+  "id": "c00058",
+  "text_changed": true,
+  "lines_old": 5116,
+  "lines_new": 4980,
+  "changed_functions": 18,
+  "old_findings": [
+    {"n": 1, "kind": "naming", "status": "fixed", "note": "The four CREATE3 proxy calls are no longer named 'atInversebrah(...)': 'call create2.new_address with:'. But their args are now raw memory (regression 1)."},
+    {"n": 2, "kind": "simplification", "status": "still", "note": "The branch-free max and the selector or-chains with phi copies are unchanged in every onlyAuthorized function."},
+    {"n": 3, "kind": "simplification", "status": "partly", "note": "setTargetFunctionRole's body now appears once (no peeled first iteration), and s is used: 'while True: ... if t + 1 >= cd[_param2 + 4]: stop'. The bound test is still mid-body, not 'while t < n'. deployMarket's raw calldata arithmetic is unchanged."}
+  ],
+  "regressions": [
+    {
+      "kind": "simplification",
+      "severity": "medium",
+      "function": "deployMarket (unknown23fb1d21)",
+      "lines": "4281-4283, 4341-4343, 4398-4400, 4455-4457",
+      "decompiled": "call create2.new_address with: gas gas_remaining args mem[_78 + 2 * Mask(250, 5, cd[_param1 + cd[_param1 + 260] + 4] + 31) + 1024 len ceil32(cd[_param1 + cd[_param1 + 260] + 4]) + 740]",
+      "old": "call create2.new_address.atInversebrah(int248 a, ...) with: args Bytes(640, 0x5261..), address(cd[_param1 + 132]), 64, mem[_80 + 800 len _84 + 32], Bytes(..)",
+      "source": "CREATE3.deploy(salt, abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(implementation, initData)), 0)",
+      "issue": "With the false selector gone, the decoder falls back to a raw memory range (P2: 1 -> 5 lines). The proxy's creation code (stored just before as 'Bytes(644, 0x6080..)') and the constructor arguments (implementation, initData) are no longer visible in the call.",
+      "rule": "When the call data is a constant blob (not a 4-byte selector store) followed by ABI words, print it without a selector: 'args Bytes(644, 0x6080..), address(impl), 64, len, data'.",
+      "verified": "reading only (mem[.. + 1024 len 644] = Bytes(644, 0x6080604052..) at 4263)"
+    }
+  ],
+  "new_findings": [],
+  "improvements": "P1 is gone (16 lines: the Initializable slot 0xf0c57e16..00) and P6 is gone (31 lines). getRoleConfig (unknown629777a2) halved (205 -> 107 lines): dead stores of the role-name strings are dropped, and every role id reads 'uint64(sha3(Array(len=19, data='ROYCO_DEPLOYER_ROLE')))' instead of 'sha3(mem[_N + 32 len mem[_N]])', in initialize and deployMarket too. Storage writes and RoleGranted/RoleAdminChanged data are resolved from memory ('uint48(block.timestamp)', 'uint32(cd[..])'). multicall's delegatecall length is the computed sum.",
+  "patterns": {"P2": 5},
+  "notes": "Diff 1953 lines; getRoleConfig moved, so its old and new bodies were diffed directly. initialize/deployMarket were reviewed by grouping changed forms: allocation checks re-expressed from mem[64], role constants named, CREATE3 calls, component checks ('static call mem[_78 + 76 len 20].authority()' instead of a one-use temp). No control-flow, storage or event change beyond decoding. The 26 '_N = call.func_hash == HEX' changes are whole-byte hex only.",
+  "summary": "Improved: role constants are named, getRoleConfig halved, P1/P6 gone, the CREATE3 misname removed, and setTargetFunctionRole is no longer peeled. Regression: the four CREATE3 deployment calls lost their decoded code and constructor args (raw memory, P2 +4)."
+}
