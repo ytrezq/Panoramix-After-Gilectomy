@@ -1,6 +1,8 @@
 // The simplifier's own helpers, shared by its files (not a public API).
 #pragma once
 
+#include <vector>
+
 #include <optional>
 #include <span>
 
@@ -59,6 +61,10 @@ struct RunFlags {
     bool dubious = false;  // SimplifyOptions::dubious
     Value entry_lines;     // SimplifyOptions::entry_lines
     bool fresh = false;    // SimplifyOptions::fresh_memory
+    // the ids of the _N the algebra was given values of (set_variables: the
+    // trace's as simplify_trace got it), sorted - a name made later (name_values)
+    // is none of them, the ranges would read it as that old variable
+    std::vector<u32> installed_tmps;
 };
 RunFlags& run_flags();
 

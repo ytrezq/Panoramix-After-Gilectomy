@@ -94,7 +94,7 @@ Value find_line(Value v, Op op) {
 }
 
 // the occurrences of op in v, each place counted
-[[maybe_unused]] usize count_op(Value v, Op op) {
+usize count_op(Value v, Op op) {
     if (!(v.is_expr() || v.is_list())) return 0;
     usize n = v.is_expr() && v.op() == op ? 1 : 0;
     for (Value a : v.args()) n += count_op(a, op);
@@ -119,7 +119,7 @@ bool has_store_of(Value v, i64 n) {
     return false;
 }
 
-[[maybe_unused]] bool reads_name(Value v, Value name) {
+bool reads_name(Value v, Value name) {
     if (v == name) return true;
     if (!(v.is_expr() || v.is_list())) return false;
     for (Value a : v.args())
@@ -136,10 +136,10 @@ bool has_op_mem(Value v) {
     return false;
 }
 
-[[maybe_unused]] Value last_line(Value t) { return t[t.size() - 1]; }
+Value last_line(Value t) { return t[t.size() - 1]; }
 
 // the SETVARs of v
-[[maybe_unused]] void setvars(Value v, std::vector<Value>& out) {
+void setvars(Value v, std::vector<Value>& out) {
     if (!(v.is_expr() || v.is_list())) return;
     if (v.is(Op::SETVAR, 2)) out.push_back(v);
     for (Value a : v.args()) setvars(a, out);
@@ -175,4 +175,109 @@ TEST_CASE("names: a selector stored over the first argument's top bytes leaves t
     CHECK(!has_op_mem(call));
     CHECK(!has_width(call, 28));
     CHECK(!has_store_of(u, 28));
+}
+
+TEST_CASE("names: a long sum of positions read in several lines is a variable") {
+    Fixture fx;
+    // a buffer allocated past two others of lengths read from calldata and a
+    // third of n words (the review's c00028, c00150, c00142): its base, a
+    // sum of five terms, was written out in every line that read it. Named
+    // where it is first read, its uses are short; the sum is written once
+    // (tmp1, set and read once, is put in its place and gone: the name made
+    // isn't it - the algebra still has tmp1's value, 0, and the conditions
+    // decided after the naming would read the new variable as 0)
+    const char* text =
+        "{(setvar tmp1 0) (store 256 0 1 tmp1) "
+        "(setvar tmp5 (add 192 (mask_shl 251 5 0 (add 31 (and 4095 (calldataload 4)))) "
+        "(mask_shl 251 5 0 (add 31 (and 4095 (calldataload 36)))) (mul 32 (and 255 (calldataload 68))))) "
+        "(if (lt (calldataload 100) tmp5) {(revert None)} {}) "
+        "(if (lt (calldataload 132) (add 32 tmp5)) {(revert None)} {}) "
+        "(store 256 0 7 (add 64 tmp5)) "
+        "(return (sized 32 (add 96 tmp5)))}";
+    Value u = check_pass(text, whole);
+    // the sum once: in the variable's value (its masks: the rounded lengths,
+    // the lengths' own) - its uses the variable
+    std::vector<Value> svs;
+    setvars(u, svs);
+    REQUIRE(svs.size() == 1);
+    CHECK(svs[0][0] != V("tmp1"));
+    CHECK(count_op(svs[0], Op::MASK_SHL) >= 2);
+    CHECK(count_op(u, Op::MASK_SHL) == count_op(svs[0], Op::MASK_SHL));
+    CHECK(reads_name(last_line(u), svs[0][0]));
+    // the conditions kept: the first one stays a condition of the variable
+    CHECK(count_op(u, Op::REVERT) == 2);
+    // read once: the sum stays where it is read, no variable
+    const char* once =
+        "{(setvar tmp1 (add 192 (mask_shl 251 5 0 (add 31 (and 4095 (calldataload 4)))) "
+        "(mask_shl 251 5 0 (add 31 (and 4095 (calldataload 36)))) (mul 32 (and 255 (calldataload 68))))) "
+        "(return (sized 32 (add 96 tmp1)))}";
+    u = check_pass(once, whole);
+    svs.clear();
+    setvars(u, svs);
+    CHECK(svs.empty());
+}
+
+TEST_CASE("names: a product of words is no sum of positions") {
+    Fixture fx;
+    // aave's balanceOf: an interest computation of five terms, products of
+    // the timestamp and a stored time - arithmetic, written out as it is
+    const char* text =
+        "{(setvar tmp1 (add (mul timestamp timestamp) (mul -2 timestamp (storage 256 0 3)) "
+        "(mul (storage 256 0 3) (storage 256 0 3)) (storage 256 0 3) (mul -1 timestamp))) "
+        "(if (lt (calldataload 4) tmp1) {(revert None)} {}) "
+        "(return (sized 32 (add 1 tmp1)))}";
+    Value u = check_pass(text, whole);
+    std::vector<Value> svs;
+    setvars(u, svs);
+    CHECK(svs.empty());
+}
+
+TEST_CASE("names: a hash of a buffer read in several lines keeps its variable") {
+    Fixture fx;
+    // Governor's proposal id (the review's c00033, c00144, c00157, c00208):
+    // id = keccak256(abi.encode(...)) of a buffer at p, used as a mapping's
+    // key in several lines - written out, sha3(mem[p + 32 len ...]) in each
+    const char* text =
+        "{(setmem (range 64 32) (sized 32 128)) "
+        "(if (calldataload 4) {(setmem (range 64 32) (add 160 (and 4064 (calldataload 36))))} {}) "
+        "(setvar tmp29 (mem (range 64 32))) "
+        "(setmem (range (add 32 tmp29) 32) (sized 32 (calldataload 68))) "
+        "(setmem (range (add 64 tmp29) 32) (sized 32 (calldataload 100))) "
+        "(setmem (range 64 32) (add 96 tmp29)) "
+        "(setvar tmp31 (sha3 (mem (range (add 32 tmp29) (and 63 (calldataload 132)))))) "
+        "(setmem (range 0 32) (sized 32 tmp31)) (setmem (range 32 32) (sized 32 3)) "
+        "(if (storage 8 0 (sha3 (mem (range 0 64)))) {(revert None)} {}) "
+        "(store 256 0 9 tmp31) "
+        "(return (sized 32 tmp31))}";
+    Value u = check_pass(text, whole);
+    CHECK(count_op(u, Op::SHA3) <= 2);  // (the id's and the slot's)
+    CHECK(reads_name(last_line(u), V("tmp31")));
+}
+
+TEST_CASE("names: the word's reads where a variable holds it are the variable") {
+    Fixture fx;
+    // p = mload(0x40) kept for after the word moves on (the storage string
+    // copies of the review's c00133, the npm corpus' uniswap tests): where p
+    // holds the word, its reads are p - one name for the buffer's base
+    const char* text =
+        "{(setmem (range 64 32) (sized 32 128)) "
+        "(if (calldataload 4) {(setmem (range 64 32) (add 160 (and 4064 (calldataload 36))))} {}) "
+        "(setvar tmp45 (mem (range 64 32))) "
+        "(setmem (range (add 32 (mem (range 64 32))) 32) (sized 32 (calldataload 68))) "
+        "(setmem (range 64 32) (add 64 (mem (range 64 32)))) "
+        "(log1 (mem (range tmp45 (and 63 (calldataload 100)))) 7) "
+        "(if (calldataload 132) {(setmem (range 64 32) (add 32 (mem (range 64 32))))} {}) "
+        "(store 256 0 7 tmp45) "
+        "(store 256 0 8 (mem (range 64 32))) "
+        "(stop)}";
+    Value u = check_pass(text, whole);
+    // mem[p + 32] = x, mem[64] = p + 64: no read of the word left but p's
+    bool found = false;
+    for (Value l : u.args())
+        if (l.is(Op::SETMEM, 2) && l[0].is(Op::RANGE, 2) && !l[0][0].is_small() && reads_name(l[0], V("tmp45")))
+            found = true;
+    CHECK_MESSAGE(found, dump_trace(u));
+    // (the reads left: the variable's own, the log's, the store's after the
+    // join - none of the word where p holds it)
+    CHECK(count_op(u, Op::MEM) == 3);
 }
