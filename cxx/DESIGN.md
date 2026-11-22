@@ -615,9 +615,13 @@ setvars)` with `CONTINUE(id, setvars)`: `while True` with the exits inside
 (always equivalent), or python's nicer form when equivalent - the exit
 test the first IF after the label with a branch looping back, the lines
 before it rotated only when they set no loop variable, hold no jump and
-change nothing a setvar reads (a copied call keeps its id), the exit's
-merge variables renamed or the exit run after the loop, a loop left only
-by a failing check `while not check`. A GOTO outside its LABEL is
+change nothing a setvar reads (a copied call keeps its id), and only
+when they are few (`max_rotated`: two statements, a check one, a SETVAR
+none - a test at the end of the iteration, a do-while or Vyper's range
+loop, would print the whole first iteration before the loop: `while True`
+then, the iteration once, the test at its end and what follows the loop
+after it), the exit's merge variables renamed or the exit run after the
+loop, a loop left only by a failing check `while not check`. A GOTO outside its LABEL is
 Unsupported, as python failed. `summary(while)` gives a loop's variables,
 names set, effects, the memory an iteration may write and read, breaks;
 `induction()` is python's parse_counters as a proof (a counter, a

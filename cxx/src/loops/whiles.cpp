@@ -61,6 +61,26 @@ constexpr u32 kMaxRotation = 1u << 14;
 
 using Lines = std::pmr::vector<Value>;
 
+// the statements of a trace a rotation would copy, any depth, counted up to
+// cap: an IF one, and its branches' (a branch that only fails none: a check
+// prints as one line, `require` or `if ...: revert`); a SETVAR none (a read
+// the text mostly inlines - the lines that compute an exit's condition)
+u32 weight(std::span<const Value> lines, u32 cap) {
+    check_stack();
+    u32 n = 0;
+    for (Value l : lines) {
+        if (l.is(Op::SETVAR)) continue;
+        if (++n > cap) return n;
+        if (l.is_expr() && (l.is(Op::IF) || l.is(Op::MERGED_IF)) && l.size() == 3)
+            for (u32 b = 1; b < 3; ++b)
+                if (l[b].is_list() && !fails(l[b])) {
+                    n += weight(l[b].args(), cap - n + 1);
+                    if (n > cap) return n;
+                }
+    }
+    return n;
+}
+
 class Whiles {
 public:
     explicit Whiles(const WhilesOptions& o) : opts_(o), open_(cx().budget.resource()) {}
@@ -233,7 +253,8 @@ void Whiles::as_while_true(Made& m, const Lines& body, std::span<const Value> re
 // chosen, among those whose X isn't a lone REVERT / INVALID (those stay
 // checks, python's): the first whose condition reads a variable of the loop
 // (a counter's test at the head), else the last one (a test at the end, the
-// loop's state in memory: Vyper's, python's exit test there).
+// loop's state in memory: Vyper's, python's exit test there) - each only
+// where the lines before it rotate (few: max_rotated).
 bool Whiles::check_exit(const Lines& body, std::span<const usize> checks, const Label& lb, Made& m) {
     if (!opts_.exit_test || checks.empty()) return false;
     std::pmr::memory_resource* res = cx().budget.resource();
@@ -388,6 +409,26 @@ void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
                         return;
                     }
                 }
+                if (opts_.exit_test && jt != je) {
+                    // (rotating the lines before it refused - too many: a test
+                    // at the end of the iteration) a check may be the exit;
+                    // else while True, the exit branch after the loop where no
+                    // path of the body falls off it (the iteration and what
+                    // follows the loop each printed once)
+                    Lines with(path, res);
+                    with.push_back(line);
+                    if (check_exit(with, checks, lb, m)) return;
+                    const Value body = jt ? t : e, out = jt ? e : t;
+                    if (out.size() != 0 && !falls_through(body)) {
+                        const Value none = mk_trace(std::span<const Value>());
+                        Value r = mk(line.op(), c, jt ? t : none, jt ? none : e);
+                        cx().pcs.inherit(r, line);
+                        path.push_back(r);
+                        as_while_true(m, path, out.args());
+                        m.exit_after = true;
+                        return;
+                    }
+                }
                 path.push_back(line);
                 if (check_exit(path, checks, lb, m)) return;
                 as_while_true(m, path, {});
@@ -399,8 +440,30 @@ void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
                     // the path loops back whatever happens: the loop as it is
                     // (what follows the goto never runs: left where it is)
                     path.push_back(line);
+                    const usize g = path.size() - 1;
                     path.insert(path.end(), left().begin(), left().end());
                     if (check_exit(path, checks, lb, m)) return;
+                    // (no check could be the exit: the lines before each too
+                    // many to rotate) a check right before the GOTO - a test
+                    // at the end of the iteration, X ending the run - left
+                    // as the loop's way out, X after the loop:
+                    //   P; IF(c, X, []); GOTO   ->   WHILE(True, [P; IF(not c, [GOTO], [])]); X
+                    // (c holds: off the body's end, out of the loop, X; P's
+                    // paths all go on to the check or end)
+                    if (opts_.exit_test && !checks.empty() && checks.back() + 1 == g) {
+                        const usize k = checks.back();
+                        const Value chk = path[k], x = chk[1];
+                        if (!(x.size() == 1 && (x[0].is(Op::REVERT) || x[0].is(Op::INVALID)))) {
+                            Lines body(path.begin(), path.begin() + isize(k), res);
+                            const Value none = mk_trace(std::span<const Value>());
+                            Value r = mk(chk.op(), alg::iszero(chk[0]), mk_trace(std::span<const Value>(&line, 1)), none);
+                            cx().pcs.inherit(r, chk);
+                            body.push_back(r);
+                            as_while_true(m, body, x.args());
+                            m.exit_after = true;
+                            return;
+                        }
+                    }
                     as_while_true(m, path, {});
                     return;
                 }
@@ -560,6 +623,13 @@ bool Whiles::rotates(const Lines& path, Value body, const Label& lb) {
     if (path.empty()) return true;
     if (!opts_.rotate) return false;
     std::pmr::memory_resource* res = cx().budget.resource();
+    if (weight(std::span<const Value>(path.data(), path.size()), opts_.max_rotated) > opts_.max_rotated) {
+        // the test late in the iteration (at its end: a do-while, Vyper's
+        // range loops): rotated, the first iteration would print before the
+        // loop and again before each continue - while True, the test inside
+        ++whiles_stats().too_big;
+        return false;
+    }
     const Value pt = trace_of(std::span<const Value>(path.data(), path.size()));
     if (pt.has_flags(F_LOOPCTL)) return false;  // a jump, a loop: not copied
     // (a call in it: copied with its id, as python did - each run of a copy

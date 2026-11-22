@@ -33,6 +33,9 @@ bool line_falls_through(Value line);
 // every path through the branch ends in it (a halt, a failure...) and it
 // holds no loop control: an IF with such a branch is a check on the way
 bool is_check_branch(Value branch);
+// a check branch whose every path ends in a failure (REVERT, INVALID): the
+// run goes nowhere from it (a check of an overflow, a bound, a cast...)
+bool fails(Value branch);
 
 // the names of a LIST of SETVAR lines, and their values (in order)
 void setvar_names(Value setvars, SmallVec<Value, 8>& out);
