@@ -2,12 +2,14 @@
 """The readability of decompiled texts, measured and compared: the automatic
 form of what the manual review's second round looked for (corpus/review/r2).
 
+    tools/readability.py texts PANCXX SIGDB LIST OUT [-j N] [--timeout S]
     tools/readability.py measure DIR OUT.jsonl[.xz]
     tools/readability.py compare OLD NEW [--allow FILE] [--report FILE.md] [--list FILE.jsonl] [--top N]
     tools/readability.py selftest
 
-DIR holds NAME.txt files (`pancxx decompile --no-color`). OLD and NEW are
-such directories or `measure` files. `compare` exits with status 1 when NEW
+`texts` decompiles the .hex files LIST names (a file of paths, a directory)
+into OUT/NAME.txt. DIR holds such NAME.txt files (`pancxx decompile
+--no-color`). OLD and NEW are such directories or `measure` files. `compare` exits with status 1 when NEW
 has a regression that FILE doesn't allow.
 
 What is measured, per function of a text:
@@ -37,6 +39,8 @@ regression it lists is reported as allowed and doesn't fail the comparison.
 """
 import argparse
 import collections
+import concurrent.futures
+import subprocess
 import json
 import lzma
 import os
@@ -374,11 +378,49 @@ def selftest():
     return 0
 
 
+def hex_list(spec):
+    if os.path.isdir(spec):
+        return sorted(os.path.join(spec, f) for f in os.listdir(spec) if f.endswith('.hex'))
+    if spec.endswith('.hex'):
+        return [spec]
+    return [l.strip() for l in open(spec) if l.strip() and not l.startswith('#')]
+
+
+def texts(pancxx, sigdb, spec, out, jobs, timeout):
+    os.makedirs(out, exist_ok=True)
+    env = dict(os.environ, PANORAMIX_SIGDB=os.path.abspath(sigdb), PANORAMIX_LOG='error')
+    paths = hex_list(spec)
+
+    def one(hexp):
+        name = os.path.basename(hexp)[:-4]
+        try:
+            r = subprocess.run([pancxx, 'decompile', hexp, '--no-color', '-j', '1'], env=env, capture_output=True,
+                               text=True, timeout=timeout)
+            text = r.stdout if r.stdout else '# decompile: rc %d %s\n' % (r.returncode, r.stderr[-300:])
+        except subprocess.TimeoutExpired:
+            text = '# decompile: timeout\n'
+        with open(os.path.join(out, name + '.txt'), 'w') as f:
+            f.write(text)
+        return text.startswith('# decompile:')
+
+    with concurrent.futures.ThreadPoolExecutor(jobs) as ex:
+        failed = sum(ex.map(one, paths))
+    print('%d texts in %s%s' % (len(paths), out, ', %d failed' % failed if failed else ''))
+    return 2 if failed else 0
+
+
 def main():
     if sys.argv[1:] == ['selftest']:
         return selftest()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest='cmd', required=True)
+    t = sub.add_parser('texts')
+    t.add_argument('pancxx')
+    t.add_argument('sigdb')
+    t.add_argument('list')
+    t.add_argument('out')
+    t.add_argument('-j', type=int, default=2)
+    t.add_argument('--timeout', type=int, default=900)
     m = sub.add_parser('measure')
     m.add_argument('dir')
     m.add_argument('out')
@@ -390,6 +432,8 @@ def main():
     c.add_argument('--list', default='')
     c.add_argument('--top', type=int, default=30)
     a = ap.parse_args()
+    if a.cmd == 'texts':
+        return texts(a.pancxx, a.sigdb, a.list, a.out, a.j, a.timeout)
     if a.cmd == 'measure':
         data = measure_dir(a.dir)
         save(data, a.out)
