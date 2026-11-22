@@ -627,6 +627,36 @@ alg::Facts transfer(const alg::Facts& facts, Value line) {
 
 }  // namespace
 
+namespace {
+
+// The constant a floor is at least where facts hold (the lower end of its
+// range, its floors read: Top::Memory); NIL when it says nothing (0) or is
+// past what a small int holds.
+Value const_floor(Value v, const alg::Facts& facts) {
+    if (v.is_small()) return v.small_val() > 0 ? v : Value();
+    const alg::Range r = alg::range(v, alg::Top::Memory, &facts);
+    if (r.lo.sign() <= 0 || !r.lo.fits_i64()) return Value();
+    const Value c = r.lo.value();
+    return c.is_small() ? c : Value();
+}
+
+// A constant at most two floors, each where it holds (with that path's
+// facts, its floors read: Top::Memory) - the least of the lower ends of
+// their ranges; NIL when it says nothing (0). Where two branches leave a
+// word at least x + 96 and y + 64, x and y pointers at least 128, it is at
+// least 192 after them.
+Value least_bound(Value a, const alg::Facts& fa, Value b, const alg::Facts& fb) {
+    const alg::Range ra = alg::range(a, alg::Top::Memory, &fa);
+    if (ra.lo.sign() <= 0) return Value();
+    const alg::Range rb = alg::range(b, alg::Top::Memory, &fb);
+    if (rb.lo.sign() <= 0) return Value();
+    const EvmInt& lo = ra.lo < rb.lo ? ra.lo : rb.lo;
+    if (!lo.fits_i64()) return Value();
+    return lo.value();
+}
+
+}  // namespace
+
 alg::Facts floor_join(const alg::Facts& into, const alg::Facts& before, const alg::Facts& then_facts,
                       const alg::Facts& else_facts) {
     alg::Facts r = into.without_floors();
@@ -655,6 +685,8 @@ alg::Facts floor_join(const alg::Facts& into, const alg::Facts& before, const al
             pick = fe;
         else if (Value fb = before.floor_of(f.key); at_most_both(fb))
             pick = fb;
+        else
+            pick = least_bound(ft, then_facts, fe, else_facts);
         if (!pick.nil()) r = r.with_floor(f.key, pick);
     }
     return r;
@@ -703,6 +735,7 @@ public:
     }
 
     SmallVec<Value, 8> spoiled;
+    SmallVec<Value, 8> lows;  // (the spoiled words', in order: const_floor of their floor there, or NIL)
     struct Var {
         Value name, floor;
         bool ok;
@@ -834,7 +867,16 @@ private:
                 }
             const bool grows = k.key.is_small() &&
                                std::find(grows_.begin(), grows_.end(), u64(k.key.small_val())) != grows_.end();
-            if (grows ? now.nil() : now != k.floor) spoiled.push_back(k.key);
+            if (grows ? !now.nil() : now == k.floor) continue;
+            // (a word's floor here proven at least the candidate: the word is
+            // at least the candidate here too - the loop's own allocations,
+            // mem[64] = p + n with p read from it, keep the floor it had at
+            // the head)
+            if (!now.nil() && k.key.is_small() && alg::le(k.floor, now, alg::Top::Memory, &f) == Tri::True) continue;
+            spoiled.push_back(k.key);
+            // (a word's: the least constant its floor is at least here - the
+            // walk may start again from that, a constant the loop can't change)
+            if (k.key.is_small()) lows.push_back(now.nil() ? Value() : const_floor(now, f));
         }
     }
     void note(Value x, Value floor) {
@@ -909,7 +951,14 @@ const LoopFloors& loop_floors_of(const alg::Facts& facts, Value loop_line, bool 
         SmallVec<FloorOf, 8> fs;
         floors_of(cand, fs);
         for (const FloorOf& f : fs)
-            if (affects(others, f.floor)) cand = cand.with_floor(f.key, weaker(f.floor, others, Value(), false, cand));
+            if (affects(others, f.floor)) {
+                Value w = weaker(f.floor, others, Value(), false, cand);
+                // (a word's: the constant its floor is at least before the loop, when
+                // what the loop leaves of it says less)
+                if (f.key.is_small())
+                    if (Value c = const_floor(f.floor, facts); !c.nil() && (w.nil() || alg::le(c, w, alg::Top::Memory, &cand) != Tri::True)) w = c;
+                cand = cand.with_floor(f.key, w);
+            }
     }
     SmallVec<Value, 4> keep;
     cand = with_rising(cand, loop_line, ls, e, keep);
@@ -928,7 +977,19 @@ const LoopFloors& loop_floors_of(const alg::Facts& facts, Value loop_line, bool 
             last.emplace(std::move(bf));
             break;
         }
-        for (Value k : bf.spoiled) cand = cand.without_floor(k);
+        // (a spoiled word's candidate made the least constant it and its floors
+        // where it was spoiled are at least - lower at every round, or dropped)
+        for (usize i = 0, w = 0; i < bf.spoiled.size(); ++i) {
+            const Value k = bf.spoiled[i];
+            Value next;
+            if (k.is_small()) {
+                const Value low = bf.lows[w++], c = cand.floor_of(k);
+                const Value cc = c.is_small() ? c : const_floor(c, cand);
+                if (!low.nil() && !cc.nil()) next = low.small_val() < cc.small_val() ? low : cc;
+                if (!next.nil() && next == c) next = Value();
+            }
+            cand = next.nil() ? cand.without_floor(k) : cand.with_floor(k, next);
+        }
     }
     LoopFloors r;
     if (last) {

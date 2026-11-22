@@ -10,6 +10,7 @@
 
 #include "algebra/construct.hpp"
 #include "algebra/eval.hpp"
+#include "algebra/facts.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/contract.hpp"
@@ -477,6 +478,71 @@ TEST_CASE("mem: python splits_mem") {
         a.meet(b);
         CHECK(a.read(R(0, 32)));
         CHECK(!a.read(R(32, 32)));
+    }
+}
+
+TEST_CASE("mem: a read held by a variable (MemState::alias)") {
+    Fixture fx;
+    const Value fmp = V("(mem (range 64 32))");
+    {
+        // tmp1 = mem[64]; mem[mem[64]] = x (the write may overwrite mem[64]
+        // itself: nothing places it): the piece is at tmp1, where the write
+        // was - a read at tmp1 finds it; at mem[64] nothing is known
+        MemState st;
+        st.alias(V("tmp1"), fmp);
+        st.write(make_range(fmp, S(32)), V("tmp2"));
+        CHECK(D(st.read(make_range(V("tmp1"), S(4)))) == "(sized 4 (mask_shl 32 224 -224 tmp2))");
+        CHECK(!st.read(make_range(fmp, S(32))));
+        // the alias is gone with the write that may change mem[64]: a second
+        // write at mem[64] isn't at tmp1
+        st.write(make_range(fmp, S(32)), V("tmp3"));
+        CHECK(D(st.read(make_range(V("tmp1"), S(32)))).find("tmp2") == std::string::npos);
+    }
+    {
+        // a piece at mem[64] + 36, written where mem[64] >= 128 (it can't
+        // change the word), then the word written from itself (an
+        // allocation): the word is tmp1 + 100, the piece kept as at
+        // tmp1 + 36 (tmp1 >= 128: past the word)
+        const alg::Facts f = alg::Facts{}.with_floor(u64(64), S(128)).with_floor(V("tmp1"), S(128));
+        MemState st(false, &f);
+        st.write(make_range(V("(add 36 (mem (range 64 32)))"), S(32)), V("tmp2"));
+        st.alias(V("tmp1"), fmp);
+        st.write(R(64, 32), V("(add 100 (mem (range 64 32)))"));
+        CHECK(D(st.read(R(64, 32))) == "(sized 32 (add 100 tmp1))");
+        CHECK(D(st.read(make_range(V("(add 36 tmp1)"), S(32)))) == "(sized 32 tmp2)");
+        // without the alias: both go with the word's write
+        MemState s2(false, &f);
+        s2.write(make_range(V("(add 36 (mem (range 64 32)))"), S(32)), V("tmp2"));
+        s2.write(R(64, 32), V("(add 100 (mem (range 64 32)))"));
+        CHECK(!s2.read(make_range(V("(add 36 tmp1)"), S(32))));
+        CHECK(!s2.read(R(64, 32)));
+    }
+    {
+        // the name set again: the pieces in its terms go
+        MemState st;
+        st.alias(V("tmp1"), fmp);
+        st.write(make_range(fmp, S(32)), V("tmp2"));
+        st.forget_name(V("tmp1"));
+        CHECK(!st.read(make_range(V("tmp1"), S(32))));
+        // and an alias reading a name set again goes
+        st.alias(V("tmp3"), V("(mem (range tmp4 32))"));
+        st.forget_name(V("tmp4"));
+        st.write(make_range(V("(mem (range tmp4 32))"), S(32)), V("tmp2"));
+        CHECK(!st.read(make_range(V("tmp3"), S(32))));
+    }
+    {
+        // where paths meet: the aliases both have
+        MemState a, b;
+        a.alias(V("tmp1"), fmp);
+        b.alias(V("tmp1"), fmp);
+        MemState c(a);
+        a.meet(b);
+        a.write(make_range(fmp, S(32)), V("tmp2"));
+        CHECK(a.read(make_range(V("tmp1"), S(32))));
+        MemState d;
+        c.meet(d);
+        c.write(make_range(fmp, S(32)), V("tmp2"));
+        CHECK(!c.read(make_range(V("tmp1"), S(32))));
     }
 }
 

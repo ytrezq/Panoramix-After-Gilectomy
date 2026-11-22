@@ -1037,14 +1037,58 @@ MemState::MemState(bool fresh, const Facts* facts)
       fresh_(fresh),
       pieces_(cx().budget.resource()),
       spans_(cx().budget.resource()),
-      written_(cx().budget.resource()) {}
+      written_(cx().budget.resource()),
+      aliases_(cx().budget.resource()) {}
 
 MemState::MemState(const MemState& o)
     : facts_(o.facts_),
       fresh_(o.fresh_),
       pieces_(o.pieces_, o.pieces_.get_allocator()),
       spans_(o.spans_, o.spans_.get_allocator()),
-      written_(o.written_, o.written_.get_allocator()) {}
+      written_(o.written_, o.written_.get_allocator()),
+      aliases_(o.aliases_, o.aliases_.get_allocator()) {}
+
+namespace {
+
+// e with each read of `from` (MEM nodes, hash-consed) replaced by `to`'s
+Value replace_reads(Value e, std::span<const Value> from, std::span<const Value> to, Memo<Value, Value>& memo) {
+    if (!e.has_flags(F_MEM) || !(e.is_expr() || e.is_list())) return e;
+    if (e.is(Op::MEM, 1))
+        for (usize i = 0; i < from.size(); ++i)
+            if (from[i] == e) return to[i];
+    if (const Value* r = memo.find(e)) return *r;
+    check_stack();
+    SmallVec<Value, 8> args;
+    bool changed = false;
+    for (Value a : e.args()) {
+        Value n = replace_reads(a, from, to, memo);
+        changed |= n != a;
+        args.push_back(n);
+    }
+    Value r = !changed ? e : e.is_list() ? mk_list(args.span(), ListKind(e.node()->op)) : alg::apply(e.op(), args.span());
+    memo.put(e, r);
+    return r;
+}
+
+}  // namespace
+
+Value MemState::as_names(Value e) const {
+    if (aliases_.empty() || !e.has_flags(F_MEM)) return e;
+    SmallVec<Value, kMaxAliases> from, to;
+    for (const Alias& a : aliases_) {
+        from.push_back(a.value);
+        to.push_back(a.name);
+    }
+    Memo<Value, Value> memo;
+    return replace_reads(e, from.span(), to.span(), memo);
+}
+
+void MemState::alias(Value name, Value value) {
+    if (!name.is_name() || !value.is(Op::MEM, 1) || !is_range(value[0]) || mentions(value, name)) return;
+    std::erase_if(aliases_, [&](const Alias& a) { return a.name == name || a.value == value; });
+    if (aliases_.size() >= kMaxAliases) aliases_.erase(aliases_.begin());
+    aliases_.push_back(Alias{name, value});
+}
 
 void MemState::unfresh() noexcept {
     fresh_ = false;
@@ -1122,12 +1166,28 @@ void MemState::write(Value range, Value value) {
             if (changed && !arr) value = concat_f(parts.span(), f);
         }
     }
+    // (the aliases: a read of memory the write may change, in its range or
+    // value - evaluated before it - or a piece's, is the name that holds
+    // what it read; the pieces kept as they are where they don't, so that
+    // they compare with the ranges of the lines as they are)
+    const bool names = !aliases_.empty();
+    if (names) {
+        if (reads_mem_in(range, range, f)) {
+            const Value r2 = as_names(range);
+            if (r2 != range && !reads_mem_in(r2, r2, f)) range = r2;
+        }
+        if (!value.nil() && reads_mem_in(value, range, f)) value = as_names(value);
+    }
     std::pmr::vector<Piece> kept(pieces_.get_allocator());
     kept.reserve(pieces_.size() + 2);
-    for (const Piece& p : pieces_) {
+    for (Piece p : pieces_) {
         poll();
         // a piece that reads memory the write may change isn't what it was
-        if (reads_mem_in(p.range, range, f) || reads_mem_in(p.value, range, f)) continue;
+        if (reads_mem_in(p.range, range, f) || reads_mem_in(p.value, range, f)) {
+            if (!names) continue;
+            p = Piece{as_names(p.range), as_names(p.value)};
+            if (reads_mem_in(p.range, range, f) || reads_mem_in(p.value, range, f)) continue;
+        }
         const Tri ov = overlaps(p.range, range, f);
         if (ov == Tri::False) {
             kept.push_back(p);
@@ -1144,16 +1204,19 @@ void MemState::write(Value range, Value value) {
         // (where a write was must be where it is now: a range that reads
         // memory this write may change, or msize, ends what's known fresh)
         bool stable = !range.has_flags(F_MSIZE) && !reads_mem_in(range, range, f);
-        for (Value w : written_)
-            if (!stable || reads_mem_in(w, range, f)) {
-                stable = false;
-                break;
-            }
+        for (Value& w : written_) {
+            if (!stable) break;
+            if (!reads_mem_in(w, range, f)) continue;
+            if (names) w = as_names(w);
+            if (!names || reads_mem_in(w, range, f)) stable = false;
+        }
         if (stable)
             note_written(range);
         else
             unfresh();
     }
+    // the aliases whose read the write may change
+    if (names) std::erase_if(aliases_, [&](const Alias& a) { return reads_mem_in(a.value, range, f); });
     // the write itself, when its value and range stand for its bytes later
     if (!value.nil() && !value.has_flags(F_MSIZE) && !range.has_flags(F_MSIZE) && !reads_mem_in(value, range, f) &&
         !reads_mem_in(range, range, f)) {
@@ -1169,6 +1232,7 @@ void MemState::write(Value range, Value value) {
 
 void MemState::clear() noexcept {
     pieces_.clear();
+    aliases_.clear();
     unfresh();
 }
 
@@ -1176,6 +1240,7 @@ void MemState::forget_flags(u8 content_flags) {
     std::erase_if(pieces_, [&](const Piece& p) {
         return p.range.has_flags(content_flags) || p.value.has_flags(content_flags);
     });
+    std::erase_if(aliases_, [&](const Alias& a) { return a.value.has_flags(content_flags); });
     for (Value w : written_)
         if (w.has_flags(content_flags)) {
             unfresh();
@@ -1185,6 +1250,7 @@ void MemState::forget_flags(u8 content_flags) {
 
 void MemState::forget_name(Value name) {
     std::erase_if(pieces_, [&](const Piece& p) { return mentions(p.range, name) || mentions(p.value, name); });
+    std::erase_if(aliases_, [&](const Alias& a) { return a.name == name || mentions(a.value, name); });
     for (Value w : written_)
         if (mentions(w, name)) {
             unfresh();
@@ -1273,6 +1339,11 @@ void MemState::meet(const MemState& other) {
     MemoSet<Key2> theirs;
     for (const Piece& p : other.pieces_) theirs.add(Key2{p.range.raw(), p.value.raw()});
     std::erase_if(pieces_, [&](const Piece& p) { return !theirs.contains(Key2{p.range.raw(), p.value.raw()}); });
+    std::erase_if(aliases_, [&](const Alias& a) {
+        for (const Alias& b : other.aliases_)
+            if (a.name == b.name && a.value == b.value) return false;
+        return true;
+    });
     if (!(fresh_ && other.fresh_)) {
         unfresh();
         return;

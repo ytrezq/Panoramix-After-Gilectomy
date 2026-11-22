@@ -257,12 +257,25 @@ public:
     template <class F>
     void forget_if(F&& changed) {
         std::erase_if(pieces_, [&](const Piece& p) { return changed(p.range) || changed(p.value); });
+        std::erase_if(aliases_, [&](const Alias& a) { return changed(a.value); });
         for (Value w : written_)
             if (changed(w)) {
                 unfresh();
                 break;
             }
     }
+
+    // name holds here what value - a read of memory, MEM(range) - reads (a
+    // SETVAR's: the variable was set to it, and nothing changed it since).
+    // When a later write may change what a piece's range or value, or the
+    // write's own, reads there, the read is taken as the name instead - the
+    // same bytes, the write evaluating its range and value before it writes:
+    // the free memory pointer read into _1 and written at (mem[mem[64]] =
+    // x, which may overwrite mem[64]) is a piece at _1, which a read at _1
+    // finds. Forgotten as a piece reading value would be (a write that may
+    // change what it reads, the name or one value reads set again), at
+    // most kMaxAliases at once (the oldest dropped).
+    void alias(Value name, Value value);
 
     // MEM(range) here, from what's known: a bytes expression of range's
     // length (concat of slices of pieces, zeroes of fresh memory, MEM parts);
@@ -291,11 +304,19 @@ private:
     void note_written(Value range);
     bool untouched_since_start(Value gap) const;
 
+    struct Alias {
+        Value name, value;
+    };
+    static constexpr usize kMaxAliases = 16;
+    // e with the reads the aliases name read as their names
+    Value as_names(Value e) const;
+
     const alg::Facts* facts_ = nullptr;
     bool fresh_ = false;
     std::pmr::vector<Piece> pieces_;
     std::pmr::vector<Span> spans_;
     std::pmr::vector<Value> written_;
+    std::pmr::vector<Alias> aliases_;
 };
 
 // MEM(read_range) after the writes, in order (the oldest first; nothing
