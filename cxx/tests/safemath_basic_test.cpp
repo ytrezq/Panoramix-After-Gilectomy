@@ -17,6 +17,7 @@
 #include "core/dump.hpp"
 #include "core/evmint.hpp"
 #include "exec/machine.hpp"
+#include "output/print.hpp"
 
 using namespace pan;
 using Table = SafeMathTable;
@@ -578,4 +579,90 @@ TEST_CASE("safemath: a site's abstraction is proven, never sampled")
         CHECK_FALSE(mentions(r.after[0].trace, Op::IF));
         same_runs(r.before, r.after, r.table.get());
     }
+}
+
+// Error(string) of a message whose last word's bytes past the string are what
+// memory held there (a revert that copies the string alone): stale
+Value stale_error_data(std::string_view msg, Value stale)
+{
+    std::vector<Value> parts{mk(Op::SIZED, Value::small(4), Value::small(0x08c379a0)),
+                             mk(Op::SIZED, Value::small(32), Value::small(32)),
+                             mk(Op::SIZED, Value::small(32), Value::small(i64(msg.size())))};
+    usize k = 0;
+    for (; k + 32 <= msg.size(); k += 32) {
+        u8 w[32];
+        for (usize j = 0; j < 32; ++j)
+            w[j] = u8(msg[k + j]);
+        parts.push_back(mk(Op::SIZED, Value::small(32), Word256::from_be(std::span<const u8>(w, 32)).to_value()));
+    }
+    const usize rest = msg.size() - k;
+    REQUIRE(rest > 0);
+    parts.push_back(mk(Op::SIZED, Value::small(i64(rest)), mk_bytes(std::span<const u8>(
+                                                                  reinterpret_cast<const u8*>(msg.data() + k), rest))));
+    parts.push_back(mk(Op::SIZED, Value::small(i64(32 - rest)), stale));
+    return mk(Op::DATA, std::span<const Value>(parts.data(), parts.size()));
+}
+
+TEST_CASE("safemath: revert data past the message that memory held - each call's, said where it is")
+{
+    // (c00034, gmx's Vault: SafeMath.mul's revert copies the 33 bytes of its
+    // message, the 31 after them a word written before - the call's
+    // arguments - where the text said `'SafeMath: multiplication overflow'`,
+    // zeroes)
+    Fixture fx;
+    const std::string_view msg = "SafeMath: multiplication overflow";
+    const Value stale = stale_error_data(msg, st(5));
+    CHECK_FALSE(output::detail::error_message_text(stale));
+    CHECK(output::detail::error_message_text(error_data(msg)) == std::string("'") + std::string(msg) + "'");
+    auto fn = [&](u32 sel, i64 slot, Value data) {
+        const Value a = cd(4), b = cd(36), prod = alg::mul(a, b);
+        const Value cond = alg::band(a, alg::iszero(alg::cmp(Op::EQ, alg::div(prod, a), b)));
+        return fn_of(tr({check(cond, revert_line(data)), store(slot, prod), stop()}), sel);
+    };
+    SUBCASE("the same stale data at every site: still each call's data")
+    {
+        Rewritten r = rewrite({fn(0x11111111, 1, stale), fn(0x22222222, 1, stale)});
+        REQUIRE(r.table);
+        REQUIRE(r.table->fns.size() == 1);
+        CHECK(r.table->fns[0].messages == 1);
+        CHECK(r.table->fns[0].checks[0].message == 0u);
+        same_runs(r.before, r.after, r.table.get());
+    }
+    SUBCASE("the exact encoding: the message is the function's")
+    {
+        Rewritten r = rewrite({fn(0x11111111, 1, error_data(msg)), fn(0x22222222, 1, error_data(msg))});
+        REQUIRE(r.table);
+        CHECK(r.table->fns[0].messages == 0);
+        CHECK_FALSE(r.table->fns[0].checks[0].message);
+        same_runs(r.before, r.after, r.table.get());
+    }
+    SUBCASE("a line between the check and the use changes what the data reads: the check stays")
+    {
+        const Value a = cd(4), b = cd(36), prod = alg::mul(a, b);
+        const Value cond = alg::band(a, alg::iszero(alg::cmp(Op::EQ, alg::div(prod, a), b)));
+        const Value body = tr({check(cond, revert_line(stale)), store(5, cd(68)), store(1, prod), stop()});
+        Rewritten r = rewrite({fn_of(body)});
+        CHECK(r.after[0].trace == body);
+        same_runs(r.before, r.after, r.table.get());
+    }
+}
+
+TEST_CASE("safemath: calls that may fail otherwise keep the order of their checks")
+{
+    // (c00582, harvest's AaveFoldStrategy: min(supplied.sub(collateral.div(n)),
+    // amount.add(toRepay)) - the checks div, sub, add in the code, the text
+    // min(SafeMath.add(..), SafeMath.sub(.., SafeMath.div(..))) evaluated the
+    // add first: Panic(0x11) where the code fails with Panic(0x12))
+    Fixture fx;
+    const Value a = cd(4), x = cd(36), z = cd(68), w = st(1), v = st(5);
+    const Value quo = alg::div(w, z), diff = alg::sub(v, quo), sum = alg::add(a, x);
+    const Value body = tr({check(alg::iszero(z), panic_line(0x12)), check(alg::cmp(Op::GT, quo, v), panic_line(0x11)),
+                           check(alg::cmp(Op::LT, sum, a), panic_line(0x11)),
+                           store(1, mk(Op::MIN, sum, diff)),  // (the sum first, as the algebra may sort them)
+                           stop()});
+    Rewritten r = rewrite({fn_of(body)});
+    REQUIRE(r.table);
+    CHECK(mentions(r.after[0].trace, Op::SAFEMATH));
+    // the calldata of call (max, max, 0): z is 0 and a + x wraps - both fail
+    same_runs(r.before, r.after, r.table.get());
 }
