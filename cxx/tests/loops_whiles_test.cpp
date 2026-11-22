@@ -563,16 +563,26 @@ TEST_CASE("loops: a check as the exit test (its branch ends the run)") {
     // (the second check is the exit: it reads the loop's variable and returns)
     CHECK(!is_true_cond(w[0]));
     CHECK(w[0] == V("(iszero (eq loop1 3))"));
-    // a check that doesn't read the loop's variables: not the exit
-    u = whiles(
+    // a check that doesn't read the loop's variables: not the exit (the
+    // check before it rotated: three statements, allowed here)
+    const char* t4 =
         "{(setvar tmp1 (mask_shl 1 0 0 (calldataload 4)))"
         " (label loopid1 {(setvar loop1 0)})"
         " (if tmp1 {(setmem (range 0 32) 5) (return (mem (range 0 32)))} {})"
         " (if (eq loop1 4) {(stop)} {})"
-        " (goto loopid1 {(setvar loop1 (add 1 loop1))})}");
+        " (goto loopid1 {(setvar loop1 (add 1 loop1))})}";
+    L::WhilesOptions big;
+    big.max_rotated = 3;
+    u = whiles(t4, big);
     w = first_while(u);
     REQUIRE(!w.nil());
     CHECK(w[0] == V("(iszero (eq loop1 4))"));
+    // past max_rotated: while True, the checks inside in their order
+    u = whiles(t4);
+    w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(is_true_cond(w[0]));
+    CHECK(w[1][0][0] == V("tmp1"));
     // a body that may fall off (a break): while True
     u = whiles(
         "{(if (calldataload 4)"
@@ -591,7 +601,7 @@ TEST_CASE("loops: Vyper's loops, their counter in memory, tested at the end") {
     Fixture f;
     // (the shape of Curve3pool's donate_admin_fees: no loop variable, the
     // test before the back edge, a STOP when it fails)
-    Value u = whiles(
+    const char* t =
         "{(setmem (range 320 32) (sized 32 0))"
         " (label loopid1 {})"
         " (setvar tmp3 (mem (range 320 32)))"
@@ -600,9 +610,58 @@ TEST_CASE("loops: Vyper's loops, their counter in memory, tested at the end") {
         "    (setvar tmp8 (mem (range 320 32)))"
         "    (setmem (range 320 32) (sized 32 (add 1 tmp8)))"
         "    (if (iszero (eq 3 (add 1 tmp8))) {(goto loopid1 {})} {(stop)})}"
-        "   {(revert None)})}");
+        "   {(revert None)})}";
+    // the test the last line of the iteration: rotated, the whole iteration
+    // would print before the loop and again before the continue (P3) -
+    // `while True`, the iteration once, the test at its end
+    Value u = whiles(t);
     Value w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(is_true_cond(w[0]));
+    CHECK(u[0].is(Op::SETMEM));
+    REQUIRE(u.size() == 3);
+    CHECK(u[2].is(Op::STOP));  // (the test's other branch after the loop)
+    // allowed to copy that much, python's form: the iteration before the loop
+    L::WhilesOptions o;
+    o.max_rotated = 8;
+    u = whiles(t, o);
+    w = first_while(u);
     REQUIRE(!w.nil());
     CHECK(!is_true_cond(w[0]));
     CHECK(u[u.size() - 1].is(Op::STOP));
+    CHECK(u.size() > 3);
+    // a range loop whose counter is a loop variable, its test the last line
+    // (c00159's preseed: `while _x + 1 != N`, the 80 lines of the first
+    // iteration before the loop): the iteration once, in the loop
+    const char* r =
+        "{(label loopid1 {(setvar loop1 0)})"
+        " (store 256 0 (add 100 loop1) (calldataload (add 4 (mul 32 loop1))))"
+        " (store 256 0 (add 200 loop1) loop1)"
+        " (setmem (range (mul 32 loop1) 32) (add 7 loop1))"
+        " (store 256 0 (add 300 loop1) 7)"
+        " (if (iszero (eq 3 (add 1 loop1))) {(goto loopid1 {(setvar loop1 (add 1 loop1))})} {})"
+        " (return (mem (range 0 96)))}";
+    u = whiles(r);
+    REQUIRE(u.size() == 2);
+    REQUIRE(u[0].is(Op::WHILE, 4));
+    CHECK(is_true_cond(u[0][0]));
+    CHECK(u[0][1].size() == 5);
+    u = whiles(r, o);
+    REQUIRE(u.size() == 6);
+    CHECK(u[0].is(Op::STORE));
+    CHECK(!is_true_cond(u[4][0]));
+    // what follows the loop in its exit branch (the IF the loop's last line):
+    // after the loop, not inside it
+    u = whiles(
+        "{(label loopid1 {(setvar loop1 0)})"
+        " (store 256 0 (add 100 loop1) (calldataload (add 4 (mul 32 loop1))))"
+        " (store 256 0 (add 200 loop1) loop1)"
+        " (setmem (range (mul 32 loop1) 32) (add 7 loop1))"
+        " (if (iszero (eq 3 (add 1 loop1))) {(goto loopid1 {(setvar loop1 (add 1 loop1))})}"
+        "   {(store 256 0 9 (mem (range 0 32))) (return (mem (range 0 96)))})}");
+    REQUIRE(u.size() == 3);
+    REQUIRE(u[0].is(Op::WHILE, 4));
+    CHECK(is_true_cond(u[0][0]));
+    CHECK(u[1].is(Op::STORE));
+    CHECK(u[2].is(Op::RETURN));
 }

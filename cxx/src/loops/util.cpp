@@ -77,6 +77,33 @@ bool is_check_branch(Value branch) {
     return branch.is_list() && branch.size() != 0 && !branch.has_flags(F_LOOPCTL) && !falls_through(branch);
 }
 
+namespace {
+
+// no path of the trace ends but in a REVERT or an INVALID (paths may fall
+// off it: what follows it decides those)
+bool ends_failing(Value trace) {
+    check_stack();
+    for (Value l : trace.args()) {
+        if (!l.is_expr()) continue;
+        switch (l.op()) {
+            case Op::REVERT:
+            case Op::INVALID: return true;  // (the lines after it never run)
+            case Op::IF:
+            case Op::MERGED_IF:
+                if (l.size() < 3 || !ends_failing(l[1]) || !ends_failing(l[2])) return false;
+                break;
+            default:
+                if (has(l.op(), HALT) || l.has_flags(F_LOOPCTL)) return false;
+                break;
+        }
+    }
+    return true;
+}
+
+}  // namespace
+
+bool fails(Value branch) { return is_check_branch(branch) && ends_failing(branch); }
+
 void setvar_names(Value setvars, SmallVec<Value, 8>& out) {
     if (!setvars.is_list()) return;
     for (Value x : setvars.args())

@@ -63,6 +63,12 @@ struct WhilesOptions {
     // rotate the lines before the exit test (python to_while's path), when
     // equivalent (false: such a loop is `while True`)
     bool rotate = true;
+    // the most statements (any depth: an IF and its branches', a check one, a
+    // SETVAR none) a rotation copies, once before the loop and once before
+    // each CONTINUE: past it the loop is `while True`, its exit test inside -
+    // a test at the end of the iteration would print the whole first
+    // iteration before the loop
+    u32 max_rotated = 2;
 };
 
 // The trace with its LABEL / GOTO made WHILE / CONTINUE (python whiles.make;
@@ -89,6 +95,7 @@ struct WhilesStats {
     u64 exit_after = 0;  //   with the exit branch run after the loop (no break)
     u64 check_exit = 0;  //   its exit a check (the code that ends the run after the loop)
     u64 while_true = 0;  // `while True`
+    u64 too_big = 0;     //   (an exit test whose rotation would copy more than max_rotated lines)
     u64 no_loop = 0;     // nothing loops back: plain SETVARs
 };
 WhilesStats& whiles_stats() noexcept;
