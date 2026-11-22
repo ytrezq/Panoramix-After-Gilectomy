@@ -64,11 +64,18 @@ struct WhilesOptions {
     // equivalent (false: such a loop is `while True`)
     bool rotate = true;
     // the most statements (any depth: an IF and its branches', a check one, a
-    // SETVAR none) a rotation copies, once before the loop and once before
-    // each CONTINUE: past it the loop is `while True`, its exit test inside -
-    // a test at the end of the iteration would print the whole first
-    // iteration before the loop
+    // SETVAR none; a check the iteration can't change none, a memory write
+    // the next lines hash none) a rotation copies, once before the loop and
+    // once before each CONTINUE: past it the loop is `while True`, its exit
+    // test inside - a test at the end of the iteration would print the whole
+    // first iteration before the loop
     u32 max_rotated = 2;
+    // a test at the end of the iteration that is a test of the next one's
+    // values (its counters stepping by constants), holding at the first:
+    // made the loop's condition at its head, nothing copied (the do-while a
+    // compiler makes of a loop, its test moved to the end behind a guard; a
+    // range loop) - else rotated, or `while True`
+    bool head_test = true;
 };
 
 // The trace with its LABEL / GOTO made WHILE / CONTINUE (python whiles.make;
@@ -94,6 +101,7 @@ struct WhilesStats {
     u64 renamed = 0;     //   with the exit's merge variables renamed (python exit_values)
     u64 exit_after = 0;  //   with the exit branch run after the loop (no break)
     u64 check_exit = 0;  //   its exit a check (the code that ends the run after the loop)
+    u64 head_test = 0;   //   its test at the end of the iteration, of the next one's values, made the head's
     u64 while_true = 0;  // `while True`
     u64 too_big = 0;     //   (an exit test whose rotation would copy more than max_rotated lines)
     u64 no_loop = 0;     // nothing loops back: plain SETVARs

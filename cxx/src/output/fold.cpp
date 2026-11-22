@@ -125,6 +125,35 @@ Value if_line(Value cond, std::span<const Value> t, std::span<const Value> f)
     return mk(Op::IF, cond, mk_trace(t), mk_trace(f));
 }
 
+// a line that ends the run and prints as one line wherever it's copied: a
+// stop, an invalid, a revert of a Panic or of a custom error without params,
+// a return of data no memory holds
+// (not an aborted path, nor a revert or return of memory, nor an Error the
+// printer may show word by word)
+bool prints_whole(Value l) noexcept
+{
+    if (!l.is_expr())
+        return false;
+    switch (l.op()) {
+        case Op::STOP:
+        case Op::INVALID:
+            return true;
+        case Op::RETURN:
+            return !(simplify::summary(l).reads & simplify::S_MEM);
+        case Op::REVERT: {
+            if (l.size() != 1 || (simplify::summary(l).reads & simplify::S_MEM))
+                return false;
+            const Value d = l[0];
+            // (a custom error without params; a Panic)
+            if (d.is(Op::SIZED, 2) && is_small(d[0], 4) && d[1].is_int())
+                return true;
+            return d.is(Op::DATA, 2) && d[0].is(Op::SIZED, 2) && is_small(d[0][0], 4) && is_small(d[0][1], 0x4e487b71);
+        }
+        default:
+            return false;
+    }
+}
+
 // a return of the word 0 (python's ("return", 0))
 bool return_zero(Value l) noexcept
 {
@@ -457,6 +486,21 @@ Path Folder::try_merge(Path one, Path two)
     };
     while (idx > 0 && (guard_before(one) || guard_before(two)))
         --idx;
+    // (not python's: an ending that is only the line that ends the run, or
+    // two lines that leave a side nothing but its condition, isn't taken off
+    // when that line prints whole in each branch (prints_whole: a stop, a
+    // Panic...): the branch that ends stays a guard and the other one's
+    // lines follow it, not nested under the negated condition with the
+    // ending after them - a revert or a stop the guards share with the main
+    // path became, guard by guard, one line at the end of the function, the
+    // main path several levels deep: c00152's Panic(17), c00124's custom
+    // error, c00284's `if not stor4910:`. A longer ending stays shared
+    // (python's `if c: x = 1 else: x = 2` before the lines both end with),
+    // and an aborted path, a revert of memory the branches wrote: each copy
+    // would print raw.)
+    if (idx > 0 && idx <= 2 && idx <= one.size() && prints_whole(one.back()) &&
+        (idx == 1 || one.size() - idx <= 1 || two.size() - idx <= 1))
+        idx = 0;
     Path res(detail::res());
     if (idx > 0) {
         res.push_back(mk_or2(std::span<const Value>(one.data(), one.size() - idx),

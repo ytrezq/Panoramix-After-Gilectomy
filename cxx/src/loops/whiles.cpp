@@ -41,7 +41,9 @@
 #include <memory_resource>
 #include <vector>
 
+#include "algebra/compare.hpp"
 #include "algebra/construct.hpp"
+#include "algebra/facts.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/errors.hpp"
@@ -61,29 +63,83 @@ constexpr u32 kMaxRotation = 1u << 14;
 
 using Lines = std::pmr::vector<Value>;
 
-// the statements of a trace a rotation would copy, any depth, counted up to
-// cap: an IF one, and its branches' (a branch that only fails none: a check
-// prints as one line, `require` or `if ...: revert`); a SETVAR none (a read
-// the text mostly inlines - the lines that compute an exit's condition)
-u32 weight(std::span<const Value> lines, u32 cap) {
-    check_stack();
-    u32 n = 0;
-    for (Value l : lines) {
-        if (l.is(Op::SETVAR)) continue;
-        if (++n > cap) return n;
-        if (l.is_expr() && (l.is(Op::IF) || l.is(Op::MERGED_IF)) && l.size() == 3)
-            for (u32 b = 1; b < 3; ++b)
-                if (l[b].is_list() && !fails(l[b])) {
-                    n += weight(l[b].args(), cap - n + 1);
-                    if (n > cap) return n;
-                }
+// The statements of the lines before an exit test that a rotation would
+// print again before each CONTINUE, any depth, counted up to cap:
+//  - an IF one, and its branches' (a branch that only fails none: a check
+//    prints as one line, `require` or `if ...: revert`);
+//  - a SETVAR none (a read the text mostly inlines - the lines that compute
+//    an exit's condition);
+//  - a check (one branch ends the run, the other is nothing) whose
+//    condition no line of the iteration changes - the path, the body, the
+//    CONTINUEs' setvars - none: the copy before the loop decided it for
+//    every copy before a CONTINUE, which the simplifier's known conditions
+//    drop (a calldata bound checked before the exit test: c00046's
+//    `require`s of a nested array's offsets, read before `while t < len`);
+//  - a memory write at a constant place that the next lines (writes and
+//    SETVARs) hash none: the words of a hash, which the simplifier puts in
+//    it, the writes then dead (a mapping's key and slot written to be
+//    hashed: c00040's `_248 = s and ... >= stor13[s].field_48` before
+//    `while _248`).
+class Weight {
+public:
+    Weight(std::span<const Value> path, Value body) {
+        for (Value l : path) it_ = simplify::combine(it_, simplify::summary(l), true);
+        it_ = simplify::combine(it_, simplify::summary(body), true);
     }
-    return n;
-}
+    u32 operator()(std::span<const Value> lines, u32 cap) const {
+        check_stack();
+        u32 n = 0;
+        for (usize i = 0; i < lines.size(); ++i) {
+            const Value l = lines[i];
+            if (l.is(Op::SETVAR)) continue;
+            if (l.is(Op::SETMEM, 2) && hashed(lines, i)) continue;
+            const bool is_if = l.is_expr() && (l.is(Op::IF) || l.is(Op::MERGED_IF)) && l.size() == 3;
+            if (is_if && invariant_check(l)) continue;
+            if (++n > cap) return n;
+            if (is_if)
+                for (u32 b = 1; b < 3; ++b)
+                    if (l[b].is_list() && !fails(l[b])) {
+                        n += (*this)(l[b].args(), cap - n + 1);
+                        if (n > cap) return n;
+                    }
+        }
+        return n;
+    }
+
+private:
+    // the write lines[i], at constant places, inside the constant range a
+    // hash (a SETVAR of a SHA3) after it reads, with nothing but writes and
+    // SETVARs between
+    static bool hashed(std::span<const Value> lines, usize i) {
+        const Value w = lines[i][0];
+        if (!w.is(Op::RANGE, 2) || !w[0].is_small() || !w[1].is_small()) return false;
+        const i64 lo = w[0].small_val(), hi = lo + w[1].small_val();
+        for (usize j = i + 1; j < lines.size(); ++j) {
+            const Value x = lines[j];
+            if (x.is(Op::SETMEM, 2)) continue;
+            if (!x.is(Op::SETVAR, 2)) return false;
+            const Value h = x[1];
+            if (!h.is(Op::SHA3)) continue;
+            for (Value a : h.args())
+                if (a.is(Op::MEM, 1) && a[0].is(Op::RANGE, 2) && a[0][0].is_small() && a[0][1].is_small() &&
+                    a[0][0].small_val() <= lo && hi <= a[0][0].small_val() + a[0][1].small_val())
+                    return true;
+        }
+        return false;
+    }
+    bool invariant_check(Value l) const {
+        const Value t = l[1], e = l[2];
+        const bool check = (t.is_list() && t.size() == 0 && is_check_branch(e)) ||
+                           (e.is_list() && e.size() == 0 && is_check_branch(t));
+        return check && !simplify::affects(it_, l[0]);
+    }
+    simplify::EffectSummary it_;  // what an iteration may write
+};
 
 class Whiles {
 public:
-    explicit Whiles(const WhilesOptions& o) : opts_(o), open_(cx().budget.resource()) {}
+    explicit Whiles(const WhilesOptions& o)
+        : opts_(o), open_(cx().budget.resource()), known_(cx().budget.resource()) {}
 
     // python make: the trace with its labels made whiles, its gotos continues
     Value make(Value trace);
@@ -99,7 +155,7 @@ private:
         Lines remaining;
         Value cond;
         bool loop = true;  // false: nothing loops back (the setvars, then the lines)
-        bool renamed = false, exit_after = false, check_exit = false;  // (stats)
+        bool renamed = false, exit_after = false, check_exit = false, head_test = false;  // (stats)
     };
 
     struct Label {
@@ -110,12 +166,18 @@ private:
 
     void to_while(std::span<const Value> rest, const Label& lb, Made& m);
     void as_while_true(Made& m, const Lines& body, std::span<const Value> remaining);
-    bool check_exit(const Lines& body, std::span<const usize> checks, const Label& lb, Made& m);
+    bool check_exit(const Lines& body, std::span<const usize> checks, const Label& lb, Made& m, bool failing,
+                    u32 cap, Value back = Value());
+    bool counter_test(Value c, const Label& lb, std::span<const Value> back);
+    bool head_test(const Lines& path, Value body, Value out, std::span<const Value> after, Value cond,
+                   const Label& lb, Made& m);
+    void learn(Value line);
+    void know(Value cond);
     bool exit_values(Value out, Value body, std::span<const Value> after, const Label& lb, Value& body2,
                      Lines& after2);
     bool break_setvars(Value trace, bool tail, std::span<const Value> from, std::span<const Value> to,
                        std::span<const Value> group);
-    bool rotates(const Lines& path, Value body, const Label& lb);
+    bool rotates(const Lines& path, Value body, const Label& lb, u32 cap);
     Value add_path(Value trace, const Lines& path, const Label& lb);
     void substituted(const Lines& path, const Label& lb, Value setvars, Lines& out);
     bool independent(const Lines& lines, Value setvars);
@@ -123,6 +185,10 @@ private:
 
     const WhilesOptions& opts_;
     std::pmr::vector<Value> open_;  // the loops around: their ids
+    // the conditions known where make's walk is (the enclosing IFs', the
+    // checks passed), each dropped at a line that may change what it reads
+    std::pmr::vector<Value> known_;
+    static constexpr usize kMaxKnown = 16;
 };
 
 Value Whiles::make(Value trace) {
@@ -137,27 +203,38 @@ Value Whiles::make(Value trace) {
         Value l = trace[i];
         if (!l.is_expr() || !l.has_flags(F_LOOPCTL)) {
             out.push_back(l);
+            learn(l);
             continue;
         }
         switch (l.op()) {
             case Op::IF:
             case Op::MERGED_IF: {
+                const std::pmr::vector<Value> saved(known_, res);
+                know(l[0]);
                 Value t = make(l[1]);
+                known_.assign(saved.begin(), saved.end());
+                know(alg::iszero(l[0]));
                 Value e = make(l[2]);
+                known_.assign(saved.begin(), saved.end());
                 Value r = mk_like(l, std::span<const Value>({l[0], t, e}));
                 cx().pcs.inherit(r, l);
                 if (r != l) changed = true;
                 out.push_back(r);
+                learn(l);
                 break;
             }
             case Op::WHILE: {
+                const std::pmr::vector<Value> saved(known_, res);
+                known_.clear();  // (what an iteration changes: not told apart)
                 open_.push_back(l[2]);
                 Value b = make(l[1]);
                 open_.pop_back();
+                known_.assign(saved.begin(), saved.end());
                 Value r = b == l[1] ? l : mk(Op::WHILE, l[0], b, l[2], l[3]);
                 cx().pcs.inherit(r, l);
                 if (r != l) changed = true;
                 out.push_back(r);
+                learn(l);
                 break;
             }
             case Op::LABEL: {
@@ -186,6 +263,7 @@ Value Whiles::make(Value trace) {
                             if (m.renamed) ++ws.renamed;
                             if (m.exit_after) ++ws.exit_after;
                             if (m.check_exit) ++ws.check_exit;
+                            if (m.head_test) ++ws.head_test;
                         }
                     }
                 }
@@ -195,10 +273,14 @@ Value Whiles::make(Value trace) {
                     Value b = make(trace_of(std::span<const Value>(m.before.data(), m.before.size())));
                     for (Value x : b.args()) out.push_back(x);
                 }
+                // (in the loop and after it, the conditions known before it
+                // aren't told apart from those it changes: forgotten)
+                known_.clear();
                 if (m.loop) {
                     open_.push_back(l[0]);
                     Value body = make(m.body);
                     open_.pop_back();
+                    known_.clear();
                     Value w = mk(Op::WHILE, m.cond, body, l[0], l[1]);
                     cx().pcs.inherit(w, l);
                     out.push_back(w);
@@ -209,6 +291,7 @@ Value Whiles::make(Value trace) {
                     gone.push_back(l[0]);
                     Value b = make(m.body);
                     for (Value x : b.args()) out.push_back(x);
+                    known_.clear();
                 }
                 if (!m.remaining.empty()) {
                     Value r = make(trace_of(std::span<const Value>(m.remaining.data(), m.remaining.size())));
@@ -234,6 +317,26 @@ Value Whiles::make(Value trace) {
     return changed ? trace_of(std::span<const Value>(out.data(), out.size())) : trace;
 }
 
+// the conditions known after the line: those it may change forgotten; a
+// check's (an IF one of whose branches ends) added, where the branch that
+// goes on doesn't change what it reads
+void Whiles::learn(Value line) {
+    if (!known_.empty()) std::erase_if(known_, [&](Value c) { return simplify::affects(line, c); });
+    if (!(line.is_expr() && (line.is(Op::IF) || line.is(Op::MERGED_IF)) && line.size() == 3)) return;
+    const bool te = simplify::ends(line[1]), ee = simplify::ends(line[2]);
+    if (te == ee) return;
+    const Value holds = te ? alg::iszero(line[0]) : line[0];
+    if (!simplify::affects(te ? line[2] : line[1], holds)) know(holds);
+}
+
+// (the newest kept: past kMaxKnown, the oldest forgotten - fewer facts are
+// as sound, and the nearest guard is the one a loop's first test needs)
+void Whiles::know(Value cond) {
+    if (cond.is_int()) return;
+    if (known_.size() >= kMaxKnown) known_.erase(known_.begin());
+    known_.push_back(cond);
+}
+
 void Whiles::as_while_true(Made& m, const Lines& body, std::span<const Value> remaining) {
     m.before.clear();
     m.body = trace_of(std::span<const Value>(body.data(), body.size()));
@@ -254,12 +357,29 @@ void Whiles::as_while_true(Made& m, const Lines& body, std::span<const Value> re
 // checks, python's): the first whose condition reads a variable of the loop
 // (a counter's test at the head), else the last one (a test at the end, the
 // loop's state in memory: Vyper's, python's exit test there) - each only
-// where the lines before it rotate (few: max_rotated).
-bool Whiles::check_exit(const Lines& body, std::span<const usize> checks, const Label& lb, Made& m) {
+// where the lines before it rotate (few: cap). Where the loop has another
+// way out (`failing` false: an exit test - the last line of `body`, `back`
+// its branch that loops back - whose other branch goes on, to an outer loop
+// or after the loop), only a counter's test at the head, and not one whose
+// X only fails (a revert's data made in memory: a Panic, an Error) unless
+// it tests a counter against the loop's bound (counter_test: a search that
+// reverts once past the end, c00227's) - the loop isn't left for a revert:
+// c00134's `while u >= t`, a subtraction's check, its real bound an exit
+// inside the body by `continue loop1`; c00015's Panic(50) of the outer
+// index's bound, which the inner loop doesn't step.
+bool Whiles::check_exit(const Lines& body, std::span<const usize> checks, const Label& lb, Made& m, bool failing,
+                        u32 cap, Value back) {
     if (!opts_.exit_test || checks.empty()) return false;
     std::pmr::memory_resource* res = cx().budget.resource();
     const std::span<const Value> names(lb.names.data(), lb.names.size());
-    auto lone_fail = [](Value x) { return x.size() == 1 && (x[0].is(Op::REVERT) || x[0].is(Op::INVALID)); };
+    SmallVec<Value, 8> backs;  // (the back edges of the branch that loops back)
+    if (!back.nil()) gotos(back, lb.id, backs);
+    auto lone = [](Value x) { return x.size() == 1 && (x[0].is(Op::REVERT) || x[0].is(Op::INVALID)); };
+    auto out = [&](Value chk) {
+        const Value x = chk[1];
+        return lone(x) ||
+               (!failing && fails(x) && !counter_test(chk[0], lb, std::span<const Value>(backs.data(), backs.size())));
+    };
     auto attempt = [&](usize k) {
         const Value chk = body[k];
         const Value c = chk[0], x = chk[1];
@@ -267,7 +387,7 @@ bool Whiles::check_exit(const Lines& body, std::span<const usize> checks, const 
         // (no break: X only when the check holds)
         if (falls_through(rest)) return false;
         Lines p(body.begin(), body.begin() + isize(k), res);
-        if (!rotates(p, rest, lb)) return false;
+        if (!rotates(p, rest, lb, cap)) return false;
         Lines before(res);
         substituted(p, lb, lb.setvars, before);
         m.before.swap(before);
@@ -280,13 +400,43 @@ bool Whiles::check_exit(const Lines& body, std::span<const usize> checks, const 
     };
     for (usize k : checks) {
         const Value chk = body[k];
-        if (lone_fail(chk[1]) || !reads_any(chk[0], names)) continue;
+        if (out(chk) || !reads_any(chk[0], names)) continue;
         if (attempt(k)) return true;
     }
+    // (the last check: one that only fails, where the loop has another way
+    // out, not its exit)
     for (usize i = checks.size(); i-- > 0;) {
         const usize k = checks[i];
-        if (lone_fail(body[k][1])) continue;
-        return attempt(k);
+        if (lone(body[k][1])) continue;
+        return !out(body[k]) && attempt(k);
+    }
+    return false;
+}
+
+// c compares a counter of the loop with a bound: one side a loop variable
+// (plus a constant) that every back edge of `back` steps by a constant, the
+// other reading no loop variable
+bool Whiles::counter_test(Value c, const Label& lb, std::span<const Value> back) {
+    for (int k = 0; k < 8 && c.is(Op::ISZERO, 1); ++k) c = c[0];
+    switch (c.is_expr() && c.size() == 2 ? c.op() : Op::STOP) {
+        case Op::LT: case Op::GT: case Op::LE: case Op::GE:
+        case Op::SLT: case Op::SGT: case Op::SLE: case Op::SGE:
+        case Op::EQ: break;
+        default: return false;
+    }
+    if (back.empty()) return false;
+    const std::span<const Value> names(lb.names.data(), lb.names.size());
+    for (u32 side = 0; side < 2; ++side) {
+        const Value a = c[side], b = c[1 - side];
+        if (reads_any(b, names)) continue;
+        const Value v = a.is(Op::ADD, 2) && a[0].is_int() ? a[1] : a;
+        if (std::find(lb.names.begin(), lb.names.end(), v) == lb.names.end()) continue;
+        bool steps = true;
+        for (Value g : back) {
+            const Value sv = setvar_of(g[1], v);
+            steps = steps && sv.is(Op::ADD, 2) && ((sv[0].is_int() && sv[1] == v) || (sv[1].is_int() && sv[0] == v));
+        }
+        if (steps) return true;
     }
     return false;
 }
@@ -357,9 +507,10 @@ void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
                     if (opts_.exit_test && jt != je) {
                         const Value body = jt ? t : e, out = jt ? e : t;
                         const Value cond = jt ? c : alg::iszero(c);
+                        if (head_test(path, body, out, left(), cond, lb, m)) return;
                         Value body2;
                         Lines after2(res);
-                        if (exit_values(out, body, left(), lb, body2, after2) && rotates(path, body2, lb)) {
+                        if (exit_values(out, body, left(), lb, body2, after2) && rotates(path, body2, lb, opts_.max_rotated)) {
                             Lines before(res);
                             substituted(path, lb, lb.setvars, before);
                             m.before.swap(before);
@@ -369,7 +520,7 @@ void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
                             m.renamed = body2 != body;
                             return;
                         }
-                        if (!falls_through(body) && rotates(path, body, lb)) {
+                        if (!falls_through(body) && rotates(path, body, lb, opts_.max_rotated)) {
                             // no break: the exit branch runs after the loop
                             Lines before(res);
                             substituted(path, lb, lb.setvars, before);
@@ -395,10 +546,11 @@ void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
                 // the IF is the last line of the loop
                 if (opts_.exit_test && jt != je) {
                     const Value body = jt ? t : e, out = jt ? e : t;
+                    if (head_test(path, body, out, {}, jt ? c : alg::iszero(c), lb, m)) return;
                     // a path of the body that falls off it goes on after the
                     // IF (the loop's end), not with the exit branch: unless
                     // that's nothing
-                    if ((out.size() == 0 || !falls_through(body)) && rotates(path, body, lb)) {
+                    if ((out.size() == 0 || !falls_through(body)) && rotates(path, body, lb, opts_.max_rotated)) {
                         Lines before(res);
                         substituted(path, lb, lb.setvars, before);
                         m.before.swap(before);
@@ -417,8 +569,8 @@ void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
                     // follows the loop each printed once)
                     Lines with(path, res);
                     with.push_back(line);
-                    if (check_exit(with, checks, lb, m)) return;
                     const Value body = jt ? t : e, out = jt ? e : t;
+                    if (check_exit(with, checks, lb, m, false, opts_.max_rotated, body)) return;
                     if (out.size() != 0 && !falls_through(body)) {
                         const Value none = mk_trace(std::span<const Value>());
                         Value r = mk(line.op(), c, jt ? t : none, jt ? none : e);
@@ -430,7 +582,9 @@ void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
                     }
                 }
                 path.push_back(line);
-                if (check_exit(path, checks, lb, m)) return;
+                // (a revert's check the exit only where both branches loop back)
+                if (check_exit(path, checks, lb, m, jt && je, opts_.max_rotated, jt != je ? (jt ? t : e) : Value()))
+                    return;
                 as_while_true(m, path, {});
                 return;
             }
@@ -442,18 +596,32 @@ void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
                     path.push_back(line);
                     const usize g = path.size() - 1;
                     path.insert(path.end(), left().begin(), left().end());
-                    if (check_exit(path, checks, lb, m)) return;
+                    // a check at the loop's head (nothing before it a
+                    // rotation would print again) its condition; else a check
+                    // right before the GOTO a test of the next iteration's
+                    // values (head_test); else a check whose lines before it
+                    // rotate
+                    if (check_exit(path, checks, lb, m, true, 0)) return;
+                    if (opts_.exit_test && !checks.empty() && checks.back() + 1 == g && !fails(path[checks.back()][1])) {
+                        const Value chk = path[checks.back()];
+                        const Lines p(path.begin(), path.begin() + isize(checks.back()), res);
+                        if (head_test(p, mk_trace(std::span<const Value>(&line, 1)), chk[1], {}, alg::iszero(chk[0]), lb, m))
+                            return;
+                    }
+                    if (check_exit(path, checks, lb, m, true, opts_.max_rotated)) return;
                     // (no check could be the exit: the lines before each too
                     // many to rotate) a check right before the GOTO - a test
                     // at the end of the iteration, X ending the run - left
                     // as the loop's way out, X after the loop:
                     //   P; IF(c, X, []); GOTO   ->   WHILE(True, [P; IF(not c, [GOTO], [])]); X
                     // (c holds: off the body's end, out of the loop, X; P's
-                    // paths all go on to the check or end)
+                    // paths all go on to the check or end; a check that only
+                    // fails stays a check: c00102's Panic left the loop by
+                    // a break falling into a revert)
                     if (opts_.exit_test && !checks.empty() && checks.back() + 1 == g) {
                         const usize k = checks.back();
                         const Value chk = path[k], x = chk[1];
-                        if (!(x.size() == 1 && (x[0].is(Op::REVERT) || x[0].is(Op::INVALID)))) {
+                        if (!fails(x)) {
                             Lines body(path.begin(), path.begin() + isize(k), res);
                             const Value none = mk_trace(std::span<const Value>());
                             Value r = mk(chk.op(), alg::iszero(chk[0]), mk_trace(std::span<const Value>(&line, 1)), none);
@@ -492,6 +660,91 @@ void Whiles::to_while(std::span<const Value> rest, const Label& lb, Made& m) {
         return;
     }
     as_while_true(m, path, {});
+}
+
+// A test at the end of the iteration that tests the values the next one
+// starts with (the do-while a compiler makes of a loop whose test it moved
+// to the end, behind a test at the loop's entry - a guard -, or a range
+// loop counting to a constant):
+//
+//   LABEL(id, S0); P; IF(c, [GOTO(id, S')], X); R
+//   WHILE(h, [P; GOTO(id, S')], id, S0); X; R
+//
+// with h the test c made at the next iteration's head: each loop variable v
+// c reads steps by a constant (S'(v) = v + k), h = c[v := v - k] and c =
+// h[v := S'(v)] (checked: the substitution undone gives c back), no bigger
+// than c (c tests the next values: `t - 1`, `i + 1 != 3`), and h holds
+// at the first head - h[v := S0(v)] decided true by constants or by the
+// conditions known at the LABEL (the guard). The same runs: the first
+// iteration runs as before; at a later head, h is the test the iteration
+// ended with, evaluated in the same state (nothing but the GOTO's
+// assignments between them), and it reads no variable P sets but the
+// loop's (none unset at the first head). Where it fails, the loop is left
+// with its variables at S'(S), not S: X and R read them a step back (v - k:
+// the values S gave), none of those that don't step by a constant, and set
+// none of those they read. P has no other way back to the head (another
+// back edge would test h where the code doesn't), and the branch that
+// loops back is the GOTO alone (lines before it would run on the last
+// iteration too). Nothing is copied: no first iteration before the loop
+// (P3), no `while True`.
+bool Whiles::head_test(const Lines& path, Value body, Value out, std::span<const Value> after, Value cond,
+                       const Label& lb, Made& m) {
+    if (!opts_.exit_test || !opts_.head_test || path.empty()) return false;  // (empty: the test at the head already)
+    if (!body.is_list() || body.size() != 1) return false;
+    const Value g = body[0];
+    if (!(g.is(Op::GOTO, 2) || g.is(Op::CONTINUE, 2)) || g[0] != lb.id || !g[1].is_list()) return false;
+    const Value pt = trace_of(std::span<const Value>(path.data(), path.size()));
+    if (has_jump_to(pt, lb.id)) return false;
+    const Value at = trace_of(after);
+    // a step back: v - k for each v stepping by a constant k (S'(v) = v + k)
+    Subst back, fwd, first;
+    bool steps = false;
+    for (Value v : lb.names) {
+        const Value sv = setvar_of(g[1], v);
+        first.add(v, setvar_of(lb.setvars, v));
+        if (sv.nil() || sv == v) continue;  // (the same in every iteration)
+        const bool read = reads_name(out, v) || reads_name(at, v);
+        Value k;
+        if (sv.is(Op::ADD, 2)) k = sv[0].is_int() && sv[1] == v ? sv[0] : sv[1].is_int() && sv[0] == v ? sv[1] : Value();
+        if (k.nil()) {
+            // (no step back: nothing reads it where the loop is left, nor tests it)
+            if (read || reads_name(cond, v)) return false;
+            continue;
+        }
+        if (read && (sets_name(out, v) || sets_name(at, v))) return false;
+        back.add(v, alg::sub(v, k));
+        fwd.add(v, sv);
+        steps = steps || reads_name(cond, v);
+    }
+    if (!steps) return false;  // (a test of nothing that steps: not the loop's)
+    const Value h = back(cond);
+    if (fwd(h) != cond) return false;
+    // (a test of the next values reads them as they are, h then the smaller:
+    // `t - 1` made `t`; a test of the current ones would read `v - k` - the
+    // rotation's form reads better)
+    if (node_count(h, 4096) > node_count(cond, 4096)) return false;
+    // no variable P sets but the loop's (unset at the first head)
+    const simplify::EffectSummary& hs = simplify::summary(h);
+    if (hs.reads_any & simplify::S_VARS) return false;
+    if (!hs.var_reads.nil())
+        for (Value x : hs.var_reads.args())
+            if (std::find(lb.names.begin(), lb.names.end(), x) == lb.names.end() && sets_name(pt, x)) return false;
+    // h holds at the first head
+    alg::Facts facts;
+    for (Value k : known_) facts = facts.with_cond(k);
+    if (alg::eval_bool(first(h), known_.empty() ? nullptr : &facts) != Tri::True) return false;
+    Lines b(path.begin(), path.end(), cx().budget.resource());
+    b.push_back(g);
+    m.before.clear();
+    m.body = trace_of(std::span<const Value>(b.data(), b.size()));
+    const Value out2 = back(out), at2 = back(at);
+    m.remaining.assign(out2.args().begin(), out2.args().end());
+    m.remaining.insert(m.remaining.end(), at2.args().begin(), at2.args().end());
+    m.cond = h;
+    m.loop = true;
+    m.exit_after = out.size() != 0;
+    m.head_test = true;
+    return true;
 }
 
 // python exit_values: `out`, the exit branch, made nothing - the variables
@@ -619,11 +872,12 @@ bool Whiles::independent(const Lines& lines, Value setvars) {
 
 // python rotates: the lines before the exit test can run before the loop
 // with its start values, and before each CONTINUE with the next ones
-bool Whiles::rotates(const Lines& path, Value body, const Label& lb) {
+bool Whiles::rotates(const Lines& path, Value body, const Label& lb, u32 cap) {
     if (path.empty()) return true;
     if (!opts_.rotate) return false;
     std::pmr::memory_resource* res = cx().budget.resource();
-    if (weight(std::span<const Value>(path.data(), path.size()), opts_.max_rotated) > opts_.max_rotated) {
+    const std::span<const Value> ps(path.data(), path.size());
+    if (Weight(ps, body)(ps, cap) > cap) {
         // the test late in the iteration (at its end: a do-while, Vyper's
         // range loops): rotated, the first iteration would print before the
         // loop and again before each continue - while True, the test inside

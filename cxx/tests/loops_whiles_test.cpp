@@ -564,12 +564,15 @@ TEST_CASE("loops: a check as the exit test (its branch ends the run)") {
     CHECK(!is_true_cond(w[0]));
     CHECK(w[0] == V("(iszero (eq loop1 3))"));
     // a check that doesn't read the loop's variables: not the exit (the
-    // check before it rotated: three statements, allowed here)
+    // check before it rotated: three statements, allowed here - it reads a
+    // word the iteration writes, its copies before the continues stay)
     const char* t4 =
         "{(setvar tmp1 (mask_shl 1 0 0 (calldataload 4)))"
+        " (setmem (range 32 32) tmp1)"
         " (label loopid1 {(setvar loop1 0)})"
-        " (if tmp1 {(setmem (range 0 32) 5) (return (mem (range 0 32)))} {})"
+        " (if (mem (range 32 32)) {(setmem (range 0 32) 5) (return (mem (range 0 32)))} {})"
         " (if (eq loop1 4) {(stop)} {})"
+        " (setmem (range 32 32) (mask_shl 1 0 0 (add tmp1 loop1)))"
         " (goto loopid1 {(setvar loop1 (add 1 loop1))})}";
     L::WhilesOptions big;
     big.max_rotated = 3;
@@ -582,7 +585,7 @@ TEST_CASE("loops: a check as the exit test (its branch ends the run)") {
     w = first_while(u);
     REQUIRE(!w.nil());
     CHECK(is_true_cond(w[0]));
-    CHECK(w[1][0][0] == V("tmp1"));
+    CHECK(w[1][0][0] == V("(mem (range 32 32))"));
     // a body that may fall off (a break): while True
     u = whiles(
         "{(if (calldataload 4)"
@@ -641,11 +644,20 @@ TEST_CASE("loops: Vyper's loops, their counter in memory, tested at the end") {
         " (store 256 0 (add 300 loop1) 7)"
         " (if (iszero (eq 3 (add 1 loop1))) {(goto loopid1 {(setvar loop1 (add 1 loop1))})} {})"
         " (return (mem (range 0 96)))}";
+    // - and its test, of the counter one step on, holding at the first head,
+    // the loop's condition (head_test: `while loop1 != 3`, not `while True`)
     u = whiles(r);
     REQUIRE(u.size() == 2);
     REQUIRE(u[0].is(Op::WHILE, 4));
+    CHECK(!is_true_cond(u[0][0]));
+    CHECK(u[0][1].size() == 5);
+    L::WhilesOptions nohead;
+    nohead.head_test = false;
+    u = whiles(r, nohead);
+    REQUIRE(u.size() == 2);
     CHECK(is_true_cond(u[0][0]));
     CHECK(u[0][1].size() == 5);
+    o.head_test = false;
     u = whiles(r, o);
     REQUIRE(u.size() == 6);
     CHECK(u[0].is(Op::STORE));
@@ -661,7 +673,162 @@ TEST_CASE("loops: Vyper's loops, their counter in memory, tested at the end") {
         "   {(store 256 0 9 (mem (range 0 32))) (return (mem (range 0 96)))})}");
     REQUIRE(u.size() == 3);
     REQUIRE(u[0].is(Op::WHILE, 4));
-    CHECK(is_true_cond(u[0][0]));
+    CHECK(!is_true_cond(u[0][0]));
     CHECK(u[1].is(Op::STORE));
     CHECK(u[2].is(Op::RETURN));
+}
+
+// ---- the review's round 3: the loops' forms lost by the rotation's limit -----
+
+TEST_CASE("loops: review r3 - checks an iteration can't change, writes a hash reads: rotated (c00046, c00040)") {
+    Fixture f;
+    // c00046's inner loop: four checks of calldata offsets before the exit
+    // test - they read neither the loop's variables nor anything an
+    // iteration writes: the copy before the loop decides those before each
+    // continue (the simplifier drops them), so the rotation copies nothing
+    // that prints twice: `while loop1 < n`, the checks before it, not `while
+    // True` with the test inside after them
+    const char* checks =
+        "{(label loopid1 {(setvar loop1 0) (setvar loop2 0)})"
+        " (if (ge (calldataload 4) 100) {(revert None)} {})"
+        " (if (ge (calldataload 36) 100) {(revert None)} {})"
+        " (if (ge (calldataload 68) 100) {(revert None)} {})"
+        " (if (ge (calldataload 100) 100) {(revert None)} {})"
+        " (if (lt loop1 (mask_shl 3 0 0 (calldataload 132))) {(store 256 0 loop1 loop2)"
+        "   (goto loopid1 {(setvar loop1 (add 1 loop1)) (setvar loop2 (add loop1 loop2))})} {})"
+        " (return (sized 32 loop2))}";
+    Value u = whiles(checks);
+    Value w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(w[0] == V("(lt loop1 (mask_shl 3 0 0 (calldataload 132)))"));
+    REQUIRE(u.size() == 6);
+    for (u32 i = 0; i < 4; ++i) CHECK(u[i].is(Op::IF));
+    // (a check reading what an iteration writes stays a statement each copy
+    // prints: past the two the rotation copies, `while True`)
+    u = whiles(
+        "{(label loopid1 {(setvar loop1 0) (setvar loop2 0)})"
+        " (if (ge (storage 256 0 1) 100) {(revert None)} {})"
+        " (if (ge (storage 256 0 2) 100) {(revert None)} {})"
+        " (if (ge (storage 256 0 3) 100) {(revert None)} {})"
+        " (if (lt loop1 (mask_shl 3 0 0 (calldataload 132))) {(store 256 0 loop1 loop2)"
+        "   (goto loopid1 {(setvar loop1 (add 1 loop1)) (setvar loop2 (add loop1 loop2))})} {})"
+        " (return (sized 32 loop2))}");
+    w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(is_true_cond(w[0]));
+    // c00040's walk of a list in a mapping: the exit test's condition read
+    // through the mapping - its key and slot written at 0 and 32, then hashed
+    // (the simplifier puts the words in the hash, the writes then dead):
+    // rotated, `while tmp2`, the walk's step the body
+    u = whiles(
+        "{(label loopid1 {(setvar loop1 (mask_shl 8 0 0 (calldataload 4)))})"
+        " (if (iszero loop1) {(setvar tmp2 0)}"
+        "   {(setmem (range 0 32) loop1) (setmem (range 32 32) 13) (setvar tmp1 (sha3 (mem (range 0 64))))"
+        "    (setvar tmp2 (lt 5 (storage 8 0 tmp1)))})"
+        " (if tmp2 {(setmem (range 0 32) loop1) (setmem (range 32 32) 13) (setvar tmp4 (sha3 (mem (range 0 64))))"
+        "   (goto loopid1 {(setvar loop1 (storage 8 8 tmp4))})} {})"
+        " (return (sized 32 loop1))}");
+    w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(w[0] == V("tmp2"));
+}
+
+TEST_CASE("loops: review r3 - a test at the end, of the next iteration's values: the loop's head (P3, no while True)") {
+    Fixture f;
+    // solc's zero-filling of a new array of structs (c00088's, c00002's): a
+    // down-counter tested at the end, one step on (t - 1), behind a guard
+    // on the count; the test made the head's - `while loop2`, true at the
+    // first head by the guard - nothing copied, no `while True`; the exit
+    // reads the pointer a step back (it ran one more step)
+    const char* zero =
+        "{(setmem (range 64 32) 2048)"
+        " (setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+        " (if tmp1"
+        "   {(label loopid1 {(setvar loop1 1024) (setvar loop2 tmp1)})"
+        "    (setvar tmp2 (mem (range 64 32)))"
+        "    (setmem (range 64 32) (add 64 tmp2))"
+        "    (setmem (range tmp2 32) 0)"
+        "    (setmem (range loop1 32) tmp2)"
+        "    (if (add -1 loop2) {(goto loopid1 {(setvar loop1 (add 32 loop1)) (setvar loop2 (add -1 loop2))})}"
+        "      {(setvar tmp3 (add 32 loop1))})}"
+        "   {(setvar tmp3 0)})"
+        " (return (data (sized 32 tmp3) (mem (range 1024 96))))}";
+    Value u = whiles(zero);
+    Value w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(w[0] == V("loop2"));
+    REQUIRE(u[2].is(Op::IF));
+    CHECK(u[2][1][0].is(Op::WHILE));  // (nothing before it: no rotation)
+    CHECK(u[2][1][1] == V("(setvar tmp3 loop1)"));
+    // (without the guard, the count may be 0: the first iteration runs
+    // regardless - the test stays at the end)
+    u = whiles(
+        "{(setmem (range 64 32) 2048)"
+        " (setvar tmp1 (mask_shl 3 0 0 (calldataload 4)))"
+        " (label loopid1 {(setvar loop1 1024) (setvar loop2 tmp1)})"
+        " (setvar tmp2 (mem (range 64 32)))"
+        " (setmem (range 64 32) (add 64 tmp2))"
+        " (setmem (range tmp2 32) 0)"
+        " (setmem (range loop1 32) tmp2)"
+        " (if (add -1 loop2) {(goto loopid1 {(setvar loop1 (add 32 loop1)) (setvar loop2 (add -1 loop2))})} {})"
+        " (return (mem (range 1024 96)))}");
+    w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(is_true_cond(w[0]));
+    // a step that isn't a constant (a walk, a hash): no step back, the test stays
+    u = whiles(
+        "{(if (mask_shl 3 0 0 (calldataload 4))"
+        "   {(label loopid1 {(setvar loop1 (mask_shl 3 0 0 (calldataload 4)))})"
+        "    (store 256 0 loop1 1) (store 256 0 (add 1 loop1) 2) (store 256 0 (add 2 loop1) 3)"
+        "    (if (lt 1 loop1) {(goto loopid1 {(setvar loop1 (div loop1 2))})} {})}"
+        "   {})"
+        " (stop)}");
+    w = first_while(u);
+    REQUIRE(!w.nil());
+    CHECK(is_true_cond(w[0]));
+}
+
+TEST_CASE("loops: review r3 - a check that only fails isn't the exit of a loop that has one (c00134, c00015)") {
+    Fixture f;
+    // c00134's claimComp: a subtraction's check (its Panic's data made in
+    // memory) at the head reads the loop's variables; the real test is at
+    // the end, its other branch going on to the outer loop: not `while
+    // loop2 >= loop1` with the bound an exit by `continue loop1` and the
+    // Panic after the loop - `while True`, the check inside, the test at
+    // its end, the outer loop's step after the loop
+    const char* claim =
+        "{(label loopid2 {(setvar loop3 0)})"
+        " (if (lt loop3 3)"
+        "   {(label loopid1 {(setvar loop1 0) (setvar loop2 (mask_shl 3 0 0 (calldataload 36)))})"
+        "    (if (lt loop2 loop1) {(setmem (range 0 32) 35) (setmem (range 32 32) 17) (revert (mem (range 0 64)))} {})"
+        "    (store 256 0 (add 100 loop1) (add 1 loop2)) (store 256 0 (add 200 loop1) 2) (store 256 0 (add 300 loop1) 3)"
+        "    (if (lt (add 1 loop1) (mask_shl 2 0 0 (calldataload 4)))"
+        "      {(store 256 0 99 loop1) (goto loopid1 {(setvar loop1 (add 1 loop1)) (setvar loop2 (storage 256 0 loop1))})}"
+        "      {(goto loopid2 {(setvar loop3 (add 1 loop3))})})}"
+        "   {})"
+        " (stop)}";
+    Value u = whiles(claim);
+    Value outer = first_while(u);
+    REQUIRE(!outer.nil());
+    Value inner = first_while(outer[1]);
+    REQUIRE(!inner.nil());
+    CHECK(is_true_cond(inner[0]));
+    // a search that reverts once past the end (c00227's): the check tests a
+    // counter against its bound - the loop's condition, the revert after it
+    u = whiles(
+        "{(label loopid2 {(setvar loop3 0)})"
+        " (if (lt loop3 3)"
+        "   {(label loopid1 {(setvar loop1 0)})"
+        "    (if (ge loop1 (mask_shl 3 0 0 (calldataload 4))) {(setmem (range 0 32) 7) (setmem (range 32 32) 8)"
+        "      (revert (mem (range 0 64)))} {})"
+        "    (store 256 0 (add 100 loop1) 1) (store 256 0 (add 200 loop1) 2) (store 256 0 (add 300 loop1) 3)"
+        "    (if (eq (storage 256 0 loop1) 5) {(goto loopid2 {(setvar loop3 (add 1 loop3))})}"
+        "      {(store 256 0 7 loop1) (goto loopid1 {(setvar loop1 (add 1 loop1))})})}"
+        "   {})"
+        " (stop)}");
+    outer = first_while(u);
+    REQUIRE(!outer.nil());
+    inner = first_while(outer[1]);
+    REQUIRE(!inner.nil());
+    CHECK(!is_true_cond(inner[0]));
 }

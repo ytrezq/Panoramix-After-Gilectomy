@@ -585,10 +585,12 @@ private:
 
 // ---- backward: liveness -----------------------------------------------------------------
 
-// a set of variables: a bit per variable met (dense ids), or all of them
+// a set of variables: a bit per variable met (dense ids), or all of them;
+// and whether a read of the gas left may run after the point
 class Live {
 public:
     bool all = false;
+    bool gas = false;
     std::vector<u64> bits;
 
     bool has(u32 i) const { return all || (i / 64 < bits.size() && (bits[i / 64] >> (i % 64) & 1)); }
@@ -602,6 +604,7 @@ public:
     }
     void unite(const Live& o) {
         all = all || o.all;
+        gas = gas || o.gas;
         if (o.bits.size() > bits.size()) bits.resize(o.bits.size(), 0);
         for (usize k = 0; k < o.bits.size(); ++k) bits[k] |= o.bits[k];
     }
@@ -679,6 +682,7 @@ private:
     // precompile's or an internal call's results are no reads)
     void add_reads_all(Value v, Live& live) {
         const EffectSummary& s = summary(v);
+        if (counts_gas(v, s)) live.gas = true;
         if (!(s.reads & S_VARS)) return;
         if (!(s.reads_any & S_VARS)) {
             add_reads(s, live);
@@ -700,6 +704,24 @@ private:
             if (v.is_expr() && is_target(v, i)) continue;
             add_reads_parts(v[i], live, seen);
         }
+    }
+    // v reads the gas left where it runs: a read the validation counts (its
+    // gas left goes down read by read) - not a call's gas operand, the GAS
+    // right before the call, which neither interpreter evaluates
+    static bool counts_gas(Value v, const EffectSummary& s) {
+        if (!(s.reads & S_GAS)) return false;
+        if (v.is_expr())
+            switch (v.op()) {
+                case Op::CALL:
+                case Op::CALLCODE:
+                case Op::DELEGATECALL:
+                case Op::STATICCALL:
+                    for (u32 i = 0; i < v.size(); ++i)
+                        if (i != 1 && (summary(v[i]).reads & S_GAS)) return true;
+                    return false;
+                default: break;
+            }
+        return true;
     }
     static bool is_target(Value line, u32 i) {
         switch (line.op()) {
@@ -736,10 +758,14 @@ private:
                     const EffectSummary& vs = summary(l[1]);
                     // (where msize is read, a read of memory moves it; a
                     // read of msize itself changes nothing; a read of the
-                    // gas left stays where the code reads it, read or not:
-                    // every GAS instruction is a read of its own)
+                    // gas left nothing uses stays where the code reads it
+                    // when another read may run after it - every GAS
+                    // instruction is a read of its own, the gas left lower
+                    // at each: without it, those after it would read more -,
+                    // else it is a value nobody sees: c00226's reads for a
+                    // precompile's gas, which the precompile's line drops)
                     const bool droppable = !(vs.control & C_FAILS) && !(run_flags().msize && (vs.reads & S_MEM)) &&
-                                           !(vs.reads & S_GAS);
+                                           !((vs.reads & S_GAS) && live.gas);
                     if (droppable) return Value();
                 }
                 live.remove(index(l[0]));
@@ -783,6 +809,7 @@ private:
                 } else {
                     live = Live{};
                     live.all = true;
+                    live.gas = true;
                 }
                 setvars(l[1], live);
                 return l;
@@ -802,6 +829,8 @@ private:
         }
         const EffectSummary& s = summary(l);
         if (s.control & C_ENDS) live = Live{};
+        // (back in the caller, which may read the gas left)
+        if (s.control & (C_LEAVES | C_CALLS_OUT)) live.gas = true;
         kill_writes(s, live);
         add_reads_all(l, live);
         return l;

@@ -43,8 +43,9 @@
 //    SHA3 term the loop doesn't change: a storage array's start) as v' = v -
 //    h: its start k, every read of it in the loop v' + h, every write of it
 //    there (its CONTINUEs', its setvars) e - h; after the loop v = v' + h set
-//    back (lot 7 drops it when nothing reads it). Exact whatever the steps
-//    (python's only for additive ones: its TODO).
+//    back (lot 7 drops it when nothing reads it). Exact whatever the steps,
+//    made only where they're additive (python's condition: v + d, a
+//    pointer's step; a hash's step moved reads sha3(v' + h) - h).
 //  - rename_var: every occurrence of a name.
 #include "loops/loops.hpp"
 
@@ -757,6 +758,46 @@ private:
     Subst reads_;
 };
 
+// e is v plus what doesn't read v (v + d: a pointer's step)
+bool additive(Value e, Value v) {
+    if (e == v) return true;
+    const alg::Linear l = alg::linear(e);
+    bool once = false;
+    for (const alg::LinTerm& t : l.terms) {
+        if (t.term == v && t.coeff == small(1)) {
+            once = true;
+            continue;
+        }
+        if (reads_name(t.term, v)) return false;
+    }
+    return once;
+}
+
+// every value the loop `id` gives v in body (its CONTINUEs' setvars, any
+// depth; SETVARs of v) is v + d
+bool steps_additive(Value body, Value id, Value v) {
+    SmallVec<Value, 64> todo{body};
+    MemoSet<Value> seen;
+    while (!todo.empty()) {
+        poll();
+        const Value x = todo.back();
+        todo.pop_back();
+        if (!(x.is_expr() || x.is_list()) || !seen.add(x)) continue;
+        if (x.is(Op::SETVAR, 2)) {
+            if (x[0] == v && !additive(x[1], v)) return false;
+            continue;
+        }
+        if ((x.is(Op::CONTINUE, 2) || x.is(Op::GOTO, 2)) && x[0] == id) {
+            const Value e = setvar_of(x[1], v);
+            if (!e.nil() && !additive(e, v)) return false;
+            continue;
+        }
+        if (x.is_list() || has(x.op(), LINE))
+            for (Value a : x.children()) todo.push_back(a);
+    }
+    return true;
+}
+
 // the loop with its variables starting at a storage array's start moved;
 // the lines replacing it (the WHILE, then v set back), or {w}
 void propagate_one(Value w, SmallVec<Value, 4>& out) {
@@ -793,6 +834,10 @@ void propagate_one(Value w, SmallVec<Value, 4>& out) {
             }
         }
         if (other) continue;
+        // (python's condition: v stepping by additions only - moved, a step
+        // e(v) would read e(v' + h) - h: a hash loop's `s = sha3(s + h0) -
+        // h0`, c00004's, c00256's, which reads as nothing)
+        if (!steps_additive(cur[1], cur[2], v)) continue;
         Shift sh(v, h);
         // the start: e - h; the others' starts as they are (before the loop)
         SmallVec<Value, 8> items;

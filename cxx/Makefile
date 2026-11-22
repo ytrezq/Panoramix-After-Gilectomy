@@ -19,6 +19,12 @@
 ##              the unit tests and runs them (any target: make VARIANT=debug X)
 ##   bench      tools/bench.py: the asm, $(B)/pancxx and $(B)/pgo/pancxx over
 ##              $(CORPUS), $(BENCH_ARGS)
+##   readability  $(CORPUS) decompiled into $(B)/readability/, its texts'
+##              readability compared with $(READABILITY_BASE) (tools/
+##              readability.py): fails on a regression $(READABILITY_ALLOW)
+##              doesn't allow; the report in $(B)/readability/report.md
+##   readability-baseline  $(READABILITY_BASE) made again from the texts of
+##              `make readability` (after its report was read)
 ##   clean      rm -rf $(B)
 ## Variables:
 ##   B=build    the build directory: each worker its own, B=build-NAME
@@ -56,6 +62,8 @@ VARIANT   ?= release
 JOBS      ?= 2
 CORPUS    ?= $(abspath corpus-npm/all_hex.txt)
 ABI_DUMP  ?= $(or $(PANORAMIX_ABI_DUMP),/home/claude/panoramix/panoramix/data/abi_dump.xz)
+READABILITY_BASE  ?= tests/readability/npm.jsonl.xz
+READABILITY_ALLOW ?= tests/readability/allow.txt
 SIGDB     ?= $(B)/sigdb2.bin
 ASM       ?= $(abspath ../build/panasm)
 ASM_SIGDB ?= $(abspath ../build/abi_db.bin)
@@ -293,6 +301,20 @@ pgo: corpus-check $(SIGDB)
 debug:
 	$(Q)$(MAKE) VARIANT=debug lib cli unit
 
+readability: corpus-check $(D)/pancxx $(SIGDB)
+	@test -e $(READABILITY_BASE) || { echo "READABILITY_BASE=$(READABILITY_BASE): no such file -" \
+	  "make readability-baseline makes it from a build's texts" >&2; exit 1; }
+	$(call say,TEXTS,$(CORPUS) -> $(B)/readability/texts)
+	$(Q)rm -rf $(B)/readability/texts
+	$(Q)$(PYTHON) tools/readability.py texts $(D)/pancxx $(SIGDB) $(CORPUS) $(B)/readability/texts -j $(JOBS)
+	$(call say,READ,$(READABILITY_BASE))
+	$(Q)$(PYTHON) tools/readability.py compare $(READABILITY_BASE) $(B)/readability/texts \
+	  --allow $(READABILITY_ALLOW) --report $(B)/readability/report.md --list $(B)/readability/regressions.jsonl
+
+readability-baseline:
+	@test -d $(B)/readability/texts || { echo "make readability first" >&2; exit 1; }
+	$(Q)$(PYTHON) tools/readability.py measure $(B)/readability/texts $(READABILITY_BASE)
+
 bench: corpus-check all $(SIGDB)
 	$(Q)$(PYTHON) tools/bench.py --asm $(ASM) --asm-sigdb $(abspath $(ASM_SIGDB)) \
 	  --cxx $(B)/pancxx --pgo $(B)/pgo/pancxx --sigdb $(abspath $(SIGDB)) $(BENCH_ARGS) $(CORPUS)
@@ -301,7 +323,8 @@ endif
 clean:
 	rm -rf $(B)
 
-.PHONY: all lib cli pymod check unit pytests validate stagecheck help sigdb pgo debug bench clean corpus-check FORCE
+.PHONY: all lib cli pymod check unit pytests validate stagecheck help sigdb pgo debug bench clean corpus-check \
+        readability readability-baseline FORCE
 FORCE:
 
 # --- the links ------------------------------------------------------------------
