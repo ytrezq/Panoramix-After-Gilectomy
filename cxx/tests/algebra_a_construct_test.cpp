@@ -636,6 +636,33 @@ TEST_CASE("algebra: what solc's code makes") {
     CHECK(t3.bytes == V("(mask_shl 253 3 -3 tmp1)"));
 }
 
+TEST_CASE("algebra: a field its coefficient cuts at the top makes one term with the field it cancels against") {
+    Fixture f;
+    Value x = V("(calldataload 4)"), y = V("(calldataload 36)");
+    Value cx = A::band(A::add(x, mk_int(31)), A::bnot(mk_int(31)));  // ceil32(x)
+    Value cy = A::band(A::add(y, mk_int(31)), A::bnot(mk_int(31)));
+    // 2 * ceil32(x) is a field of 250 bits (the top one goes out of the word)
+    CHECK(A::mul(mk_int(2), cx) == V("(mask_shl 250 5 1 (add 31 (calldataload 4)))"));
+    // 2 * ceil32(x) - ceil32(x) is ceil32(x), 2 * ceil32(x) - 2 * ceil32(x) 0
+    CHECK(A::sub(A::mul(mk_int(2), cx), cx) == cx);
+    CHECK(A::sub(V("(mask_shl 250 5 1 (add 31 (calldataload 4)))"), A::mul(mk_int(2), cx)) == mk_int(0));
+    // a pointer plus the length from the start to it (2 * p - s): the
+    // address of the word after encoded data (c00218: mem[_26 + 2156] = 0)
+    Value p = A::add(std::vector<Value>{cx, cy, mk_int(1316)});
+    Value raw = mk(Op::ADD, mk(Op::MUL, mk_int(2), p), mk(Op::MUL, mk_int(-1), cx), mk(Op::MUL, mk_int(-1), cy),
+                   mk_int(-476));
+    Value r = A::add(std::vector<Value>{A::mul(mk_int(2), p), A::neg(cx), A::neg(cy), mk_int(-476)});
+    CHECK(r == A::add(std::vector<Value>{cx, cy, mk_int(2156)}));
+    for (u64 s : kSeeds) CHECK(hexw(ev(r, s)) == hexw(ev(raw, s)));
+    // a multiple of the field (ceil32(x) + 2 * ceil32(x)) stays two terms: the
+    // forms of the sums it is compared with (c00183's pointers, each a sum
+    // of 2 * ceil32's, minus each other)
+    Value three = A::add(cx, A::mul(mk_int(2), cx));
+    CHECK(three.is(Op::ADD));
+    CHECK(three.size() == 2);
+    for (u64 s : kSeeds) CHECK(hexw(ev(three, s)) == hexw(ev(mk(Op::MUL, mk_int(3), cx), s)));
+}
+
 TEST_CASE("algebra: python's own asserts (algebra.py, masks.py)") {
     Fixture f;
     // to_bytes(8 * a - 8 * b) == (a - b, 0) - the bits of two byte counts

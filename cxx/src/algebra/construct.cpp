@@ -354,18 +354,62 @@ bool merge_fields(SmallVec<Acc, 8>& terms) {
 
 Value add_impl(std::span<const Value> args);
 
+// A field that k's trailing zeros cut at the top (size 256 - tz(k): the
+// bits above go out of the word) is the same term at any size above that:
+// k * (x >> off & (2^s - 1)) mod 2^256 reads only the bits of x below
+// off + 256 - tz(k). Such fields are widened to the widest field of their x
+// and offset when together they cancel or make one field moved
+// (2 * ceil32(x) - ceil32(x), the first cut to 250 bits, is ceil32(x)); a
+// multiple of a field (96 * (x + 31 >> 5)) stays two terms, the forms the
+// sums it is compared with have. The terms are sorted: the fields of one x
+// and offset are a run, sizes rising.
+bool widen_fields(SmallVec<Acc, 8>& terms) {
+    bool changed = false;
+    for (usize i = 0; i < terms.size();) {
+        usize j = i + 1;
+        while (j < terms.size() && terms[j].base == terms[i].base && terms[j].off == terms[i].off) ++j;
+        if (j - i >= 2 && is_field(terms[i])) {
+            const i32 widest = terms[j - 1].size;
+            auto cut = [&](const Acc& t) {
+                const u32 p = tz(t.k);
+                return t.size < widest && p < 256 && t.size == i32(256 - p) && t.off + widest <= 256;
+            };
+            Word256 k{};
+            bool any = false;
+            for (usize a = i; a < j; ++a)
+                if (terms[a].size == widest || cut(terms[a])) {
+                    k = pan::add(k, terms[a].k);
+                    any = any || cut(terms[a]);
+                }
+            const Word256 odd = k.is_zero() ? Word256{} : pan::sar(Word256::of(tz(k)), k);
+            if (any && (k.is_zero() || odd == Word256::of(1) || odd == w_ones()))
+                for (usize a = i; a < j; ++a)
+                    if (cut(terms[a])) {
+                        terms[a].size = widest;
+                        changed = true;
+                    }
+        }
+        i = j;
+    }
+    return changed;
+}
+
 Value add_terms(SmallVec<Acc, 8>& terms, Word256 c, int round) {
     // merge equal keys, until stable (a merged coefficient may shorten a field)
-    for (int pass = 0;; ++pass) {
-        poll();
-        for (Acc& a : terms)
-            if (!a.k.is_zero()) set_key(a);
+    auto sort_terms = [&] {
         std::sort(terms.begin(), terms.end(), [](const Acc& a, const Acc& b) {
             if (a.k.is_zero() != b.k.is_zero()) return b.k.is_zero();
             if (a.k.is_zero()) return false;
             return acc_cmp(a, b) < 0;
         });
+    };
+    for (int pass = 0;; ++pass) {
+        poll();
+        for (Acc& a : terms)
+            if (!a.k.is_zero()) set_key(a);
+        sort_terms();
         while (!terms.empty() && terms.back().k.is_zero()) terms.pop_back();
+        if (widen_fields(terms)) sort_terms();
         bool merged = false;
         SmallVec<Acc, 8> out;
         for (const Acc& a : terms) {
