@@ -697,7 +697,10 @@ what it changes, its own numbered results among them, not an earlier
 call's: the free memory pointer moved by `ceil32(return_data.size)` of one
 call stays known past the next; backward, unread writes dropped), changing
 nothing a msize read would see. `cleanup_conds` keeps up to 32 known
-conditions as facts and removes what they decide. Python's `small_words`
+conditions as facts and removes what they decide; the lines after a line
+every path of which ends (a branch decided in its if's place, an if whose
+branches both end once simplified: the VM's join after it, reading
+variables set on no path left) are dropped. Python's `small_words`
 is made sound (`SmallWords`, `simplify.cpp`): a word the contract is
 given counts as below 2^64 in memory positions only past a check bounding
 it on the lines every execution that goes on runs - a check of `k * len`

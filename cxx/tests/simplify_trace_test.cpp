@@ -412,6 +412,38 @@ TEST_CASE("simplify: conditions known on the path") {
         S::cleanup_conds);
 }
 
+TEST_CASE("simplify: what follows a line that ends on every path is dropped") {
+    Fixture f;
+    // the VM's join after an if (c00035's onJoinPool): once the inner test
+    // is decided, both branches revert - the lines after the if, reading a
+    // variable the gone branch set, run on no path
+    Value u = check_trace(
+        "{(if (calldataload 4) {(revert None)} {(if (lt (calldataload 36) 10) {(if (lt (calldataload 36) 20) {(revert "
+        "None)} {(setvar tmp1 5)})} {(revert None)})}) (store 256 0 2 tmp1) (return (sized 32 tmp1))}",
+        S::cleanup_conds);
+    CHECK(u.size() == 1);
+    CHECK(S::ends(u));
+    CHECK(!contains(u, V("tmp1")));
+    // a decided branch that ends, in the if's place: what follows it goes
+    // (c00536's `return ...` followed by the rest of the function)
+    u = check_trace(
+        "{(if (lt (calldataload 4) 10) {(if (lt (calldataload 4) 20) {(return (sized 32 1))} {(setvar tmp1 3)}) (log1 "
+        "None tmp1) (stop)} {(stop)})}",
+        S::cleanup_conds);
+    CHECK(u[0][1].size() == 1);
+    CHECK(u[0][1][0].is(Op::RETURN));
+    // in a loop's body: the lines after a continue
+    u = check_trace(
+        "{(while (lt loop1 3) {(if 1 {(continue loopid1 {(setvar loop1 (add 1 loop1))})} {}) (store 256 0 5 1)} loopid1 "
+        "[(setvar loop1 0)]) (stop)}",
+        S::cleanup_conds);
+    CHECK(!has_op(u, Op::STORE));
+    // an if one branch of which goes on: what follows stays
+    u = check_trace(
+        "{(if (calldataload 4) {(revert None)} {(setvar tmp1 5)}) (return (sized 32 tmp1))}", S::cleanup_conds);
+    CHECK(u.size() == 2);
+}
+
 TEST_CASE("simplify: memory where msize is read") {
     Fixture f;
     // a read of what was written: its bytes (it touches no more memory); a
