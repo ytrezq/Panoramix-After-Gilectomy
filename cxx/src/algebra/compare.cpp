@@ -361,35 +361,46 @@ Tri int_cmp(Value a, Value b, bool strict, Top top, RangeQuery& q) {
 }  // namespace
 
 // docs/alloc-floor.md: the decisions about positions (Top::Memory) read
-// mem[A] as F + d where the facts floor it (Facts::floored)
-#define PAN_FLOORED(a, b)                                     \
-    if (top == Top::Memory && facts && facts->any_floor()) { \
-        a = floored(a, *facts);                               \
-        b = floored(b, *facts);                               \
-    }
+// mem[A] as F + d where the facts floor it (Facts::floored). A question the
+// floors leave open is asked again as it was, with the other facts: reading
+// a variable as its floor plus d loses what a condition about the variable
+// itself says (require rds + p >= p + n + 32, with p's floor: p is then F +
+// d in the question, not in the fact) - each answer holds, the floors only
+// add facts.
+template <class F>
+Tri floored_decision(Value a, Value b, Top top, const Facts* facts, F&& decide) {
+    if (!(top == Top::Memory && facts && facts->any_floor())) return decide(a, b);
+    const Value fa = floored(a, *facts), fb = floored(b, *facts);
+    const Tri t = decide(fa, fb);
+    if (t != Tri::None || (fa == a && fb == b)) return t;
+    return decide(a, b);
+}
 
 Tri int_lt(Value a, Value b, Top top, const Facts* facts) {
-    PAN_FLOORED(a, b)
-    const Value ab[2] = {a, b};
-    RangeQuery q(facts, ab);
-    return guarded([&] { return int_cmp(a, b, true, top, q); }, Tri::None);
+    return floored_decision(a, b, top, facts, [&](Value x, Value y) {
+        const Value ab[2] = {x, y};
+        RangeQuery q(facts, ab);
+        return guarded([&] { return int_cmp(x, y, true, top, q); }, Tri::None);
+    });
 }
 
 Tri int_le(Value a, Value b, Top top, const Facts* facts) {
-    PAN_FLOORED(a, b)
-    const Value ab[2] = {a, b};
-    RangeQuery q(facts, ab);
-    return guarded([&] { return int_cmp(a, b, false, top, q); }, Tri::None);
+    return floored_decision(a, b, top, facts, [&](Value x, Value y) {
+        const Value ab[2] = {x, y};
+        RangeQuery q(facts, ab);
+        return guarded([&] { return int_cmp(x, y, false, top, q); }, Tri::None);
+    });
 }
 
 // ---- words -------------------------------------------------------------------------
 
 Tri decide_cmp(Op op, Value a, Value b, Top top, const Facts* facts) {
     if (!is_cmp_op(op)) return Tri::None;
-    PAN_FLOORED(a, b)
-    const Value ab[2] = {a, b};
-    Decider d(facts, top, ab);
-    return guarded([&] { return d.decide_op(op, a, b); }, Tri::None);
+    return floored_decision(a, b, top, facts, [&](Value x, Value y) {
+        const Value ab[2] = {x, y};
+        Decider d(facts, top, ab);
+        return guarded([&] { return d.decide_op(op, x, y); }, Tri::None);
+    });
 }
 
 Tri lt(Value a, Value b, Top top, const Facts* facts) { return decide_cmp(Op::LT, a, b, top, facts); }
