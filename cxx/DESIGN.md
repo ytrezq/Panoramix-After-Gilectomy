@@ -644,7 +644,9 @@ its end - solc's cleanup word - in a trace that reads no msize), `to_store`
 (a loop whose one write is a STORE of a word: memory, calldata, storage
 words or zeroes into consecutive slots, `stor[slot len n] = ...`,
 `STORE_RANGE`), `propagate_storage_in_loops` (an exact change of
-variables), `rename_var`. On the corpus (lot 6, before its second round):
+variables, made for a variable stepping by additions only - python's
+condition: a hash loop's `s = sha3(s + h0) - h0` reads as nothing),
+`rename_var`. On the corpus (lot 6, before its second round):
 14,281 loops, 95.5% with a `while cond`; 3,353 trip counts proven of
 10,659 counters.
 
@@ -1392,7 +1394,8 @@ stagechecks above: 0 different at every stage they ran):
   from 23% to 5% of the first 20 contracts' loops); a copy loop is a SETMEM
   only when provably the same (python's rule would rewrite 555 more of 4000
   random copy loops, 172 wrongly: behind `dubious`);
-  `propagate_storage_in_loops` is exact for any step.
+  `propagate_storage_in_loops` is exact for any step (made, as python's,
+  for additive ones).
 - **The EVM's stack limit** (lot 5): `INVALID(STACK_OVERFLOW)` past 1024
   words; python had no such check. **Python's floats** (lot 10): `2 ** -k`
   printed as a division.
