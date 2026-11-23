@@ -332,6 +332,15 @@ Value named(const std::string& text) {
     return u;
 }
 
+// the SETVARs of v that set name
+usize sets_of(Value v, Value name) {
+    std::vector<Value> svs;
+    lines_of(v, Op::SETVAR, svs);
+    usize n = 0;
+    for (Value sv : svs) n += sv[0] == name;
+    return n;
+}
+
 // the STORE lines of u, in order
 std::vector<Value> stores_of(Value u) {
     std::vector<Value> stores;
@@ -361,23 +370,36 @@ TEST_CASE("long lines: a storage key a variable of the trace's own holds reads a
         CHECK_MESSAGE(stores[0][2] == V("(sha3 (sized 32 tmp7) (sized 32 2))"), dump_trace(u));
         CHECK(count_of(stores[0][3], V("tmp7")) == 1);
     }
-    SUBCASE("where the variable holds the hash: not before it is set, not after it is set again") {
-        Value u = named("{(store 256 0 " + slot + " 1) (setvar tmp7 " + k + ") (store 256 0 " + slot +
-                        " 2) (setvar tmp7 (calldataload 4)) (store 256 0 " + slot + " 3) (return (sized 32 tmp7))}");
+    SUBCASE("where the variable holds the hash: not after it is set again") {
+        Value u = named("{(setvar tmp7 " + k + ") (store 256 0 " + slot + " 1) (setvar tmp7 (calldataload 4)) (store 256 0 " + slot +
+                        " 3) (return (sized 32 tmp7))}");
         const auto stores = stores_of(u);
-        REQUIRE(stores.size() == 3);
-        CHECK_MESSAGE(stores[0][2] == V(slot.c_str()), dump_trace(u));
-        CHECK_MESSAGE(stores[1][2] == V("(sha3 (sized 32 tmp7) (sized 32 2))"), dump_trace(u));
-        CHECK_MESSAGE(stores[2][2] == V(slot.c_str()), dump_trace(u));
+        REQUIRE(stores.size() == 2);
+        CHECK_MESSAGE(stores[0][2] == V("(sha3 (sized 32 tmp7) (sized 32 2))"), dump_trace(u));
+        CHECK_MESSAGE(stores[1][2] == V(slot.c_str()), dump_trace(u));
     }
-    SUBCASE("a line that isn't long keeps its key") {
-        // `stor2[sha3(caller, cd[4])] = 1`: 31 characters
+    SUBCASE("lines before the variable is set: a name before the first of them, the variable read as it") {
+        // (name_values' hashes pass: the hash three lines read; the
+        // variable's line gone, the name takes its number)
+        Value u = named("{(store 256 0 " + slot + " 1) (setvar tmp7 " + k + ") (store 256 0 " + slot +
+                        " 2) (return (sized 32 tmp7))}");
+        const Value name = name_of(u, V(k.c_str()));
+        REQUIRE_MESSAGE(!name.nil(), dump_trace(u));
+        CHECK(u[0].is(Op::SETVAR, 2));
+        CHECK_MESSAGE(sets_of(u, name) == 1, dump_trace(u));
+        const auto stores = stores_of(u);
+        REQUIRE(stores.size() == 2);
+        for (Value st : stores) CHECK_MESSAGE(st[2] == mk(Op::SHA3, mk(Op::SIZED, Value::small(32), name), V("(sized 32 2)")), dump_trace(u));
+    }
+    SUBCASE("a line that isn't long: the variable stands for the key too") {
+        // `stor2[sha3(caller, cd[4])] = 1`, 31 characters: the hashes pass
+        // writes the variable that holds the key in any line
         const std::string k2 = "(sha3 (sized 32 caller) (sized 32 (calldataload 4)))";
         const std::string slot2 = "(sha3 (sized 32 " + k2 + ") (sized 32 2))";
         Value u = named("{(setvar tmp7 " + k2 + ") (store 256 0 " + slot2 + " 1) (return (sized 32 tmp7))}");
         const auto stores = stores_of(u);
         REQUIRE(stores.size() == 1);
-        CHECK_MESSAGE(stores[0][2] == V(slot2.c_str()), dump_trace(u));
+        CHECK_MESSAGE(stores[0][2] == V("(sha3 (sized 32 tmp7) (sized 32 2))"), dump_trace(u));
     }
 }
 
@@ -403,13 +425,18 @@ TEST_CASE("long lines: a variable stands for a key, not for a mapping's slot (th
         CHECK(stores[0][2][1][1][1] == V("(sized 32 11)"));
         CHECK_MESSAGE(count_of(stores[0], V("tmp7")) == 0, dump_trace(u));
 
+        // (k read by three lines - tmp7's, tmp8's, the store -: a name
+        // before the first, tmp8 read as it)
         u = named("{(setvar tmp7 " + inner + ") (setvar tmp8 " + k + ") " + line + " (return (sized 32 (add tmp7 tmp8)))}");
         stores = stores_of(u);
         REQUIRE(stores.size() == 1);
-        const std::string kept = "(sha3 (sized 32 (calldataload 4)) (sized 32 (sha3 (sized 32 tmp8) (sized 32 11))))";
-        CHECK_MESSAGE(stores[0][2] == V(kept.c_str()), dump_trace(u));
+        const Value kn = name_of(u, V(k.c_str()));
+        REQUIRE_MESSAGE(!kn.nil(), dump_trace(u));
+        const Value kept = mk(Op::SHA3, V("(sized 32 (calldataload 4))"),
+                              mk(Op::SIZED, Value::small(32), mk(Op::SHA3, mk(Op::SIZED, Value::small(32), kn), V("(sized 32 11)"))));
+        CHECK_MESSAGE(stores[0][2] == kept, dump_trace(u));
         CHECK_MESSAGE(count_of(stores[0], V("tmp7")) == 0, dump_trace(u));
-        CHECK_MESSAGE(count_of(stores[0][3], V("tmp8")) == 1, dump_trace(u));
+        CHECK_MESSAGE(count_of(stores[0][3], kn) == 1, dump_trace(u));
     }
     SUBCASE("a hash that may be a slot under either layout is left") {
         // `sha3(sha3(cd[4], 5), 11)`: the first part a mapping's slot where
@@ -446,20 +473,20 @@ TEST_CASE("long lines: a key the checks before the line read keeps its hash wher
         REQUIRE(stores.size() == 1);
         CHECK_MESSAGE(stores[0][2] == V("(sha3 (sized 32 tmp7) (sized 32 2))"), dump_trace(u));
     }
-    SUBCASE("a check of the sum the line stores: the key stays in both") {
+    SUBCASE("a check of the sum the line stores: the check's operand read in the line as the check has it") {
         // `if stor2[k] + 1 < cd[4000]: revert`, then `stor2[k] = stor2[k] +
-        // 1`: the line uses the sum the check checks - the check's operand
-        // is read in the line as the check has it (lot 8's SafeMath pairs
-        // them by it)
+        // 1`: the line uses the sum the check checks - lot 8's SafeMath
+        // pairs them by it (the variable in both: the hashes pass, from the
+        // check on)
         Value u = named("{(setvar tmp7 " + k + ") (if (lt (add 1 " + read + ") (calldataload 4000)) {(revert None)} {}) "
                         "(store 256 0 " + slot + " (add 1 " + read + ")) (return (sized 32 tmp7))}");
         const auto stores = stores_of(u);
         REQUIRE(stores.size() == 1);
-        CHECK_MESSAGE(stores[0][2] == V(slot.c_str()), dump_trace(u));
         std::vector<Value> ifs;
         lines_of(u, Op::IF, ifs);
         REQUIRE(ifs.size() == 1);
         CHECK_MESSAGE(count_of(ifs[0][0], stores[0][3]) == 1, dump_trace(u));
+        CHECK_MESSAGE(count_of(ifs[0][0], stores[0][2]) == 1, dump_trace(u));
     }
 }
 
@@ -606,13 +633,18 @@ TEST_CASE("long lines: a key the checks before the line read is named, unless th
         Value u = check_whole("{(if (iszero " + read + ") {(revert None)} {}) " + store + " (stop)}");
         CHECK_MESSAGE(!name_of(u, V(k.c_str())).nil(), dump_trace(u));
     }
-    SUBCASE("a check of the sum the line stores: the key stays in both") {
+    SUBCASE("a check of the sum the line stores: the check's operand read in the line as the check has it") {
         // `if stor2[k] + 1 < cd[400]: revert` (a line that isn't long), then
         // `stor2[k] = stor2[k] + 1`: the line uses the sum the check
-        // checks - the check's operand is read in the line as the check has
-        // it (lot 8's SafeMath pairs them by it)
+        // checks - lot 8's SafeMath pairs them by it (the key read by both:
+        // named before the check, the hashes pass - both read the name)
         Value u = check_whole("{(if (lt (add 1 " + read + ") (calldataload 400)) {(revert None)} {}) " + store + " (stop)}");
-        CHECK_MESSAGE(name_of(u, V(k.c_str())).nil(), dump_trace(u));
+        std::vector<Value> ifs;
+        lines_of(u, Op::IF, ifs);
+        const auto stores = stores_of(u);
+        REQUIRE(ifs.size() == 1);
+        REQUIRE(stores.size() == 1);
+        CHECK_MESSAGE(count_of(ifs[0][0], stores[0][3]) == 1, dump_trace(u));
     }
     SUBCASE("a long check: its key named before it, the line after reads the name too") {
         Value u = check_whole("{(if (lt (add 1 " + read + ") " + read + ") {(revert None)} {}) " + store + " (stop)}");
@@ -645,6 +677,188 @@ TEST_CASE("long lines: no name is made for a key a name already hides (c00066 wi
     lines_of(u, Op::SETVAR, svs);
     CHECK(!svs.empty());
     for (Value sv : svs) CHECK_MESSAGE(count_of(u, sv[0]) >= 2, dump_trace(u));  // (set, and read)
-    // (the read is what the check named)
-    CHECK_MESSAGE(!name_of(u, V(read.c_str())).nil(), dump_trace(u));
+    // (the key, three lines read: named once, by the hashes pass)
+    CHECK_MESSAGE(count_of(u, V(k.c_str())) == 1, dump_trace(u));
+}
+
+// ---- the hashes the lines read (name_values' hashes pass) ----------------------------------
+
+TEST_CASE("hashes: a hash two lines read gets one name, set before the first (the review's c00172, c00089)") {
+    Fixture fx;
+    // (a hash of four calldata words and the caller: no storage layout's
+    // slot, the rounds' variable put where it is read - the memory pass
+    // reads it as calldata, no more as memory the trace doesn't know)
+    const std::string h = data_hash(0, 4);
+    const Value hv = V(h.c_str());
+    SUBCASE("two lines: one name, read by both") {
+        Value u = named("{(setmem (range 0 32) " + h + ") (setmem (range 64 32) " + h + ") (return (mem (range 0 96)))}");
+        const Value name = name_of(u, hv);
+        REQUIRE_MESSAGE(!name.nil(), dump_trace(u));
+        CHECK(u[0].is(Op::SETVAR, 2));  // (before the first)
+        CHECK_MESSAGE(count_of(u, hv) == 1, dump_trace(u));  // (the name's value)
+        CHECK_MESSAGE(count_of(u, name) == 3, dump_trace(u));
+    }
+    SUBCASE("one line, twice: no name") {
+        const std::string slot = "(sha3 (sized 32 " + h + ") (sized 32 2))";
+        Value u = named("{(store 256 0 " + slot + " (add 1 (storage 256 0 " + slot + "))) (stop)}");
+        CHECK_MESSAGE(name_of(u, hv).nil(), dump_trace(u));
+    }
+    SUBCASE("read where its value holds: set again past a write of what it hashes") {
+        // sha3(stor[5], caller), read twice, stor[5] written, read twice
+        const std::string hs = "(sha3 (sized 32 (storage 256 0 5)) (sized 32 caller))";
+        Value u = named("{(setmem (range 0 32) " + hs + ") (setmem (range 32 32) " + hs + ") (store 256 0 5 (calldataload 4)) "
+                        "(setmem (range 64 32) " + hs + ") (setmem (range 96 32) " + hs + ") (return (mem (range 0 128)))}");
+        const Value name = name_of(u, V(hs.c_str()));
+        REQUIRE_MESSAGE(!name.nil(), dump_trace(u));
+        CHECK_MESSAGE(sets_of(u, name) == 2, dump_trace(u));
+        REQUIRE(u.size() == 8);
+        CHECK(u[3].is(Op::STORE));
+        CHECK(u[4].is(Op::SETVAR, 2));  // (set again after the write)
+    }
+}
+
+TEST_CASE("hashes: in a storage slot, a hash is written as its name where the storage's forms read it as a key, never as a slot") {
+    Fixture fx;
+    const std::string k = data_hash(1, 4);
+    const Value kv = V(k.c_str());
+    const std::string mems = "(setmem (range 0 32) " + k + ") (setmem (range 32 32) " + k + ")";
+    SUBCASE("a key: its name") {
+        Value u = named("{" + mems + " (store 256 0 (sha3 (sized 32 " + k + ") (sized 32 2)) 1) (return (mem (range 0 64)))}");
+        const Value name = name_of(u, kv);
+        REQUIRE_MESSAGE(!name.nil(), dump_trace(u));
+        const auto stores = stores_of(u);
+        REQUIRE(stores.size() == 1);
+        CHECK_MESSAGE(stores[0][2] == mk(Op::SHA3, mk(Op::SIZED, Value::small(32), name), V("(sized 32 2)")), dump_trace(u));
+    }
+    SUBCASE("the slot itself: as it is") {
+        Value u = named("{" + mems + " (store 256 0 " + k + " 1) (return (mem (range 0 64)))}");
+        REQUIRE_MESSAGE(!name_of(u, kv).nil(), dump_trace(u));
+        const auto stores = stores_of(u);
+        REQUIRE(stores.size() == 1);
+        CHECK_MESSAGE(stores[0][2] == kv, dump_trace(u));
+    }
+    SUBCASE("an inner mapping's slot: as it is, its key named") {
+        // m[k][cd[4]]: the inner hash sha3(k, 11) is the slot of m[k] - the
+        // storage's forms read it (named, a slot of its own for them,
+        // c00168); k is its key
+        const std::string inner = "(sha3 (sized 32 " + k + ") (sized 32 11))";
+        Value u = named("{(setmem (range 0 32) " + inner + ") (setmem (range 32 32) " + inner +
+                        ") (store 256 0 (sha3 (sized 32 (calldataload 4)) (sized 32 " + inner + ")) 1) (return (mem (range 0 64)))}");
+        const auto stores = stores_of(u);
+        REQUIRE(stores.size() == 1);
+        const Value sl = stores[0][2];
+        REQUIRE_MESSAGE(sl.is(Op::SHA3, 2), dump_trace(u));
+        REQUIRE(sl[1].is(Op::SIZED, 2));
+        REQUIRE_MESSAGE(sl[1][1].is(Op::SHA3, 2), dump_trace(u));  // (the inner slot: a hash still)
+        CHECK(sl[1][1][1] == V("(sized 32 11)"));
+        const Value name = name_of(u, kv);
+        REQUIRE_MESSAGE(!name.nil(), dump_trace(u));
+        CHECK(sl[1][1][0] == mk(Op::SIZED, Value::small(32), name));
+    }
+    SUBCASE("a hash whose first word is a number: a slot under the layout that hashes the slot first - as it is") {
+        // (c00172's sha3(32, cd[..], ...): an abi encoding, its offset first)
+        const std::string h3 = "(sha3 (sized 32 32) (sized 32 (calldataload 4)) (sized 32 (calldataload 36)))";
+        Value u = named("{(setmem (range 0 32) " + h3 + ") (setmem (range 32 32) " + h3 + ") (store 256 0 (sha3 (sized 32 " + h3 +
+                        ") (sized 32 5)) 1) (return (mem (range 0 64)))}");
+        REQUIRE_MESSAGE(!name_of(u, V(h3.c_str())).nil(), dump_trace(u));
+        const auto stores = stores_of(u);
+        REQUIRE(stores.size() == 1);
+        CHECK_MESSAGE(stores[0][2] == V(("(sha3 (sized 32 " + h3 + ") (sized 32 5))").c_str()), dump_trace(u));
+    }
+    SUBCASE("a key holding a hash that votes for the layout: as it is") {
+        // (storage/analyse.cpp vote_language: sha3(cd[4], 7), a number and a
+        // word - hidden by a name, the vote would be another)
+        const std::string k2 = "(sha3 (sized 32 caller) (sized 32 (sha3 (sized 32 (calldataload 4)) (sized 32 7))))";
+        Value u = named("{(setmem (range 0 32) " + k2 + ") (setmem (range 32 32) " + k2 + ") (store 256 0 (sha3 (sized 32 " + k2 +
+                        ") (sized 32 2)) 1) (return (mem (range 0 64)))}");
+        REQUIRE_MESSAGE(!name_of(u, V(k2.c_str())).nil(), dump_trace(u));
+        const auto stores = stores_of(u);
+        REQUIRE(stores.size() == 1);
+        CHECK_MESSAGE(stores[0][2] == V(("(sha3 (sized 32 " + k2 + ") (sized 32 2))").c_str()), dump_trace(u));
+    }
+}
+
+TEST_CASE("hashes: no name in the data of a log or a return (the bytes the printer decodes)") {
+    Fixture fx;
+    const std::string h = data_hash(2, 4);
+    const Value hv = V(h.c_str());
+    SUBCASE("read by the data of two logs alone: no name") {
+        Value u = named("{(log1 (data (sized 32 " + h + ")) 7) (log1 (data (sized 32 " + h + ")) 8) (stop)}");
+        CHECK_MESSAGE(name_of(u, hv).nil(), dump_trace(u));
+    }
+    SUBCASE("named by two lines: the log's data as it was") {
+        Value u = named("{(setmem (range 0 32) " + h + ") (setmem (range 32 32) " + h + ") (log1 (data (sized 32 " + h +
+                        ")) 7) (return (mem (range 0 64)))}");
+        const Value name = name_of(u, hv);
+        REQUIRE_MESSAGE(!name.nil(), dump_trace(u));
+        CHECK_MESSAGE(count_of(u, hv) == 2, dump_trace(u));  // (the name's value, the log's data)
+        CHECK_MESSAGE(count_of(u, name) == 3, dump_trace(u));
+    }
+}
+
+TEST_CASE("hashes: a variable of the trace set to the hash is its name; one set to a hash a name holds reads as that name (c00004 createSubscription)") {
+    Fixture fx;
+    // a hash of memory the trace doesn't know, a mapping's key in two
+    // stores (the first names' pass keeps the variable set to it - a hash
+    // of memory -, makes none for a slot's key)
+    const std::string h = "(sha3 (sized 32 caller) (mem (range 400 64)))";
+    const Value hv = V(h.c_str());
+    auto store = [&](int place, int v) {
+        return "(store 256 0 (sha3 (sized 32 " + h + ") (sized 32 " + std::to_string(place) + ")) " + std::to_string(v) + ")";
+    };
+    SUBCASE("the variable first: no name made") {
+        Value u = named("{(setvar tmp7 " + h + ") " + store(2, 1) + " " + store(3, 2) +
+                        " (setmem (range 0 32) tmp7) (return (mem (range 0 32)))}");
+        std::vector<Value> svs;
+        lines_of(u, Op::SETVAR, svs);
+        CHECK_MESSAGE(svs.size() == 1, dump_trace(u));
+        CHECK_MESSAGE(count_of(u, V("tmp7")) == 4, dump_trace(u));  // (set, the two keys, the memory word)
+        CHECK_MESSAGE(count_of(u, hv) == 1, dump_trace(u));
+    }
+    SUBCASE("the name first: the variable reads as it, its line gone") {
+        Value u = named("{" + store(2, 1) + " " + store(3, 2) + " (setvar tmp7 " + h +
+                        ") (setmem (range 0 32) tmp7) (return (mem (range 0 32)))}");
+        const Value name = name_of(u, hv);
+        REQUIRE_MESSAGE(!name.nil(), dump_trace(u));
+        CHECK(u[0].is(Op::SETVAR, 2));  // (before the first store)
+        CHECK_MESSAGE(sets_of(u, name) == 1, dump_trace(u));  // (the variable's line gone: the name takes its number)
+        CHECK_MESSAGE(count_of(u, name) == 4, dump_trace(u));
+        CHECK_MESSAGE(count_of(u, hv) == 1, dump_trace(u));
+    }
+}
+
+TEST_CASE("hashes: a hash holding what the checks right before the line read, where the line uses what they check, is written out (lot 8's SafeMath)") {
+    Fixture fx;
+    // `require cd[4] + 1 >= cd[4]`, then `mem[0] = (cd[4] + 1) + sha3(cd[4] +
+    // 1, caller)`: lot 8 finds the check's sum in the line that uses it
+    const std::string h = "(sha3 (sized 32 (add 1 (calldataload 4))) (sized 32 caller))";
+    const std::string check = "(if (lt (add 1 (calldataload 4)) (calldataload 4)) {(revert None)} {}) ";
+    SUBCASE("the line uses the sum: the hash written out") {
+        Value u = named("{" + check + "(setmem (range 0 32) (xor (add 1 (calldataload 4)) " + h + ")) (setmem (range 32 32) " + h +
+                        ") (return (mem (range 0 64)))}");
+        CHECK_MESSAGE(name_of(u, V(h.c_str())).nil(), dump_trace(u));
+    }
+    SUBCASE("the line uses no arithmetic they check: named") {
+        Value u = named("{" + check + "(setmem (range 0 32) " + h + ") (setmem (range 32 32) " + h + ") (return (mem (range 0 64)))}");
+        CHECK_MESSAGE(!name_of(u, V(h.c_str())).nil(), dump_trace(u));
+    }
+    SUBCASE("arithmetic a check reads that a call's data has: its hashes as they are, in the check and the line alike") {
+        // (uniswa410 PoolManagerTest: `mem[388] = SafeMath.add(sha3(_25, 6),
+        // 1)` where the call's data, no name there, has sha3(sha3(..), 6) + 1:
+        // the check paired with one, not the other)
+        // (`if a > a + 1: revert`, a = sha3(h2, 6): the check as it is, its
+        // operand and its sum, as the line and the log have them)
+        const std::string h2 = data_hash(5, 4);
+        const std::string a = "(sha3 (sized 32 " + h2 + ") (sized 32 6))";
+        const std::string sum = "(add 1 " + a + ")";
+        const std::string check = "(if (gt " + a + " " + sum + ") {(revert None)} {})";
+        Value u = named("{(setmem (range 0 32) " + h2 + ") (setmem (range 32 32) " + h2 + ") " + check + " (setmem (range 64 32) " + sum +
+                        ") (log1 (data (sized 32 " + sum + ")) 7) (return (mem (range 0 96)))}");
+        REQUIRE_MESSAGE(!name_of(u, V(h2.c_str())).nil(), dump_trace(u));
+        std::vector<Value> ifs;
+        lines_of(u, Op::IF, ifs);
+        REQUIRE(ifs.size() == 1);
+        CHECK_MESSAGE(ifs[0] == V(check.c_str()), dump_trace(u));
+        CHECK_MESSAGE(count_of(u, V(sum.c_str())) == 3, dump_trace(u));  // (the check's, the line's, the log's)
+    }
 }

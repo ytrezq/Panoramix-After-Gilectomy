@@ -247,6 +247,7 @@ constexpr u32 kMinPart = 12;     // the narrowest part named
 constexpr u32 kNameWidth = 5;    // a name's (_123)
 constexpr u32 kMaxNames = 8;     // the names one line gets, at most
 constexpr u32 kMinKey = 40;      // the narrowest storage key named though read once
+constexpr u32 kMinHash = 20;     // the narrowest hash the lines that read it name (name_hashes)
 constexpr u64 kMaxWidth = 1u << 24;
 
 // about the characters an integer prints with (output/text.cpp
@@ -421,15 +422,31 @@ public:
     // first names are made, before the long lines'): the lines' variables
     // neither put nor named; its names put where their values are
     bool rounded_only = false;
+    // with naming, the hashes' pass alone (name_hashes, after the first
+    // names are made, before the rounded bases'): a hash the lines read
+    // gets a variable set before the first of them, read wherever it still
+    // holds that value after (name_values puts back one fewer than two
+    // lines read); the lines' variables neither put nor named - one set to
+    // a hash is its name where it holds -, the names put where the hashes
+    // are but in a storage slot, there in its keys alone (hash_named)
+    bool hashes_only = false;
     std::function<Value()> fresh;
     std::function<Value()> fresh_word;  // (naming: a word's name, numbered at the end - name_values)
+    std::function<Value()> fresh_hash;  // (hashes_only: a hash's name, numbered at the end - name_values)
+    // (hashes_only: the variable of the trace each name made stands for -
+    // `_22 = _24`, its readers reading the name: the name takes its number)
+    std::unordered_map<u64, Value> hash_alias;
     SmallVec<Value, 16> made;  // (the variables naming made)
     SmallVec<Value, 16> made_keys;  // (those made for storage keys: kept though read once)
     // the variables read twice or more in the trace (named_hash)
     std::unordered_map<u64, u32> reads;
 
-    // (long_only: the arithmetic of the trace's checks, before the walk)
-    void checks_of(Value trace) { collect_checked(trace); }
+    // (long_only, hashes_only: the arithmetic of the trace's checks,
+    // before the walk; hashes_only: that of the bytes the printer decodes)
+    void checks_of(Value trace) {
+        collect_checked(trace);
+        if (hashes_only) collect_bytes_arith(trace);
+    }
 
     // the trace with the variables known replaced; env: at its end (the
     // paths that reach it); fl: the floors there (floor.hpp: the walk
@@ -514,6 +531,21 @@ private:
             }
             return map_line_exprs(l, [&](Value e, Pos pos) { return pos == Pos::Bytes ? e : put(e, env); });
         }
+        if (hashes_only) {
+            // (a slot a line writes: its keys alone, hash_slot_put)
+            if (l.is(Op::STORE, 4)) {
+                const Value v = put(l[3], env), sl = hash_slot_put(l[2], env);
+                return v == l[3] && sl == l[2] ? l : mk_like_checked(l, std::array<Value, 4>{l[0], l[1], sl, v});
+            }
+            if (l.is(Op::STORE_RANGE, 3)) {
+                const Value sl = hash_slot_put(l[0], env), n = put(l[1], env), v = put(l[2], env);
+                return sl == l[0] && n == l[1] && v == l[2] ? l : mk_like_checked(l, std::array<Value, 3>{sl, n, v});
+            }
+            // (not in the bytes the printer decodes - a call's, a log's, a
+            // return's or a revert's data -: there a variable set to a name
+            // made here only, as it)
+            return map_line_exprs(l, [&](Value e, Pos pos) { return pos == Pos::Bytes ? alias_put(e, env) : put(e, env); });
+        }
         return map_line_exprs(l, [&](Value e, Pos) { return put(e, env); });
     }
 
@@ -522,6 +554,7 @@ private:
     // them - the same entries, killed as the others)
     Value put(Value e, const Env& env) {
         if (long_only) return put_long(e, env);
+        if (hashes_only) return put_hashes(e, env);
         Value r = subst(e, env);
         bool any = false;
         env.each_named([&](Value, Value) { any = true; });
@@ -863,6 +896,7 @@ private:
         if (!naming || !l.is_expr()) return l;
         if (long_only) return name_long(l, env, before);
         if (rounded_only) return name_rounded(l, env, before);
+        if (hashes_only) return name_hashes(l, env, before);
         const usize n0 = before.size();
         if (l.is(Op::STORE, 4)) {
             name_in(l[3], env, before);
@@ -1196,6 +1230,47 @@ private:
             checked_arith(v[0], checked_ops_);
         for (Value a : v.args())
             if (a.is_list()) collect_checked(a);
+    }
+    // (hashes_only) a check whose condition holds arithmetic the bytes the
+    // printer decodes have too (collect_bytes_arith): as it is - lot 8's
+    // SafeMath finds its operands, and their sum, as the line that uses it
+    // has them, no name standing in those bytes
+    bool kept_check(Value cond) {
+        if (bytes_arith_.empty()) return false;
+        MemoSet<Value> arith;
+        word_arith(cond, arith);
+        bool found = false;
+        arith.each([&](Value r) { found = found || bytes_arith_.contains(r); });
+        return found;
+    }
+    // the arithmetic the bytes the printer decodes have as their words - a
+    // call's, a log's, a return's, a revert's data (hashes_only: no name
+    // stands there) -, and that the checks check (word_arith: where a word
+    // stands, not in a hash, a slot, a place)
+    void collect_bytes_arith(Value v) {
+        if (!(v.is_expr() || v.is_list())) return;
+        check_stack();
+        if (v.is_list()) {
+            for (Value l : v.args()) collect_bytes_arith(l);
+            return;
+        }
+        (void)map_line_exprs(v, [&](Value e, Pos pos) {
+            if (pos == Pos::Bytes) bytes_arith(e, bytes_arith_);
+            return e;
+        });
+        if ((v.is(Op::IF, 3) && (only_fails(v[1]) || only_fails(v[2]))) || (v.is(Op::REQUIRE) && v.size() > 0))
+            word_arith(v[0], checked_words_);
+        for (Value a : v.args())
+            if (a.is_list()) collect_bytes_arith(a);
+    }
+    // (the words of a byte string, and of the hashes in them: a hash of
+    // data the printer writes as its parts)
+    static void bytes_arith(Value e, MemoSet<Value>& out) {
+        if (!e.is_expr() || out.contains(e)) return;
+        check_stack();
+        if (arith_op(e)) out.add(e);
+        if (e.is(Op::DATA) || e.is(Op::SIZED) || e.is(Op::SHA3) || goes_into(e))
+            for (Value a : e.args()) bytes_arith(a, out);
     }
     // e with the long lines' names it reads as their values (the trace's
     // checks were read before the names were made)
@@ -1606,6 +1681,274 @@ private:
         return r;
     }
 
+    // ---- naming: the hashes the lines read (hashes_only) ----
+    //
+    // A hash the rounds write out wherever it is read - its variable put
+    // where it is read, the hash of what the memory pass reads as calldata
+    // now, not as memory the trace doesn't know (raw_hash) - prints in full
+    // in each line: one name, set before the first line that reads it, read
+    // wherever it still holds that value after, whatever the hash reads; a
+    // name read by one line put back (name_values). Not made by the data of
+    // a call, a log, a return or a revert (reads_words), nor written there
+    // (the bytes the printer decodes). In a storage slot, a hash is written as
+    // its name only where the storage's forms read it as a key under either
+    // layout of a mapping's slot (slot_keys) and no hash in it votes for
+    // that layout (holds_vote): never as a slot of theirs - the place, the
+    // storage section as they were.
+
+    // a hash that votes for the order a mapping's slot is hashed in
+    // (storage/analyse.cpp vote_language: two parts, a number and a word
+    // that isn't one), or holds one
+    static bool holds_vote(Value e) {
+        if (!(e.is_expr() || e.is_list())) return false;
+        check_stack();
+        if (e.is(Op::SHA3)) {
+            const auto parts = hash_parts(e);
+            auto word_of = [](Value p) {
+                if (p.is(Op::SIZED, 2) && p[0] == Value::small(32) &&
+                    !(p[1].is_bytes() || (p[1].is_expr() && info(p[1].op()).sort == Sort::Bytes)))
+                    return p[1];
+                return p;
+            };
+            if (parts.size() == 2 && word_of(parts[0]).is_int() != word_of(parts[1]).is_int()) return true;
+        }
+        for (Value a : e.args())
+            if (holds_vote(a)) return true;
+        return false;
+    }
+    // the hashes e reads where a name may stand - in a storage slot, its
+    // keys (hash_keys) -, the ones inside a hash before it
+    static void hash_cands(Value e, SmallVec<Value, 8>& out, MemoSet<Value>& seen) {
+        if (!(e.is_expr() || e.is_list()) || !seen.add(e)) return;
+        check_stack();
+        if (e.is(Op::STORAGE, 3)) {
+            hash_cands(e[0], out, seen);
+            hash_cands(e[1], out, seen);
+            hash_keys(e[2], out, seen);
+            return;
+        }
+        if (e.is(Op::STORAGE_RANGE, 2)) {
+            hash_keys(e[0], out, seen);
+            hash_cands(e[1], out, seen);
+            return;
+        }
+        for (Value a : e.args()) hash_cands(a, out, seen);
+        if (e.is(Op::SHA3) && std::find(out.begin(), out.end(), e) == out.end()) out.push_back(e);
+    }
+    static void hash_keys(Value slot, SmallVec<Value, 8>& out, MemoSet<Value>& seen) {
+        (void)slot_keys(slot, [&](Value k) {
+            if (!holds_vote(k)) hash_cands(k, out, seen);
+            return k;
+        });
+    }
+    // the name of e's value (a hash) where the line is (nil: none)
+    static Value hash_name(Value e, const Env& env) {
+        Value name;
+        env.each_named([&](Value n, Value v) {
+            if (name.nil() && v == e) name = n;
+        });
+        return name;
+    }
+    // v may be named by a variable set right before the line that reads it
+    // (name: one of the trace's own, set to it there): movable's terms but
+    // its size - a name makes nothing larger
+    static bool nameable(Value name, Value v) {
+        const EffectSummary& vs = summary(v);
+        if (vs.reads & S_GAS) return false;
+        if (vs.reads & S_VARS) {
+            if (vs.reads_any & S_VARS) return false;
+            if (!name.nil() && !vs.var_reads.nil())
+                for (Value x : vs.var_reads.args())
+                    if (x == name) return false;
+        }
+        if (run_flags().msize && (vs.reads & (S_MEM | S_MSIZE))) return false;
+        return !(vs.control & C_FAILS);
+    }
+    Value put_hashes(Value e, const Env& env) {
+        if (env.empty() || !(e.is_expr() || e.is_list() || e.is_name(NameKind::TMP))) return e;
+        names_.clear();
+        return hash_named(e, env);
+    }
+    // e with the hashes named written as their names (and the variables
+    // set to one, as it): in a storage slot, its keys alone (hash_slot_put);
+    // not in arithmetic a check reads that decoded bytes have too
+    Value hash_named(Value e, const Env& env) {
+        if (e.is_name(NameKind::TMP)) {
+            // (a variable set to a name made here: that name, hashes_only)
+            const Value* x = env.find(e);
+            return x && x->is_name(NameKind::TMP) ? *x : e;
+        }
+        if (!(e.is_expr() || e.is_list())) return e;
+        if (const Value* r = names_.find(e)) return *r;
+        check_stack();
+        Value x = e;
+        if (e.is(Op::SHA3))
+            if (const Value n = hash_name(unname(e), env); !n.nil()) x = n;
+        // (arithmetic a check of the trace reads that the bytes the printer
+        // decodes have too - a call's data, where no name stands: as it is,
+        // the hashes in it too - lot 8's SafeMath finds it alike in the
+        // check and in the line that uses it)
+        if (x == e && arith_op(e)) {
+            const Value r = unname(e);
+            if (checked_words_.contains(r) && bytes_arith_.contains(r)) {
+                names_.put(e, e);
+                return e;
+            }
+        }
+        if (x == e) {
+            if (e.is(Op::STORAGE, 3)) {
+                const Value a = hash_named(e[0], env), b = hash_named(e[1], env), sl = hash_slot_put(e[2], env);
+                if (a != e[0] || b != e[1] || sl != e[2]) x = mk(Op::STORAGE, a, b, sl);
+            } else if (e.is(Op::STORAGE_RANGE, 2)) {
+                const Value sl = hash_slot_put(e[0], env), n = hash_named(e[1], env);
+                if (sl != e[0] || n != e[1]) x = mk(Op::STORAGE_RANGE, sl, n);
+            } else {
+                SmallVec<Value, 8> args;
+                bool changed = false;
+                for (Value a : e.args()) {
+                    const Value n = hash_named(a, env);
+                    changed |= n != a;
+                    args.push_back(n);
+                }
+                if (changed) x = mk_like_checked(e, args.span());
+            }
+        }
+        names_.put(e, x);
+        return x;
+    }
+    // a slot with its keys' hashes written as their names (a key that
+    // holds a hash voting for the layout: as it is), and the variables set
+    // to a name made here as it wherever they are in it (a variable is
+    // nothing the storage's forms read: as unread as the name)
+    Value hash_slot_put(Value slot, const Env& env) {
+        slot = alias_put(slot, env);
+        if (!(slot.is(Op::SHA3) || slot.is(Op::ADD))) return slot;
+        return slot_keys(slot, [&](Value k) {
+            if (holds_vote(k)) return k;
+            const Value n = hash_name(unname(k), env);
+            return n.nil() ? hash_named(k, env) : n;
+        });
+    }
+    // e with the variables set to a name made here written as it (hashes_only)
+    Value alias_put(Value e, const Env& env) {
+        if (e.is_name(NameKind::TMP)) {
+            const Value* x = env.find(e);
+            return x && x->is_name(NameKind::TMP) ? *x : e;
+        }
+        if (!(e.is_expr() || e.is_list()) || !e.has_flags(F_VAR)) return e;
+        check_stack();
+        SmallVec<Value, 8> args;
+        bool changed = false;
+        for (Value a : e.args()) {
+            const Value n = alias_put(a, env);
+            changed |= n != a;
+            args.push_back(n);
+        }
+        return changed ? mk_like_checked(e, args.span()) : e;
+    }
+    // the hashes cs (of the line's expressions roots) named by variables
+    // set before the line: not one named there already, not one holding
+    // what the run of checks right before the line reads where the line
+    // uses arithmetic they check - lot 8's SafeMath finds the checks'
+    // operands in the line that uses them (as the long lines' keys). A
+    // value named again gets the same name (an if whose branches read the
+    // same hash names it the same: the folder merges what they end with).
+    void name_hash_list(std::span<const Value> cs, std::span<const Value> roots, Env& env, SmallVec<Value, 4>& before) {
+        if (cs.empty()) return;
+        MemoSet<Value> seen, checked, checked_arith;
+        checked_parts(checked, &checked_arith);
+        std::vector<Value> post;
+        for (Value r : roots) post_order(r, seen, post);
+        bool user = false;
+        for (Value e : post) user = user || (arith_op(e) && checked_arith.contains(e));
+        for (Value c : cs) {
+            // (c as the line has it, the hashes in it named already; its
+            // value - the names its own: raw - is what a name stands for)
+            const Value raw = unname(c);
+            // (one narrower than kMinHash - sha3(38), an array's place, or
+            // sha3(_292) -: as it is, its name's line saves nothing)
+            if (!hash_name(raw, env).nil() || !nameable(Value(), raw) || exact_.of(c) < kMinHash) continue;
+            if (user && holds_in(c, checked)) continue;
+            Value& name = long_names_[raw.raw()];
+            if (name.nil()) {
+                name = fresh_hash ? fresh_hash() : fresh();
+                made.push_back(name);
+                long_values_[name.raw()] = raw;
+            }
+            const Value sv = mk(Op::SETVAR, name, put(raw, env));
+            before.push_back(sv);
+            // (a name set again: what was known of its old value goes)
+            env.kill(summary(sv));
+            env.set(name, raw, true);
+        }
+    }
+    // A name both branches of an if set, each before anything in it that
+    // may change what its hash reads, set once before the if: one line, at
+    // the if's indent, where each branch had its own (the hash read there as
+    // at the branches' start). In the order the then branch sets them.
+    void hoist_hash_names(Value& t, Value& e, const alg::Facts& fl, SmallVec<Value, 4>& before) {
+        if (!t.is_list() || !e.is_list()) return;
+        std::vector<Value> tl(t.args().begin(), t.args().end()), el(e.args().begin(), e.args().end());
+        auto clear = [&](const std::vector<Value>& ls, usize at, const EffectSummary& vs) {
+            EffectSummary seen;
+            for (usize k = 0; k < at; ++k) seen = combine(seen, summary(ls[k]), true);
+            return !changes(seen, vs, &fl);
+        };
+        bool moved = false;
+        for (usize i = 0; i < tl.size(); ++i) {
+            const Value x = tl[i];
+            if (!x.is(Op::SETVAR, 2) || std::find(made.begin(), made.end(), x[0]) == made.end()) continue;
+            usize j = 0;
+            while (j < el.size() && el[j] != x) ++j;
+            if (j == el.size()) continue;
+            const EffectSummary& vs = summary(x[1]);
+            if (!clear(tl, i, vs) || !clear(el, j, vs)) continue;
+            before.push_back(x);
+            tl.erase(tl.begin() + i);
+            el.erase(el.begin() + j);
+            --i;
+            moved = true;
+        }
+        if (!moved) return;
+        t = mk_trace(std::span<const Value>(tl.data(), tl.size()));
+        e = mk_trace(std::span<const Value>(el.data(), el.size()));
+    }
+    Value name_hashes(Value l, Env& env, SmallVec<Value, 4>& before) {
+        if (!naming || !l.is_expr() || !reads_words(l)) return l;
+        SmallVec<Value, 8> cs;
+        SmallVec<Value, 4> roots;
+        MemoSet<Value> seen;
+        if (l.is(Op::STORE, 4)) {
+            hash_keys(l[2], cs, seen);
+            hash_cands(l[3], cs, seen);
+            roots.push_back(l[3]);
+        } else if (l.is(Op::STORE_RANGE, 3)) {
+            hash_keys(l[0], cs, seen);
+            hash_cands(l[1], cs, seen);
+            hash_cands(l[2], cs, seen);
+            roots.push_back(l[2]);
+        } else if (l.is(Op::SETVAR, 2) && l[1].is(Op::SHA3)) {
+            // (a variable set to a hash is its name: the hashes in it)
+            for (Value a : l[1].args()) hash_cands(a, cs, seen);
+            roots.push_back(l[1]);
+        } else {
+            (void)map_line_exprs(l, [&](Value e, Pos pos) {
+                if (pos != Pos::Bytes) {
+                    hash_cands(e, cs, seen);
+                    roots.push_back(e);
+                }
+                return e;
+            });
+        }
+        const usize n0 = before.size();
+        name_hash_list(cs.span(), roots.span(), env, before);
+        if (before.size() == n0) return l;
+        const Value r = subst_line(l, env);
+        if (r != l) cx().pcs.inherit(r, l);
+        for (usize j = n0; j < before.size(); ++j) cx().pcs.inherit(before[j], l);
+        return r;
+    }
+
     // a line, env going forward through it
     Value line(Value l, Env& env, alg::Facts& fl, Value trace, u32 i, SmallVec<Value, 4>& before) {
         if (!l.is_expr()) return l;
@@ -1613,9 +1956,33 @@ private:
             case Op::IF:
             case Op::MERGED_IF: {
                 const bool dominated = long_only && (only_fails(l[1]) || (l.size() > 2 && only_fails(l[2]))) && dominated_check(l[0]);
-                Value cond = dominated ? l[0] : put(l[0], env);
-                if (naming && cond != l[0]) cond = simplify_word(cond);
-                if (dominated) {
+                const bool kept = hashes_only && (only_fails(l[1]) || (l.size() > 2 && only_fails(l[2]))) && kept_check(l[0]);
+                Value cond = dominated || kept ? l[0] : put(l[0], env);
+                // (hashes_only: a hash's name stands where the hash was - the
+                // line as it is around it, nothing to simplify)
+                if (naming && !hashes_only && cond != l[0]) cond = simplify_word(cond);
+                if (dominated || kept) {
+                } else if (hashes_only) {
+                    // (a condition's hashes named before the if; an if whose
+                    // branches each only set the same variable - one line,
+                    // cleanup_conds' `v = not c or x` -, its values' too:
+                    // hashes, read there as at the branches' start)
+                    SmallVec<Value, 8> cs;
+                    SmallVec<Value, 4> roots{cond};
+                    MemoSet<Value> seen;
+                    hash_cands(cond, cs, seen);
+                    if (l.size() > 2 && l[1].is_list() && l[2].is_list() && l[1].size() == 1 && l[2].size() == 1 &&
+                        l[1][0].is(Op::SETVAR, 2) && l[2][0].is(Op::SETVAR, 2) && l[1][0][0] == l[2][0][0])
+                        for (u32 b = 1; b <= 2; ++b) {
+                            hash_cands(l[b][0][1], cs, seen);
+                            roots.push_back(l[b][0][1]);
+                        }
+                    const usize n0 = before.size();
+                    name_hash_list(cs.span(), roots.span(), env, before);
+                    if (before.size() != n0) {
+                        cond = put(cond, env);
+                        for (usize j = n0; j < before.size(); ++j) cx().pcs.inherit(before[j], l);
+                    }
                 } else if (rounded_only) {
                     // (a condition of rounded lengths: its base named)
                     SmallVec<Value, 4> es{cond};
@@ -1662,6 +2029,11 @@ private:
                 Value e = l.size() > 2 ? walk(l[2], ee, fe) : Value();
                 branch_check_ = Value();
                 depth_ -= !check;
+                if (hashes_only && !e.nil()) {
+                    const usize n0 = before.size();
+                    hoist_hash_names(t, e, fl, before);
+                    for (usize j = n0; j < before.size(); ++j) cx().pcs.inherit(before[j], l);
+                }
                 const bool t_ends = ends(t), e_ends = e.nil() ? false : ends(e);
                 if (t_ends && !e_ends) {
                     env = ee;
@@ -1684,7 +2056,20 @@ private:
             case Op::WHILE: {
                 // the setvars: at the entry, from env
                 Value sv = subst_setvars(l[3], env);
-                if (naming && !long_only && !rounded_only && sv.is_list()) {
+                if (hashes_only && sv.is_list()) {
+                    // (the setvars' hashes: named before the loop)
+                    SmallVec<Value, 8> cs;
+                    SmallVec<Value, 4> roots;
+                    MemoSet<Value> seen;
+                    for (Value x : sv.args())
+                        if (x.is(Op::SETVAR, 2)) {
+                            hash_cands(x[1], cs, seen);
+                            roots.push_back(x[1]);
+                        }
+                    const usize n0 = before.size();
+                    name_hash_list(cs.span(), roots.span(), env, before);
+                    if (before.size() != n0) sv = subst_setvars(sv, env);
+                } else if (naming && !long_only && !rounded_only && sv.is_list()) {
                     const usize n0 = before.size();
                     anchor_ = l;
                     for (Value x : sv.args())
@@ -1705,7 +2090,7 @@ private:
                 Env inside(env);
                 alg::Facts fin = fl;
                 Value cond = put(l[0], inside);
-                if (naming && cond != l[0]) cond = simplify_word(cond);
+                if (naming && !hashes_only && cond != l[0]) cond = simplify_word(cond);
                 ++depth_;
                 Value body = walk(l[1], inside, fin);
                 --depth_;
@@ -1713,7 +2098,7 @@ private:
                 cx().pcs.inherit(r, l);
                 // after it, the loop's variables' last values when lot 6
                 // proves them (made of what the loop doesn't change)
-                if (auto ind = loops::induction(l); !long_only && !rounded_only && ind && ind->endvars.is_list())
+                if (auto ind = loops::induction(l); !long_only && !rounded_only && !hashes_only && ind && ind->endvars.is_list())
                     for (Value e : ind->endvars.args())
                         if (e.is(Op::SETVAR, 2) && is_var(e[0]) && !changes(s, summary(e[1]), &in) && movable(e[0], e[1]))
                             env.set(e[0], e[1]);
@@ -1744,15 +2129,16 @@ private:
             default: break;
         }
         if (long_only && is_check(l) && dominated_check(l[0])) return l;
+        if (hashes_only && is_check(l) && kept_check(l[0])) return l;
         Value r = subst_line(l, env);
-        if (naming && r != l) {
+        if (naming && !hashes_only && r != l) {
             // (a name in a sum's place: the normal form again)
             const Value q = simplify_line(r);
             if (!q.nil()) r = q;
         }
         if (r != l) cx().pcs.inherit(r, l);
         anchor_ = l;
-        if (naming && !long_only && !rounded_only && l.is(Op::SETVAR, 2) && word_read(l[1]) && r.is(Op::SETVAR, 2) &&
+        if (naming && !long_only && !rounded_only && !hashes_only && l.is(Op::SETVAR, 2) && word_read(l[1]) && r.is(Op::SETVAR, 2) &&
             r[0].is_name(NameKind::TMP) && r[1].is_name(NameKind::TMP))
             word_alias.try_emplace(r[1].raw(), r[0]);
         r = name_line(r, env, fl, before);
@@ -1766,9 +2152,22 @@ private:
         // (naming: a variable the rounds left set to a read of one word of
         // memory stays as it is - its value isn't put where it is read, by
         // floors the names of the words have here and the rounds had not)
-        if (!long_only && !rounded_only && r.is(Op::SETVAR, 2) && is_var(r[0]) && movable(r[0], r[1]) &&
+        if (!long_only && !rounded_only && !hashes_only && r.is(Op::SETVAR, 2) && is_var(r[0]) && movable(r[0], r[1]) &&
             !(naming && !named_value(r[1]) && snapshot(r[1])))
             env.set(r[0], r[1], named_hash(r[0], r[1]) || (naming && named_value(r[1])));
+        // (hashes_only: a variable of the trace's own set to a hash no name
+        // holds is its name, where it holds - no line made)
+        if (hashes_only && l.is(Op::SETVAR, 2) && r.is(Op::SETVAR, 2) && is_var(r[0]) && l[1].is(Op::SHA3) &&
+            hash_name(l[1], env).nil() && nameable(l[0], l[1]))
+            env.set(l[0], l[1], true);
+        // (hashes_only: one set to a hash a name made here holds - `_22 =
+        // _24` - reads as that name where both hold, its line gone with its
+        // readers: put_back_single)
+        if (hashes_only && l.is(Op::SETVAR, 2) && r.is(Op::SETVAR, 2) && is_var(r[0]) && l[1].is(Op::SHA3) &&
+            r[1].is_name(NameKind::TMP) && std::find(made.begin(), made.end(), r[1]) != made.end()) {
+            env.set(r[0], r[1]);
+            if (r[0].is_name(NameKind::TMP)) hash_alias.try_emplace(r[1].raw(), r[0]);
+        }
         // (long_only: a variable of the trace's own set to a hash the trace
         // knows - the name of a storage key a long line reads, where it
         // holds: hold_keys)
@@ -1856,6 +2255,7 @@ private:
     Value branch_check_;
     // (the arithmetic the checks read: collect_checked; the parts holding it)
     MemoSet<Value> checked_ops_;
+    MemoSet<Value> bytes_arith_, checked_words_;  // (hashes_only: collect_bytes_arith)
     Memo<Value, bool> holds_;
 };
 
@@ -2175,13 +2575,48 @@ Value put_back(Value v, const std::unordered_map<u64, Value>& back, Memo<Value, 
 
 namespace {
 
+// the lines of v that read each of names: a line counted once, however
+// many times it reads one (a SETVAR: its value's reads), its blocks - an
+// if's branches, a loop's body - lines of their own
+void count_line_reads(Value v, const std::unordered_set<u64>& names, std::unordered_map<u64, u32>& n) {
+    if (!v.is_list()) return;
+    check_stack();
+    for (Value x : v.args()) {
+        std::unordered_set<u64> here;
+        auto rec = [&](auto&& self, Value e) -> void {
+            if (e.is_name(NameKind::TMP)) {
+                if (names.contains(e.raw())) here.insert(e.raw());
+                return;
+            }
+            if (!(e.is_expr() || e.is_list()) || !e.has_flags(F_VAR)) return;
+            if (e.is_list()) {
+                count_line_reads(e, names, n);
+                return;
+            }
+            if (e.is(Op::SETVAR, 2)) {
+                self(self, e[1]);
+                return;
+            }
+            for (Value a : e.args()) self(self, a);
+        };
+        rec(rec, x);
+        for (u64 k : here) ++n[k];
+    }
+}
+
 // the trace with the names made that are read once or never (fewer times
-// than `least`) put back (their values where they are read, their SETVARs
-// dropped)
-Value put_back_single(Value t, std::span<const Value> made, u32 least = 2) {
+// than `least`; by_lines: by fewer lines, count_line_reads) put back (their
+// values where they are read, their SETVARs dropped)
+Value put_back_single(Value t, std::span<const Value> made, u32 least = 2, bool by_lines = false) {
     if (made.empty()) return t;
     std::unordered_map<u64, u32> reads;
     count_all_reads(t, reads);
+    std::unordered_map<u64, u32> lines;
+    if (by_lines) {
+        std::unordered_set<u64> names(made.size());
+        for (Value k : made) names.insert(k.raw());
+        count_line_reads(t, names, lines);
+    }
     std::unordered_map<u64, Value> back;
     std::unordered_map<u64, Value> values;
     {
@@ -2215,7 +2650,7 @@ Value put_back_single(Value t, std::span<const Value> made, u32 least = 2) {
     for (Value k : made)
         // (least: the reads a name needs to stay - a key's that made a long
         // line short, one - in each place it is set)
-        if (reads[k.raw()] < least * std::max<u32>(1, sets[k.raw()])) back[k.raw()] = values[k.raw()];
+        if ((by_lines ? lines[k.raw()] : reads[k.raw()]) < least * std::max<u32>(1, sets[k.raw()])) back[k.raw()] = values[k.raw()];
     // (a variable of the trace set to a name made here and read nowhere any
     // more - `_30 = mem[64]` where `_8` names that read already: its readers
     // read `_8` - is dropped with its SETVARs)
@@ -2252,6 +2687,8 @@ Value put_back_single(Value t, std::span<const Value> made, u32 least = 2) {
 // the ids the words' names have while the passes run (within the ids a
 // variable's floor is kept for: alg::var_floor_key)
 constexpr u32 kWordTmps = 0x80000, kWordTmpsEnd = 0xfffff;
+// those of the hashes' names (name_hashes: no floor kept for them)
+constexpr u32 kHashTmps = 0x100000, kHashTmpsEnd = 0x1fffff;
 
 // t with the words' names (name_values) numbered: the lowest ids free, in
 // the order the text reads them
@@ -2353,6 +2790,17 @@ Value name_values(Value trace) {
         words.push_back(Value::name(NameKind::TMP, next_word));
         return words.back();
     };
+    // (the hashes' names likewise: numbered after the words', the names
+    // the other passes make numbered as without them)
+    u32 next_hash = kHashTmps;
+    SmallVec<Value, 16> hashes;
+    std::unordered_map<u64, Value> hash_alias;
+    auto fresh_hash = [&] {
+        while (used.contains(next_hash)) ++next_hash;
+        used.insert(next_hash);
+        hashes.push_back(Value::name(NameKind::TMP, next_hash));
+        return hashes.back();
+    };
     const alg::Facts entry =
         run_flags().entry_lines.is_list() ? floor_walk(alg::Facts{}, run_flags().entry_lines) : alg::Facts{};
     Value t = trace;
@@ -2369,6 +2817,21 @@ Value name_values(Value trace) {
         const Value w = fw.walk(t, env, fl);
         t = put_back_single(w, fw.made.span());
         word_alias = std::move(fw.word_alias);
+    }
+    {
+        // then the hashes the lines read (name_hashes)
+        Env env(cx().budget.resource());
+        Forward fw(cx().budget.resource());
+        fw.naming = true;
+        fw.hashes_only = true;
+        fw.fresh = fresh;
+        if (next_hash + 0x10000 <= kHashTmpsEnd) fw.fresh_hash = fresh_hash;
+        fw.checks_of(t);
+        alg::Facts fl = entry;
+        const Value w = fw.walk(t, env, fl);
+        // (a name two lines or more read stays)
+        t = put_back_single(w, fw.made.span(), 2, true);
+        hash_alias = std::move(fw.hash_alias);
     }
     {
         // then the bases a line of rounded lengths repeats (name_rounded)
@@ -2396,7 +2859,8 @@ Value name_values(Value trace) {
         // value written as another name where it was - goes)
         t = put_back_single(t, fw.made_keys.span(), 1);
     }
-    return number_words(t, words.span(), word_alias, fresh);
+    t = number_words(t, words.span(), word_alias, fresh);
+    return number_words(t, hashes.span(), hash_alias, fresh);
 }
 
 }  // namespace pan::simplify
