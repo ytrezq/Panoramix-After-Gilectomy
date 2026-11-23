@@ -52,13 +52,11 @@ ensdom122_ETHRegistrarController_mainnet_9380471 registerWithConfig raw_fn 1  # 
 ensdom122_OffchainDNSResolver resolveCallback copy_loops 93  # 92 -> 93
 ensdom122_OffchainDNSResolver resolveCallback lost_errors 1  # OffchainLookup
 ensdom122_OffchainDNSResolver resolveCallback lost_forms 1  # Array
-ensdom122_OffchainDNSResolver resolveCallback raw_error 13  # 12 -> 13
 ensdom122_OffchainDNSResolver resolveCallback raw_return 7  # 6 -> 7
 ensdom122_OffchainDNSResolver resolveCallback raw_revert 13  # 12 -> 13
 ensdom122_OffchainDNSResolver_2 resolveCallback copy_loops 93  # 92 -> 93
 ensdom122_OffchainDNSResolver_2 resolveCallback lost_errors 1  # OffchainLookup
 ensdom122_OffchainDNSResolver_2 resolveCallback lost_forms 1  # Array
-ensdom122_OffchainDNSResolver_2 resolveCallback raw_error 14  # 13 -> 14
 ensdom122_OffchainDNSResolver_2 resolveCallback raw_return 7  # 6 -> 7
 ensdom122_OffchainDNSResolver_2 resolveCallback raw_revert 14  # 13 -> 14
 openze496_ERC777 burn lost_forms 1  # Array
@@ -80,7 +78,6 @@ uniswa211_UniswapV2Router01 swapTokensForExactTokens raw_args 1  # 0 -> 1
 uniswa211_UniswapV2Router02 swapExactTokensForTokens raw_args 1  # 0 -> 1
 uniswa211_UniswapV2Router02 swapTokensForExactTokens raw_args 1  # 0 -> 1
 uniswa314_NFTDescriptor unknownc49917d7 long 114  # 88 -> 114
-uniswa314_NFTDescriptor unknownc49917d7 rounded 12  # 10 -> 12
 uniswa314_Quoter quoteExactInput raw_stor 2  # 1 -> 2
 uniswa314_Quoter quoteExactOutput raw_stor 2  # 1 -> 2
 uniswa314_QuoterV2 quoteExactInputSingle raw_return 1  # 0 -> 1

@@ -58,7 +58,14 @@ the prints of a loop whose exit is no plain test at its head, and one that
 was rotated or left by a labelled jump and is now `while True` is no
 regression - a loop with a plain test that becomes `while True` is one, and
 so is a loop that becomes rotated or labelled. A loop's label (`loop1:
-while ...`) doesn't hide the loop.
+while ...`) doesn't hide the loop. The long lines and the lines of rounded
+lengths are counted with the copies left as loops: a loop that copied a
+buffer word by word and is now the one write of what the buffer holds
+(`mem[p len n] = selector, 64, sha3(...), ...`, long because it shows the
+content) is no regression - a long line more with the loops as they were is
+one. A rule counted with others is a regression only when its own count
+grew: a raw revert more is one of the raw reverts, not also one of the
+Errors counted with them.
 
 The allow file (`compare --prune` rewrites it: the lines no regression needs
 dropped, the counts lowered): lines `NAME FUNCTION RULE [MOST]  # why`, the first three
@@ -132,10 +139,13 @@ RULES = [
     ('chars', 2000, 0.25, "the function's size in characters"),
     ('structs', 0, 0.0, "`def storage` lines with a struct"),
 ]
-# a rule whose count is the sum of these (raw_error: with the raw reverts;
-# while_true: with the rotated loops and the labelled jumps - the three
-# prints of a loop whose exit is no plain test at its head)
-COMBINED = {'raw_error': ('raw_error', 'raw_revert'), 'while_true': ('while_true', 'rotated', 'labels')}
+# a rule whose count is the sum of these, and a regression only when its
+# own count grew too (raw_error: with the raw reverts; while_true: with the
+# rotated loops and the labelled jumps - the three prints of a loop whose
+# exit is no plain test at its head; long, rounded: with the copies left as
+# loops - the loop, or the one long write of what it copied)
+COMBINED = {'raw_error': ('raw_error', 'raw_revert'), 'while_true': ('while_true', 'rotated', 'labels'),
+            'long': ('long', 'copy_loops'), 'rounded': ('rounded', 'copy_loops')}
 # the mean nesting and the summed nesting it is compared with
 NESTING = ('mean_depth', 'depth_sum')
 SETS = [('strings', 'revert strings'), ('calls', 'called functions'), ('events', 'events'),
@@ -560,10 +570,16 @@ def compare(old, new, allow):
                         # (the mean up, the sum not: shallow lines left)
                         or n['n'].get('depth_sum', 0) <= o['n'].get('depth_sum', 0)):
                     continue
-                parts = COMBINED.get(key, (key,))
-                a, b = sum(o['n'].get(p, 0) for p in parts), sum(n['n'].get(p, 0) for p in parts)
-                if b > a + max(slack, rel * a):
-                    regs.append((name, fo, key, a, b, allowed(allow, name, fo, key, b)))
+                a, b = o['n'].get(key, 0), n['n'].get(key, 0)
+                if b <= a + max(slack, rel * a):
+                    continue
+                # (counted with others: the sum grew too, by more than the
+                # tolerance of the rule's own count)
+                parts = COMBINED.get(key)
+                if parts and sum(n['n'].get(p, 0) for p in parts) <= sum(o['n'].get(p, 0) for p in parts) + max(
+                        slack, rel * a):
+                    continue
+                regs.append((name, fo, key, a, b, allowed(allow, name, fo, key, b)))
     return regs, tot_old, tot_new
 
 
@@ -752,6 +768,29 @@ def selftest():
                   for x in ('memory from mem[64] len 100', "Error(32, 3, 'abc', mem[_5 + 100 len 29])"))
     assert not compare(best([raw1, err1]), err1, [])[0], compare(best([raw1, err1]), err1, [])[0]
     assert sorted(r[2] for r in compare(best([err1, raw1]), raw1, [])[0]) == ['lost_strings', 'raw_revert']
+    # a copy left as a loop that is now the one long write of what it copied
+    # is no regression of the long lines nor of the rounded lengths; with the
+    # loop as it was, the long line more is one. A raw revert more is one raw
+    # revert, not also one of the Errors counted with them.
+    loop = ['  idx = 0', '  while idx < n:', '      mem[idx + 192] = mem[idx + 320]', '      idx = idx + 32']
+    wide = '  mem[192 len ceil32(n)] = ' + ', '.join('ceil32(cd[%d]) + %d' % (4 + 32 * i, 96 * i) for i in range(12))
+    assert len(wide) > LONG and sum(wide.count(t) for t in ROUNDED) >= 4
+    o, n, w = ({'x': {'f': measure_function('f', ['def f():'] + t + ['  stop'])}} for t in (
+        loop * 3, [wide] * 3, loop * 3 + [wide] * 3))
+    assert (o['x']['f']['n'].get('copy_loops'), n['x']['f']['n'].get('long'), n['x']['f']['n'].get('rounded')) == (3, 3, 3)
+    assert not compare(o, n, [])[0], compare(o, n, [])[0]
+    assert {'long', 'rounded'} <= {r[2] for r in compare(o, w, [])[0]}, compare(o, w, [])[0]
+    assert [r[2] for r in compare(n, o, [])[0]] == ['copy_loops'], compare(n, o, [])[0]
+    # (the best of the two: the least loops, and the text of long writes no
+    # regression against it; the text of loops one of copy_loops only)
+    for sets in ([o, n], [n, o]):
+        m = best(sets)
+        assert 'copy_loops' not in m['x']['f']['n'] and m['x']['f']['n']['long'] == 3, m
+        assert not compare(m, n, [])[0], compare(m, n, [])[0]
+        assert [r[2] for r in compare(m, o, [])[0]] == ['copy_loops'], compare(m, o, [])[0]
+    two = {'x': {'f': measure_function('f', ['def f():', '  if a:', '      revert with memory from mem[64] len 100',
+                                             '  revert with memory from mem[64] len 68'])}}
+    assert [r[2] for r in compare(raw, two, [])[0]] == ['raw_revert'], compare(raw, two, [])[0]
     print('readability selftest: ok')
     return 0
 

@@ -162,7 +162,13 @@ regression is:
   plain test at its head: one that was rotated or left by a labelled jump
   and is now `while True` is no regression; a loop with a plain test that
   becomes `while True` is one, and so is a loop that becomes rotated or
-  labelled.
+  labelled. The long lines and the lines of four rounded lengths are
+  counted with the copies left as loops: a loop that copied a buffer word
+  by word and is now the one write of what the buffer holds (long because
+  it shows the content) is no regression; a long line more with the loops
+  as they were is one. A count kept with others is a regression only when
+  its own count grew too: a raw revert more is one of the raw reverts, not
+  also one of the `Error(...)` reverts counted with them.
 
 What to do with one:
 
@@ -197,7 +203,9 @@ gets into the baseline, so an allowed one stays listed until it is fixed.
 The baseline was made from the texts of three builds (the build before
 round 2's fixes, round 2's, round 3's) and moved forward since (round 4's):
 what any of them showed is what the texts must show. After a change of the
-tool's measures, it is made again from those texts with the new tool.
+tool's measures or of the counts it keeps together (`COMBINED`: `best`
+keeps their least sum), it is made again from those texts with the new
+tool.
 
 ## Sanitizers and the optimized builds
 
