@@ -60,22 +60,17 @@ repo_cETH repayBorrowBehalf while_true 1  # 0 -> 1
 # when its function is fixed. The count is today's: it may not grow.
 
 0x013_DevUtils getSimulatedOrdersTransferResults ptr_diff 5  # 4 -> 5
-0x020_Staking finalizePool depth 14  # 11 -> 14
-0x020_TestStaking finalizePool depth 14  # 11 -> 14
 0x020_TestStaking payProtocolFee raw_stor 6  # 4 -> 6
 0x032_Exchange batchExecuteTransactions long 2  # 0 -> 2
-0x032_Exchange marketBuyOrdersFillOrKill depth 7  # 4 -> 7
-0x032_Exchange marketBuyOrdersNoThrow depth 7  # 4 -> 7
 aave311_AaveProtocolDataProvider getAllReservesTokens copy_loops 5  # 4 -> 5
 aave311_BorrowLogic unknown1e6473f9 raw_args 30  # 15 -> 30
 aave311_BorrowLogic unknown1e6473f9 raw_stor 38  # 5 -> 38
-aave311_BorrowLogic unknowneac4d703 mean_depth 158  # 106 -> 158
 aave311_FlashLoanLogic storage structs 5  # 4 -> 5
 aave311_FlashLoanLogic unknown2e7263ea raw_revert 11  # 10 -> 11
 aave311_FlashLoanLogic unknown2e7263ea raw_stor 2  # 1 -> 2
 aave311_LiquidationLogic unknown83c1087d raw_stor 34  # 5 -> 34
 aave311_PoolAddressesProviderRegistry getAddressesProvidersList lost_forms 1  # Array
-aave311_SupplyLogic unknownbf697a26 mean_depth 207  # 156 -> 207
+aave311_SupplyLogic unknownbf697a26 mean_depth 208  # 157 -> 208
 aave311_SupplyLogic unknownbf697a26 raw_stor 34  # 5 -> 34
 accoun060_EntryPoint simulateValidation ptr_diff 1  # 0 -> 1
 accoun070_EntryPointSimulations unknown97b2dcb9 partial_store 1  # 0 -> 1

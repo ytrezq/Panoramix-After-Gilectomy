@@ -37,8 +37,13 @@ What is measured, per function of a text:
 A rule compares one function of OLD with the same function of NEW: the same
 name, overloads paired by their parameters' types, then in the order printed.
 A count's tolerance is there for the counts that follow the number of paths
-printed. The mean nesting is compared when either side has 30 lines or more
-(below, a line or two more moves it a lot). A string, call, event or error a
+printed. A line's nesting is its statement's: a line indented past a
+statement that opens no block continues it (a wrapped revert's arguments,
+aligned past `revert with`, are no deeper than the revert). The mean nesting
+is compared when either side has 30 lines or more (below, a line or two more
+moves it a lot), and is a regression only when the summed nesting grew too:
+a mean that rose because shallow lines left the text (raw memory writes now
+decoded) is none. A string, call, event or error a
 function no longer shows isn't lost when the text shows it in a function
 that didn't (a message moved to the call sites, a call into a helper's def),
 or in the def of a helper the function calls (`SafeMath.add(x, y)`, its
@@ -120,6 +125,8 @@ RULES = [
 ]
 # a rule whose count is the sum of these (raw_error: with the raw reverts)
 COMBINED = {'raw_error': ('raw_error', 'raw_revert')}
+# the mean nesting and the summed nesting it is compared with
+NESTING = ('mean_depth', 'depth_sum')
 SETS = [('strings', 'revert strings'), ('calls', 'called functions'), ('events', 'events'),
         ('errors', 'custom errors'), ('forms', 'decoded forms (Array(len=...))')]
 
@@ -195,6 +202,7 @@ def measure_function(name, lines):
     helpers = set()      # the defs whose helpers it calls (SafeMath)
     body = '\n'.join(lines)
     whiles = []          # [indent, has a plain copy]
+    stmt = None          # (indent, level) of a statement that opens no block
     i = 0
     while i < len(lines):
         raw = lines[i]
@@ -205,7 +213,12 @@ def measure_function(name, lines):
         ind = len(raw) - len(raw.lstrip(' '))
         c['lines'] += 1
         c['chars'] += len(raw)
-        level = (ind - 2) // 4 if ind >= 2 else 0
+        if stmt and ind > stmt[0]:
+            # (a line past a statement that opens no block continues it)
+            level = stmt[1]
+        else:
+            level = (ind - 2) // 4 if ind >= 2 else 0
+            stmt = None if ind < 2 or s.endswith(':') else (ind, level)
         c['depth'] = max(c['depth'], level)
         c['depth_sum'] += level
         if len(raw) > LONG:
@@ -279,6 +292,7 @@ def measure_function(name, lines):
                 st += ' ' + lines[i].strip()
                 c['lines'] += 1
                 c['chars'] += len(lines[i])
+                c['depth_sum'] += level
                 i += 1
             sets['strings'].update(STRING.findall(st))
             helpers.update(HELPER.findall(st))
@@ -299,7 +313,6 @@ def measure_function(name, lines):
     c['copy_loops'] += sum(w[1] for w in whiles)
     if c['lines']:
         c['mean_depth'] = 100 * c['depth_sum'] // c['lines']
-    del c['depth_sum']
     m = {'n': {k: v for k, v in c.items() if v}, 's': {k: sorted(v) for k, v in sets.items() if v}}
     if helpers:
         m['h'] = sorted(helpers)
@@ -363,10 +376,14 @@ def best(sets):
                 # are one revert)
                 sums = {k: min(sum(rn.get(p, 0) for p in ps), sum(on.get(p, 0) for p in ps))
                         for k, ps in COMBINED.items()}
+                # (the mean nesting and the sum it is compared with: one
+                # text's, the one of the least mean)
+                nest = min(tuple(x.get(k, 0) for k in NESTING) for x in (rn, on))
                 for k in set(rn) | set(on):
                     rn[k] = min(rn.get(k, 0), on.get(k, 0))
                 for k, ps in COMBINED.items():
                     rn[k] = sums[k] - sum(rn.get(p, 0) for p in ps if p != k)
+                rn.update(zip(NESTING, nest))
                 for k in [k for k, v in rn.items() if not v]:
                     del rn[k]
                 for k, v in o['s'].items():
@@ -493,7 +510,10 @@ def compare(old, new, allow):
                     regs.append((name, fo, 'lost_' + key, len(o['s'].get(key, ())), lost,
                                  allowed(allow, name, fo, 'lost_' + key, lost)))
             for key, slack, rel, _ in RULES:
-                if key == 'mean_depth' and max(o['n'].get('lines', 0), n['n'].get('lines', 0)) < MEAN_DEPTH_LINES:
+                if key == 'mean_depth' and (
+                        max(o['n'].get('lines', 0), n['n'].get('lines', 0)) < MEAN_DEPTH_LINES
+                        # (the mean up, the sum not: shallow lines left)
+                        or n['n'].get('depth_sum', 0) <= o['n'].get('depth_sum', 0)):
                     continue
                 parts = COMBINED.get(key, (key,))
                 a, b = sum(o['n'].get(p, 0) for p in parts), sum(n['n'].get(p, 0) for p in parts)
@@ -605,6 +625,34 @@ def selftest():
     assert not compare(o, n, [])[0], compare(o, n, [])[0]
     o, n = ({'x': {'f': measure_function('f', nest(40, d))}} for d in (0, 39))
     assert [r[2] for r in compare(o, n, [])[0]] == ['mean_depth'], compare(o, n, [])[0]
+    # the mean up because shallow lines left (60 raw writes decoded away),
+    # the nested lines the same: the summed nesting didn't grow, no regression;
+    # one nested line more, and it is one
+    def shallow(top, deep):
+        return ['def f():'] + ['  mem[x] = 1'] * top + ['  if a:', '      if b:'] + ['          y = 2'] * deep
+    o, n, m = ({'x': {'f': measure_function('f', shallow(t, d))}} for t, d in ((80, 20), (20, 20), (20, 21)))
+    assert (o['x']['f']['n']['mean_depth'], n['x']['f']['n']['mean_depth']) == (39, 95)
+    assert not [r for r in compare(o, n, [])[0] if r[2] == 'mean_depth'], compare(o, n, [])[0]
+    assert [r[2] for r in compare(o, m, [])[0] if r[2] == 'mean_depth'] == ['mean_depth'], compare(o, m, [])[0]
+    # the best of two texts keeps the mean and the sum of one text: either
+    # text compared with it is no regression
+    assert best([o, n])['x']['f']['n']['depth_sum'] == best([n, o])['x']['f']['n']['depth_sum'] == 41
+    assert not [r for r in compare(best([o, n]), n, [])[0] + compare(best([n, o]), o, [])[0] if r[2] == 'mean_depth']
+    # a wrapped statement's lines are no deeper than the statement: a revert's
+    # arguments aligned past `revert with`, a raw revert's `from` and `len`
+    def wrapped(args):
+        return ['def f():', '  if a:', '      if b:', '          revert with 0x12345678, '] + \
+               ['                      %s' % x for x in args] + ['  stop']
+    o, n = ({'x': {'f': measure_function('f', t)}} for t in (
+        ['def f():', '  if a:', '      if b:', '          revert with memory', '            from _1 + 32',
+         '             len mem[_1]', '  stop'], wrapped(['0,', 'x * y,', 'z - 1'])))
+    assert (o['x']['f']['n']['depth'], n['x']['f']['n']['depth']) == (2, 2), (o, n)
+    assert n['x']['f']['n']['depth_sum'] == 1 + 2 * 4, n
+    assert not [r for r in compare(o, n, [])[0] if r[2] in ('depth', 'mean_depth')], compare(o, n, [])[0]
+    # (a block's lines are not its opener's continuation; a log's arguments are)
+    t = measure_function('f', ['def f(): # not payable', '  while a:', '      if b:', '          x = 1',
+                               '      log Transfer(', '            address from=x,', '            uint256 value=y)'])
+    assert (t['n']['depth'], t['n']['depth_sum'], t['n']['lines']) == (2, 0 + 1 + 2 + 3 * 1, 7), t
     # a message now in the def of a helper the function calls isn't lost
     lib = ("def SafeMath:\n  def add(a, b):\n      if a + b < a:\n          revert with 'addition overflow'\n"
            "      return a + b\n\n")

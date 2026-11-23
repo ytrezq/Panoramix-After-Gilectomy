@@ -152,7 +152,11 @@ regression is:
   unfolded; storage keys hashed from raw memory; arguments split in byte
   slices; copies left as loops; `while True` loops, loop labels, rotated
   loops; GAS reads nothing uses; lines over 240 characters or with four
-  rounded lengths; raw memory writes; the nesting; the size.
+  rounded lengths; raw memory writes; the nesting; the size. A line's
+  nesting is its statement's (a wrapped statement's lines are no deeper
+  than the statement), and the mean nesting counts only when the summed
+  nesting grew too (a mean that rose because shallow lines left the text
+  is no regression).
 
 What to do with one:
 
