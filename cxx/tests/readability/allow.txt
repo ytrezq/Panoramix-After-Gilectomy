@@ -1,28 +1,16 @@
 # Readability regressions `make readability` accepts: NAME FUNCTION RULE [MOST]  # why
 # (NAME a text of the corpus, FUNCTION a def of it, RULE one of tools/readability.py's - shell
 # patterns; MOST the most the count may reach, for a lost_ rule the number of items lost).
-# The baseline holds, function by function, the best of three builds' texts: before round 2's
-# fixes, round 2's (bc67cddf5c), round 3's (f53800acd4). make readability prints the lines no
-# regression needs any more: delete them.
+# The baseline holds, function by function, the best of the texts of four builds: before round 2's
+# fixes, round 2's (bc67cddf5c), round 3's (f53800acd4), round 4's. make readability prints the lines
+# no regression needs any more and the counts that can go down; `tools/readability.py compare ... --prune`
+# rewrites this file so.
 
 # ---- Proven: the old form was readable only because it was wrong, or exactness needs the new one
-# (corpus/review/r3/summary.md, "What round 3 accepts")
 
-# The source's `while (true) { assert(idx < len); ... }` (RRUtils): round 2's build made the assert the
-# loop's condition and the real exits `continue loopN`; `while True` with the assert inside is the source's form
-ensdom122_DNSRegistrar unknown06963218 while_true 20  # 19 -> 20
-ensdom122_DNSRegistrar unknown29d56630 while_true 20  # 19 -> 20
-ensdom122_DNSRegistrar_2 unknown06963218 while_true 20  # 18 -> 20
-ensdom122_DNSRegistrar_2 unknown29d56630 while_true 20  # 18 -> 20
-ensdom122_DNSSECImpl unknown440f3d42 while_true 22  # 15 -> 22
-ensdom122_DNSSECImpl unknownbdf95fef while_true 22  # 15 -> 22
-ensdom122_DNSSECImpl_2 unknown440f3d42 while_true 22  # 15 -> 22
-ensdom122_DNSSECImpl_2 unknownbdf95fef while_true 22  # 15 -> 22
-ensdom122_OffchainDNSResolver resolveCallback while_true 9  # 8 -> 9
-ensdom122_OffchainDNSResolver_2 resolveCallback while_true 9  # 8 -> 9
-ensdom122_OwnedResolver setDNSRecords while_true 6  # 4 -> 6
-ensdom122_PublicResolver setDNSRecords while_true 6  # 4 -> 6
-ensdom122_PublicResolver_2 setDNSRecords while_true 6  # 4 -> 6
+# RRUtils' `while (true) { assert(idx < len); ... }`: the old texts made the assert the loop's condition and
+# ran the rest of the function in the loop's body, each loop nested in the exit of the one before
+# (testCompareNames: 27 levels deep, 6 now); `while True` with the assert inside and a `break` is the source's form
 ensdom122_TestRRUtils testCompareNames while_true 46  # 12 -> 46
 ensdom122_TestRRUtils testIterateRRs while_true 4  # 2 -> 4
 ensdom122_TestRRUtils testLabelCount while_true 2  # 0 -> 2
@@ -31,33 +19,18 @@ ensdom122_TestRRUtils testLabelCount while_true 2  # 0 -> 2
 gnosis130_MockContract _fallback unused_gas 6  # 0 -> 6
 
 # P3 - do-whiles whose end test reads what the iteration computes: no test at the head is exact; the old
-# form rotated them and printed the first iteration twice (round 1's P3 finding). Here: the hash of a fresh
-# string built each iteration
-gnosis130_MockContract reset while_true 1  # 0 -> 1
+# form printed the first iteration twice, before the loop and in it (round 1's P3 finding)
+gnosis130_MockContract reset while_true 1  # 0 -> 1: the hash of a fresh string built each iteration
+openze496_TimelockController executeBatch while_true 1  # 0 -> 1: the end test after the call (the old `while idx + 1:`)
+repo_cETH liquidateBorrow while_true 1  # 0 -> 1: the next holder's first lines on the back edge (the old `while s + 1 < _549:`)
+repo_cETH repayBorrowBehalf while_true 1  # 0 -> 1: the same
 
-# P3: the end test after the call
-openze496_TimelockController executeBatch while_true 1  # 0 -> 1
+# Never run, or never read: what the old text showed and the new one rightly dropped
+ensdom122_TestBytesUtils testComparePartial lost_errors 1  # 0x8a3c1cfb: `if 3 > mem[_3]: revert with 0x8a3c1cfb, 3, mem[_3]` right after `mem[_3] = 5` - never taken, now decided
+uniswa314_NonfungiblePositionManager collect lost_strings 1  # ERC721: owner query for nonexistent token - shown only in a memory write no path reads: its revert needs stor3[tokenId] == 0, which the check 4 lines before excludes
 
-# P3: loops over a range whose counter is kept in memory, the end test after its increment
-repo_Curve3pool add_liquidity while_true 14  # 3 -> 14
-repo_Curve3pool calc_token_amount while_true 9  # 2 -> 9
-repo_Curve3pool calc_withdraw_one_coin while_true 9  # 3 -> 9
-repo_Curve3pool donate_admin_fees while_true 1  # 0 -> 1
-repo_Curve3pool exchange while_true 6  # 3 -> 6
-repo_Curve3pool get_dy while_true 6  # 3 -> 6
-repo_Curve3pool get_dy_underlying while_true 6  # 3 -> 6
-repo_Curve3pool get_virtual_price while_true 4  # 1 -> 4
-repo_Curve3pool remove_liquidity while_true 1  # 0 -> 1
-repo_Curve3pool remove_liquidity_imbalance while_true 15  # 3 -> 15
-repo_Curve3pool remove_liquidity_one_coin while_true 9  # 3 -> 9
-repo_Curve3pool withdraw_admin_fees while_true 1  # 0 -> 1
-
-# P3: the claim and distribute loops, the next holder's first lines on the back edge
-repo_cETH liquidateBorrow while_true 1  # 0 -> 1
-repo_cETH repayBorrowBehalf while_true 1  # 0 -> 1
-
-# ---- To fix: regressions round 3 left (corpus/review/r3/summary.md, "What is left"); a line goes
-# when its function is fixed. The count is today's: it may not grow.
+# ---- To fix: the regressions not fixed yet (corpus/review: r3/summary.md "What is left", and round 4's);
+# a line goes when its function is fixed. The count is today's: it may not grow.
 
 0x013_DevUtils getSimulatedOrdersTransferResults ptr_diff 5  # 4 -> 5
 0x020_TestStaking payProtocolFee raw_stor 6  # 4 -> 6
@@ -69,18 +42,12 @@ aave311_FlashLoanLogic storage structs 5  # 4 -> 5
 aave311_FlashLoanLogic unknown2e7263ea raw_revert 11  # 10 -> 11
 aave311_FlashLoanLogic unknown2e7263ea raw_stor 2  # 1 -> 2
 aave311_LiquidationLogic unknown83c1087d raw_stor 34  # 5 -> 34
-aave311_PoolAddressesProviderRegistry getAddressesProvidersList lost_forms 1  # Array
 aave311_SupplyLogic unknownbf697a26 mean_depth 208  # 157 -> 208
 aave311_SupplyLogic unknownbf697a26 raw_stor 34  # 5 -> 34
 accoun060_EntryPoint simulateValidation ptr_diff 1  # 0 -> 1
 accoun070_EntryPointSimulations unknown97b2dcb9 partial_store 1  # 0 -> 1
-ensdom122_DummyExtendedDNSSECResolver resolve lost_forms 1  # Array
 ensdom122_ETHRegistrarController_mainnet_9380471 registerWithConfig mem_writes 69  # 56 -> 69
 ensdom122_ETHRegistrarController_mainnet_9380471 registerWithConfig raw_fn 1  # 0 -> 1
-ensdom122_NameWrapper setSubnodeOwner rounded 4  # 0 -> 4
-ensdom122_NameWrapper wrap rounded 2  # 0 -> 2
-ensdom122_NameWrapper_2 setSubnodeOwner rounded 4  # 0 -> 4
-ensdom122_NameWrapper_2 wrap rounded 2  # 0 -> 2
 ensdom122_OffchainDNSResolver resolveCallback copy_loops 93  # 92 -> 93
 ensdom122_OffchainDNSResolver resolveCallback lost_errors 1  # OffchainLookup
 ensdom122_OffchainDNSResolver resolveCallback lost_forms 1  # Array
@@ -95,16 +62,9 @@ ensdom122_OffchainDNSResolver_2 resolveCallback raw_return 7  # 6 -> 7
 ensdom122_OffchainDNSResolver_2 resolveCallback raw_revert 14  # 13 -> 14
 ensdom122_PublicResolver setZonehash ptr_diff 1  # 0 -> 1
 ensdom122_PublicResolver_2 setZonehash ptr_diff 1  # 0 -> 1
-ensdom122_TestBytesUtils testComparePartial lost_errors 1  # 0x8a3c1cfb
-gnosis130_GnosisSafe execTransactionFromModuleReturnData lost_forms 1  # Array
-gnosis130_GnosisSafeL2 execTransactionFromModuleReturnData lost_forms 1  # Array
 gnosis130_MockContract reset long 3  # 1 -> 3
 gnosis130_MockContract reset ptr_diff 2  # 0 -> 2
-gnosis130_ModuleManager execTransactionFromModuleReturnData lost_forms 1  # Array
-gnosis130_SimulateTxAccessor simulate lost_forms 1  # Array
-openze251_ERC165CheckerMock supportsInterface split_args 1  # 0 -> 1
 openze251_ERC721GSNRecipientMock safeTransferFrom ptr_diff 1  # 0 -> 1
-openze300_ERC165CheckerMock supportsInterface split_args 1  # 0 -> 1
 openze300_ERC721 safeTransferFrom ptr_diff 1  # 0 -> 1
 openze300_ERC721BurnableMock safeTransferFrom ptr_diff 1  # 0 -> 1
 openze300_ERC721GSNRecipientMock safeTransferFrom ptr_diff 1  # 0 -> 1
@@ -123,24 +83,16 @@ openze496_ERC777PresetFixedSupply operatorSend lost_forms 1  # Array
 openze496_ERC777PresetFixedSupply send lost_forms 1  # Array
 openze540_AccessManager unknownf801a698 long 3  # 1 -> 3
 repo_BSC_target unknown3ecba7f8 raw_args 10  # 8 -> 10
-repo_Contract471 unknown84b0196e lost_forms 1  # Array
-repo_GnosisSafeL2 execTransactionFromModuleReturnData lost_forms 1  # Array
 repo_PancakeRouterV2 swapExactTokensForTokens raw_args 1  # 0 -> 1
 repo_PancakeRouterV2 swapTokensForExactTokens raw_args 1  # 0 -> 1
 repo_UniV2Router02 swapExactTokensForTokens raw_args 1  # 0 -> 1
 repo_UniV2Router02 swapTokensForExactTokens raw_args 1  # 0 -> 1
-repo_UniV3Pool collectProtocol split_args 2  # 1 -> 2
-safe141_Safe execTransactionFromModuleReturnData lost_forms 1  # Array
-safe141_SafeL2 execTransactionFromModuleReturnData lost_forms 1  # Array
-safe141_SimulateTxAccessor simulate lost_forms 1  # Array
 uniswa211_UniswapV2Router01 swapExactTokensForTokens raw_args 1  # 0 -> 1
 uniswa211_UniswapV2Router01 swapTokensForExactTokens raw_args 1  # 0 -> 1
 uniswa211_UniswapV2Router02 swapExactTokensForTokens raw_args 1  # 0 -> 1
 uniswa211_UniswapV2Router02 swapTokensForExactTokens raw_args 1  # 0 -> 1
-uniswa310_UniswapV3Pool collectProtocol split_args 2  # 1 -> 2
-uniswa314_NFTDescriptor unknownc49917d7 long 116  # 88 -> 116
-uniswa314_NFTDescriptor unknownc49917d7 rounded 20  # 10 -> 20
-uniswa314_NonfungiblePositionManager collect lost_strings 1  # ERC721: owner query for nonexistent token
+uniswa314_NFTDescriptor unknownc49917d7 long 114  # 88 -> 114
+uniswa314_NFTDescriptor unknownc49917d7 rounded 12  # 10 -> 12
 uniswa314_Quoter quoteExactInput raw_stor 2  # 1 -> 2
 uniswa314_Quoter quoteExactOutput raw_stor 2  # 1 -> 2
 uniswa314_QuoterV2 quoteExactInputSingle raw_return 1  # 0 -> 1
@@ -165,23 +117,16 @@ uniswa410_FullMathTest unknown85226c81 ptr_diff 2  # 0 -> 2
 uniswa410_FullMathTest unknownb5508aa9 ptr_diff 2  # 0 -> 2
 uniswa410_HooksTest unknown85226c81 ptr_diff 2  # 0 -> 2
 uniswa410_HooksTest unknownb5508aa9 ptr_diff 2  # 0 -> 2
-uniswa410_HooksTest unknowncc93ff5e rounded 37  # 28 -> 37
 uniswa410_LPFeeLibraryTest unknown85226c81 ptr_diff 2  # 0 -> 2
 uniswa410_LPFeeLibraryTest unknownb5508aa9 ptr_diff 2  # 0 -> 2
 uniswa410_LiquidityMathTest unknown85226c81 ptr_diff 2  # 0 -> 2
 uniswa410_LiquidityMathTest unknownb5508aa9 ptr_diff 2  # 0 -> 2
 uniswa410_LockTest unknown85226c81 ptr_diff 2  # 0 -> 2
 uniswa410_LockTest unknownb5508aa9 ptr_diff 2  # 0 -> 2
-uniswa410_ModifyLiquidityTest unknown2499a6ca rounded 40  # 20 -> 40
-uniswa410_ModifyLiquidityTest unknown28774106 long 5  # 3 -> 5
-uniswa410_ModifyLiquidityTest unknown28774106 rounded 22  # 15 -> 22
-uniswa410_ModifyLiquidityTest unknown407efc7e rounded 43  # 37 -> 43
-uniswa410_ModifyLiquidityTest unknown7ce2d94e long 5  # 3 -> 5
-uniswa410_ModifyLiquidityTest unknown7ce2d94e rounded 23  # 12 -> 23
+uniswa410_ModifyLiquidityTest unknown2499a6ca rounded 30  # 20 -> 30
 uniswa410_ModifyLiquidityTest unknown85226c81 ptr_diff 2  # 0 -> 2
-uniswa410_ModifyLiquidityTest unknownaad5e125 rounded 43  # 37 -> 43
-uniswa410_ModifyLiquidityTest unknownacf5d6da long 166  # 75 -> 166
-uniswa410_ModifyLiquidityTest unknownacf5d6da rounded 142  # 93 -> 142
+uniswa410_ModifyLiquidityTest unknownacf5d6da long 145  # 75 -> 145
+uniswa410_ModifyLiquidityTest unknownacf5d6da rounded 124  # 93 -> 124
 uniswa410_ModifyLiquidityTest unknownb5508aa9 ptr_diff 2  # 0 -> 2
 uniswa410_NativeERC20 unknown85226c81 ptr_diff 2  # 0 -> 2
 uniswa410_NativeERC20 unknownb5508aa9 ptr_diff 2  # 0 -> 2
@@ -255,6 +200,5 @@ uniswa410_TickTest unknown85226c81 ptr_diff 2  # 0 -> 2
 uniswa410_TickTest unknownb5508aa9 ptr_diff 2  # 0 -> 2
 uniswa410_UnsafeMathTest unknown85226c81 ptr_diff 2  # 0 -> 2
 uniswa410_UnsafeMathTest unknownb5508aa9 ptr_diff 2  # 0 -> 2
-uniswa410_V3SwapTests setUp rounded 12  # 1 -> 12
 uniswa410_V3SwapTests unknown85226c81 ptr_diff 2  # 0 -> 2
 uniswa410_V3SwapTests unknownb5508aa9 ptr_diff 2  # 0 -> 2

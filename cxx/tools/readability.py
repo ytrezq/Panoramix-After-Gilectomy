@@ -5,7 +5,7 @@ form of what the manual review's second round looked for (corpus/review/r2).
     tools/readability.py texts PANCXX SIGDB LIST OUT [-j N] [--timeout S]
     tools/readability.py measure DIR OUT.jsonl[.xz]
     tools/readability.py best OUT.jsonl[.xz] SET... 
-    tools/readability.py compare OLD NEW [--allow FILE] [--report FILE.md] [--list FILE.jsonl] [--top N]
+    tools/readability.py compare OLD NEW [--allow FILE [--prune]] [--report FILE.md] [--list FILE.jsonl] [--top N]
     tools/readability.py selftest
 
 `texts` decompiles the .hex files LIST names (a file of paths, a directory)
@@ -47,12 +47,21 @@ decoded) is none. A string, call, event or error a
 function no longer shows isn't lost when the text shows it in a function
 that didn't (a message moved to the call sites, a call into a helper's def),
 or in the def of a helper the function calls (`SafeMath.add(x, y)`, its
-message in `def SafeMath:`). The Error(string) reverts printed
+message in `def SafeMath:`). A decoded form is a kind, not a thing with a
+name: the `Array` another function gained is not the one a function lost.
+The Error(string) reverts printed
 word by word are counted with the raw reverts: a raw revert that became an
-Error with its message decoded is no regression. A loop's label (`loop1:
+Error with its message decoded is no regression. The `while True` loops are
+counted with the rotated loops (`while _x + 1 != N`, the first iteration
+printed before the loop) and the labelled jumps (`continue loop1`): they are
+the prints of a loop whose exit is no plain test at its head, and one that
+was rotated or left by a labelled jump and is now `while True` is no
+regression - a loop with a plain test that becomes `while True` is one, and
+so is a loop that becomes rotated or labelled. A loop's label (`loop1:
 while ...`) doesn't hide the loop.
 
-The allow file: lines `NAME FUNCTION RULE [MOST]  # why`, the first three
+The allow file (`compare --prune` rewrites it: the lines no regression needs
+dropped, the counts lowered): lines `NAME FUNCTION RULE [MOST]  # why`, the first three
 shell patterns (`*` for any, `ensdom122_*`), MOST the most the count may
 reach (for a lost_ rule, the number of items lost); a regression a line
 allows is reported as allowed and doesn't fail the comparison. A known
@@ -123,12 +132,17 @@ RULES = [
     ('chars', 2000, 0.25, "the function's size in characters"),
     ('structs', 0, 0.0, "`def storage` lines with a struct"),
 ]
-# a rule whose count is the sum of these (raw_error: with the raw reverts)
-COMBINED = {'raw_error': ('raw_error', 'raw_revert')}
+# a rule whose count is the sum of these (raw_error: with the raw reverts;
+# while_true: with the rotated loops and the labelled jumps - the three
+# prints of a loop whose exit is no plain test at its head)
+COMBINED = {'raw_error': ('raw_error', 'raw_revert'), 'while_true': ('while_true', 'rotated', 'labels')}
 # the mean nesting and the summed nesting it is compared with
 NESTING = ('mean_depth', 'depth_sum')
 SETS = [('strings', 'revert strings'), ('calls', 'called functions'), ('events', 'events'),
         ('errors', 'custom errors'), ('forms', 'decoded forms (Array(len=...))')]
+# the sets whose items are kinds, not things with a name: an `Array` another
+# function gained is not the one this function lost
+KINDS = ('forms',)
 
 
 def opener(path, mode):
@@ -424,6 +438,35 @@ def allowed(rules, name, fn, rule, value=None):
     return False
 
 
+def prune_allow(lines, regs):
+    """The allow file's lines with those no regression needs dropped and each
+    MOST above what its regressions reach lowered to it - with the count in
+    its comment (`# 5 -> 9`), or the items lost when it allows one regression.
+    Returns (lines, dropped, lowered)."""
+    out, dropped, lowered = [], 0, 0
+    for line in lines:
+        rule = parse_allow([line])
+        if not rule:
+            out.append(line)
+            continue
+        hits = [n for name, fn, r, o, n, ok in regs if allowed(rule, name, fn, r, n)]
+        if not hits:
+            dropped += 1
+            continue
+        top = max(len(n) if isinstance(n, list) else n for n in hits)
+        if rule[0][3] is not None and top < rule[0][3]:
+            lowered += 1
+            head, sep, why = line.partition('#')
+            head = re.sub(r'^(\s*\S+\s+\S+\s+\S+\s+)\d+', lambda m: m.group(1) + str(top), head)
+            if len(hits) == 1 and isinstance(hits[0], list):
+                why = ' ' + ', '.join(hits[0])
+            elif len(hits) == 1:
+                why = re.sub(r'^(\s*\d+ -> )\d+\s*$', lambda m: m.group(1) + str(top), why)
+            line = head + sep + why
+        out.append(line)
+    return out, dropped, lowered
+
+
 def anonymous(x):
     return x.startswith(('0x', 'unknown'))
 
@@ -481,6 +524,8 @@ def compare(old, new, allow):
         for fn, n in new[name].items():
             o = was.get(fn)
             for key, _ in SETS:
+                if key in KINDS:
+                    continue
                 for x in n['s'].get(key, ()):
                     if o is None or x not in o['s'].get(key, ()):
                         gained[key, x] += 1
@@ -611,6 +656,39 @@ def selftest():
     assert not compare(o, n, [])[0], compare(o, n, [])[0]
     del n['x']['h']
     assert [r[2] for r in compare(o, n, [])[0]] == ['lost_strings']
+    # a form is a kind, not a thing that moves: the `Array` another function
+    # gained is not the one this function lost
+    o = {'x': measure_text("def f(): # not payable\n  return Array(len=x, data=mem[128 len x])\n\n"
+                           "def g(): # not payable\n  return mem[128 len 64]\n")}
+    n = {'x': measure_text("def f(): # not payable\n  return mem[128 len 64]\n\n"
+                           "def g(): # not payable\n  return Array(len=y, data=mem[128 len y])\n")}
+    assert [(r[1], r[2]) for r in compare(o, n, [])[0] if r[2] == 'lost_forms'] == [('f', 'lost_forms')]
+    # the allow file pruned: a line no regression needs dropped, a count
+    # lowered with its comment, the items lost named again; the rest as it is
+    regs = [('x', 'f', 'rounded', 3, 5, True), ('x', 'g', 'lost_errors', 3, ['A', 'B'], True)]
+    kept, dropped, lowered = prune_allow(['# why', 'x f rounded 9  # 3 -> 9', 'x h long 4  # 1 -> 4', '',
+                                          'x g lost_errors 3  # A, B, C', 'x * lost_*  # any'], regs)
+    assert (kept, dropped, lowered) == (['# why', 'x f rounded 5  # 3 -> 5', '', 'x g lost_errors 2  # A, B',
+                                         'x * lost_*  # any'], 1, 2), (kept, dropped, lowered)
+    # a rotated loop, or one left by labelled jumps, now `while True`: no
+    # regression; a loop with a plain test now `while True`, or `while True`
+    # now rotated or labelled: one
+    def loops(*heads):
+        t = "def f(): # not payable\n"
+        for h in heads:
+            t += "  %s\n      x = x + 1\n%s" % (h, "      continue loop1\n" if h.startswith('loop1') else '')
+        return {'x': measure_text(t)}
+    plain, true, rot, lab = (loops(h) for h in ('while x < 3:', 'while True:', 'while _5 + 1 != 3:',
+                                                 'loop1: while x < 3:'))
+    assert (rot['x']['f']['n'].get('rotated'), lab['x']['f']['n'].get('labels')) == (1, 1), (rot, lab)
+    assert not compare(rot, true, [])[0] and not compare(lab, true, [])[0], (compare(rot, true, [])[0],
+                                                                             compare(lab, true, [])[0])
+    assert [r[2] for r in compare(plain, true, [])[0]] == ['while_true']
+    assert [r[2] for r in compare(true, rot, [])[0]] == ['rotated'], compare(true, rot, [])[0]
+    assert [r[2] for r in compare(true, lab, [])[0]] == ['labels'], compare(true, lab, [])[0]
+    # (the best of a rotated text and a `while True` one: either is no regression against it)
+    for a, b in ((rot, true), (true, rot)):
+        assert not compare(best([a, b]), true, [])[0], compare(best([a, b]), true, [])[0]
     # a raw revert become an Error is no regression; a decoded one become an Error is
     raw, err, dec = ({'x': {'f': measure_function('f', ['def f():', '  revert with ' + r])}}
                      for r in ('memory from mem[64] len 100', "Error(32, 3, 'abc', mem[_5 + 100 len 29])", "'abc'"))
@@ -734,6 +812,8 @@ def main():
     c.add_argument('--report', default='')
     c.add_argument('--list', default='')
     c.add_argument('--top', type=int, default=30)
+    c.add_argument('--prune', action='store_true',
+                   help='rewrite the allow file: its useless lines dropped, its counts lowered')
     a = ap.parse_args()
     if a.cmd == 'texts':
         return texts(a.pancxx, a.sigdb, a.list, a.out, a.j, a.timeout)
@@ -801,6 +881,12 @@ def main():
                 f.write(json.dumps({'name': name, 'function': fn, 'rule': rule, 'old': o, 'new': n,
                                     'allowed': ok}) + '\n')
     print(text if not a.report else '\n'.join(out[:5]))
+    if a.prune and a.allow and not bad and (stale or lower):
+        with open(a.allow) as f:
+            kept, dropped, lowered = prune_allow(f.read().split('\n'), regs)
+        with open(a.allow, 'w') as f:
+            f.write('\n'.join(kept))
+        print('%s: %d lines dropped, %d counts lowered' % (a.allow, dropped, lowered))
     return 1 if bad else 0
 
 

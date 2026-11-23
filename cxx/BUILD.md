@@ -146,7 +146,8 @@ regression is:
 - a revert string, called function, event, custom error or decoded form
   (`Array(len=...)`) that the old function showed and the new one doesn't,
   unless the text shows it elsewhere (moved to a call site, into a helper's
-  def);
+  def - a string, call, event or error only: a decoded form is a kind, and
+  the `Array` another function gained is not the one a function lost);
 - a count past its tolerance: raw memory in reverts, returns, call
   arguments, call targets and event data; free-pointer differences left
   unfolded; storage keys hashed from raw memory; arguments split in byte
@@ -156,7 +157,12 @@ regression is:
   nesting is its statement's (a wrapped statement's lines are no deeper
   than the statement), and the mean nesting counts only when the summed
   nesting grew too (a mean that rose because shallow lines left the text
-  is no regression).
+  is no regression). The `while True` loops are counted with the rotated
+  loops and the labelled jumps, the three prints of a loop whose exit is no
+  plain test at its head: one that was rotated or left by a labelled jump
+  and is now `while True` is no regression; a loop with a plain test that
+  becomes `while True` is one, and so is a loop that becomes rotated or
+  labelled.
 
 What to do with one:
 
@@ -176,7 +182,10 @@ What to do with one:
 fixed yet ("to fix"), each with today's count as its MOST, so it can't grow.
 The goal is as few lines as possible: a fix removes its lines, and `make
 readability` lists the lines no regression needs any more and those whose
-count can go down.
+count can go down. `python3 tools/readability.py compare
+tests/readability/npm.jsonl.xz build/readability/texts --allow
+tests/readability/allow.txt --prune` rewrites the file so (when the
+comparison passes): those lines dropped, the counts lowered.
 
 After a change that makes texts more readable, move the baseline forward:
 `make readability`, read its report, then `make readability-baseline`, and
@@ -186,8 +195,9 @@ its least, each string, call, event, error and form shown in either
 (`tools/readability.py best`). A regression is fixed or allowed; it never
 gets into the baseline, so an allowed one stays listed until it is fixed.
 The baseline was made from the texts of three builds (the build before
-round 2's fixes, round 2's, round 3's): what any of them showed is what the
-texts must show.
+round 2's fixes, round 2's, round 3's) and moved forward since (round 4's):
+what any of them showed is what the texts must show. After a change of the
+tool's measures, it is made again from those texts with the new tool.
 
 ## Sanitizers and the optimized builds
 
