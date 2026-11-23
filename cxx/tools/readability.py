@@ -33,9 +33,12 @@ What is measured, per function of a text:
 A rule compares one function of OLD with the same function of NEW: the same
 name, overloads paired by their parameters' types, then in the order printed.
 A count's tolerance is there for the counts that follow the number of paths
-printed. A string, call, event or error a function no longer shows isn't lost
-when the text shows it in a function that didn't (a message moved to the
-call sites, a call into a helper's def). The Error(string) reverts printed
+printed. The mean nesting is compared when either side has 30 lines or more
+(below, a line or two more moves it a lot). A string, call, event or error a
+function no longer shows isn't lost when the text shows it in a function
+that didn't (a message moved to the call sites, a call into a helper's def),
+or in the def of a helper the function calls (`SafeMath.add(x, y)`, its
+message in `def SafeMath:`). The Error(string) reverts printed
 word by word are counted with the raw reverts: a raw revert that became an
 Error with its message decoded is no regression. A loop's label (`loop1:
 while ...`) doesn't hide the loop.
@@ -73,6 +76,8 @@ TIME_CONST = re.compile(r'0x[0-9a-f]{9,} \* (60|3600|86400|604800|31536000)\b')
 ROTATED = re.compile(r'^while _\w+ \+ 1 != \d+:')
 ODD_HEX = re.compile(r'\b0x[0-9a-f]{63}\b')
 GAS_LINE = re.compile(r'^(gas |_\d+ = gas_remaining$)')
+HELPER = re.compile(r'\b([A-Za-z_]\w*)\.[A-Za-z_]\w*\(')   # SafeMath.add(: a call into a def's helper
+MEAN_DEPTH_LINES = 30
 LOOP_LABEL = re.compile(r'^loop\d+:\s+')
 ROUNDED = ('ceil32(', 'floor32(', 'Mask(250, 5')
 
@@ -181,6 +186,7 @@ def split_functions(text):
 def measure_function(name, lines):
     c = collections.Counter()
     sets = {k: set() for k, _ in SETS}
+    helpers = set()      # the defs whose helpers it calls (SafeMath)
     body = '\n'.join(lines)
     whiles = []          # [indent, has a plain copy]
     i = 0
@@ -206,6 +212,7 @@ def measure_function(name, lines):
             c['structs'] += 'struct' in s
             continue
         sets['strings'].update(STRING.findall(s))
+        helpers.update(HELPER.findall(s))
         w = LOOP_LABEL.sub('', s, count=1)
         if w.startswith('while '):
             c['while'] += 1
@@ -268,6 +275,7 @@ def measure_function(name, lines):
                 c['chars'] += len(lines[i])
                 i += 1
             sets['strings'].update(STRING.findall(st))
+            helpers.update(HELPER.findall(st))
             if 'mem[' in st:
                 c['raw_log'] += 1
             m = LOG_NAME.match(st) or LOG_TOPIC.match(st)
@@ -283,10 +291,13 @@ def measure_function(name, lines):
                 if names:
                     sets['calls'].add(names[-1])
     c['copy_loops'] += sum(w[1] for w in whiles)
-    if c['lines'] >= 30:
+    if c['lines']:
         c['mean_depth'] = 100 * c['depth_sum'] // c['lines']
     del c['depth_sum']
-    return {'n': {k: v for k, v in c.items() if v}, 's': {k: sorted(v) for k, v in sets.items() if v}}
+    m = {'n': {k: v for k, v in c.items() if v}, 's': {k: sorted(v) for k, v in sets.items() if v}}
+    if helpers:
+        m['h'] = sorted(helpers)
+    return m
 
 
 def measure_text(text):
@@ -400,10 +411,20 @@ def compare(old, new, allow):
                 for x in n['s'].get(key, ()):
                     if o is None or x not in o['s'].get(key, ()):
                         gained[key, x] += 1
+        # what each def of NEW shows (a helper's def: `def SafeMath:`)
+        shown = {}
+        for fn, n in new[name].items():
+            d = shown.setdefault(fn.split('#')[0], {})
+            for key, _ in SETS:
+                d.setdefault(key, set()).update(n['s'].get(key, ()))
         for fo, fn in pr:
             o, n = old[name][fo], new[name][fn]
             for key, _ in SETS:
-                lost = sorted(set(o['s'].get(key, ())) - set(n['s'].get(key, ())))
+                # (what the def of a helper it calls shows isn't lost)
+                reach = set()
+                for h in n.get('h', ()):
+                    reach |= shown.get(h, {}).get(key, set())
+                lost = sorted(set(o['s'].get(key, ())) - set(n['s'].get(key, ())) - reach)
                 # a selector or topic that NEW shows by its name isn't lost
                 named = [x for x in set(n['s'].get(key, ())) - set(o['s'].get(key, ())) if not anonymous(x)]
                 for x in [x for x in lost if anonymous(x)][:len(named)]:
@@ -416,6 +437,8 @@ def compare(old, new, allow):
                     regs.append((name, fo, 'lost_' + key, len(o['s'].get(key, ())), lost,
                                  allowed(allow, name, fo, 'lost_' + key)))
             for key, slack, rel, _ in RULES:
+                if key == 'mean_depth' and max(o['n'].get('lines', 0), n['n'].get('lines', 0)) < MEAN_DEPTH_LINES:
+                    continue
                 parts = COMBINED.get(key, (key,))
                 a, b = sum(o['n'].get(p, 0) for p in parts), sum(n['n'].get(p, 0) for p in parts)
                 if b > a + max(slack, rel * a):
@@ -508,6 +531,25 @@ def selftest():
     raw, err, dec = ({'x': {'f': measure_function('f', ['def f():', '  revert with ' + r])}}
                      for r in ('memory from mem[64] len 100', "Error(32, 3, 'abc', mem[_5 + 100 len 29])", "'abc'"))
     assert not compare(raw, err, [])[0] and [r[2] for r in compare(dec, err, [])[0]] == ['raw_error']
+
+    # the mean nesting from 30 lines on either side, the old side's real value
+    # (26 lines at 0.61 -> 33 at 0.69: within the slack, not 0 -> 0.69)
+    def nest(n_lines, deep):
+        return ['def f():'] + ['      x = 1'] * deep + ['  y = 2'] * (n_lines - 1 - deep)
+    o, n = ({'x': {'f': measure_function('f', nest(k, d))}} for k, d in ((26, 16), (33, 23)))
+    assert (o['x']['f']['n'].get('mean_depth'), n['x']['f']['n'].get('mean_depth')) == (61, 69)
+    assert not compare(o, n, [])[0], compare(o, n, [])[0]
+    o, n = ({'x': {'f': measure_function('f', nest(40, d))}} for d in (0, 39))
+    assert [r[2] for r in compare(o, n, [])[0]] == ['mean_depth'], compare(o, n, [])[0]
+    # a message now in the def of a helper the function calls isn't lost
+    lib = ("def SafeMath:\n  def add(a, b):\n      if a + b < a:\n          revert with 'addition overflow'\n"
+           "      return a + b\n\n")
+    o = {'x': measure_text(lib + "def f(): # not payable\n  if x + y < y:\n      revert with 'addition overflow'\n"
+                           "  return x + y\n")}
+    n = {'x': measure_text(lib + "def f(): # not payable\n  return SafeMath.add(x, y)\n")}
+    assert n['x']['f'].get('h') == ['SafeMath'] and not compare(o, n, [])[0], compare(o, n, [])[0]
+    n = {'x': measure_text(lib + "def f(): # not payable\n  return x + y\n")}
+    assert [r[2] for r in compare(o, n, [])[0]] == ['lost_strings'], compare(o, n, [])[0]
     print('readability selftest: ok')
     return 0
 

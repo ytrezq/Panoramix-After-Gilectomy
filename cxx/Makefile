@@ -24,7 +24,8 @@
 ##              readability.py): fails on a regression $(READABILITY_ALLOW)
 ##              doesn't allow; the report in $(B)/readability/report.md
 ##   readability-baseline  $(READABILITY_BASE) made again from the texts of
-##              `make readability` (after its report was read)
+##              the last `make readability` (after its report was read), or,
+##              when there are none, from $(CORPUS) decompiled by this build
 ##   clean      rm -rf $(B)
 ## Variables:
 ##   B=build    the build directory: each worker its own, B=build-NAME
@@ -311,8 +312,10 @@ readability: corpus-check $(D)/pancxx $(SIGDB)
 	$(Q)$(PYTHON) tools/readability.py compare $(READABILITY_BASE) $(B)/readability/texts \
 	  --allow $(READABILITY_ALLOW) --report $(B)/readability/report.md --list $(B)/readability/regressions.jsonl
 
-readability-baseline:
-	@test -d $(B)/readability/texts || { echo "make readability first" >&2; exit 1; }
+readability-baseline: corpus-check $(D)/pancxx $(SIGDB)
+	@test -d $(B)/readability/texts || { printf '  %-7s %s\n' TEXTS '$(CORPUS) -> $(B)/readability/texts'; \
+	  $(PYTHON) tools/readability.py texts $(D)/pancxx $(SIGDB) $(CORPUS) $(B)/readability/texts -j $(JOBS); }
+	$(call say,MEASURE,$(B)/readability/texts -> $(READABILITY_BASE))
 	$(Q)$(PYTHON) tools/readability.py measure $(B)/readability/texts $(READABILITY_BASE)
 
 bench: corpus-check all $(SIGDB)
