@@ -379,6 +379,25 @@ TEST_CASE("storage: dynamic arrays, packed arrays, fixed arrays, structs in mapp
     same_runs(a);
 }
 
+TEST_CASE("storage: a bytes whose data is copied as a range of slots - a bytes, not a struct") {
+    Fixture f;
+    // solidity's copy of a storage bytes to memory, its loop made a range
+    // of the data's slots (sha3 of the slot): the short form's length and
+    // the copy read as the loop did - bytes (uniswap's test contracts)
+    std::vector<FunctionInfo> fns{
+        fn(0x01010101,
+           "{(if (iszero (storage 1 0 3)) {(return (sized 32 (storage 7 1 3)))} "
+           "{(setmem (range 0 64) (storage_range (sha3 (sized 32 3)) 2)) (return (mem (range 0 64)))})}"),
+    };
+    const Analysed a = analyse(fns);
+    const StorageLayout& l = *a.layout;
+    bool bytes = false;
+    for (const StorageVar& v : l.vars)
+        if (v.slot == Word256::of(3)) bytes = l.types[v.type].kind == Kind::Bytes;
+    CHECK(bytes);
+    same_runs(a);
+}
+
 TEST_CASE("storage: vyper - the slot first in the hashes (voted)") {
     Fixture f;
     std::vector<FunctionInfo> fns{

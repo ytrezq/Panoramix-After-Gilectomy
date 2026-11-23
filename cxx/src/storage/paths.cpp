@@ -41,6 +41,11 @@ void Accesses::walk(Value v, Memo<Value, u8>& seen) {
         poll();
         if (v.is(Op::STORAGE, 3)) {
             add(Access{v[0], v[1], v[2]}, Written::No);
+        } else if (v.is(Op::STORAGE_RANGE, 2)) {
+            // (the words of slots from slot on: a read of its first word -
+            // a copy of a bytes' data, sha3 of its slot, is a read of its
+            // data as the loop it was made from read it)
+            add(Access{Value::small(256), Value::small(0), v[0]}, Written::No);
         } else if (v.is(Op::STORE, 4)) {
             add(Access{v[0], v[1], v[2]}, v[3].is_int() ? Written::Const : Written::Yes);
         }
