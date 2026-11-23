@@ -562,6 +562,30 @@ TEST_CASE("simplify: ABI arrays whose length agrees with their content where the
     CHECK(u[3][0][0].is(Op::ARR));
 }
 
+TEST_CASE("simplify: a value's adjacent bytes in two parts are one part") {
+    Fixture f;
+    // UniswapV3Pool's collectProtocol: transfer(recipient, amount), the
+    // amount's word written across where the selector goes - its 28 bytes
+    // uint96(amount >> 32) (the mask narrowed by its range), its last 4
+    // uint32(amount): one word, uint128(amount)
+    Value u = check_trace(
+        "{(call 1 (gas 1) (calldataload 36) 0 (sized 4 0xa9059cbb) (data (sized 32 caller) (sized 28 (mask_shl 96 32 "
+        "-32 (calldataload 4))) (sized 4 (mask_shl 32 0 0 (calldataload 4))))) (stop)}",
+        S::simplify_exps);
+    CHECK(u[0][5] == V("(data (sized 32 caller) (sized 32 (mask_shl 128 0 0 (calldataload 4))))"));
+    // a bytes4's word, its last 4 bytes zeroes: Mask(32, 224, p)
+    u = check_trace("{(return (data (sized 28 (mask_shl 32 224 -32 (calldataload 4))) (sized 4 0)))}", S::simplify_exps);
+    CHECK(u[0][0] == V("(sized 32 (mask_shl 32 224 0 (calldataload 4)))"));
+    // a value moved up stays apart (packed: an address, then zeroes)
+    u = check_trace("{(return (data (sized 20 caller) (sized 12 0)))}", S::simplify_exps);
+    CHECK(u[0][0].is(Op::DATA));
+    // ... and two values' bytes
+    u = check_trace("{(return (data (sized 28 (mask_shl 96 32 -32 (calldataload 4))) (sized 4 (mask_shl 32 0 0 "
+                    "(calldataload 36)))))}",
+                    S::simplify_exps);
+    CHECK(u[0][0].is(Op::DATA));
+}
+
 TEST_CASE("simplify: conditions known on the path") {
     Fixture f;
     // a check passed holds until what it reads changes: the same check again is decided
