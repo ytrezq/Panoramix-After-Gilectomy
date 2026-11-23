@@ -268,3 +268,48 @@ TEST_CASE("long lines: a check a check before it decides keeps its condition unn
         if (l[0] == field) ++on_field;
     CHECK_MESSAGE(on_field == 2, dump_trace(u));
 }
+
+TEST_CASE("names: a base of two positions a line of rounded lengths repeats is named (the review's ensdom122 NameWrapper)") {
+    Fixture fx;
+    // A buffer past a dynamic one, `p + ceil32(n)` (two terms: long_sum's
+    // names need three), read at four offsets in one line: four rounded
+    // lengths written out (`mem[p + ceil32(n) + 64] + mem[p + ceil32(n) +
+    // 96]...`). The base is named before the line, which reads `mem[_k +
+    // 64]`...
+    const std::string b = "(add (calldataload 36) (mask_shl 251 5 0 (add 31 (calldataload 4))))";
+    std::string sum = "(add";
+    for (int k : {64, 96, 128, 160}) sum += " (mem (range (add " + std::to_string(k) + " " + b + ") 32))";
+    sum += ")";
+    const std::string text = "{(store 256 0 9 " + sum + ") (stop)}";
+    Value u = check_whole(text);
+    // (the name: a variable set to a sum of two terms, one rounded)
+    std::vector<Value> svs, stores;
+    lines_of(u, Op::SETVAR, svs);
+    lines_of(u, Op::STORE, stores);
+    REQUIRE(stores.size() == 1);
+    Value name;
+    for (Value sv : svs)
+        if (sv[1].is(Op::ADD, 2) && (sv[1][0].is(Op::MASK_SHL) || sv[1][1].is(Op::MASK_SHL))) name = sv[0];
+    REQUIRE_MESSAGE(!name.nil(), dump_trace(u));
+    CHECK(count_of(stores[0][3], name) == 4);
+    CHECK(count_of(stores[0][3], V("(calldataload 4)")) == 0);
+}
+
+TEST_CASE("names: a base the checks right before the line read isn't named there (lot 8's SafeMath)") {
+    Fixture fx;
+    // The same line after a check that reads the base: a name made for the
+    // line alone would read differently there and in the check, and lot 8's
+    // SafeMath (which finds a check's operands in the line after it) would
+    // lose the site (c00026: two Panic(17) checks printed raw)
+    const std::string b = "(add (calldataload 36) (mask_shl 251 5 0 (add 31 (calldataload 4))))";
+    std::string sum = "(add";
+    for (int k : {64, 96, 128, 160}) sum += " (mem (range (add " + std::to_string(k) + " " + b + ") 32))";
+    sum += ")";
+    const std::string text = "{(if (gt (mem (range (add 64 " + b + ") 32)) (calldataload 68)) {(revert None)} {}) "
+                             "(store 256 0 9 " + sum + ") (stop)}";
+    Value u = check_whole(text);
+    std::vector<Value> svs;
+    lines_of(u, Op::SETVAR, svs);
+    for (Value sv : svs)
+        CHECK_MESSAGE(!(sv[1].is(Op::ADD, 2) && (sv[1][0].is(Op::MASK_SHL) || sv[1][1].is(Op::MASK_SHL))), dump_trace(u));
+}

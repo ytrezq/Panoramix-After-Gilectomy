@@ -349,6 +349,10 @@ public:
     // names are made): the lines' variables neither put nor named, the
     // names put only in the words a name may stand in (goes_into)
     bool long_only = false;
+    // with naming, the rounded bases' pass alone (name_rounded, after the
+    // first names are made, before the long lines'): the lines' variables
+    // neither put nor named; its names put where their values are
+    bool rounded_only = false;
     std::function<Value()> fresh;
     SmallVec<Value, 16> made;  // (the variables naming made)
     // the variables read twice or more in the trace (named_hash)
@@ -573,6 +577,7 @@ private:
     Value name_line(Value l, Env& env, SmallVec<Value, 4>& before) {
         if (!naming || !l.is_expr()) return l;
         if (long_only) return name_long(l, env, before);
+        if (rounded_only) return name_rounded(l, env, before);
         const usize n0 = before.size();
         if (l.is(Op::STORE, 4)) {
             name_in(l[3], env, before);
@@ -587,6 +592,134 @@ private:
         }
         if (before.size() == n0) return l;
         Value r = subst_line(l, env);
+        if (r != l) cx().pcs.inherit(r, l);
+        for (usize j = n0; j < before.size(); ++j) cx().pcs.inherit(before[j], l);
+        return r;
+    }
+
+    // ---- naming: the base a line of rounded lengths repeats ----
+
+    // the rounded terms (ceil32, floor32) an expression prints, each place
+    // counted; the sums it reads, each place once (not a storage slot's)
+    // (times: how many places print each sum; visits: a bound on the walk)
+    static void rounded_parts(Value e, u32& rounded, SmallVec<Value, 16>& sums, SmallVec<u32, 16>& times, u32& visits) {
+        if (!e.is_expr() || e.is(Op::STORAGE) || ++visits > 20000) return;
+        check_stack();
+        if (rounded_term(e)) ++rounded;
+        if (e.is(Op::ADD)) {
+            const auto it = std::find(sums.begin(), sums.end(), e);
+            if (it == sums.end()) {
+                sums.push_back(e);
+                times.push_back(1);
+            } else {
+                ++times[usize(it - sums.begin())];
+            }
+        }
+        for (Value a : e.args()) rounded_parts(a, rounded, sums, times, visits);
+    }
+    // whether the sum s has every term of the base b, each with its
+    // coefficient
+    static bool holds_terms(const alg::Linear& s, const alg::Linear& b) {
+        if (b.terms.size() > s.terms.size()) return false;
+        for (const alg::LinTerm& t : b.terms)
+            if (EvmInt(s.coeff_of(t.term)) != EvmInt(t.coeff)) return false;
+        return true;
+    }
+    // A line that prints four rounded lengths or more (ceil32(len) ...) and
+    // reads a base of positions twice or more - the terms two of its sums
+    // share, two or more of them, one rounded (the buffer `p + ceil32(n)`
+    // past a dynamic one) - gets the base named before it, read there and
+    // wherever it still holds after: `_k + 64`, `_k + mem[_k + 32]` where
+    // `p + ceil32(n) + 64` was written out each time (long_sum's names
+    // need three terms; a base of two is named where a line repeats it) -
+    // the base the most places read first, three at most
+    bool name_rounded_exprs(SmallVec<Value, 4>& es, Env& env, SmallVec<Value, 4>& before) {
+        bool made_one = false;
+        // (the sums the run of checks right before the line reads: a base
+        // of theirs named in the line alone would hide their arithmetic's
+        // operands from lot 8's SafeMath - checked_parts)
+        std::vector<alg::Linear> checked_sums;
+        {
+            MemoSet<Value> checked;
+            checked_parts(checked);
+            checked.each([&](Value x) {
+                if (x.is(Op::ADD)) checked_sums.push_back(alg::linear(x));
+            });
+        }
+        for (u32 k = 0; k < 3; ++k) {
+            u32 rounded = 0, visits = 0;
+            SmallVec<Value, 16> sums;
+            SmallVec<u32, 16> times;
+            for (Value e : es) rounded_parts(e, rounded, sums, times, visits);
+            if (rounded < 4 || sums.size() < 2) break;
+            // (the sums' position terms, a loop's counter left out)
+            std::vector<alg::Linear> lins;
+            for (Value s : sums) {
+                alg::Linear l = alg::linear(s);
+                alg::Linear p;
+                for (const alg::LinTerm& t : l.terms)
+                    if (position_term(t.term) && !reads_loop_var(t.term)) p.terms.push_back(t);
+                lins.push_back(std::move(p));
+            }
+            Value best;
+            u64 most = 0;
+            usize best_n = 0;
+            for (usize i = 0; i < lins.size(); ++i)
+                for (usize j = i + 1; j < lins.size(); ++j) {
+                    SmallVec<Value, 8> shared;
+                    u32 r = 0;
+                    for (const alg::LinTerm& t : lins[i].terms)
+                        if (EvmInt(lins[j].coeff_of(t.term)) == EvmInt(t.coeff)) {
+                            shared.push_back(alg::mul(t.coeff, t.term));
+                            r += rounded_term(t.term);
+                        }
+                    if (shared.size() < 2 || !r) continue;
+                    const Value b = alg::add(shared.span());
+                    const alg::Linear lb = alg::linear(b);
+                    usize n = 0;
+                    for (usize m = 0; m < lins.size(); ++m)
+                        if (holds_terms(lins[m], lb)) n += times[m];
+                    // (the base the most places read: the buffer's, not a
+                    // sum that one line repeats - then the most characters)
+                    const u32 w = widths_.of(b);
+                    const u64 saves = w > kNameWidth ? n * (w - kNameWidth) : 0;
+                    if (n < 2 || n < best_n || (n == best_n && saves <= most) || !movable(Value(), b)) continue;
+                    if (std::any_of(checked_sums.begin(), checked_sums.end(),
+                                    [&](const alg::Linear& c) { return holds_terms(c, lb); }))
+                        continue;
+                    best = b;
+                    best_n = n;
+                    most = saves;
+                }
+            if (best.nil()) break;
+            const Value name = fresh();
+            made.push_back(name);
+            before.push_back(mk(Op::SETVAR, name, best));
+            env.set(name, best, true);
+            made_one = true;
+            bool progress = false;
+            for (Value& e : es) {
+                const Value n = put(e, env);
+                progress |= n != e;
+                e = n;
+            }
+            if (!progress) break;
+        }
+        return made_one;
+    }
+    Value name_rounded(Value l, Env& env, SmallVec<Value, 4>& before) {
+        SmallVec<Value, 4> es;
+        if (l.is(Op::STORE, 4))
+            es.push_back(l[3]);
+        else
+            (void)map_line_exprs(l, [&](Value e, Pos) {
+                es.push_back(e);
+                return e;
+            });
+        const usize n0 = before.size();
+        if (!name_rounded_exprs(es, env, before)) return l;
+        Value r = subst_line(l, env);
+        if (const Value q = simplify_line(r); !q.nil()) r = q;
         if (r != l) cx().pcs.inherit(r, l);
         for (usize j = n0; j < before.size(); ++j) cx().pcs.inherit(before[j], l);
         return r;
@@ -906,6 +1039,14 @@ private:
                 Value cond = dominated ? l[0] : put(l[0], env);
                 if (naming && cond != l[0]) cond = simplify_word(cond);
                 if (dominated) {
+                } else if (rounded_only) {
+                    // (a condition of rounded lengths: its base named)
+                    SmallVec<Value, 4> es{cond};
+                    const usize n1 = before.size();
+                    if (name_rounded_exprs(es, env, before)) {
+                        cond = simplify_word(es[0]);
+                        for (usize j = n1; j < before.size(); ++j) cx().pcs.inherit(before[j], l);
+                    }
                 } else if (naming && !long_only) {
                     const usize n0 = before.size();
                     name_in(cond, env, before);
@@ -963,7 +1104,7 @@ private:
             case Op::WHILE: {
                 // the setvars: at the entry, from env
                 Value sv = subst_setvars(l[3], env);
-                if (naming && !long_only && sv.is_list()) {
+                if (naming && !long_only && !rounded_only && sv.is_list()) {
                     const usize n0 = before.size();
                     for (Value x : sv.args())
                         if (x.is(Op::SETVAR, 2)) name_in(x[1], env, before);
@@ -988,7 +1129,7 @@ private:
                 cx().pcs.inherit(r, l);
                 // after it, the loop's variables' last values when lot 6
                 // proves them (made of what the loop doesn't change)
-                if (auto ind = loops::induction(l); !long_only && ind && ind->endvars.is_list())
+                if (auto ind = loops::induction(l); !long_only && !rounded_only && ind && ind->endvars.is_list())
                     for (Value e : ind->endvars.args())
                         if (e.is(Op::SETVAR, 2) && is_var(e[0]) && !changes(s, summary(e[1]), &in) && movable(e[0], e[1]))
                             env.set(e[0], e[1]);
@@ -1034,7 +1175,7 @@ private:
             env.kill(summary(r), &through);
         }
         fl = floor_transfer(fl, r);
-        if (!long_only && r.is(Op::SETVAR, 2) && is_var(r[0]) && movable(r[0], r[1]))
+        if (!long_only && !rounded_only && r.is(Op::SETVAR, 2) && is_var(r[0]) && movable(r[0], r[1]))
             env.set(r[0], r[1], named_hash(r[0], r[1]) || (naming && named_value(r[1])));
         return r;
     }
@@ -1479,6 +1620,17 @@ Value name_values(Value trace) {
         fw.fresh = fresh;
         alg::Facts fl = entry;
         count_all_reads(t, fw.reads);
+        const Value w = fw.walk(t, env, fl);
+        t = put_back_single(w, fw.made.span());
+    }
+    {
+        // then the bases a line of rounded lengths repeats (name_rounded)
+        Env env(cx().budget.resource());
+        Forward fw(cx().budget.resource());
+        fw.naming = true;
+        fw.rounded_only = true;
+        fw.fresh = fresh;
+        alg::Facts fl = entry;
         const Value w = fw.walk(t, env, fl);
         t = put_back_single(w, fw.made.span());
     }

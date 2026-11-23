@@ -722,7 +722,11 @@ where no read of the gas left may run after it (the gas left is lower at
 each read: one after it would read another value; c00226's reads for the
 gas of a precompile's call, which its line doesn't keep). The final
 `name_values` names for display: first the long sums of positions and
-the hashes of memory, then (a pass of its own, after) the parts a line
+the hashes of memory; then (a pass of its own) a base of two positions or
+more, one rounded (`p + ceil32(n)`), that a line printing four rounded
+lengths or more repeats - the base the most places read, set before the
+line and read wherever it still holds (not one the run of checks right
+before the line reads: lot 8's SafeMath); then (a pass of its own) the parts a line
 that would print long repeats - over 240 characters, its indent counted
 (an estimate of the printed width, `Widths`) - each set right before the
 line, the one that saves the most first, until the line fits in 200 or
