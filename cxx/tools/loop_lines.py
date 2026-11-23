@@ -11,9 +11,37 @@ import os
 import re
 import sys
 
-# a plain copy: the whole right-hand side one memory read
-COPY = re.compile(r"^\s*mem\[.*\]\s*=\s*mem\[[^\[\]]*(\[[^\[\]]*\][^\[\]]*)*\]\s*$")
-WHILE = re.compile(r"^\s*while\b")
+WHILE = re.compile(r"^\s*(?:loop\d+:\s+)?while\b")   # a label doesn't hide the loop
+
+
+def bracket_end(s, i):
+    """the index of the ']' that closes the '[' at s[i], or -1"""
+    depth = 0
+    for j in range(i, len(s)):
+        if s[j] == "[":
+            depth += 1
+        elif s[j] == "]":
+            depth -= 1
+            if not depth:
+                return j
+    return -1
+
+
+class COPY:
+    """a plain copy, `mem[...] = mem[...]`: the whole right-hand side one memory read
+    (the addresses may read memory: brackets at any depth)"""
+
+    @staticmethod
+    def match(line):
+        s = line.strip()
+        if not s.startswith("mem["):
+            return False
+        e = bracket_end(s, 3)
+        rest = s[e + 1:].lstrip() if e >= 0 else ""
+        if not rest.startswith("= "):
+            return False
+        rhs = rest[2:].strip()
+        return rhs.startswith("mem[") and bracket_end(rhs, 3) == len(rhs) - 1
 
 
 def count(path):

@@ -30,9 +30,15 @@ What is measured, per function of a text:
   63 hex digits; lines over 240 characters or with four or more rounded
   lengths; raw memory writes; the nesting depth; the text's size.
 
-A rule compares one function of OLD with the same function of NEW (same
-name, same rank among the functions of that name); a count's tolerance is
-there for the counts that follow the number of paths printed.
+A rule compares one function of OLD with the same function of NEW: the same
+name, overloads paired by their parameters' types, then in the order printed.
+A count's tolerance is there for the counts that follow the number of paths
+printed. A string, call, event or error a function no longer shows isn't lost
+when the text shows it in a function that didn't (a message moved to the
+call sites, a call into a helper's def). The Error(string) reverts printed
+word by word are counted with the raw reverts: a raw revert that became an
+Error with its message decoded is no regression. A loop's label (`loop1:
+while ...`) doesn't hide the loop.
 
 The allow file: lines `NAME FUNCTION RULE  # why` (`*` for any); a
 regression it lists is reported as allowed and doesn't fail the comparison.
@@ -65,7 +71,7 @@ TIME_CONST = re.compile(r'0x[0-9a-f]{9,} \* (60|3600|86400|604800|31536000)\b')
 ROTATED = re.compile(r'^while _\w+ \+ 1 != \d+:')
 ODD_HEX = re.compile(r'\b0x[0-9a-f]{63}\b')
 GAS_LINE = re.compile(r'^(gas |_\d+ = gas_remaining$)')
-COPY = re.compile(r'^mem\[.*\]\s*=\s*mem\[[^\[\]]*(\[[^\[\]]*\][^\[\]]*)*\]$')
+LOOP_LABEL = re.compile(r'^loop\d+:\s+')
 ROUNDED = ('ceil32(', 'floor32(', 'Mask(250, 5')
 
 # the counts, and how much one may grow: (name, absolute slack, relative slack, what it is)
@@ -99,12 +105,61 @@ RULES = [
     ('chars', 2000, 0.25, "the function's size in characters"),
     ('structs', 0, 0.0, "`def storage` lines with a struct"),
 ]
+# a rule whose count is the sum of these (raw_error: with the raw reverts)
+COMBINED = {'raw_error': ('raw_error', 'raw_revert')}
 SETS = [('strings', 'revert strings'), ('calls', 'called functions'), ('events', 'events'),
         ('errors', 'custom errors'), ('forms', 'decoded forms (Array(len=...))')]
 
 
 def opener(path, mode):
     return lzma.open(path, mode + 't') if path.endswith('.xz') else open(path, mode)
+
+
+def bracket_end(s, i):
+    """the index of the ']' that closes the '[' at s[i], or -1"""
+    depth = 0
+    for j in range(i, len(s)):
+        if s[j] == '[':
+            depth += 1
+        elif s[j] == ']':
+            depth -= 1
+            if not depth:
+                return j
+    return -1
+
+
+def is_copy(s):
+    """a plain copy, `mem[...] = mem[...]`: the whole right-hand side one memory read"""
+    if not s.startswith('mem['):
+        return False
+    e = bracket_end(s, 3)
+    rest = s[e + 1:].lstrip() if e >= 0 else ''
+    if not rest.startswith('= '):
+        return False
+    rhs = rest[2:].strip()
+    return rhs.startswith('mem[') and bracket_end(rhs, 3) == len(rhs) - 1
+
+
+def signature(defline):
+    """the parameters' types of a `def` line, which tell overloads apart"""
+    i = defline.find('(')
+    if i < 0:
+        return ''
+    depth, cur, parts = 0, '', []
+    for ch in defline[i + 1:]:
+        if ch in '([':
+            depth += 1
+        elif ch in ')]':
+            if not depth:
+                break
+            depth -= 1
+        if ch == ',' and not depth:
+            parts.append(cur)
+            cur = ''
+        else:
+            cur += ch
+    parts.append(cur)
+    return ','.join(p.strip().rsplit(' ', 1)[0] for p in parts if p.strip())
 
 
 def split_functions(text):
@@ -148,11 +203,13 @@ def measure_function(name, lines):
         if name == 'storage':
             c['structs'] += 'struct' in s
             continue
-        if s.startswith('while '):
+        sets['strings'].update(STRING.findall(s))
+        w = LOOP_LABEL.sub('', s, count=1)
+        if w.startswith('while '):
             c['while'] += 1
-            c['while_true'] += s.startswith('while True')
+            c['while_true'] += w.startswith('while True')
             whiles.append([ind, 0])
-        elif whiles and COPY.match(s):
+        elif whiles and is_copy(s):
             whiles[-1][1] = 1
         if s.startswith(('continue loop', 'break loop')):
             c['labels'] += 1
@@ -163,7 +220,7 @@ def measure_function(name, lines):
             c['inline_gas'] += 1
         if TIME_CONST.search(s):
             c['time_const'] += 1
-        if ROTATED.match(s):
+        if ROTATED.match(w):
             c['rotated'] += 1
         if 'copied = identity(' in s:
             c['identity'] += 1
@@ -208,6 +265,7 @@ def measure_function(name, lines):
                 c['lines'] += 1
                 c['chars'] += len(lines[i])
                 i += 1
+            sets['strings'].update(STRING.findall(st))
             if 'mem[' in st:
                 c['raw_log'] += 1
             m = LOG_NAME.match(st) or LOG_TOPIC.match(st)
@@ -230,7 +288,14 @@ def measure_function(name, lines):
 
 
 def measure_text(text):
-    return {key: measure_function(key.split('#')[0], lines) for key, lines in split_functions(text)}
+    out = {}
+    for key, lines in split_functions(text):
+        m = measure_function(key.split('#')[0], lines)
+        sig = signature(lines[0]) if lines else ''
+        if sig:
+            m['sig'] = sig
+        out[key] = m
+    return out
 
 
 def measure_dir(d):
@@ -276,6 +341,38 @@ def anonymous(x):
     return x.startswith(('0x', 'unknown'))
 
 
+def rank(key):
+    return int(key.split('#')[1]) if '#' in key else 1
+
+
+def pairs(olds, news):
+    """[(old key, new key)]: the functions compared - the same name; overloads
+    by their parameters' types first, then in the order printed"""
+    def groups(fns):
+        g = collections.defaultdict(list)
+        for key in sorted(fns, key=rank):
+            g[key.split('#')[0]].append(key)
+        return g
+    gn = groups(news)
+    out = []
+    for base, ks in groups(olds).items():
+        cand = list(gn.get(base, ()))
+        if len(ks) == 1 and len(cand) == 1:
+            out.append((ks[0], cand[0]))
+            continue
+        left = []
+        for k in ks:
+            sig = olds[k].get('sig')
+            m = next((c for c in cand if sig and news[c].get('sig') == sig), None)
+            if m is None:
+                left.append(k)
+            else:
+                cand.remove(m)
+                out.append((k, m))
+        out.extend(zip(left, cand))
+    return out
+
+
 def compare(old, new, allow):
     """the regressions [(name, function, rule, old, new, allowed)] and the totals"""
     regs = []
@@ -289,23 +386,37 @@ def compare(old, new, allow):
         for fn, m in old[name].items():
             for k, v in m['n'].items():
                 tot_old[k] += v
-        for fn, o in old[name].items():
-            n = new[name].get(fn)
-            if n is None:
-                continue        # a function OLD has and NEW hasn't: the checks by execution's matter
+        pr = pairs(old[name], new[name])
+        # what NEW shows in a function whose OLD didn't (or that OLD hasn't):
+        # moved there, not lost from the text
+        was = {fn: old[name][fo] for fo, fn in pr}
+        gained = collections.Counter()
+        for fn, n in new[name].items():
+            o = was.get(fn)
+            for key, _ in SETS:
+                for x in n['s'].get(key, ()):
+                    if o is None or x not in o['s'].get(key, ()):
+                        gained[key, x] += 1
+        for fo, fn in pr:
+            o, n = old[name][fo], new[name][fn]
             for key, _ in SETS:
                 lost = sorted(set(o['s'].get(key, ())) - set(n['s'].get(key, ())))
                 # a selector or topic that NEW shows by its name isn't lost
                 named = [x for x in set(n['s'].get(key, ())) - set(o['s'].get(key, ())) if not anonymous(x)]
                 for x in [x for x in lost if anonymous(x)][:len(named)]:
                     lost.remove(x)
+                for x in list(lost):
+                    if gained[key, x] > 0:
+                        gained[key, x] -= 1
+                        lost.remove(x)
                 if lost:
-                    regs.append((name, fn, 'lost_' + key, len(o['s'].get(key, ())), lost,
-                                 allowed(allow, name, fn, 'lost_' + key)))
+                    regs.append((name, fo, 'lost_' + key, len(o['s'].get(key, ())), lost,
+                                 allowed(allow, name, fo, 'lost_' + key)))
             for key, slack, rel, _ in RULES:
-                a, b = o['n'].get(key, 0), n['n'].get(key, 0)
+                parts = COMBINED.get(key, (key,))
+                a, b = sum(o['n'].get(p, 0) for p in parts), sum(n['n'].get(p, 0) for p in parts)
                 if b > a + max(slack, rel * a):
-                    regs.append((name, fn, key, a, b, allowed(allow, name, fn, key)))
+                    regs.append((name, fo, key, a, b, allowed(allow, name, fo, key)))
     return regs, tot_old, tot_new
 
 
@@ -374,6 +485,26 @@ def selftest():
         assert want in rules, want
     assert not compare(good, good, [])[0] and not compare(bad, good, [])[0]
     assert all(r[5] for r in compare(good, bad, [('x', '*', '*')])[0])
+    # labels don't hide loops; a copy whose address reads memory twice over is a copy
+    m = measure_text('def f(): # not payable\n  loop1: while True:\n      if idx > 3:\n          break\n'
+                     '      mem[idx + 192] = mem[mem[mem[64] + 32] + idx]\n      idx = idx + 32\n')['f']['n']
+    assert m.get('while') == 1 and m.get('while_true') == 1 and m.get('copy_loops') == 1, m
+    # strings anywhere; overloads paired by their types; moved strings not lost
+    o = {'x': measure_text("def f(uint256 _a): # not payable\n  return 1\n\n"
+                           "def f(address _b): # not payable\n  while True:\n      stop\n\n"
+                           "def g(): # not payable\n  revert with 'X'\n")}
+    n = {'x': measure_text("def f(address _b): # not payable\n  while True:\n      stop\n\n"
+                           "def f(uint256 _a): # not payable\n  return 1\n\n"
+                           "def g(): # not payable\n  return SafeMath.mul(1, 2, 'Y')\n\n"
+                           "def h(): # not payable\n  revert with 'X'\n")}
+    assert n['x']['g']['s'] == {'strings': ['Y']}, n['x']['g']
+    assert not compare(o, n, [])[0], compare(o, n, [])[0]
+    del n['x']['h']
+    assert [r[2] for r in compare(o, n, [])[0]] == ['lost_strings']
+    # a raw revert become an Error is no regression; a decoded one become an Error is
+    raw, err, dec = ({'x': {'f': measure_function('f', ['def f():', '  revert with ' + r])}}
+                     for r in ('memory from mem[64] len 100', "Error(32, 3, 'abc', mem[_5 + 100 len 29])", "'abc'"))
+    assert not compare(raw, err, [])[0] and [r[2] for r in compare(dec, err, [])[0]] == ['raw_error']
     print('readability selftest: ok')
     return 0
 
