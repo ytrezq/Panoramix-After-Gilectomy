@@ -831,7 +831,16 @@ each, a stop or a Panic, nor two that leave a branch empty: a guard's
 revert shared with the main path nested the main path under the negated
 guards, guard by guard, the revert at the function's end - c00152, c00284),
 `cleanup_ors`, `make_ifs`, `merge_ifs` (hoisting by the effect summaries),
-`fold_aux` - and a failed assert leaves the trace as it was. The ast passes keep the
+`fold_aux` - and a failed assert leaves the trace as it was. Then
+`guard_tails` (not python's): where a block of a loop's body ends `if c:
+B`, a few assignments and the loop's own `continue` (the ending the skip
+and the path through B share, taken off both), the skip is made a guard -
+`if not c: <the ending>`, then B one level up, then the ending - guard
+after guard where B ends the same way; when the ending is 5 printed lines
+at most and B at least 8 times as many (what the copy adds in characters
+is no more than the un-nested lines lose: no function prints longer or
+deeper for it; the same lines run in the same order on each path). The
+ast passes keep the
 text faithful where python's can't name what the IR numbers: a call's
 result read where another call may have run since, and a gas read printed
 with or after another, get a variable (python's snapshots: `_1 =
