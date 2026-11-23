@@ -21,6 +21,8 @@ builds in its own directory, `B=build-NAME` (`build*/` is ignored by git).
 | `pgo`      | the PGO build in `$(B)/pgo/` (below) |
 | `debug`    | `$(B)/debug/`: `-O1 -g`, ASan + UBSan (`-fno-sanitize-recover=all`), `_GLIBCXX_ASSERTIONS`, no LTO; builds the CLI and the unit tests and runs them. Any target in that build: `make VARIANT=debug validate` |
 | `bench`    | `tools/bench.py`: the asm, `$(B)/pancxx`, `$(B)/pgo/pancxx` over `$(CORPUS)` |
+| `readability` | `$(CORPUS)` decompiled into `$(B)/readability/texts/`, its readability compared with `$(READABILITY_BASE)` (below); fails on a regression `$(READABILITY_ALLOW)` doesn't allow |
+| `readability-baseline` | `$(READABILITY_BASE)` measured from the texts of the last `make readability` (or, when there are none, from `$(CORPUS)` decompiled by this build) |
 | `clean`    | `rm -rf $(B)` |
 
 ## Variables
@@ -35,6 +37,8 @@ builds in its own directory, `B=build-NAME` (`build*/` is ignored by git).
 | `ABI_DUMP` | `$PANORAMIX_ABI_DUMP`, else `/home/claude/panoramix/panoramix/data/abi_dump.xz` | for `sigdb`: python panoramix's `panoramix/data/abi_dump.xz` |
 | `SIGDB` | `$(B)/sigdb2.bin` | the C++ CLI's database (not the asm's format) |
 | `ASM`, `ASM_SIGDB` | `../build/panasm`, `../build/abi_db.bin` | the asm, for `bench` |
+| `READABILITY_BASE` | `tests/readability/npm.jsonl.xz` | the readability baseline: the measures of the npm corpus's texts |
+| `READABILITY_ALLOW` | `tests/readability/allow.txt` | the regressions `make readability` accepts |
 | `TEST_ARGS`, `BENCH_ARGS` | | passed to the doctest binary, to `bench.py` |
 | `EXTRA_CXXFLAGS`, `EXTRA_LDFLAGS` | | experiments only |
 
@@ -108,6 +112,65 @@ A source changed between 2 and 4 only loses its profile (a warning).
   contract, peak RSS, the ratios to the asm.
 
 Try them on a few contracts first (`--limit 20`): the whole corpus is long.
+
+## The readability check (`make readability`)
+
+The execution checks prove that a text does what the bytecode does. They
+can't see a text get harder to read: a revert string printed as raw memory
+again, a copy back to a loop, a value written out in full where a name was.
+`make readability` is the automatic form of what the manual review looked
+for (`corpus/review/`). It decompiles `$(CORPUS)` with `$(B)/pancxx` into
+`$(B)/readability/texts/`, measures each function of each text
+(`tools/readability.py`, whose docstring lists the rules), and compares the
+measures with the baseline `$(READABILITY_BASE)`, committed in the
+repository. It fails on a regression that `$(READABILITY_ALLOW)` doesn't
+allow, and writes:
+
+- `$(B)/readability/report.md`: the regressions by rule, the totals before
+  and after, the texts with the most;
+- `$(B)/readability/regressions.jsonl`: one per line (`name`, `function`,
+  `rule`, `old`, `new`, `allowed`).
+
+```
+make readability CORPUS=corpus-npm/all_hex.txt
+```
+
+The baseline is keyed by the `.hex` files' names: `CORPUS` must name the
+files of `tools/fetch_corpus.sh corpus-npm` (in any directory). Another
+corpus needs its own baseline (`READABILITY_BASE=...`).
+
+A function of the new text is compared with the same function of the old
+one (the same name; overloads paired by their parameters' types). A
+regression is:
+
+- a revert string, called function, event, custom error or decoded form
+  (`Array(len=...)`) that the old function showed and the new one doesn't,
+  unless the text shows it elsewhere (moved to a call site, into a helper's
+  def);
+- a count past its tolerance: raw memory in reverts, returns, call
+  arguments, call targets and event data; free-pointer differences left
+  unfolded; storage keys hashed from raw memory; arguments split in byte
+  slices; copies left as loops; `while True` loops, loop labels, rotated
+  loops; GAS reads nothing uses; lines over 240 characters or with four
+  rounded lengths; raw memory writes; the nesting; the size.
+
+What to do with one:
+
+1. Fix it. A change that makes a text less readable is a regression even
+   when it is exact.
+2. When the old form was readable only because it was inexact, or when
+   exactness needs the new form, allow it: a line `NAME FUNCTION RULE  #
+   why` in `tests/readability/allow.txt`, with the proof (shell patterns,
+   `*` for any).
+3. When the tool counts something that isn't a loss, fix the tool and add
+   the case to its selftest (`python3 tools/readability.py selftest`, run
+   by `make check` through `tests/readability_selftest.py`).
+
+After a change that makes texts more readable, make the new texts the
+baseline: `make readability`, read its report, then `make
+readability-baseline`, which measures the texts just made into
+`$(READABILITY_BASE)`; commit it with the change. The baseline only moves
+forward: a regression is fixed or allowed, never folded into the baseline.
 
 ## Sanitizers and the optimized builds
 

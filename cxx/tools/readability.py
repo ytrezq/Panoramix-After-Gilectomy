@@ -631,9 +631,11 @@ def main():
            '', '| rule | regressions | texts | total before | total after |', '|---|---|---|---|---|']
     for key in [k for k, _, _, _ in RULES] + ['lost_' + k for k, _ in SETS]:
         base = key[5:] if key.startswith('lost_') else key
+        # (a sum of means is no total)
+        summed = not key.startswith('lost_') and key != 'mean_depth'
         out.append('| %s (%s) | %d | %d | %s | %s |' % (
             key, what[key], by_rule[key], len({r[0] for r in bad if r[2] == key}),
-            tot_old[base] if not key.startswith('lost_') else '', tot_new[base] if not key.startswith('lost_') else ''))
+            tot_old[base] if summed else '', tot_new[base] if summed else ''))
     out += ['', '| also | total before | total after |', '|---|---|---|']
     for key in ('lines', 'while'):
         out.append('| %s | %d | %d |' % (key, tot_old[key], tot_new[key]))
