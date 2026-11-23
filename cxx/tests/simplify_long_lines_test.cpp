@@ -241,3 +241,30 @@ TEST_CASE("long lines: an if whose branches only set one variable gets its names
     for (Value l : ifs) CHECK_MESSAGE(!(l[1].size() == 1 && l[1][0].is(Op::SETVAR, 2) && l[2].size() > 1), dump_trace(u));
 }
 
+
+TEST_CASE("long lines: a check a check before it decides keeps its condition unnamed (the review's c00005)") {
+    Fixture fx;
+    // A divisor checked for zero, a long line that names it, the same check
+    // again (the code that goes on in the checks' branches, as the VM leaves
+    // it): the last cleanup_conds drops the second check, decided by the
+    // first one's fact, only if it still reads the divisor - named, it read
+    // `if not _82` and stayed, its revert printed twice more (c00005: raw
+    // reverts 58 -> 60). name_values alone, on the trace as it gets it.
+    const std::string d = kStored;
+    const std::string text = "{(if " + d + " {(if (calldataload 200) {(store 256 0 20 1)} {(store 256 0 21 1)}) "
+                             "(store 256 0 9 " + interest(kRate, d) + ") "
+                             "(if " + d + " {(stop)} {(revert None)})} {(revert None)})}";
+    Value t = V(text.c_str());
+    Value u = S::name_values(t);
+    CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+    // (the field is named: the store reads its name)
+    const Value field = V(d.c_str());
+    REQUIRE(!name_of(u, field).nil());
+    // the second check reads the field, not its name
+    std::vector<Value> ifs;
+    lines_of(u, Op::IF, ifs);
+    usize on_field = 0;
+    for (Value l : ifs)
+        if (l[0] == field) ++on_field;
+    CHECK_MESSAGE(on_field == 2, dump_trace(u));
+}

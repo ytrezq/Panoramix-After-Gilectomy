@@ -680,6 +680,26 @@ private:
             all_parts(frames_[f].check, parts);
         }
     }
+    // a check: an IF one branch of which only fails, the other empty; a
+    // REQUIRE
+    static bool is_check(Value x) {
+        if (x.is(Op::IF, 3)) return (only_fails(x[1]) && x[2].size() == 0) || (only_fails(x[2]) && x[1].size() == 0);
+        return x.is(Op::REQUIRE) && x.size() > 0;
+    }
+    // (long_only) a check whose condition a check before it on every path
+    // to it has - the lines before it in its block and in the blocks around
+    // it, the IFs it is in: cleanup_conds drops it, decided by that one's
+    // fact. Its condition is left as it is: a name in it would hide the
+    // fact from them (c00005: `if not _82` printed again where `if not
+    // stor[_721]` was dropped)
+    bool dominated_check(Value cond) {
+        for (const Frame& f : frames_) {
+            if (!f.check.nil() && unname(f.check) == cond) return true;
+            for (Value x : f.out->span())
+                if (is_check(x) && unname(x[0]) == cond) return true;
+        }
+        return false;
+    }
     // a read (of memory, calldata, storage, a call's return data...), its
     // mask: not arithmetic a check verifies
     static bool read_like(Value e) {
@@ -882,9 +902,11 @@ private:
         switch (l.op()) {
             case Op::IF:
             case Op::MERGED_IF: {
-                Value cond = put(l[0], env);
+                const bool dominated = long_only && (only_fails(l[1]) || (l.size() > 2 && only_fails(l[2]))) && dominated_check(l[0]);
+                Value cond = dominated ? l[0] : put(l[0], env);
                 if (naming && cond != l[0]) cond = simplify_word(cond);
-                if (naming && !long_only) {
+                if (dominated) {
+                } else if (naming && !long_only) {
                     const usize n0 = before.size();
                     name_in(cond, env, before);
                     if (before.size() != n0) cond = simplify_word(put(cond, env));
@@ -996,6 +1018,7 @@ private:
             }
             default: break;
         }
+        if (long_only && is_check(l) && dominated_check(l[0])) return l;
         Value r = subst_line(l, env);
         if (naming && r != l) {
             // (a name in a sum's place: the normal form again)
