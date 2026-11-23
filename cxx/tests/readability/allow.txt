@@ -61,19 +61,6 @@ ensdom122_OffchainDNSResolver_2 resolveCallback lost_forms 1  # Array
 ensdom122_OffchainDNSResolver_2 resolveCallback raw_error 14  # 13 -> 14
 ensdom122_OffchainDNSResolver_2 resolveCallback raw_return 7  # 6 -> 7
 ensdom122_OffchainDNSResolver_2 resolveCallback raw_revert 14  # 13 -> 14
-ensdom122_PublicResolver setZonehash ptr_diff 1  # 0 -> 1
-ensdom122_PublicResolver_2 setZonehash ptr_diff 1  # 0 -> 1
-gnosis130_MockContract reset long 3  # 1 -> 3
-gnosis130_MockContract reset ptr_diff 2  # 0 -> 2
-openze251_ERC721GSNRecipientMock safeTransferFrom ptr_diff 1  # 0 -> 1
-openze300_ERC721 safeTransferFrom ptr_diff 1  # 0 -> 1
-openze300_ERC721BurnableMock safeTransferFrom ptr_diff 1  # 0 -> 1
-openze300_ERC721GSNRecipientMock safeTransferFrom ptr_diff 1  # 0 -> 1
-openze300_ERC721MinterPauser safeTransferFrom ptr_diff 1  # 0 -> 1
-openze300_ERC721Mock safeMint ptr_diff 1  # 0 -> 1
-openze300_ERC721Mock safeTransferFrom ptr_diff 1  # 0 -> 1
-openze300_ERC721PausableMock safeTransferFrom ptr_diff 1  # 0 -> 1
-openze300_ERC721PresetMinterPauserAutoId safeTransferFrom ptr_diff 1  # 0 -> 1
 openze496_ERC777 burn lost_forms 1  # Array
 openze496_ERC777 operatorBurn lost_forms 1  # Array
 openze496_ERC777 operatorSend lost_forms 1  # Array
