@@ -232,6 +232,10 @@ private:
     std::vector<Value> fold_aux(std::span<const Value> trace);
     void join_if(Value cond, std::vector<Value> t, std::vector<Value> f, std::vector<Value>& out);
     bool changes_read(Value line, Value cond);
+    std::vector<Value> guard_tails(std::vector<Value> lines);
+
+    // the id of the loop whose body is being folded (nil: no loop's)
+    Value loop_;
 };
 
 // python's fold: the trace itself when it can't
@@ -258,6 +262,7 @@ Value Folder::fold(Value trace)
         std::vector<Value> lines = make_ifs(output);
         lines = merge_ifs(lines);
         lines = fold_aux(lines);
+        lines = guard_tails(std::move(lines));
         return mk_trace(std::span<const Value>(lines.data(), lines.size()));
     } catch (const FoldFail&) {
         return trace;  // (python: "folder failed in a function", the trace unfolded)
@@ -695,7 +700,10 @@ std::vector<Value> Folder::fold_aux(std::span<const Value> trace)
         poll();
         const Value line = trace[idx];
         if (line.is(Op::WHILE, 4)) {
+            const Value outer = loop_;
+            loop_ = line[2];
             const Value body = fold(line[1]);
+            loop_ = outer;
             out.push_back(body == line[1] ? line : mk(Op::WHILE, line[0], body, line[2], line[3]));
             continue;
         }
@@ -732,6 +740,144 @@ std::vector<Value> Folder::fold_aux(std::span<const Value> trace)
         out.push_back(line);
     }
     return out;
+}
+
+namespace {
+
+// An iteration's end taken as a guard (guard_tails): a tail of kTailLines
+// printed lines at most, its `continue` one of them, where the lines it
+// un-nests are kGuardRatio times the tail's or more - the characters the
+// copy adds are no more than those the lines un-nested lose (four each),
+// and no function prints longer or deeper for it.
+constexpr usize kTailLines = 5;
+constexpr usize kGuardRatio = 8;
+
+// about the lines a line prints (an if and its branches, a loop and its
+// body, a continue and the variables it sets, a call and its gas and args)
+usize printed_lines(std::span<const Value> lines);
+usize printed_lines(Value l)
+{
+    check_stack();
+    if (!l.is_expr())
+        return 1;
+    switch (l.op()) {
+        case Op::IF:
+            if (l.size() == 3)
+                return 1 + printed_lines(l[1].args()) + (l[2].is_list() && l[2].size() ? 1 + printed_lines(l[2].args()) : 0);
+            return 1;
+        case Op::WHILE:
+            if (l.size() == 4)
+                return 1 + printed_lines(l[1].args()) + (l[3].is_list() ? l[3].size() : 0);
+            return 1;
+        case Op::CONTINUE:
+            return 1 + (l.size() == 2 && l[1].is_list() ? l[1].size() : 0);
+        case Op::CALL:
+        case Op::CALLCODE:
+        case Op::DELEGATECALL:
+        case Op::STATICCALL:
+            return 3;
+        default:
+            return 1;
+    }
+}
+usize printed_lines(std::span<const Value> lines)
+{
+    usize n = 0;
+    for (const Value l : lines)
+        n += printed_lines(l);
+    return n;
+}
+
+// whether the run may go on past the block's last line (not: it ends the
+// run or the iteration, or it is an if-else neither branch of which goes on)
+bool goes_on(std::span<const Value> lines)
+{
+    check_stack();
+    if (lines.empty())
+        return true;
+    const Value l = lines.back();
+    if (terminating(l))
+        return false;
+    if (l.is(Op::IF, 3) && l[1].is_list() && l[2].is_list() && l[1].size() && l[2].size())
+        return goes_on(l[1].args()) || goes_on(l[2].args());
+    return true;
+}
+
+// a line that prints as one line and opens no block: an assignment
+bool assignment(Value l) noexcept
+{
+    return l.is(Op::SETVAR, 2) || l.is(Op::SETMEM, 2) || l.is(Op::STORE, 4) || l.is(Op::SET, 2);
+}
+
+}  // namespace
+
+// (not python's) The guards of an iteration's end. Where a block of a
+// loop's body ends
+//
+//     if c:
+//         B            (long: the rest of the iteration)
+//     T                (a few assignments, the loop's `continue`)
+//
+// - the paths that skip B and the one through it end alike, and the
+// folder took that ending off both (fold_stretches, try_merge: python's) -
+// it is made
+//
+//     if not c:
+//         T
+//     B
+//     T
+//
+// : the skip is a guard, and B, the iteration's main path, is one level
+// up - guard after guard where B ends the same way (an `if c2: B2` before
+// T). The same lines run in the same order on each path: with c, B then T;
+// without, T - whose last line ends the iteration, so nothing follows the
+// guard's copy. (aave311 SupplyLogic's reserves loop: two skips before 150
+// lines, each `if not ...: <the counter's increment>; continue` in the text
+// before the memory pass made the three endings alike.)
+//
+// Only the loop's own continue (the copy prints no label, as the original),
+// a tail of assignments (kTailLines: each copy prints as the original, one
+// line), a B that goes on to T and is long enough (kGuardRatio).
+std::vector<Value> Folder::guard_tails(std::vector<Value> lines)
+{
+    check_stack();
+    for (;;) {
+        poll();
+        const usize n = lines.size();
+        if (loop_.nil() || n < 2 || !lines[n - 1].is(Op::CONTINUE, 2) || lines[n - 1][0] != loop_)
+            break;
+        // the tail: the assignments before the continue, then the if
+        usize at = n - 1;
+        usize tail = printed_lines(lines[n - 1]);
+        while (at > 0 && assignment(lines[at - 1]) && tail <= kTailLines) {
+            --at;
+            ++tail;
+        }
+        if (at == 0 || tail > kTailLines)
+            break;
+        const Value s = lines[at - 1];
+        if (!one_sided(s) || !s[1].is_list() || s[1].size() == 0)
+            break;
+        const auto body = s[1].args();
+        if (!goes_on(body) || printed_lines(body) < kGuardRatio * tail)
+            break;
+        std::vector<Value> out(lines.begin(), lines.begin() + i64(at - 1));
+        out.push_back(if_line(alg::iszero(s[0]), std::span<const Value>(lines.data() + at, n - at), {}));
+        out.insert(out.end(), body.begin(), body.end());
+        out.insert(out.end(), lines.begin() + i64(at), lines.end());
+        lines = std::move(out);
+    }
+    // the blocks in it (a loop's body: folded on its own, done)
+    for (Value& l : lines) {
+        if (!l.is(Op::IF, 3) || !l[1].is_list() || !l[2].is_list())
+            continue;
+        std::vector<Value> t = guard_tails(std::vector<Value>(l[1].begin(), l[1].end()));
+        std::vector<Value> f = guard_tails(std::vector<Value>(l[2].begin(), l[2].end()));
+        const Value nl = if_line(l[0], t, f);
+        if (nl != l)
+            l = nl;
+    }
+    return lines;
 }
 
 Value fold_trace(Value trace)

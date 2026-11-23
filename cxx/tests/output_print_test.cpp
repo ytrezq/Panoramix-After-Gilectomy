@@ -947,6 +947,67 @@ TEST_CASE("output: review r3 - guards that share the main path's ending stay gua
     CHECK(print_trace(fold(w)) == "  if _1:\n      _3 = 1\n  else:\n      _3 = 2\n  log\n");
 }
 
+TEST_CASE("output: review r4 - an iteration's skip is a guard, its long main path one level up (aave311 SupplyLogic)")
+{
+    Fixture f;
+    // A loop whose iteration is skipped by a test (the counter's increment,
+    // the continue) and otherwise runs a long body that ends the same way:
+    // the folder took the shared ending off both, the body under `if c:` and
+    // the ending once after it. The skip is a guard with the ending's copy,
+    // the body at the loop's level.
+    const std::string tail = "(continue loopid1 {(setvar loop0 (add 1 loop0))})";
+    auto body = [](int n) {
+        std::string b;
+        for (int k = 0; k < n; ++k)
+            b += "(store 256 0 " + std::to_string(k) + " (calldataload " + std::to_string(32 * k) + ")) ";
+        return b;
+    };
+    auto loop = [&](const std::string& inside) {
+        return "{(while (lt loop0 (calldataload 4)) {" + inside + "} loopid1 {(setvar loop0 0)}) (stop)}";
+    };
+    {
+        // 16 lines against a tail of 2: a guard
+        const Value t = V(loop("(if (calldataload (mul 32 loop0)) {" + body(16) + tail + "} {" + tail + "})"));
+        const Value u = fold(t);
+        const std::string s = print_trace(u);
+        INFO(s);
+        CHECK(s.rfind("  idx = 0\n  while idx < cd[4]:\n      if not cd[32 * idx]:\n          idx = idx + 1\n          continue\n"
+                      "      stor[0] = cd[0]\n",
+                      0) == 0);
+        CHECK(s.find("\n          stor[") == std::string::npos);  // (no store nested)
+        CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+    }
+    {
+        // two skips before the body: guard after guard
+        const Value t = V(loop("(if (calldataload (mul 32 loop0)) {(setvar tmp1 (calldataload 68)) (if (lt tmp1 5) {" + tail +
+                               "} {" + body(17) + tail + "})} {" + tail + "})"));
+        const Value u = fold(t);
+        const std::string s = print_trace(u);
+        INFO(s);
+        CHECK(s.find("      if not cd[32 * idx]:\n          idx = idx + 1\n          continue\n      _1 = cd[68]\n"
+                     "      if _1 < 5:\n          idx = idx + 1\n          continue\n      stor[0] = cd[0]\n") !=
+              std::string::npos);
+        CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+    }
+    {
+        // a short body: the ending stays shared (python's)
+        const Value t = V(loop("(if (calldataload (mul 32 loop0)) {" + body(5) + tail + "} {" + tail + "})"));
+        const std::string s = print_trace(fold(t));
+        INFO(s);
+        CHECK(s.find("      if cd[32 * idx]:\n          stor[0] = cd[0]\n") != std::string::npos);
+    }
+    {
+        // a continue of an outer loop (it prints a label: its copy would
+        // print one more): shared
+        const std::string outer = "(continue loopid1 {(setvar loop0 (add 1 loop0))})";
+        const Value t = V(loop("(while (lt loop1 3) {(if (calldataload (mul 32 loop1)) {" + body(16) + outer + "} {" + outer +
+                               "})} loopid2 {(setvar loop1 0)}) " + tail));
+        const std::string s = print_trace(fold(t));
+        INFO(s);
+        CHECK(s.find("if not cd[") == std::string::npos);
+    }
+}
+
 TEST_CASE("output: review 2026-11-02 F1 (15-output1) - fold_stretches loses no path")
 {
     Fixture f;

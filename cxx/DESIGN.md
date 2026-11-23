@@ -738,7 +738,17 @@ places and byte strings (the storage's, the memory pass's and the
 printer's forms read them), a part whose own line would be long, the
 arithmetic a check reads anywhere and the reads the checks right before
 the line read (lot 8's SafeMath finds a check's operands in the line that
-uses them). `cleanup_mems` likewise with
+uses them). A storage key that a variable of the trace's own holds
+(`_275 = sha3(...)`, its value written out in the slots, which the
+storage's forms parse) is written as that variable in a long line and
+where the variable still holds the hash after it (`hold_keys`), no line
+made: a part of a slot's hash, a hash itself, that the storage's forms
+read as a key under either layout of a mapping's slot (key first or last)
+and not as the slot of an inner mapping (`may_be_slot`: a variable there
+would be a slot of its own for the forms) - the slot keeps its hash and
+its place (`transactionsExecuted[_275]`, the storage section as it was);
+not where the line uses arithmetic the checks right before it check and
+the key is among what they read. `cleanup_mems` likewise with
 MemState (forward, reads replaced by what reaching writes wrote, under the
 conditions known on the path - a call forgets only the pieces that read
 what it changes, its own numbered results among them, not an earlier
@@ -831,7 +841,16 @@ each, a stop or a Panic, nor two that leave a branch empty: a guard's
 revert shared with the main path nested the main path under the negated
 guards, guard by guard, the revert at the function's end - c00152, c00284),
 `cleanup_ors`, `make_ifs`, `merge_ifs` (hoisting by the effect summaries),
-`fold_aux` - and a failed assert leaves the trace as it was. The ast passes keep the
+`fold_aux` - and a failed assert leaves the trace as it was. Then
+`guard_tails` (not python's): where a block of a loop's body ends `if c:
+B`, a few assignments and the loop's own `continue` (the ending the skip
+and the path through B share, taken off both), the skip is made a guard -
+`if not c: <the ending>`, then B one level up, then the ending - guard
+after guard where B ends the same way; when the ending is 5 printed lines
+at most and B at least 8 times as many (what the copy adds in characters
+is no more than the un-nested lines lose: no function prints longer or
+deeper for it; the same lines run in the same order on each path). The
+ast passes keep the
 text faithful where python's can't name what the IR numbers: a call's
 result read where another call may have run since, and a gas read printed
 with or after another, get a variable (python's snapshots: `_1 =
