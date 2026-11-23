@@ -86,3 +86,18 @@ regressions. The contracts round 1 hadn't reviewed are reviewed whole.
 severity, the causes the reviewers name, and the execution checks of the same
 400.
 
+
+## Round 3: the readability regressions fixed
+
+Round 2's regressions are fixed before the review goes on to the next
+tranche. `tools/readability.py` measures what the reviewers looked for and
+compares two sets of texts function by function; `make readability` runs it
+over the npm corpus against the committed baseline
+`tests/readability/npm.jsonl.xz` (`BUILD.md`, "The readability check"), so a
+change that makes texts less readable fails without a manual review.
+
+`r3/summary.md` has the numbers (on the 400: 1,552 regressions against round
+1's texts at the start, 381 at the end; on npm: 626 and 202), the causes
+fixed, what round 3 accepts (`r3/allow.txt`) and what is left. The
+`r3/regressions_*.jsonl` files list the regressions of the six comparisons
+at the end.

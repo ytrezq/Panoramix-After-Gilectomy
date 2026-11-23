@@ -1,0 +1,38 @@
+# Round 3's accepted regressions against round 1's texts (t01), round 2's
+# (r2), and the npm corpus's texts before the fixes (old) and at bc67cddf5c (cur).
+# NAME FUNCTION RULE  # why  (shell patterns)
+
+# P3: do-whiles whose test reads what the iteration computes, so no exact head
+# test exists. Round 1 rotated them and printed the first iteration twice
+# before the loop (round 1's P3 finding, fixed by 7b0455552a).
+c00033 * while_true  # P3: Governor's `while (popFront() != hash) {}`
+c00144 * while_true  # P3: the same
+c00157 * while_true  # P3: the same
+c00159 * while_true  # P3: Vyper range loops, counter in memory (round 1: `while _x + 1 != N`)
+c00242 * while_true  # P3: the same
+repo_Curve3pool * while_true  # P3: the same
+c00059 * while_true  # P3: claimComp, first holder peeled, next holder's prologue on the back edge
+c00050 * while_true  # P3: Compound's claim/distribute loops, the same
+repo_cETH * while_true  # P3: the same
+c00134 * while_true  # P3; round 2's form was `while u >= t` (a Panic check as header, `continue loop1`), flagged medium
+c00062 * while_true  # P3: DateTime do-while renewals (round 1's P3 finding)
+c00062 unknownb752cde1 labels  # P3: an inner do-while left by `continue loop1`
+c00177 * while_true  # P3: Merkle do-while, precompile failure an exit inside
+c00069 * while_true  # P3: calldata-decoding do-whiles, end test undecidable at entry
+c00119 * while_true  # P3
+c00138 unknown375e2729 while_true  # P3: down-counting do-while
+c00178 * while_true  # P3: checkpoint search, test after SafeMath.dec
+c00263 executeBatch while_true  # P3: test after the call
+openze496_TimelockController executeBatch while_true  # P3
+c00046 unknownc390d8f5 while_true  # P3
+c00047 exitPool while_true  # P3: round 1 copied its store before the loop
+c00058 unknown08d6122d while_true  # P3 (round 1's finding)
+c00127 flashLoan while_true  # P3: memory-counter loop
+gnosis130_MockContract reset while_true  # P3: hash of a fresh string built each iteration
+c00256 unknown7cc38b28 while_true  # round 2's header was the Panic(50) bound of groupQuorums[u]; the source is `while (true)`
+ensdom122_* * while_true  # RRUtils `while (true) { assert(idx < len); ... }`: bc67 made the assert the condition, the real exits `continue loopN`
+
+# exactness
+gnosis130_MockContract _fallback unused_gas  # GAS reads in a loop: the next iteration's read follows each (GAS costs gas)
+c00106 * raw_args  # r2 read the same memory word into `_20`, then `-_20 + _param1`; now the read is inline in the arguments
+c00175 storage structs  # stor2 and stor3 now resolved: each element packs fields the code reads (stor3 a uint32 at bit 0 and a uint64 at bit 32, stor2 bits 0, 32, 96); r2's "fixed array of uint256" only fit because those accesses were unresolved
