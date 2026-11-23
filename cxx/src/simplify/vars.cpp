@@ -354,6 +354,7 @@ public:
     // neither put nor named; its names put where their values are
     bool rounded_only = false;
     std::function<Value()> fresh;
+    std::function<Value()> fresh_word;  // (naming: a word's name, numbered at the end - name_values)
     SmallVec<Value, 16> made;  // (the variables naming made)
     // the variables read twice or more in the trace (named_hash)
     std::unordered_map<u64, u32> reads;
@@ -456,8 +457,45 @@ private:
         bool any = false;
         env.each_named([&](Value, Value) { any = true; });
         if (!any || !(r.is_expr() || r.is_list())) return r;
+        // (the words' names first - `_8` for mem[64]: the sums named after
+        // them are made of those names, `_9 = _8 + ceil32(n)`, and a line
+        // reads the word)
+        if (naming && !long_only && !rounded_only && r.has_flags(F_MEM)) {
+            SmallVec<Value, 8> ws;  // (name, word read) pairs
+            env.each_named([&](Value n, Value v) {
+                if (word_read(v)) {
+                    ws.push_back(n);
+                    ws.push_back(v);
+                }
+            });
+            if (!ws.empty()) {
+                Memo<Value, Value> memo;
+                r = words_named(r, ws.span(), memo);
+            }
+        }
         names_.clear();
         return named_rec(r, env);
+    }
+    // e with the reads of the words in ws (name, read pairs) as their names
+    static Value words_named(Value e, std::span<const Value> ws, Memo<Value, Value>& memo) {
+        if (!(e.is_expr() || e.is_list()) || !e.has_flags(F_MEM)) return e;
+        if (word_read(e)) {
+            for (usize i = 0; i + 1 < ws.size(); i += 2)
+                if (ws[i + 1] == e) return ws[i];
+            return e;
+        }
+        if (const Value* r = memo.find(e)) return *r;
+        check_stack();
+        SmallVec<Value, 8> args;
+        bool changed = false;
+        for (Value a : e.args()) {
+            const Value n = words_named(a, ws, memo);
+            changed |= n != a;
+            args.push_back(n);
+        }
+        const Value r = !changed ? e : e.is(Op::ADD) ? alg::add(args.span()) : mk_like_checked(e, args.span());
+        memo.put(e, r);
+        return r;
     }
     Value named_rec(Value e, const Env& env) {
         if (!(e.is_expr() || e.is_list())) return e;
@@ -583,19 +621,194 @@ private:
             env.set(k, c, true);
         }
     }
-    Value name_line(Value l, Env& env, SmallVec<Value, 4>& before) {
+    // ---- naming: the words of memory read again and again (round 4) ----
+    //
+    // A read of the word at a constant address (the free memory pointer,
+    // a length kept in memory) is a snapshot of state the lines after it
+    // may change. The rounds write a variable set to one as the read where
+    // the floors prove the word unchanged (cleanup_vars: the same expression
+    // on every path, which the joins and the folder need); a reader of the
+    // text can't see that proof. Here, at the end, the reads of one word
+    // while it is unchanged get one name, set before the first: `_8 =
+    // mem[64]`, `mem[_8] = 32`, `mem[s] = v - _8 - 64` - not `v - mem[64] -
+    // 64`. A name read once is put back (name_values); past a write of the
+    // word the name is its old value, the reads after it another.
+
+    // v, a read of one word of memory wherever it is: a variable set to it
+    // is the name of what was read there (`_52 = mem[_8 + 352]`, the
+    // buffer at _8 written after it)
+    static bool snapshot(Value v) {
+        return v.is(Op::MEM, 1) && v[0].is(Op::RANGE, 2) && v[0][1] == Value::small(32);
+    }
+
+    // the reads of words at constant addresses in e (not in a storage
+    // slot: the storage's forms read their sums)
+    static void word_reads(Value e, SmallVec<Value, 4>& out) {
+        if (!(e.is_expr() || e.is_list()) || !e.has_flags(F_MEM) || e.is(Op::STORAGE)) return;
+        check_stack();
+        if (word_read(e)) {
+            if (std::find(out.begin(), out.end(), e) == out.end()) out.push_back(e);
+            return;
+        }
+        for (Value a : e.args()) word_reads(a, out);
+    }
+    // a line whose reads of words get names: not the data of a call, a log,
+    // a return or a revert (byte strings the printer decodes: a name made
+    // by another line stands in them, none is made for them)
+    static bool reads_words(Value l) {
+        switch (l.op()) {
+            case Op::CALL:
+            case Op::CALLCODE:
+            case Op::DELEGATECALL:
+            case Op::STATICCALL:
+            case Op::CREATE:
+            case Op::CREATE2:
+            case Op::LOG0:
+            case Op::LOG1:
+            case Op::LOG2:
+            case Op::LOG3:
+            case Op::LOG4:
+            case Op::RETURN:
+            case Op::REVERT: return false;
+            default: return true;
+        }
+    }
+    // e's reads of words named by variables set before the line (what the
+    // line reads is read before its effects); each name with the floor of
+    // its word (fl: the lines after it write at the name)
+    void name_words(Value e, Env& env, alg::Facts& fl, SmallVec<Value, 4>& before) {
+        SmallVec<Value, 4> cs;
+        word_reads(e, cs);
+        for (Value c : cs) name_word(c, env, fl, before);
+    }
+    // c, a read of a word, named by a variable set before the line. The
+    // name is the line's (anchor_: the line as the trace has it): where
+    // two branches go on with the same lines - the trace holds them in
+    // each, the folder writes them once after the if - the same line
+    // names the word the same in both, and the lines stay the same.
+    void name_word(Value c, Env& env, alg::Facts& fl, SmallVec<Value, 4>& before) {
+        if (!movable(Value(), c)) return;
+        Value k;
+        const Key2 key{c.raw(), anchor_.raw()};
+        if (const Value* p = anchor_.nil() ? nullptr : word_names_.find(key)) {
+            k = *p;
+        } else {
+            k = fresh_word ? fresh_word() : fresh();
+            made.push_back(k);
+            if (!anchor_.nil()) word_names_.put(key, k);
+        }
+        const Value sv = mk(Op::SETVAR, k, c);
+        before.push_back(sv);
+        // (a name set again: what was known of its old value goes)
+        env.kill(summary(sv));
+        env.set(k, c, true);
+        // (the name's floor: the word's as the facts have it, made of the
+        // variables the positions next to it are made of - not those read
+        // as their own floors, which says nothing against them)
+        const Value wf = c[0][0].small_val() >= 0 ? fl.floor_of(u64(c[0][0].small_val())) : Value();
+        fl = floor_transfer(fl, sv);
+        if (!wf.nil() && alg::var_floor_key(k) && !fl.floor_of(k).nil()) fl = fl.without_floor(k).with_floor(k, wf);
+    }
+
+    // The name of a word is set before its first read: in each branch of an
+    // if, a name of its own - and the lines the branches share, which the
+    // folder writes once after the if, would differ by those names. A word
+    // both branches read before anything that may write it is named once,
+    // before the if: the read is the same there, nothing between changes
+    // the word (the walks of the branches decide where the name stands,
+    // with the floors of each line; a name they don't use is put back).
+    static constexpr u32 kHoistLines = 400;  // (the lines looked at, per if)
+    void hoist_words(Value l, Env& env, alg::Facts& fl, SmallVec<Value, 4>& before) {
+        if (l.size() < 3 || !l[1].is_list() || !l[2].is_list() || !l[1].has_flags(F_MEM) || !l[2].has_flags(F_MEM)) return;
+        if (only_fails(l[1]) || only_fails(l[2])) return;  // (one path goes on)
+        SmallVec<Value, 4> ft, fe;
+        u32 budget = kHoistLines;
+        first_words(l[1], EffectSummary{}, fl, ft, budget);
+        if (ft.empty()) return;
+        first_words(l[2], EffectSummary{}, fl, fe, budget);
+        for (Value w : ft) {
+            if (std::find(fe.begin(), fe.end(), w) == fe.end()) continue;
+            bool named = false;
+            env.each_named([&](Value, Value v) { named = named || v == w; });
+            if (!named) name_word(w, env, fl, before);
+        }
+    }
+    // the words the lines of block read before anything that may write
+    // them (seen: the effects of the lines before; fl: the floors at the
+    // if), on every path that goes on: both branches of an if in it, the
+    // one that goes on when the other ends
+    static void first_words(Value block, EffectSummary seen, const alg::Facts& fl, SmallVec<Value, 4>& out, u32& budget) {
+        if (!block.is_list()) return;
+        check_stack();
+        auto take = [&](Value w) {
+            if (std::find(out.begin(), out.end(), w) == out.end() && !changes(seen, summary(w), &fl)) out.push_back(w);
+        };
+        auto add = [&](Value e) {
+            SmallVec<Value, 4> ws;
+            word_reads(e, ws);
+            for (Value w : ws) take(w);
+        };
+        for (Value x : block.args()) {
+            if (budget == 0) return;
+            --budget;
+            if (!x.is_expr()) continue;
+            if ((x.is(Op::IF) || x.is(Op::MERGED_IF)) && x.size() >= 2) {
+                add(x[0]);
+                if (x.size() > 2 && x[1].is_list() && x[2].is_list()) {
+                    // (a branch that only fails, or ends where the other
+                    // goes on, shares no line with it)
+                    const bool x1 = only_fails(x[1]), x2 = only_fails(x[2]);
+                    const bool e1 = x1 != x2 ? x1 : ends(x[1]), e2 = x1 != x2 ? x2 : ends(x[2]);
+                    SmallVec<Value, 4> f1, f2;
+                    if (!(e1 && !e2)) first_words(x[1], seen, fl, f1, budget);
+                    if (!(e2 && !e1)) first_words(x[2], seen, fl, f2, budget);
+                    if (e1 && !e2) {
+                        for (Value w : f2) take(w);
+                    } else if (e2 && !e1) {
+                        for (Value w : f1) take(w);
+                    } else {
+                        for (Value w : f1)
+                            if (std::find(f2.begin(), f2.end(), w) != f2.end()) take(w);
+                    }
+                }
+            } else if (x.is(Op::WHILE, 4)) {
+                add(x[0]);
+                add(x[3]);
+            } else if (x.is(Op::STORE, 4)) {
+                add(x[3]);
+            } else if (x.is(Op::SETVAR, 2)) {
+                if (!named_value(x[1])) add(x[1]);
+            } else if (reads_words(x)) {
+                (void)map_line_exprs(x, [&](Value e, Pos) {
+                    add(e);
+                    return e;
+                });
+            }
+            const EffectSummary& s = summary(x);
+            if (s.control & C_ENDS) return;
+            seen = combine(seen, s, true);
+        }
+    }
+
+    Value name_line(Value l, Env& env, alg::Facts& fl, SmallVec<Value, 4>& before) {
         if (!naming || !l.is_expr()) return l;
         if (long_only) return name_long(l, env, before);
         if (rounded_only) return name_rounded(l, env, before);
         const usize n0 = before.size();
         if (l.is(Op::STORE, 4)) {
             name_in(l[3], env, before);
+            name_words(l[3], env, fl, before);
         } else if (l.is(Op::SETVAR, 2)) {
             // (a variable set to such a value is its name already)
-            if (!named_value(l[1])) name_in(l[1], env, before);
+            if (!named_value(l[1])) {
+                name_in(l[1], env, before);
+                name_words(l[1], env, fl, before);
+            }
         } else {
+            const bool words = reads_words(l);
             (void)map_line_exprs(l, [&](Value e, Pos) {
                 name_in(e, env, before);
+                if (words) name_words(e, env, fl, before);
                 return e;
             });
         }
@@ -1275,7 +1488,10 @@ private:
                     }
                 } else if (naming && !long_only) {
                     const usize n0 = before.size();
+                    anchor_ = l;
                     name_in(cond, env, before);
+                    name_words(cond, env, fl, before);
+                    hoist_words(l, env, fl, before);
                     if (before.size() != n0) cond = simplify_word(put(cond, env));
                 } else if (long_only) {
                     // (a long condition: the parts it repeats named; an if
@@ -1332,8 +1548,12 @@ private:
                 Value sv = subst_setvars(l[3], env);
                 if (naming && !long_only && !rounded_only && sv.is_list()) {
                     const usize n0 = before.size();
+                    anchor_ = l;
                     for (Value x : sv.args())
-                        if (x.is(Op::SETVAR, 2)) name_in(x[1], env, before);
+                        if (x.is(Op::SETVAR, 2)) {
+                            name_in(x[1], env, before);
+                            name_words(x[1], env, fl, before);
+                        }
                     if (before.size() != n0) sv = subst_setvars(sv, env);
                 }
                 // (at its head, for every iteration, and after it: what the
@@ -1393,7 +1613,11 @@ private:
             if (!q.nil()) r = q;
         }
         if (r != l) cx().pcs.inherit(r, l);
-        r = name_line(r, env, before);
+        anchor_ = l;
+        if (naming && !long_only && !rounded_only && l.is(Op::SETVAR, 2) && word_read(l[1]) && r.is(Op::SETVAR, 2) &&
+            r[0].is_name(NameKind::TMP) && r[1].is_name(NameKind::TMP))
+            word_alias.try_emplace(r[1].raw(), r[0]);
+        r = name_line(r, env, fl, before);
         {
             // (what it writes, decided with the floors before it - its own
             // writes evaluated there; floors_through for a compound line)
@@ -1401,7 +1625,11 @@ private:
             env.kill(summary(r), &through);
         }
         fl = floor_transfer(fl, r);
-        if (!long_only && !rounded_only && r.is(Op::SETVAR, 2) && is_var(r[0]) && movable(r[0], r[1]))
+        // (naming: a variable the rounds left set to a read of one word of
+        // memory stays as it is - its value isn't put where it is read, by
+        // floors the names of the words have here and the rounds had not)
+        if (!long_only && !rounded_only && r.is(Op::SETVAR, 2) && is_var(r[0]) && movable(r[0], r[1]) &&
+            !(naming && !named_value(r[1]) && snapshot(r[1])))
             env.set(r[0], r[1], named_hash(r[0], r[1]) || (naming && named_value(r[1])));
         // (long_only: a variable of the trace's own set to a hash the trace
         // knows - the name of a storage key a long line reads, where it
@@ -1469,6 +1697,15 @@ private:
     std::unordered_set<u64> code_vars_;  // (the trace's own variables set to a hash: as_long_named)
     Memo<Value, Value> unname_memo_;
     u32 depth_ = 0;
+public:
+    // (naming: a word's name -> the variable of the trace set to that read
+    // where the name stood for it: the name it takes when that variable
+    // goes - number_words)
+    std::unordered_map<u64, Value> word_alias;
+
+private:
+    Value anchor_;                    // (naming: the line being named, as the trace has it)
+    Memo<Key2, Value> word_names_;    // (naming: the name a line gave a word - name_word)
     // (the blocks the walk is in, innermost last: the lines made before the
     // line or the IF it is in; the condition of that IF when its other
     // branch only fails - a check; branch_check_: the next block's)
@@ -1819,14 +2056,130 @@ Value put_back_single(Value t, std::span<const Value> made) {
             for (Value a : x.args()) st.push_back(a);
         }
     }
+    // (a name set in several places - a word's, the same line of two
+    // branches naming it the same, name_word: read once or never after each)
+    std::unordered_map<u64, u32> sets;
+    {
+        auto rec = [&](auto&& self, Value v) -> void {
+            if (!(v.is_expr() || v.is_list()) || !v.has_flags(F_VAR)) return;
+            if (v.is(Op::SETVAR, 2)) {
+                ++sets[v[0].raw()];
+                return;
+            }
+            for (Value a : v.args())
+                if (a.is_list() || a.is(Op::SETVAR) || a.is(Op::IF) || a.is(Op::MERGED_IF) || a.is(Op::WHILE) || a.is(Op::LOOP_PATH))
+                    self(self, a);
+        };
+        rec(rec, t);
+    }
     for (Value k : made)
-        if (reads[k.raw()] < 2) back[k.raw()] = values[k.raw()];
+        if (reads[k.raw()] < 2 * std::max<u32>(1, sets[k.raw()])) back[k.raw()] = values[k.raw()];
+    // (a variable of the trace set to a name made here and read nowhere any
+    // more - `_30 = mem[64]` where `_8` names that read already: its readers
+    // read `_8` - is dropped with its SETVARs)
+    {
+        std::unordered_set<u64> names(made.size());
+        for (Value k : made) names.insert(k.raw());
+        std::unordered_map<u64, bool> alias;  // (every SETVAR of it sets it to a name made)
+        SmallVec<Value, 64> st{t};
+        MemoSet<Value> seen;
+        while (!st.empty()) {
+            Value x = st.back();
+            st.pop_back();
+            if (!(x.is_expr() || x.is_list()) || !seen.add(x)) continue;
+            if (x.is(Op::SETVAR, 2) && x[0].is_name(NameKind::TMP) && !names.contains(x[0].raw())) {
+                const bool a = x[1].is_name(NameKind::TMP) && names.contains(x[1].raw());
+                auto it = alias.find(x[0].raw());
+                if (it == alias.end())
+                    alias.emplace(x[0].raw(), a);
+                else
+                    it->second = it->second && a;
+            }
+            for (Value a : x.args()) st.push_back(a);
+        }
+        for (const auto& [raw, a] : alias)
+            if (a && reads[raw] == 0) back[raw] = values[raw];
+    }
     if (back.empty()) return t;
     Memo<Value, Value> memo;
     return put_back(t, back, memo);
 }
 
 }  // namespace
+
+// the ids the words' names have while the passes run (within the ids a
+// variable's floor is kept for: alg::var_floor_key)
+constexpr u32 kWordTmps = 0x80000, kWordTmpsEnd = 0xfffff;
+
+// t with the words' names (name_values) numbered: the lowest ids free, in
+// the order the text reads them
+template <class Fresh>
+Value number_words(Value t, std::span<const Value> words, const std::unordered_map<u64, Value>& alias, Fresh&& fresh) {
+    if (words.empty()) return t;
+    std::unordered_set<u64> is_word(words.size());
+    for (Value w : words) is_word.insert(w.raw());
+    // (a variable of the trace set to the read a name stood for, gone with
+    // its readers reading the name: the name takes its number - the
+    // snapshot is called as the code called it)
+    std::unordered_set<u32> present;
+    {
+        MemoSet<Value> seen;
+        tmp_ids(t, present, seen);
+    }
+    std::unordered_set<u64> taken;
+    auto number = [&](Value w) {
+        const auto it = alias.find(w.raw());
+        if (it != alias.end() && !present.contains(it->second.name_id()) && taken.insert(it->second.raw()).second)
+            return it->second;
+        return fresh();
+    };
+    std::unordered_map<u64, Value> to;
+    {
+        // (the order: the lines top to bottom, a line's parts left to right)
+        SmallVec<Value, 64> st{t};
+        MemoSet<Value> seen;
+        while (!st.empty()) {
+            const Value x = st.back();
+            st.pop_back();
+            if (x.is_name(NameKind::TMP)) {
+                if (is_word.contains(x.raw()) && !to.contains(x.raw())) to.emplace(x.raw(), number(x));
+                continue;
+            }
+            if (!(x.is_expr() || x.is_list()) || !x.has_flags(F_VAR) || !seen.add(x)) continue;
+            for (usize i = x.size(); i-- > 0;) st.push_back(x[u32(i)]);
+        }
+    }
+    if (to.empty()) return t;
+    Memo<Value, Value> memo;
+    auto rec = [&](auto&& self, Value v) -> Value {
+        if (v.is_name(NameKind::TMP)) {
+            const auto it = to.find(v.raw());
+            return it != to.end() ? it->second : v;
+        }
+        if (!(v.is_expr() || v.is_list()) || !v.has_flags(F_VAR)) return v;
+        if (const Value* r = memo.find(v)) return *r;
+        check_stack();
+        SmallVec<Value, 16> args;
+        bool changed = false;
+        for (Value a : v.args()) {
+            const Value n = self(self, a);
+            if (n != a) {
+                changed = true;
+                if (v.is_list()) cx().pcs.inherit(n, a);
+            }
+            args.push_back(n);
+        }
+        // (a sum, a product: its terms in their order again)
+        const Value r = !changed       ? v
+                        : v.is_list()  ? mk_list(args.span(), ListKind(v.node()->op))
+                        : v.is(Op::ADD) ? alg::add(args.span())
+                        : v.is(Op::MUL) ? alg::mul(args.span())
+                                        : mk_like_checked(v, args.span());
+        memo.put(v, r);
+        return r;
+    };
+    return rec(rec, t);
+}
 
 Value name_values(Value trace) {
     if (!trace.is_list()) return trace;
@@ -1845,19 +2198,35 @@ Value name_values(Value trace) {
         used.insert(next);
         return Value::name(NameKind::TMP, next);
     };
+    // (the words' names: ids of their own while the passes run, so that the
+    // names the passes after make are numbered as without them - the lines
+    // those are in print as long - and numbered at the end, in the order
+    // the text reads them)
+    u32 next_word = kWordTmps;
+    SmallVec<Value, 16> words;
+    std::unordered_map<u64, Value> word_alias;
+    auto fresh_word = [&] {
+        while (used.contains(next_word)) ++next_word;
+        used.insert(next_word);
+        words.push_back(Value::name(NameKind::TMP, next_word));
+        return words.back();
+    };
     const alg::Facts entry =
         run_flags().entry_lines.is_list() ? floor_walk(alg::Facts{}, run_flags().entry_lines) : alg::Facts{};
     Value t = trace;
     {
-        // the long sums of positions, the hashes of memory
+        // the long sums of positions, the hashes of memory, the words of
+        // memory read again and again
         Env env(cx().budget.resource());
         Forward fw(cx().budget.resource());
         fw.naming = true;
         fw.fresh = fresh;
+        if (next_word + 0x10000 <= kWordTmpsEnd) fw.fresh_word = fresh_word;
         alg::Facts fl = entry;
         count_all_reads(t, fw.reads);
         const Value w = fw.walk(t, env, fl);
         t = put_back_single(w, fw.made.span());
+        word_alias = std::move(fw.word_alias);
     }
     {
         // then the bases a line of rounded lengths repeats (name_rounded)
@@ -1882,7 +2251,7 @@ Value name_values(Value trace) {
         const Value w = fw.walk(t, env, fl);
         t = put_back_single(w, fw.made.span());
     }
-    return t;
+    return number_words(t, words.span(), word_alias, fresh);
 }
 
 }  // namespace pan::simplify
