@@ -748,7 +748,13 @@ and not as the slot of an inner mapping (`may_be_slot`: a variable there
 would be a slot of its own for the forms) - the slot keeps its hash and
 its place (`transactionsExecuted[_275]`, the storage section as it was);
 not where the line uses arithmetic the checks right before it check and
-the key is among what they read. `cleanup_mems` likewise with
+the key is among what they read. A key no variable holds gets a name of
+its own (`_22 = sha3(..)`, then `stor2[_22].field_48`) where the line is
+long as its numbers, hashes and places print (`Widths`' faithful measure)
+and the key prints twice in it (as a key, or a word of its own: a log's
+topic) or is 40 characters wide and the line no longer long with its name
+(a name read once costs a line: a line that stays long gains nothing by
+it) - not a hash of memory the trace doesn't know. `cleanup_mems` likewise with
 MemState (forward, reads replaced by what reaching writes wrote, under the
 conditions known on the path - a call forgets only the pieces that read
 what it changes, its own numbered results among them, not an earlier
