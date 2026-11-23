@@ -594,20 +594,24 @@ std::optional<AbiReading> abi_reading(std::span<const Value> d, std::span<const 
 // other from the end of the head to the end of the data; one reading of the
 // data only (abi_reading, of every head size a head word's constant value
 // gives), else the data as it is.
-Value abi_array(Value d) {
-    if (!d.is(Op::DATA) || d.size() < 2 || d.size() > ABI_MAX_ELEMENTS) return d;
-    const std::span<const Value> els = d.args();
-    const u32 n = u32(els.size());
-    // the places of the elements (normal forms), places[n] the data's end
-    SmallVec<Value, 16> places;
+
+// the places of a data's elements (normal forms): places[0] 0, places[n]
+// the data's end; false when a width isn't known (or past the caps)
+bool abi_places(std::span<const Value> els, SmallVec<Value, 16>& places) {
+    places.clear();
     places.push_back(small(0));
-    for (u32 i = 0; i < n; ++i) {
+    for (u32 i = 0; i < els.size(); ++i) {
         const auto w = mem::width_of(els[i]);
-        if (!w) return d;
+        if (!w) return false;
         places.push_back(normal(alg::add(places[i], *w)));
-        if (places.back().nil()) return d;
+        if (places.back().nil()) return false;
     }
-    // the head sizes: h words, the value 32 h of one of them (its first tail's place)
+    return true;
+}
+
+// the head sizes: h words, the value 32 h of one of them (its first tail's place)
+SmallVec<u32, 4> abi_heads(std::span<const Value> els) {
+    const u32 n = u32(els.size());
     SmallVec<u32, 4> heads;
     for (u32 i = 0; i < n; ++i) {
         const Value v = word_of(els[i]);
@@ -618,20 +622,105 @@ Value abi_array(Value d) {
         for (i64 k = 0; k < h && words; ++k) words = mem::width_u64(els[u32(k)]) == std::optional<u64>(32);
         if (words && std::find(heads.begin(), heads.end(), u32(h)) == heads.end()) heads.push_back(u32(h));
     }
-    // (of exact tails only, else with the weak ones: c00600's 128 bytes, not
-    // a head of 4 words and an array of one element of 3 words)
-    std::optional<AbiReading> reading;
+    return heads;
+}
+
+// The one reading of the elements, its head size: of exact tails only, else
+// with the weak ones (c00600's 128 bytes, not a head of 4 words and an
+// array of one element of 3 words); nullopt when there is none, or two of a
+// kind (not proven)
+struct AbiRead {
+    AbiReading reading;
     u32 head = 0;
-    for (int least = 2; least >= 1 && !reading; --least)
+};
+std::optional<AbiRead> abi_read(std::span<const Value> els, std::span<const Value> places, std::span<const u32> heads) {
+    std::optional<AbiRead> found;
+    for (int least = 2; least >= 1 && !found; --least)
         for (u32 h : heads) {
             poll();
-            auto r = abi_reading(els, places.span(), h, least);
+            auto r = abi_reading(els, places, h, least);
             if (!r) continue;
-            if (reading) return d;  // (two readings: not proven)
-            reading = std::move(r);
-            head = h;
+            if (found) return std::nullopt;  // (two readings: not proven)
+            found = AbiRead{std::move(*r), h};
         }
-    if (!reading) return d;
+    return found;
+}
+
+// The elements with a run of zero bytes, Bytes(n, 0), cut where the value
+// of a head word - an offset - falls inside it (repo_Contract471's
+// eip712Domain: a string's padding and the length 0 of the next tail, one
+// run of zeroes): its first k bytes, then the rest - the length word, 32 of
+// them, apart when the rest is longer. The cut proven inside the run: k and
+// n - k, as words, add up below 2^256 (their ranges), so they are n as
+// integers - 0 <= k <= n for every value, the same bytes. Any number of
+// cuts, a few rounds at most; false when none.
+bool cut_zero_runs(SmallVec<Value, 16>& els, SmallVec<Value, 16>& places, std::span<const u32> heads) {
+    u32 hmax = 0;
+    for (u32 h : heads) hmax = std::max(hmax, h);
+    const EvmInt top = EvmInt::pow2(256), word(i64(32));
+    bool any = false;
+    for (int round = 0; round < 4; ++round) {
+        // the offsets no element starts at
+        SmallVec<Value, 8> at;
+        for (u32 i = 0; i < hmax && i < els.size(); ++i) {
+            const Value v = word_of(els[i]);
+            if (v.nil()) continue;
+            const Value nv = normal(v);
+            if (nv.nil() || std::find(places.begin(), places.end(), nv) != places.end()) continue;
+            if (std::find(at.begin(), at.end(), nv) == at.end()) at.push_back(nv);
+        }
+        if (at.empty()) break;
+        SmallVec<Value, 16> out;
+        bool cut = false;
+        for (u32 m = 0; m < els.size(); ++m) {
+            poll();
+            const Value e = els[m];
+            bool done = false;
+            if (m >= hmax && e.is(Op::SIZED, 2) && is_int(e[1], 0))
+                for (Value nv : at) {
+                    const Value k = normal(alg::sub(nv, places[m])), r = normal(alg::sub(places[m + 1], nv));
+                    if (k.nil() || r.nil() || is_int(k, 0) || is_int(r, 0)) continue;
+                    const alg::Range rk = alg::range(k), rr = alg::range(r);
+                    if (!(rk.hi + rr.hi < top)) continue;
+                    out.push_back(mk(Op::SIZED, k, small(0)));
+                    if (word < rr.lo) {
+                        out.push_back(mk(Op::SIZED, small(32), small(0)));
+                        out.push_back(mk(Op::SIZED, normal(alg::sub(r, small(32))), small(0)));
+                    } else {
+                        out.push_back(mk(Op::SIZED, r, small(0)));
+                    }
+                    done = true;
+                    break;
+                }
+            if (done)
+                cut = true;
+            else
+                out.push_back(e);
+        }
+        if (!cut || out.size() > ABI_MAX_ELEMENTS) break;
+        SmallVec<Value, 16> p;
+        if (!abi_places(out.span(), p)) break;
+        els = std::move(out);
+        places = std::move(p);
+        any = true;
+    }
+    return any;
+}
+
+Value abi_array(Value d) {
+    if (!d.is(Op::DATA) || d.size() < 2 || d.size() > ABI_MAX_ELEMENTS) return d;
+    SmallVec<Value, 16> els(d.args());
+    SmallVec<Value, 16> places;
+    if (!abi_places(els.span(), places)) return d;
+    const SmallVec<u32, 4> heads = abi_heads(els.span());
+    if (heads.empty()) return d;
+    std::optional<AbiRead> found = abi_read(els.span(), places.span(), heads.span());
+    // else with the runs of zeroes an offset falls in cut there
+    if (!found && cut_zero_runs(els, places, heads.span()))
+        found = abi_read(els.span(), places.span(), heads.span());
+    if (!found) return d;
+    const AbiReading* reading = &found->reading;
+    const u32 head = found->head, n = u32(els.size());
     SmallVec<Value, 8> out;
     for (u32 i = 0; i < head; ++i) out.push_back(els[i]);
     const auto& offs = reading->offsets;

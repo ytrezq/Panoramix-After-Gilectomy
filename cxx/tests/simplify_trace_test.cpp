@@ -480,6 +480,32 @@ TEST_CASE("simplify: an ABI bytes whose length is a multiple of 32 by its form")
     CHECK(!has_op(u, Op::ARR));
 }
 
+TEST_CASE("simplify: an ABI tail of length 0 in the zeroes after the padding before it") {
+    Fixture f;
+    // repo_Contract471's eip712Domain (..., string, uint256[] extensions):
+    // the string's padding and the empty array's length 0 one run of
+    // zeroes, ceil32(l) - l + 32 bytes; the second offset, 96 + ceil32(l),
+    // falls inside it: cut there (ceil32(l) - l in [0, 31], then 32 bytes)
+    const std::string l = "(mask_shl 6 0 0 (calldataload 4))";
+    const std::string c32 = "(mask_shl 251 5 0 (add 31 " + l + "))";
+    Value u = check_trace(("{(return (data (sized 32 64) (sized 32 (add 96 " + c32 + ")) (sized 32 " + l +
+                           ") (calldata_bytes 68 " + l + ") (sized (add 32 " + c32 + " (mul -1 " + l + ")) 0)))}")
+                              .c_str(),
+                          S::postprocess_exps);
+    REQUIRE(u[0][0].is(Op::DATA));
+    REQUIRE(u[0][0].size() == 2);
+    CHECK(u[0][0][0].is(Op::ARR));
+    CHECK(u[0][0][1] == V("(arr 0)"));
+    // an offset 32 bytes before the end of a run of ceil32(l) - l + 1
+    // bytes: the cut, ceil32(l) - l - 31 bytes in, isn't inside it for
+    // every l (a word near 2^256 for most): as it is
+    u = check_trace(("{(return (data (sized 32 64) (sized 32 (add 65 " + c32 + ")) (sized 32 " + l +
+                     ") (calldata_bytes 68 " + l + ") (sized (add 1 " + c32 + " (mul -1 " + l + ")) 0)))}")
+                        .c_str(),
+                    S::postprocess_exps);
+    CHECK(!has_op(u, Op::ARR));
+}
+
 TEST_CASE("simplify: conditions known on the path") {
     Fixture f;
     // a check passed holds until what it reads changes: the same check again is decided
