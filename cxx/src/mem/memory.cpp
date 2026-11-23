@@ -337,6 +337,39 @@ Value as_storage_words(Value e) {
     return e;
 }
 
+// z zero bytes, then b: the last w bytes, z + w = 32, of a word of a source
+// that reads zeroes past its end or fails before (return data, calldata,
+// code) at a constant offset o + z (o >= 0): SIZED(32, the word at o masked
+// to its low w bytes); nullopt when b isn't one. (Not memory: a mask of a
+// memory word is the narrower read again, simplify_exps's.)
+std::optional<Value> zeroes_and_low_bytes(i64 z, Value b) {
+    if (z <= 0 || z >= 32) return std::nullopt;
+    const i64 w = 32 - z;
+    switch (b.op()) {
+        case Op::RETURNDATA_BYTES:
+        case Op::CODE_BYTES:
+        case Op::CALLDATA_BYTES: {
+            const bool rd = b.is(Op::RETURNDATA_BYTES);
+            if (b.size() != (rd ? 3u : 2u)) return std::nullopt;
+            const Value off = b[rd ? 1 : 0], len = b[rd ? 2 : 1];
+            if (!off.is_small() || !len.is_small() || len.small_val() != w || off.small_val() < z ||
+                off.small_val() > (i64(1) << 40))
+                return std::nullopt;
+            const Value at = small(off.small_val() - z);
+            Value word;
+            if (b.is(Op::CALLDATA_BYTES))
+                word = mk(Op::CALLDATALOAD, at);
+            else if (rd)
+                word = mk(Op::RETURNDATA_BYTES, b[0], at, small(32));
+            else
+                word = mk(Op::CODE_BYTES, at, small(32));
+            return mk(Op::SIZED, small(32), alg::mask(8 * w, 0, 0, word));
+        }
+        default:
+            return std::nullopt;
+    }
+}
+
 // two parts next to each other as one, when they are
 std::optional<Value> merge2(Value a, Value b, const Facts* f) {
     if (a.is(Op::STORAGE_RANGE) || b.is(Op::STORAGE_RANGE)) {
@@ -346,6 +379,13 @@ std::optional<Value> merge2(Value a, Value b, const Facts* f) {
             return mk(Op::STORAGE_RANGE, x[0], alg::add(x[1], y[1]));
         return std::nullopt;
     }
+    // zeroes, then the last w bytes of a word of return data, calldata or
+    // code at a constant offset: that word's low w bytes on all 32 (an
+    // address in a word, address(ext_call.return_data[0]) - not 12 zero
+    // bytes and 20 of the word: the same number, the word read from where
+    // its bytes start, which the zeroes' own bytes don't change)
+    if (a.is(Op::SIZED, 2) && a[1] == kZero && a[0].is_small())
+        if (auto m = zeroes_and_low_bytes(a[0].small_val(), b)) return *m;
     if (a.op() != b.op()) return merge_constants(a, b);
     switch (a.op()) {
         case Op::MEM:

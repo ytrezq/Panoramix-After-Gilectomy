@@ -293,6 +293,18 @@ TEST_CASE("mem: concat and as_word") {
     CHECK(D(concat(parts6)) == "(data (sized 12 0) (sized 20 (calldataload 4)))");
     Value parts7[] = {V("(sized 40 0)"), V("(sized 30 0)")};
     CHECK(D(concat(parts7)) == "(sized 70 0)");
+    // zeroes, then the last 20 bytes of a word of return data or calldata:
+    // that word as an address (TestCurrency's label(address(..), ..): the
+    // printer decodes the call's words) - a word of memory stays two parts
+    // (its mask is the narrower read again, simplify_exps's)
+    Value parts8[] = {V("(sized 12 0)"), V("(returndata_bytes 1 12 20)")};
+    CHECK(D(concat(parts8)) == "(sized 32 (mask_shl 160 0 0 (returndata_bytes 1 0 32)))");
+    Value parts9[] = {V("(sized 12 0)"), V("(calldata_bytes 16 20)")};
+    CHECK(D(concat(parts9)) == "(sized 32 (mask_shl 160 0 0 (calldataload 4)))");
+    Value parts10[] = {V("(sized 12 0)"), V("(returndata_bytes 1 8 20)")};
+    CHECK(D(concat(parts10)) == "(data (sized 12 0) (returndata_bytes 1 8 20))");
+    Value parts11[] = {V("(sized 12 0)"), V("(mem (range 268 20))")};
+    CHECK(D(concat(parts11)) == "(data (sized 12 0) (mem (range 268 20)))");
 
     CHECK(D(as_word(V("(sized 32 caller)"))) == "caller");
     CHECK(D(as_word(V("(sized 20 caller)"))) == "(mask_shl 160 0 0 caller)");
