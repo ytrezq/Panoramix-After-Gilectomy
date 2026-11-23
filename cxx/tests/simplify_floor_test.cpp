@@ -351,6 +351,15 @@ usize count_op(Value v, Op op) {
     return n;
 }
 
+// the variables set to the free memory pointer word in v
+usize count_setvars_of_word(Value v) {
+    if (v.is(Op::SETVAR, 2) && v[1].is(Op::MEM, 1) && v[1][0] == V("(range 64 32)")) return 1;
+    if (!(v.is_expr() || v.is_list())) return 0;
+    usize n = 0;
+    for (Value a : v.args()) n += count_setvars_of_word(a);
+    return n;
+}
+
 bool reads_name(Value v, Value name) {
     if (v == name) return true;
     if (!(v.is_expr() || v.is_list())) return false;
@@ -574,6 +583,43 @@ TEST_CASE("floor: the backward memory pass drops what the floors place apart fro
         "(return (mem (range (mem (range 64 32)) 64)))}",
         S::cleanup_mems);
     CHECK(count_op(u, Op::SETMEM) == 4);
+}
+
+TEST_CASE("floor: an allocation whose size reads the word keeps the floor where the sum isn't below the word") {
+    Fixture fx;
+    // solc's allocation of a buffer it filled: mem[64] = p + floor32(end -
+    // p + 31) after `if p + .. > 2^64 - 1 or p + .. < p: revert` - the new
+    // value is at least the word's, so at least its floor (uniswap's test
+    // contracts: the loop's floor of mem[64], the reads of it after a write
+    // at p placed apart from the word)
+    const char* v = "(add (mask_shl 251 5 0 (add 31 tmp17 (mul -1 (mem (range 64 32))))) (mem (range 64 32)))";
+    const Value line = V((std::string("(setmem (range 64 32) (sized 32 ") + v + "))").c_str());
+    const Value cond = V((std::string("(or (gt ") + v + " 18446744073709551615) (lt " + v + " (mem (range 64 32))))").c_str());
+    const alg::Facts f = alg::Facts().with_floor(u64(64), V("128"));
+    CHECK(S::floor_transfer(f.with(cond, false), line).floor_of(u64(64)) == V("128"));
+    // without the check the sum may wrap below the word: no floor
+    CHECK(S::floor_transfer(f, line).floor_of(u64(64)).nil());
+    // the loop: its head keeps the word's floor, and the write at the
+    // pointer taken from the word leaves the word as it was - every read of
+    // the word in the body is the pointer's value (the pointer, tmp9, is the
+    // word where it is read: no variable left to hold it apart)
+    const std::string a = "(add (mask_shl 251 5 0 (add 31 tmp17 (mul -1 (mem (range 64 32))))) (mem (range 64 32)))";
+    const std::string loop =
+        "{(setmem (range 64 32) (sized 32 128)) (while (lt loop1 (calldataload 4)) {(setvar tmp9 (mem (range 64 32))) "
+        "(setmem (range tmp9 32) (sized 32 loop1)) "
+        "(if (calldataload 68) {(setvar tmp17 (add 32 (mem (range 64 32))))} {(setvar tmp17 (add 64 (mem (range 64 32))))}) "
+        "(if (or (gt " + a + " 18446744073709551615) (lt " + a + " (mem (range 64 32)))) {(revert None)} "
+        "{(setmem (range 64 32) (sized 32 " + a + ")) (continue loopid1 [(setvar loop1 (add 1 loop1))])})} "
+        "loopid1 [(setvar loop1 0)]) (return (mem (range 128 32)))}";
+    const Value t = V(loop.c_str());
+    const Value u = whole(t);
+    INFO(dump_trace(u));
+    CHECK(same_runs(t, u));
+    Value w;
+    for (Value l : u.args())
+        if (l.is(Op::WHILE)) w = l;
+    REQUIRE(!w.nil());
+    CHECK(count_setvars_of_word(w[1]) == 0);
 }
 
 TEST_CASE("floor: the backward memory pass asks for the floors of each place a shared list is at") {

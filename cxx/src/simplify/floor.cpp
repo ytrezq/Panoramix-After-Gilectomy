@@ -607,7 +607,15 @@ alg::Facts transfer(const alg::Facts& facts, Value line) {
         }
         // (a word the trace never reads: no floor of it decides anything)
         if (auto a = word_at(range); a && floor_word(*a)) {
-            Value nf = new_floor(*a, written_word(line[1]), facts.floor_of(*a));
+            const Value v = written_word(line[1]), old = facts.floor_of(*a);
+            Value nf = new_floor(*a, v, old);
+            // (a value at least the word's, where the facts hold: the old
+            // floor holds of it - solc's mem[64] = p + floor32(end - p + 31)
+            // after its check that the sum isn't below p, its size reading
+            // the word)
+            if (nf.nil() && !old.nil() && !v.nil() && !v.has_flags(F_MSIZE) && contains(v, word_read(*a)) &&
+                alg::le(word_read(*a), v, alg::Top::Word, &facts) == Tri::True)
+                nf = old;
             r = r.with_floor(*a, nf);
         }
         return r;
