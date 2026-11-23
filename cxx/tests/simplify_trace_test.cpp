@@ -586,6 +586,20 @@ TEST_CASE("simplify: a value's adjacent bytes in two parts are one part") {
     CHECK(u[0][0].is(Op::DATA));
 }
 
+TEST_CASE("simplify: adjacent fields of one storage slot in two parts are one read") {
+    Fixture f;
+    // OpenZeppelin's TokenTimelock: transfer(beneficiary, ...), the address
+    // read from storage, its 28 and 4 bytes apart as two narrower reads (a
+    // storage read masked is a narrower read): one read of its 160 bits
+    Value u = check_trace("{(return (data (sized 28 (storage 128 32 1)) (sized 4 (storage 32 0 1))))}", S::simplify_exps);
+    CHECK(u[0][0] == V("(sized 32 (storage 160 0 1))"));
+    // not two slots' fields, nor fields with bits between them
+    u = check_trace("{(return (data (sized 28 (storage 128 32 1)) (sized 4 (storage 32 0 2))))}", S::simplify_exps);
+    CHECK(u[0][0].is(Op::DATA));
+    u = check_trace("{(return (data (sized 28 (storage 128 40 1)) (sized 4 (storage 32 0 1))))}", S::simplify_exps);
+    CHECK(u[0][0].is(Op::DATA));
+}
+
 TEST_CASE("simplify: conditions known on the path") {
     Fixture f;
     // a check passed holds until what it reads changes: the same check again is decided
