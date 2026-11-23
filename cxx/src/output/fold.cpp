@@ -147,7 +147,21 @@ bool prints_whole(Value l) noexcept
             // (a custom error without params; a Panic)
             if (d.is(Op::SIZED, 2) && is_small(d[0], 4) && d[1].is_int())
                 return true;
-            return d.is(Op::DATA, 2) && d[0].is(Op::SIZED, 2) && is_small(d[0][0], 4) && is_small(d[0][1], 0x4e487b71);
+            if (d.is(Op::DATA, 2) && d[0].is(Op::SIZED, 2) && is_small(d[0][0], 4) && is_small(d[0][1], 0x4e487b71))
+                return true;
+            // (a custom error of up to three params, each a variable or a
+            // number: TimelockController's `revert with 0x5ead8eb5, _12, 4`,
+            // its id named once the guards' copies of its hash are one)
+            // (not an Error(string): the printer may show it word by word)
+            if (!d.is(Op::DATA) || d.size() < 2 || d.size() > 4 || !d[0].is(Op::SIZED, 2) || !is_small(d[0][0], 4) ||
+                !d[0][1].is_int() || is_small(d[0][1], 0x08c379a0))
+                return false;
+            for (u32 k = 1; k < d.size(); ++k) {
+                const Value p = d[k].is(Op::SIZED, 2) && is_small(d[k][0], 32) ? d[k][1] : d[k];
+                if (!(p.is_int() || p.is_name()))
+                    return false;
+            }
+            return true;
         }
         default:
             return false;

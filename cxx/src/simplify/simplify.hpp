@@ -177,6 +177,13 @@ Value fix_storages(Value trace);
 // _msize for msize maxes, loop variables renumbered, maxes in compare()
 // order (python readability, canonise_max)
 Value readability(Value trace);
+// the values written out several times that read better named (the last
+// final pass, display only): a long sum of positions - the base of a buffer
+// allocated past others, ceil32(len_1) + ceil32(len_2) + 32 * n + 192 - and
+// a hash of memory the trace doesn't know get a variable set right before
+// the line that first reads them, read there and wherever it still holds
+// that value (cleanup_vars' kills); one read only: the value put back
+Value name_values(Value trace);
 
 // `if c: v = a else: v = b` as `v = c and a` / `c or b` (LAND / LOR) where
 // the branches only set one variable to what c decides (python

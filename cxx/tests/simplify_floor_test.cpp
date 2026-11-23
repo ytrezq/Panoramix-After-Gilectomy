@@ -576,6 +576,32 @@ TEST_CASE("floor: the backward memory pass drops what the floors place apart fro
     CHECK(count_op(u, Op::SETMEM) == 4);
 }
 
+TEST_CASE("floor: the backward memory pass asks for the floors of each place a shared list is at") {
+    Fixture fx;
+    // one list (hash-consed) at two places: after a join that keeps the
+    // word at least 128, and after one where it may be 0. Its write at the
+    // word's value is read by nothing where the word is at least 128 (the
+    // return reads the word and 32 bytes past where it points): dropped
+    // there - the floors of the other place, where the write may move the
+    // word, don't hold there (the floors both places had: none)
+    const std::string block =
+        "{(setmem (range (mem (range 64 32)) 32) (sized 32 5)) "
+        "(return (data (sized 32 5) (mem (range (add 32 (mem (range 64 32))) 32))))}";
+    const std::string text =
+        "{(setmem (range 64 32) (sized 32 128)) (if (calldataload 100) "
+        "{(if (calldataload 4) {(setmem (range 64 32) (add 160 (and 65504 (calldataload 36))))} {}) "
+        "(if (calldataload 132) " + block + " {(stop)})} "
+        "{(if (calldataload 4) {(setmem (range 64 32) (sized 32 0))} {}) "
+        "(if (calldataload 132) " + block + " {(stop)})})}";
+    Value u = check_pass(text.c_str(), S::cleanup_mems);
+    REQUIRE(u.is_list());
+    const Value outer = last(u);
+    REQUIRE(outer.is(Op::IF));
+    // the place the floors keep apart: the write is gone; the other keeps it
+    CHECK(count_op(outer[1], Op::SETMEM) == 1);  // (the join's own write)
+    CHECK(count_op(outer[2], Op::SETMEM) == 2);
+}
+
 TEST_CASE("floor: cleanup_conds keeps a condition across a write the floors place apart") {
     Fixture fx;
     // the pointer p >= 128 (taken from the word): a write at 0 doesn't change
@@ -858,4 +884,56 @@ TEST_CASE("floor: what a loop writes through pointers its body takes from the wo
         "(return (mem (range 128 32)))}",
         S::cleanup_mems);
     CHECK(has_op(last(u), Op::MEM));
+}
+
+// ---- round 3: the regressions of the free memory pointer (corpus/review/r2) ----------------
+
+TEST_CASE("floor: a loop variable that starts at a read of the word is at least the word's floor and the rest") {
+    Fixture fx;
+    // after hashProposal's first encoding loop (Governor's execute, the
+    // review's c00033): u = mload(0x40) + 192, cleanup_vars having put the
+    // word's read for the variable that held it in the loop's start, the loop
+    // writing at u. The start reads memory the loop writes, but its value at
+    // the entry is at least the word's floor plus 192 - and that is the same
+    // at every iteration: u's floor, which keeps the loop's writes above the
+    // word, the word's floor through the loop, the pointer taken before it
+    const char* text =
+        "{(setmem (range 64 32) (sized 32 128)) "
+        "(if (calldataload 4) {(setmem (range 64 32) (add 160 (and 4064 (calldataload 36))))} {}) "
+        "(setvar tmp1 (mem (range 64 32))) "
+        "(while (lt loop1 (and 7 (calldataload 68))) "
+        "{(setmem (range loop2 32) (sized 32 loop1)) "
+        "(continue loopid1 [(setvar loop1 (add 1 loop1)) (setvar loop2 (add 32 loop2))])} "
+        "loopid1 [(setvar loop1 0) (setvar loop2 (add 192 (mem (range 64 32))))]) "
+        "(return (sized 32 (add tmp1 (mul -1 (mem (range 64 32))))))}";
+    // the floors at the loop's head: the word's, and u's (128 + 192)
+    const Value t = V(text);
+    alg::Facts f = S::floor_walk(alg::Facts{}, mk_trace(t.args().subspan(0, 3)));
+    REQUIRE(f.floor_of(64) == Value::small(128));
+    const alg::Facts h = S::floor_loop(f, t[3]);
+    CHECK(h.floor_of(64) == Value::small(128));
+    CHECK(h.floor_of(V("loop2")) == Value::small(320));
+    // so the pointer taken before the loop is the word after it: 0 returned
+    Value u = check_pass(text, whole);
+    CHECK(!has_op(last(u), Op::MEM));
+    CHECK(!reads_name(last(u), V("tmp1")));
+}
+
+TEST_CASE("floor: a question the floors leave open is asked again with the conditions") {
+    Fixture fx;
+    // a copy out of a return data buffer (Balancer's exitPool, the npm
+    // corpus' c00047): the source is at p + off + 32, the destination at p +
+    // ceil32(rds) + 32, the decoder's check rds + p >= p + off + 32 n + 32.
+    // With p's floor the question reads p as F + d, which the check (about p
+    // itself) doesn't bound: decided without the floors, the ranges are apart
+    alg::Facts f = alg::Facts{}.with_floor(V("tmp1"), V("416"));
+    f = f.with(V("(iszero (lt (add (returndatasize 1) tmp1) (add 32 tmp1 tmp2 (mul 32 tmp3))))"), true);
+    const Value src_end = V("(add 32 tmp1 tmp2 (mul 32 tmp3))");
+    const Value dst = V("(add 32 tmp1 (mask_shl 251 5 0 (add 31 (returndatasize 1))))");
+    CHECK(alg::le(src_end, dst, alg::Top::Memory, &f) == Tri::True);
+    CHECK(mem::overlaps(V("(range (add 32 tmp1 (mask_shl 251 5 0 (add 31 (returndatasize 1)))) (mul 32 tmp3))"),
+                        V("(range (add 32 tmp1 tmp2) (mul 32 tmp3))"), &f) == Tri::False);
+    // without the check: open
+    const alg::Facts g = alg::Facts{}.with_floor(V("tmp1"), V("416"));
+    CHECK(alg::le(src_end, dst, alg::Top::Memory, &g) != Tri::True);
 }

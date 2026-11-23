@@ -27,10 +27,15 @@
 #include "simplify/simplify.hpp"
 
 #include <algorithm>
+#include <functional>
 #include <memory_resource>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
+#include "algebra/construct.hpp"
 #include "algebra/facts.hpp"
+#include "algebra/linear.hpp"
 #include "core/budget.hpp"
 #include "core/context.hpp"
 #include "core/memo.hpp"
@@ -56,29 +61,40 @@ bool is_var(Value v) {
 
 struct Entry {
     Value name, value;
-    u32 reads;  // summary(value).reads: a quick test before affects()
+    u32 reads;           // summary(value).reads: a quick test before affects()
+    bool named = false;  // the variable keeps its name (named_value): its value isn't put in its place
 };
 
 class Env {
 public:
     explicit Env(std::pmr::memory_resource* r) : e_(r) {}
-    Env(const Env& o) : e_(o.e_, o.e_.get_allocator()) {}
+    Env(const Env& o) : e_(o.e_, o.e_.get_allocator()), any_named_(o.any_named_) {}
     Env& operator=(const Env& o) {
         e_.assign(o.e_.begin(), o.e_.end());
+        any_named_ = o.any_named_;
         return *this;
     }
 
+    // the value that stands for the variable (none for a named one)
     const Value* find(Value name) const {
         auto it = lower(name);
-        return it != e_.end() && it->name == name ? &it->value : nullptr;
+        return it != e_.end() && it->name == name && !it->named ? &it->value : nullptr;
     }
-    void set(Value name, Value value) {
+    void set(Value name, Value value, bool named = false) {
         auto it = lower(name);
         const u32 reads = summary(value).reads;
         if (it != e_.end() && it->name == name)
-            *it = Entry{name, value, reads};
+            *it = Entry{name, value, reads, named};
         else
-            e_.insert(it, Entry{name, value, reads});
+            e_.insert(it, Entry{name, value, reads, named});
+        any_named_ = any_named_ || named;
+    }
+    // the named variables known here (their values)
+    template <class F>
+    void each_named(F&& f) const {
+        if (!any_named_) return;
+        for (const Entry& x : e_)
+            if (x.named) f(x.name, x.value);
     }
     void erase(Value name) {
         auto it = lower(name);
@@ -103,8 +119,8 @@ public:
     // what both say
     void meet(const Env& o) {
         std::erase_if(e_, [&](const Entry& x) {
-            const Value* v = o.find(x.name);
-            return !v || *v != x.value;
+            auto it = o.lower(x.name);
+            return it == o.e_.end() || it->name != x.name || it->value != x.value || it->named != x.named;
         });
     }
     bool empty() const { return e_.empty(); }
@@ -120,13 +136,117 @@ private:
                                 [](const Entry& a, Value n) { return a.name.raw() < n.raw(); });
     }
     std::pmr::vector<Entry> e_;
+    bool any_named_ = false;  // (a named entry was set: each_named has something to see)
 };
 
+// ---- the values that keep their variable's name ---------------------------------------------
+
+// a term rounded to whole words (ceil32, floor32: a mask clearing the low 5 bits)
+bool rounded_term(Value t) { return t.is(Op::MASK_SHL, 4) && t[1] == Value::small(5); }
+
+// a term of a sum of positions: a name, a leaf (return_data.size...), a read
+// of memory, calldata or storage (a length), a mask of one (ceil32...) - not
+// a product of words (arithmetic)
+bool position_term(Value t) {
+    return t.is_name() || t.is_leaf() || t.is(Op::MEM) || t.is(Op::CALLDATALOAD) || t.is(Op::STORAGE) ||
+           t.is(Op::MASK_SHL);
+}
+
+// A sum of positions long enough that a variable set to it reads better as
+// its name than as the sum written out wherever it is read: three terms or
+// more, two of them rounded to words, or five - the base of a buffer the
+// code allocated past others (ceil32(len_1) + ceil32(len_2) + 32 * n + 192).
+bool long_sum(Value v) {
+    if (!v.is(Op::ADD)) return false;
+    const alg::Linear l = alg::linear(v);
+    u32 rounded = 0;
+    for (const alg::LinTerm& t : l.terms) {
+        if (!position_term(t.term)) return false;
+        rounded += rounded_term(t.term);
+    }
+    return l.terms.size() >= 3 && (rounded >= 2 || l.terms.size() >= 5);
+}
+
+// v reads memory at a place that isn't a constant (an allocated buffer's)
+bool reads_buffer(Value v) {
+    if (!(v.is_expr() || v.is_list()) || !v.has_flags(F_MEM)) return false;
+    if (v.is(Op::MEM, 1) && !(v[0].is(Op::RANGE, 2) && v[0][0].is_small())) return true;
+    for (Value a : v.args())
+        if (reads_buffer(a)) return true;
+    return false;
+}
+
+// The part of a sum of n terms that a variable names (naming): a long sum,
+// or, where the sum had terms left out (a loop's counter: read where it is),
+// two terms or more, one of them rounded - what the lines that read it
+// repeat around those terms
+bool base_sum(Value b, usize n) {
+    if (long_sum(b)) return true;
+    if (!b.is(Op::ADD)) return false;
+    const alg::Linear l = alg::linear(b);
+    if (l.terms.size() < 2 || l.terms.size() >= n) return false;
+    u32 rounded = 0;
+    for (const alg::LinTerm& t : l.terms) {
+        if (!position_term(t.term)) return false;
+        rounded += rounded_term(t.term);
+    }
+    return rounded >= 1;
+}
+
+// v hashes memory the trace doesn't know: the hash keeps its variable's
+// name, not written out wherever it is read. buffer: only a buffer's
+// (sha3(mem[p len n]), p not a constant) - the rounds' (the scratch words a
+// mapping's slot is hashed from are the memory pass's to read as the key and
+// the slot: named while they aren't, a slot's variable would stay where
+// they are later); else any (the final naming: what is left unread)
+bool raw_hash(Value v, bool buffer = false) {
+    if (!(v.is_expr() || v.is_list()) || !v.has_flags(F_MEM)) return false;
+    if (v.is(Op::SHA3))
+        for (Value a : v.args())
+            if (buffer ? reads_buffer(a) : a.has_flags(F_MEM)) return true;
+    for (Value a : v.args())
+        if (raw_hash(a, buffer)) return true;
+    return false;
+}
+
+// a read of the word at a constant address (the free memory pointer...)
+bool word_read(Value v) {
+    return v.is(Op::MEM, 1) && v[0].is(Op::RANGE, 2) && v[0][0].is_small() && v[0][1] == Value::small(32);
+}
+
+// a variable set to v keeps its name: v isn't put where it is read (naming:
+// a read of the word at a constant address too - where the variable holds
+// it, `_45` for `mem[64]`: the buffer's base named as the code took it)
+bool named_value(Value v) { return long_sum(v) || raw_hash(v) || word_read(v); }
+
 // ---- forward: substitution ----------------------------------------------------------------
+
+// the reads of each variable of the trace (its SETVARs' own names not ones)
+void count_all_reads(Value v, std::unordered_map<u64, u32>& n) {
+    if (v.is_name()) {
+        ++n[v.raw()];
+        return;
+    }
+    if (!(v.is_expr() || v.is_list()) || !v.has_flags(F_VAR)) return;
+    if (v.is(Op::SETVAR, 2)) {
+        count_all_reads(v[1], n);
+        return;
+    }
+    for (Value a : v.args()) count_all_reads(a, n);
+}
 
 class Forward {
 public:
     explicit Forward(std::pmr::memory_resource* r) : res_(r) {}
+
+    // naming mode (name_values): the long sums of positions and the hashes of
+    // memory a line reads get a variable set right before it, read there and
+    // wherever it still holds that value after (`fresh`: the next unused name)
+    bool naming = false;
+    std::function<Value()> fresh;
+    SmallVec<Value, 16> made;  // (the variables naming made)
+    // the variables read twice or more in the trace (named_hash)
+    std::unordered_map<u64, u32> reads;
 
     // the trace with the variables known replaced; env: at its end (the
     // paths that reach it); fl: the floors there (floor.hpp: the walk
@@ -140,8 +260,10 @@ public:
         for (u32 i = 0; i < n; ++i) {
             poll();
             Value l = trace[i];
-            Value r = line(l, env, fl, trace, i);
-            if (r != l) changed = true;
+            SmallVec<Value, 4> before;
+            Value r = line(l, env, fl, trace, i, before);
+            if (r != l || !before.empty()) changed = true;
+            for (Value b : before) out.push_back(b);
             out.push_back(r);
         }
         return changed ? mk_trace(out.span()) : trace;
@@ -174,16 +296,146 @@ private:
     }
     Value subst_line(Value l, const Env& env) {
         if (env.empty()) return l;
-        return map_line_exprs(l, [&](Value e, Pos) { return subst(e, env); });
+        return map_line_exprs(l, [&](Value e, Pos) { return put(e, env); });
+    }
+
+    // e with the variables known replaced by their values, and the values of
+    // the named ones written as their names (named_value: where they hold
+    // them - the same entries, killed as the others)
+    Value put(Value e, const Env& env) {
+        Value r = subst(e, env);
+        bool any = false;
+        env.each_named([&](Value, Value) { any = true; });
+        if (!any || !(r.is_expr() || r.is_list())) return r;
+        names_.clear();
+        return named_rec(r, env);
+    }
+    Value named_rec(Value e, const Env& env) {
+        if (!(e.is_expr() || e.is_list())) return e;
+        if (const Value* r = names_.find(e)) return *r;
+        check_stack();
+        Value x = as_named(e, env);
+        if (x.is_expr() || x.is_list()) {
+            SmallVec<Value, 8> args;
+            bool changed = false;
+            for (Value a : x.args()) {
+                Value n = named_rec(a, env);
+                if (n != a) changed = true;
+                args.push_back(n);
+            }
+            if (changed) x = mk_like_checked(x, args.span());
+        }
+        names_.put(e, x);
+        return x;
+    }
+    // e as a named variable: its value itself, or a sum with all of that
+    // value's terms, each with its coefficient - the variable plus the rest
+    // (the value with the most terms); e itself when none
+    static Value as_named(Value e, const Env& env) {
+        Value name, value;
+        usize most = 0;
+        bool exact = false;
+        std::optional<alg::Linear> le;
+        env.each_named([&](Value n, Value v) {
+            if (exact) return;
+            if (v == e) {
+                name = n;
+                exact = true;
+                return;
+            }
+            if (!e.is(Op::ADD) || !v.is(Op::ADD)) return;
+            if (!le) le = alg::linear(e);
+            const alg::Linear lv = alg::linear(v);
+            if (lv.terms.size() <= most || lv.terms.size() > le->terms.size()) return;
+            for (const alg::LinTerm& t : lv.terms)
+                if (EvmInt(le->coeff_of(t.term)) != EvmInt(t.coeff)) return;
+            name = n;
+            value = v;
+            most = lv.terms.size();
+        });
+        if (name.nil()) return e;
+        if (exact) return name;
+        return alg::add(name, alg::sub(e, value));
+    }
+
+    // naming: what e (an expression a line reads) has that a variable should
+    // name - the part of a long sum of positions that the loops' counters
+    // don't make (long_sum), a hash of memory the trace doesn't know
+    // (raw_hash); not a storage slot's (the storage's forms read its sums)
+    static void candidates(Value e, SmallVec<Value, 4>& out) {
+        if (!(e.is_expr() || e.is_list()) || e.is(Op::STORAGE)) return;
+        check_stack();
+        if (e.is(Op::SHA3) && raw_hash(e)) {
+            if (std::find(out.begin(), out.end(), e) == out.end()) out.push_back(e);
+            return;
+        }
+        if (e.is(Op::ADD)) {
+            const alg::Linear l = alg::linear(e);
+            SmallVec<Value, 8> base;
+            for (const alg::LinTerm& t : l.terms)
+                if (!reads_loop_var(t.term)) base.push_back(alg::mul(t.coeff, t.term));
+            if (base.size() >= 2) {
+                const Value b = alg::add(base.span());
+                if (base_sum(b, l.terms.size()) && std::find(out.begin(), out.end(), b) == out.end()) out.push_back(b);
+            }
+        }
+        for (Value a : e.args()) candidates(a, out);
+    }
+    static bool reads_loop_var(Value v) {
+        if (v.is_name(NameKind::LOOP)) return true;
+        if (!(v.is_expr() || v.is_list()) || !v.has_flags(F_VAR)) return false;
+        for (Value a : v.args())
+            if (reads_loop_var(a)) return true;
+        return false;
+    }
+    // naming: e's candidates named by variables set before the line (the
+    // same value there: what the line reads is read before its effects)
+    void name_in(Value e, Env& env, SmallVec<Value, 4>& before) {
+        SmallVec<Value, 4> cs;
+        candidates(e, cs);
+        for (Value c : cs) {
+            if (!movable(Value(), c)) continue;
+            const Value k = fresh();
+            made.push_back(k);
+            const Value sv = mk(Op::SETVAR, k, c);
+            before.push_back(sv);
+            env.set(k, c, true);
+        }
+    }
+    Value name_line(Value l, Env& env, SmallVec<Value, 4>& before) {
+        if (!naming || !l.is_expr()) return l;
+        const usize n0 = before.size();
+        if (l.is(Op::STORE, 4)) {
+            name_in(l[3], env, before);
+        } else if (l.is(Op::SETVAR, 2)) {
+            // (a variable set to such a value is its name already)
+            if (!named_value(l[1])) name_in(l[1], env, before);
+        } else {
+            (void)map_line_exprs(l, [&](Value e, Pos) {
+                name_in(e, env, before);
+                return e;
+            });
+        }
+        if (before.size() == n0) return l;
+        Value r = subst_line(l, env);
+        if (r != l) cx().pcs.inherit(r, l);
+        for (usize j = n0; j < before.size(); ++j) cx().pcs.inherit(before[j], l);
+        return r;
     }
 
     // a line, env going forward through it
-    Value line(Value l, Env& env, alg::Facts& fl, Value trace, u32 i) {
+    Value line(Value l, Env& env, alg::Facts& fl, Value trace, u32 i, SmallVec<Value, 4>& before) {
         if (!l.is_expr()) return l;
         switch (l.op()) {
             case Op::IF:
             case Op::MERGED_IF: {
-                Value cond = subst(l[0], env);
+                Value cond = put(l[0], env);
+                if (naming && cond != l[0]) cond = simplify_word(cond);
+                if (naming) {
+                    const usize n0 = before.size();
+                    name_in(cond, env, before);
+                    if (before.size() != n0) cond = simplify_word(put(cond, env));
+                }
                 Env et(env), ee(env);
                 alg::Facts ft = fl, fe = fl;
                 Value t = walk(l[1], et, ft);
@@ -210,6 +462,12 @@ private:
             case Op::WHILE: {
                 // the setvars: at the entry, from env
                 Value sv = subst_setvars(l[3], env);
+                if (naming && sv.is_list()) {
+                    const usize n0 = before.size();
+                    for (Value x : sv.args())
+                        if (x.is(Op::SETVAR, 2)) name_in(x[1], env, before);
+                    if (before.size() != n0) sv = subst_setvars(sv, env);
+                }
                 // (at its head, for every iteration, and after it: what the
                 // paths that go on change - an iteration that reverts never
                 // gets back -, decided with the floors none of them changes;
@@ -220,7 +478,8 @@ private:
                 env.kill(s, &in);
                 Env inside(env);
                 alg::Facts fin = fl;
-                Value cond = subst(l[0], inside);
+                Value cond = put(l[0], inside);
+                if (naming && cond != l[0]) cond = simplify_word(cond);
                 Value body = walk(l[1], inside, fin);
                 Value r = mk(Op::WHILE, cond, body, l[2], sv);
                 cx().pcs.inherit(r, l);
@@ -257,7 +516,13 @@ private:
             default: break;
         }
         Value r = subst_line(l, env);
+        if (naming && r != l) {
+            // (a name in a sum's place: the normal form again)
+            const Value q = simplify_line(r);
+            if (!q.nil()) r = q;
+        }
         if (r != l) cx().pcs.inherit(r, l);
+        r = name_line(r, env, before);
         {
             // (what it writes, decided with the floors before it - its own
             // writes evaluated there; floors_through for a compound line)
@@ -265,8 +530,17 @@ private:
             env.kill(summary(r), &through);
         }
         fl = floor_transfer(fl, r);
-        if (r.is(Op::SETVAR, 2) && is_var(r[0]) && movable(r[0], r[1])) env.set(r[0], r[1]);
+        if (r.is(Op::SETVAR, 2) && is_var(r[0]) && movable(r[0], r[1]))
+            env.set(r[0], r[1], named_hash(r[0], r[1]) || (naming && named_value(r[1])));
         return r;
+    }
+
+    // a variable set to a hash of memory the trace doesn't know, read twice
+    // or more: its name, not the hash written out wherever it is read
+    bool named_hash(Value name, Value v) const {
+        if (!raw_hash(v, true)) return false;
+        auto it = reads.find(name.raw());
+        return it != reads.end() && it->second >= 2;
     }
 
     // v's value may stand for it where it's read: not reading v itself, not
@@ -295,7 +569,8 @@ private:
         for (Value x : sv.args()) {
             Value y = x;
             if (x.is(Op::SETVAR, 2)) {
-                Value e = subst(x[1], env);
+                Value e = put(x[1], env);
+                if (naming && e != x[1]) e = simplify_word(e);
                 if (e != x[1]) y = mk(Op::SETVAR, x[0], e);
             }
             if (y != x) changed = true;
@@ -305,7 +580,7 @@ private:
     }
 
     std::pmr::memory_resource* res_;
-    Memo<Value, Value> memo_;
+    Memo<Value, Value> memo_, names_;
 };
 
 // ---- backward: liveness -----------------------------------------------------------------
@@ -575,10 +850,99 @@ Value cleanup_vars(Value trace) {
     Forward fw(cx().budget.resource());
     // (the floors from the lines before the trace: the dispatcher's)
     alg::Facts fl = run_flags().entry_lines.is_list() ? floor_walk(alg::Facts{}, run_flags().entry_lines) : alg::Facts{};
+    count_all_reads(trace, fw.reads);
     Value t = fw.walk(trace, env, fl);
     Backward bw;
     Live live;
     return bw.walk(t, live);
+}
+
+namespace {
+
+// the ids of the _N names v has
+void tmp_ids(Value v, std::unordered_set<u32>& used, MemoSet<Value>& seen) {
+    if (v.is_name(NameKind::TMP)) {
+        used.insert(v.name_id());
+        return;
+    }
+    if (!(v.is_expr() || v.is_list()) || !v.has_flags(F_VAR) || !seen.add(v)) return;
+    for (Value a : v.args()) tmp_ids(a, used, seen);
+}
+
+
+// v with the names of `back` read as their values (in turn), their SETVARs dropped
+Value put_back(Value v, const std::unordered_map<u64, Value>& back, Memo<Value, Value>& memo) {
+    if (v.is_name(NameKind::TMP)) {
+        if (auto it = back.find(v.raw()); it != back.end()) return put_back(it->second, back, memo);
+        return v;
+    }
+    if (!(v.is_expr() || v.is_list()) || !v.has_flags(F_VAR)) return v;
+    if (const Value* r = memo.find(v)) return *r;
+    check_stack();
+    SmallVec<Value, 16> args;
+    bool changed = false;
+    for (Value a : v.args()) {
+        if (v.is_list() && a.is(Op::SETVAR, 2) && back.contains(a[0].raw())) {
+            changed = true;
+            continue;
+        }
+        Value n = put_back(a, back, memo);
+        changed |= n != a;
+        args.push_back(n);
+    }
+    Value r = !changed ? v : v.is_list() ? mk_list(args.span(), ListKind(v.node()->op)) : mk_like_checked(v, args.span());
+    memo.put(v, r);
+    return r;
+}
+
+}  // namespace
+
+Value name_values(Value trace) {
+    if (!trace.is_list()) return trace;
+    const FloorScope scope(trace);
+    // (the names made: none the trace or the entry lines have, nor one the
+    // algebra has values of - the trace's as the run got it)
+    std::unordered_set<u32> used(run_flags().installed_tmps.begin(), run_flags().installed_tmps.end());
+    {
+        MemoSet<Value> seen;
+        tmp_ids(trace, used, seen);
+        if (run_flags().entry_lines.is_list()) tmp_ids(run_flags().entry_lines, used, seen);
+    }
+    Env env(cx().budget.resource());
+    Forward fw(cx().budget.resource());
+    fw.naming = true;
+    u32 next = 1;
+    fw.fresh = [&] {
+        while (used.contains(next)) ++next;
+        used.insert(next);
+        return Value::name(NameKind::TMP, next);
+    };
+    alg::Facts fl = run_flags().entry_lines.is_list() ? floor_walk(alg::Facts{}, run_flags().entry_lines) : alg::Facts{};
+    count_all_reads(trace, fw.reads);
+    Value t = fw.walk(trace, env, fl);
+    if (fw.made.empty()) return t;
+    // (a name read once or never: its value put back)
+    std::unordered_map<u64, u32> reads;
+    count_all_reads(t, reads);
+    std::unordered_map<u64, Value> back;
+    std::unordered_map<u64, Value> values;
+    {
+        // (the values of the names made: their SETVARs)
+        SmallVec<Value, 64> st{t};
+        MemoSet<Value> seen;
+        while (!st.empty()) {
+            Value x = st.back();
+            st.pop_back();
+            if (!(x.is_expr() || x.is_list()) || !seen.add(x)) continue;
+            if (x.is(Op::SETVAR, 2)) values[x[0].raw()] = x[1];
+            for (Value a : x.args()) st.push_back(a);
+        }
+    }
+    for (Value k : fw.made)
+        if (reads[k.raw()] < 2) back[k.raw()] = values[k.raw()];
+    if (back.empty()) return t;
+    Memo<Value, Value> memo;
+    return put_back(t, back, memo);
 }
 
 }  // namespace pan::simplify

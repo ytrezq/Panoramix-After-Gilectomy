@@ -695,10 +695,21 @@ alg::Facts floor_join(const alg::Facts& into, const alg::Facts& before, const al
 // The loop's rising variables (LoopSummary::rising) with their floors, their
 // start values: each value they take is at least that, the start being
 // made of what the loop doesn't change (the same at every iteration) -
-// added to r, their keys to keep
+// added to r, their keys to keep. A start that reads what the loop changes
+// (u = mem[64] + 192, the loop writing memory) gives the floor of its value
+// at the entry instead (var_floor with the floors before the loop: F + 192,
+// F the word's floor there), when that is made of what the loop doesn't
+// change: u is at least its start, which is at least that at the entry, and
+// that is the same at every iteration.
 alg::Facts with_rising(alg::Facts r, Value loop_line, const loops::LoopSummary& ls, const EffectSummary& e,
-                       SmallVec<Value, 4>& keep) {
+                       const alg::Facts& before, SmallVec<Value, 4>& keep) {
     if (ls.stepped.nil() || !loop_line[3].is_list()) return r;
+    auto reads_written = [&](Value x) {
+        if (!ls.written.nil())
+            for (Value n : ls.written.args())
+                if (contains(x, n)) return true;
+        return false;
+    };
     for (Value v : loop_info(loop_line, ls).rising) {
         if (!alg::var_floor_key(v)) continue;
         Value start;
@@ -706,12 +717,14 @@ alg::Facts with_rising(alg::Facts r, Value loop_line, const loops::LoopSummary& 
         for (Value x : inits.args())
             if (x.is(Op::SETVAR, 2) && x[0] == v) start = x[1];
         if (start.nil() || start.has_flags(F_MSIZE)) continue;
-        bool reads_loop = false;
-        if (!ls.written.nil())
-            for (Value n : ls.written.args())
-                if (contains(start, n)) reads_loop = true;
-        if (reads_loop || affects(e, start)) continue;
-        r = with_var_floor(r, v, start);
+        Value lb = start;
+        if (reads_written(start) || affects(e, start)) {
+            lb = before.any_floor() ? var_floor(v, start, before) : Value();
+            if (lb.nil() || (lb.is_small() && lb.small_val() <= 0) || lb.has_flags(F_MSIZE) || reads_written(lb) ||
+                affects(e, lb))
+                continue;
+        }
+        r = with_var_floor(r, v, lb);
         keep.push_back(v);
     }
     return r;
@@ -961,7 +974,7 @@ const LoopFloors& loop_floors_of(const alg::Facts& facts, Value loop_line, bool 
             }
     }
     SmallVec<Value, 4> keep;
-    cand = with_rising(cand, loop_line, ls, e, keep);
+    cand = with_rising(cand, loop_line, ls, e, facts, keep);
     const SmallVec<u64, 4> grows = loop_info(loop_line, ls).grows[cont ? 1 : 0];
     const std::span<const u64> gs(grows.data(), grows.size());
     // the walks, to a fixpoint

@@ -351,6 +351,7 @@ public:
         if (on(P_CONDS)) trace = step(cleanup_conds(trace), ExplainStage::FinalCleanup);
         trace = fix_storages(trace);
         if (on(P_CONDS)) trace = step(cleanup_conds(trace), ExplainStage::CleaningStorages);
+        if (on(P_VARS)) trace = name_values(trace);
         trace = readability(trace);
         trace = step(cleanup_mul_1(trace), ExplainStage::NicerNames);
         if (on(P_CONDS)) trace = cleanup_conds(trace);
@@ -418,6 +419,11 @@ Value simplify_trace(Value trace, const SimplifyOptions& opts, ExplainHook* expl
         ~Clear() { alg::clear_variables(); }
     } clear;
     RunFlags& f = run_flags();
+    f.installed_tmps.clear();
+    for (const auto& [name, value] : values)
+        if (name.is_name(NameKind::TMP)) f.installed_tmps.push_back(name.name_id());
+    std::sort(f.installed_tmps.begin(), f.installed_tmps.end());
+    f.installed_tmps.erase(std::unique(f.installed_tmps.begin(), f.installed_tmps.end()), f.installed_tmps.end());
     f.msize = trace.has_flags(F_MSIZE) || (opts.entry_lines.is_list() && opts.entry_lines.has_flags(F_MSIZE));
     f.dubious = opts.dubious;
     f.entry_lines = opts.entry_lines;

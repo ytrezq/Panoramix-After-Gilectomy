@@ -101,6 +101,36 @@ mem::MemState constrained(const mem::MemState& st, Value cond) {
     return s2;
 }
 
+// A write that keeps some of the bytes it overwrites - a field of its value
+// is those very bytes, read before it: the selector stored over the word
+// whose low bytes are the first argument's top ones, mem[p] = uint224(mem[p])
+// | sel - as the write of the bytes it changes: those bytes written again are
+// the same bytes (the split's line that simplify_line drops: a copy of memory
+// onto itself). Before the forward pass resolves its reads: what they read
+// is then no longer seen as the bytes overwritten (the argument's word stays
+// one piece, not its top bytes written again by a line of their own). The
+// line itself when nothing is kept or more than one write is left; in a
+// trace that reads msize, always (the wider write moves it further).
+Value narrowed(Value l) {
+    if (run_flags().msize || !l[0].is(Op::RANGE, 2) || !l[1].has_flags(F_MEM)) return l;
+    const SmallVec<Value, 4> parts = mem::split_setmem(l);
+    if (parts.size() < 2) return l;
+    Value keep;
+    bool kept = false;
+    for (Value part : parts) {
+        const Value q = simplify_line(part);
+        if (q.nil()) {
+            kept = true;
+            continue;
+        }
+        if (!keep.nil()) return l;
+        keep = q;
+    }
+    if (!kept || keep.nil() || !keep.is(Op::SETMEM, 2)) return l;
+    cx().pcs.inherit(keep, l);
+    return keep;
+}
+
 // the ids of the atoms forget_loop makes (LOOP names no trace has)
 constexpr u32 kFreshAtoms = 0xfff00000u;
 
@@ -298,7 +328,8 @@ private:
                 return t == l[0] ? l : mk(Op::LOOP_PATH, t, l[1]);
             }
             case Op::SETMEM: {
-                Value r = line_reads(l, st);
+                const Value n = narrowed(l);
+                Value r = line_reads(n, st);
                 if (r != l) cx().pcs.inherit(r, l);
                 // (its other effects: none; its write, decided with the
                 // floors before it)
@@ -331,31 +362,45 @@ private:
 
 // The floors before each line of a trace (floor.hpp), for the backward walk:
 // a forward walk first, carrying them as the forward pass does, each line's
-// kept by its place (its list, its index) - a list met at several places
-// (hash-consed) keeps the floors all of them have.
+// kept by its place: its list, its index and the place of the list (a
+// context, the places the walk went through: a list hash-consed into
+// several places has the floors of each, which the backward walk, at each
+// place in turn, asks for with the same context). Two places of one key
+// (a collision of contexts) keep the floors both have.
 class FloorsAt {
 public:
-    void walk(Value t, const alg::Facts& f) { (void)list(t, f); }
-    // the floors before line i of the list t (nullptr: none known)
-    const alg::Facts* at(Value t, u32 i) const { return memo_.find(Key2{t.raw(), i}); }
+    void walk(Value t, const alg::Facts& f) { (void)list(t, f, 0); }
+    // the floors before line i of the list t at context ctx (nullptr: none known)
+    const alg::Facts* at(Value t, u32 i, u64 ctx) const { return memo_.find(Key3{t.raw(), i, ctx}); }
+    // the context of the lists of line i of t (at ctx), branch b (1: then,
+    // or a loop's body; 2: else)
+    static u64 sub(Value t, u32 i, u64 ctx, u64 b) {
+        u64 h = ctx ^ 0x9e3779b97f4a7c15ull;
+        for (u64 x : {u64(t.raw()), u64(i), b}) {
+            h ^= x + 0x9e3779b97f4a7c15ull + (h << 6) + (h >> 2);
+            h *= 0xff51afd7ed558ccdull;
+        }
+        return h | 1;  // (never 0, the root's)
+    }
 
 private:
-    alg::Facts list(Value t, alg::Facts f) {
+    alg::Facts list(Value t, alg::Facts f, u64 ctx) {
         if (!t.is_list()) return f;
         check_stack();
         for (u32 i = 0; i < t.size(); ++i) {
             poll();
-            note(t, i, f);
-            f = line(t[i], f);
+            note(t, i, ctx, f);
+            f = line(t, i, ctx, f);
         }
         return f;
     }
-    alg::Facts line(Value l, const alg::Facts& f) {
+    alg::Facts line(Value t, u32 i, u64 ctx, const alg::Facts& f) {
+        const Value l = t[i];
         if (!l.is_expr()) return f;
         switch (l.op()) {
             case Op::IF:
             case Op::MERGED_IF: {
-                const alg::Facts ft = list(l[1], f), fe = list(l[2], f);
+                const alg::Facts ft = list(l[1], f, sub(t, i, ctx, 1)), fe = list(l[2], f, sub(t, i, ctx, 2));
                 const bool t_ends = ends(l[1]), e_ends = ends(l[2]);
                 if (t_ends && !e_ends) return fe;
                 if (e_ends && !t_ends) return ft;
@@ -364,19 +409,19 @@ private:
             }
             case Op::WHILE: {
                 const alg::Facts head = floor_loop(f, l);
-                (void)list(l[1], head);
+                (void)list(l[1], head, sub(t, i, ctx, 1));
                 return head;
             }
             case Op::LABEL: return alg::Facts{};
             case Op::LOOP_PATH:
-                (void)list(l[0], alg::Facts{});
+                (void)list(l[0], alg::Facts{}, sub(t, i, ctx, 1));
                 return alg::Facts{};
             default: return floor_transfer(f, l);
         }
     }
-    void note(Value t, u32 i, const alg::Facts& f) {
+    void note(Value t, u32 i, u64 ctx, const alg::Facts& f) {
         bool ins = false;
-        alg::Facts& slot = memo_.slot(Key2{t.raw(), i}, &ins);
+        alg::Facts& slot = memo_.slot(Key3{t.raw(), i, ctx}, &ins);
         if (ins || slot == f) {
             slot = f;
             return;
@@ -389,7 +434,7 @@ private:
         });
         slot = common;
     }
-    Memo<Key2, alg::Facts> memo_;
+    Memo<Key3, alg::Facts> memo_;
 };
 
 constexpr usize kMaxLive = 64;
@@ -493,7 +538,7 @@ public:
     // move msize; floors: those before each line (FloorsAt)
     Backward(u64 msize_lo, const FloorsAt& floors) : msize_lo_(msize_lo), floors_(floors) {}
 
-    Value walk(Value trace, Live& live) {
+    Value walk(Value trace, Live& live, u64 ctx = 0) {
         if (!trace.is_list()) return trace;
         check_stack();
         const u32 n = trace.size();
@@ -518,7 +563,7 @@ public:
         for (u32 i = n; i-- > 0;) {
             poll();
             Value l = trace[i];
-            Value r = line(l, live, floors_.at(trace, i));
+            Value r = line(l, live, floors_.at(trace, i, ctx), trace, i, ctx);
             if (r != l) changed = true;
             out[i] = r;
         }
@@ -559,8 +604,9 @@ private:
         return nullptr;
     }
 
-    // (fl: the floors before the line, nullptr when none are known)
-    Value line(Value l, Live& live, const alg::Facts* fl) {
+    // (fl: the floors before the line, nullptr when none are known; the
+    // line is line i of the list t, at context ctx - FloorsAt's)
+    Value line(Value l, Live& live, const alg::Facts* fl, Value t, u32 i, u64 ctx) {
         if (!l.is_expr()) return l;
         switch (l.op()) {
             case Op::SETMEM: {
@@ -581,12 +627,12 @@ private:
             case Op::IF:
             case Op::MERGED_IF: {
                 Live lt = live, le = live;
-                Value t = walk(l[1], lt);
-                Value e = walk(l[2], le);
+                Value then = walk(l[1], lt, FloorsAt::sub(t, i, ctx, 1));
+                Value e = walk(l[2], le, FloorsAt::sub(t, i, ctx, 2));
                 live = lt;
                 live.unite(le);
                 add_reads(summary(l[0]), live);
-                Value r = mk_like(l, std::span<const Value>({l[0], t, e}));
+                Value r = mk_like(l, std::span<const Value>({l[0], then, e}));
                 cx().pcs.inherit(r, l);
                 return r;
             }
@@ -601,7 +647,7 @@ private:
                 head.invariant(ls, &fh);
                 loops_.push_back({l[2], head, live});
                 Live in_body = live;
-                Value body = walk(l[1], in_body);
+                Value body = walk(l[1], in_body, FloorsAt::sub(t, i, ctx, 1));
                 loops_.pop_back();
                 live = head;
                 live.unite(in_body);
