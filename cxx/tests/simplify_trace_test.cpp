@@ -506,6 +506,62 @@ TEST_CASE("simplify: an ABI tail of length 0 in the zeroes after the padding bef
     CHECK(!has_op(u, Op::ARR));
 }
 
+TEST_CASE("simplify: ABI arrays whose length agrees with their content where the path's conditions hold") {
+    Fixture f;
+    // solc's legacy copy of a bytes of return data (gnosis130's and
+    // safe141's execTransactionFromModuleReturnData, simulate): the length
+    // len, the content len bytes where len % 32 == 0, and floor32(len) +
+    // 32 (the last word masked) where it isn't - both ceil32(len) on their
+    // path, mod 2^256: x % 32 == 0 => ceil32(x) == x; x % 32 != 0 =>
+    // floor32(x) + 32 == ceil32(x) (for x > 2^256 - 32, x + 31 wraps and
+    // ceil32(x) is 0, as floor32(x) + 32 = 2^256 is)
+    const std::string len = "(mask_shl 8 0 0 (calldataload 4))";
+    const std::string whole = "(return (data (sized 32 32) (sized 32 tmp1) (calldata_bytes 36 tmp1)))";
+    const std::string rounded =
+        "(return (data (sized 32 32) (sized 32 tmp1) (calldata_bytes 36 (add 32 (mask_shl 251 5 0 tmp1)))))";
+    Value u = check_trace(("{(setvar tmp1 " + len + ") (if (iszero (mask_shl 5 0 0 tmp1)) {" + whole + "} {}) " +
+                           rounded + "}")
+                              .c_str(),
+                          S::postprocess_exps);
+    REQUIRE(u.size() == 3);
+    CHECK(u[1][1][0][0][0].is(Op::ARR));
+    CHECK(u[2][0][0].is(Op::ARR));
+    // a fact dies where what it reads changes: tmp1 set again between the
+    // test and the data - no array (the first one's content would need padding)
+    const std::string again = "(setvar tmp1 (mask_shl 8 0 0 (calldataload 36)))";
+    u = check_trace(("{(setvar tmp1 " + len + ") (if (iszero (mask_shl 5 0 0 tmp1)) {" + again + " " + whole +
+                     "} {}) " + again + " " + rounded + "}")
+                        .c_str(),
+                    S::postprocess_exps);
+    CHECK(!has_op(u, Op::ARR));
+    // ... at the head of a loop that sets it: the fact from before doesn't enter
+    u = check_trace(("{(setvar tmp1 " + len + ") (if (iszero (mask_shl 5 0 0 tmp1)) {(revert None)} {}) " +
+                     "(while (lt loop0 2) {(if (calldataload 68) {" + rounded + "} {}) " + again +
+                     " (continue loopid1 {(setvar loop0 (add 1 loop0))})} loopid1 {(setvar loop0 0)}) (stop)}")
+                        .c_str(),
+                    S::postprocess_exps);
+    CHECK(!has_op(u, Op::ARR));
+    // ... and what a loop's body learns doesn't leave it (it may run no time)
+    u = check_trace(("{(setvar tmp1 " + len + ") (while (lt loop0 (mask_shl 2 0 0 (calldataload 100))) {(if " +
+                     "(mask_shl 5 0 0 tmp1) {(revert None)} {}) (continue loopid1 {(setvar loop0 (add 1 loop0))})} " +
+                     "loopid1 {(setvar loop0 0)}) " + whole + "}")
+                        .c_str(),
+                    S::postprocess_exps);
+    CHECK(!has_op(u, Op::ARR));
+    // a length the conditions pin to one value (aave311's
+    // getAddressesProvidersList: one element where 0 < len <= 1) and a MAX
+    // they decide (32 * max(2, len) bytes where len > 1)
+    const std::string small = "(mask_shl 4 0 0 (calldataload 4))";
+    u = check_trace(("{(setvar tmp1 " + small + ") (if (iszero tmp1) {(stop)} {}) (if (lt 1 tmp1) {} {(return " +
+                     "(data (sized 32 32) (sized 32 tmp1) (sized 32 (calldataload 36))))}) (return (data (sized 32 32) " +
+                     "(sized 32 tmp1) (calldata_bytes 36 (mul 32 (max 2 tmp1)))))}")
+                        .c_str(),
+                    S::postprocess_exps);
+    REQUIRE(u.size() == 4);
+    CHECK(u[2][2][0][0][0].is(Op::ARR));
+    CHECK(u[3][0][0].is(Op::ARR));
+}
+
 TEST_CASE("simplify: conditions known on the path") {
     Fixture f;
     // a check passed holds until what it reads changes: the same check again is decided
