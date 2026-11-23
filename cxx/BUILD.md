@@ -22,7 +22,7 @@ builds in its own directory, `B=build-NAME` (`build*/` is ignored by git).
 | `debug`    | `$(B)/debug/`: `-O1 -g`, ASan + UBSan (`-fno-sanitize-recover=all`), `_GLIBCXX_ASSERTIONS`, no LTO; builds the CLI and the unit tests and runs them. Any target in that build: `make VARIANT=debug validate` |
 | `bench`    | `tools/bench.py`: the asm, `$(B)/pancxx`, `$(B)/pgo/pancxx` over `$(CORPUS)` |
 | `readability` | `$(CORPUS)` decompiled into `$(B)/readability/texts/`, its readability compared with `$(READABILITY_BASE)` (below); fails on a regression `$(READABILITY_ALLOW)` doesn't allow |
-| `readability-baseline` | `$(READABILITY_BASE)` measured from the texts of the last `make readability` (or, when there are none, from `$(CORPUS)` decompiled by this build) |
+| `readability-baseline` | `$(READABILITY_BASE)` moved forward: function by function, the best of it and of the texts of the last `make readability` (with no texts yet, `$(CORPUS)` decompiled by this build first) |
 | `clean`    | `rm -rf $(B)` |
 
 ## Variables
@@ -159,18 +159,31 @@ What to do with one:
 1. Fix it. A change that makes a text less readable is a regression even
    when it is exact.
 2. When the old form was readable only because it was inexact, or when
-   exactness needs the new form, allow it: a line `NAME FUNCTION RULE  #
-   why` in `tests/readability/allow.txt`, with the proof (shell patterns,
-   `*` for any).
+   exactness needs the new form, allow it: a line `NAME FUNCTION RULE MOST
+   # why` in the proven part of `tests/readability/allow.txt`, with the
+   proof (the first three are shell patterns, `*` for any; MOST is the most
+   the count may reach, for a `lost_` rule the number of items lost).
 3. When the tool counts something that isn't a loss, fix the tool and add
    the case to its selftest (`python3 tools/readability.py selftest`, run
-   by `make check` through `tests/readability_selftest.py`).
+   by `make check` through `tests/readability_selftest.py`). Rules are about
+   the printed text, never about a language or a compiler.
 
-After a change that makes texts more readable, make the new texts the
-baseline: `make readability`, read its report, then `make
-readability-baseline`, which measures the texts just made into
-`$(READABILITY_BASE)`; commit it with the change. The baseline only moves
-forward: a regression is fixed or allowed, never folded into the baseline.
+`allow.txt` has two parts: the proven exceptions, and the regressions not
+fixed yet ("to fix"), each with today's count as its MOST, so it can't grow.
+The goal is as few lines as possible: a fix removes its lines, and `make
+readability` lists the lines no regression needs any more and those whose
+count can go down.
+
+After a change that makes texts more readable, move the baseline forward:
+`make readability`, read its report, then `make readability-baseline`, and
+commit the baseline with the change. The baseline is a ratchet: for each
+function it keeps the best of what it held and of the new text - each count
+its least, each string, call, event, error and form shown in either
+(`tools/readability.py best`). A regression is fixed or allowed; it never
+gets into the baseline, so an allowed one stays listed until it is fixed.
+The baseline was made from the texts of three builds (the build before
+round 2's fixes, round 2's, round 3's): what any of them showed is what the
+texts must show.
 
 ## Sanitizers and the optimized builds
 

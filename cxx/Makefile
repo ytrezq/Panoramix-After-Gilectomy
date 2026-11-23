@@ -23,9 +23,11 @@
 ##              readability compared with $(READABILITY_BASE) (tools/
 ##              readability.py): fails on a regression $(READABILITY_ALLOW)
 ##              doesn't allow; the report in $(B)/readability/report.md
-##   readability-baseline  $(READABILITY_BASE) made again from the texts of
-##              the last `make readability` (after its report was read), or,
-##              when there are none, from $(CORPUS) decompiled by this build
+##   readability-baseline  $(READABILITY_BASE) moved forward: function by
+##              function, the best of it and of the texts of the last `make
+##              readability` (after its report was read) - no count goes up,
+##              nothing shown is dropped; with no texts yet, $(CORPUS)
+##              decompiled by this build first
 ##   clean      rm -rf $(B)
 ## Variables:
 ##   B=build    the build directory: each worker its own, B=build-NAME
@@ -315,8 +317,10 @@ readability: corpus-check $(D)/pancxx $(SIGDB)
 readability-baseline: corpus-check $(D)/pancxx $(SIGDB)
 	@test -d $(B)/readability/texts || { printf '  %-7s %s\n' TEXTS '$(CORPUS) -> $(B)/readability/texts'; \
 	  $(PYTHON) tools/readability.py texts $(D)/pancxx $(SIGDB) $(CORPUS) $(B)/readability/texts -j $(JOBS); }
-	$(call say,MEASURE,$(B)/readability/texts -> $(READABILITY_BASE))
-	$(Q)$(PYTHON) tools/readability.py measure $(B)/readability/texts $(READABILITY_BASE)
+	$(call say,BEST,$(READABILITY_BASE) + $(B)/readability/texts -> $(READABILITY_BASE))
+	$(Q)if [ -e $(READABILITY_BASE) ]; then \
+	  $(PYTHON) tools/readability.py best $(READABILITY_BASE) $(READABILITY_BASE) $(B)/readability/texts; \
+	else $(PYTHON) tools/readability.py measure $(B)/readability/texts $(READABILITY_BASE); fi
 
 bench: corpus-check all $(SIGDB)
 	$(Q)$(PYTHON) tools/bench.py --asm $(ASM) --asm-sigdb $(abspath $(ASM_SIGDB)) \

@@ -4,11 +4,15 @@ form of what the manual review's second round looked for (corpus/review/r2).
 
     tools/readability.py texts PANCXX SIGDB LIST OUT [-j N] [--timeout S]
     tools/readability.py measure DIR OUT.jsonl[.xz]
+    tools/readability.py best OUT.jsonl[.xz] SET... 
     tools/readability.py compare OLD NEW [--allow FILE] [--report FILE.md] [--list FILE.jsonl] [--top N]
     tools/readability.py selftest
 
 `texts` decompiles the .hex files LIST names (a file of paths, a directory)
-into OUT/NAME.txt. DIR holds such NAME.txt files (`pancxx decompile
+into OUT/NAME.txt. `best` writes the best each function has shown in the
+SETs (oldest first; directories of texts or `measure` files): each count
+its least, each string, call, event, error and form any of them showed -
+the baseline a ratchet keeps (make readability-baseline). DIR holds such NAME.txt files (`pancxx decompile
 --no-color`). OLD and NEW are such directories or `measure` files. `compare` exits with status 1 when NEW
 has a regression that FILE doesn't allow.
 
@@ -43,9 +47,11 @@ word by word are counted with the raw reverts: a raw revert that became an
 Error with its message decoded is no regression. A loop's label (`loop1:
 while ...`) doesn't hide the loop.
 
-The allow file: lines `NAME FUNCTION RULE  # why`, each a shell pattern
-(`*` for any, `ensdom122_*`); a regression it lists is reported as allowed
-and doesn't fail the comparison.
+The allow file: lines `NAME FUNCTION RULE [MOST]  # why`, the first three
+shell patterns (`*` for any, `ensdom122_*`), MOST the most the count may
+reach (for a lost_ rule, the number of items lost); a regression a line
+allows is reported as allowed and doesn't fail the comparison. A known
+regression listed with its count can't grow unnoticed.
 """
 import argparse
 import collections
@@ -336,19 +342,69 @@ def save(data, path):
             f.write(json.dumps({'name': name, 'functions': data[name]}, sort_keys=True, separators=(',', ':')) + '\n')
 
 
-def read_allow(path):
+def best(sets):
+    """The best each function has shown in SETS (oldest first; the newest set
+    holding a text names its functions, the older ones' paired with them as
+    compare pairs them): each count its least, each kind of item all those
+    shown. A later text compared with it may fall below none of them."""
+    out = {}
+    for name in set().union(*sets):
+        have = [s[name] for s in sets if name in s]
+        ref = have[-1]
+        res = {}
+        for fn, m in ref.items():
+            res[fn] = dict(m, n=dict(m['n']), s={k: list(v) for k, v in m['s'].items()})
+        for older in have[:-1]:
+            for fo, fn in pairs(older, ref):
+                o, r = older[fo], res[fn]
+                rn, on = r['n'], o['n']
+                # (a rule counting a sum: the least sum, its other parts their
+                # own least - a raw revert in one text, an Error in another
+                # are one revert)
+                sums = {k: min(sum(rn.get(p, 0) for p in ps), sum(on.get(p, 0) for p in ps))
+                        for k, ps in COMBINED.items()}
+                for k in set(rn) | set(on):
+                    rn[k] = min(rn.get(k, 0), on.get(k, 0))
+                for k, ps in COMBINED.items():
+                    rn[k] = sums[k] - sum(rn.get(p, 0) for p in ps if p != k)
+                for k in [k for k, v in rn.items() if not v]:
+                    del rn[k]
+                for k, v in o['s'].items():
+                    r['s'][k] = sorted(set(r['s'].get(k, ())) | set(v))
+        out[name] = res
+    return out
+
+
+def parse_allow(lines):
+    """[(name, function, rule, most)]: allow lines `NAME FUNCTION RULE [MOST]`
+    (MOST None when not given)"""
     rules = []
-    if path:
-        for line in open(path):
-            line = line.split('#', 1)[0].split()
-            if len(line) >= 3:
-                rules.append(tuple(line[:3]))
+    for line in lines:
+        line = line.split('#', 1)[0].split()
+        if len(line) >= 3:
+            most = int(line[3]) if len(line) >= 4 and line[3].isdigit() else None
+            rules.append((line[0], line[1], line[2], most))
     return rules
 
 
-def allowed(rules, name, fn, rule):
-    return any(fnmatch.fnmatchcase(name, a) and fnmatch.fnmatchcase(fn, b) and fnmatch.fnmatchcase(rule, c)
-               for a, b, c in rules)
+def read_allow(path):
+    if not path:
+        return []
+    with open(path) as f:
+        return parse_allow(f)
+
+
+def allowed(rules, name, fn, rule, value=None):
+    """a line of rules allows the regression: its patterns match, and the new
+    count (a lost_ rule: the number of items lost) is at most its MOST"""
+    n = len(value) if isinstance(value, list) else value
+    for r in rules:
+        a, b, c = r[:3]
+        most = r[3] if len(r) > 3 else None
+        if fnmatch.fnmatchcase(name, a) and fnmatch.fnmatchcase(fn, b) and fnmatch.fnmatchcase(rule, c) and (
+                most is None or (n is not None and n <= most)):
+            return True
+    return False
 
 
 def anonymous(x):
@@ -435,14 +491,14 @@ def compare(old, new, allow):
                         lost.remove(x)
                 if lost:
                     regs.append((name, fo, 'lost_' + key, len(o['s'].get(key, ())), lost,
-                                 allowed(allow, name, fo, 'lost_' + key)))
+                                 allowed(allow, name, fo, 'lost_' + key, lost)))
             for key, slack, rel, _ in RULES:
                 if key == 'mean_depth' and max(o['n'].get('lines', 0), n['n'].get('lines', 0)) < MEAN_DEPTH_LINES:
                     continue
                 parts = COMBINED.get(key, (key,))
                 a, b = sum(o['n'].get(p, 0) for p in parts), sum(n['n'].get(p, 0) for p in parts)
                 if b > a + max(slack, rel * a):
-                    regs.append((name, fo, key, a, b, allowed(allow, name, fo, key)))
+                    regs.append((name, fo, key, a, b, allowed(allow, name, fo, key, b)))
     return regs, tot_old, tot_new
 
 
@@ -511,6 +567,14 @@ def selftest():
         assert want in rules, want
     assert not compare(good, good, [])[0] and not compare(bad, good, [])[0]
     assert all(r[5] for r in compare(good, bad, [('x', '*', '*')])[0])
+    # MOST: the most the count may reach (a lost_ rule: the items lost)
+    regs = compare(good, bad, parse_allow(['x execute ptr_diff 2  # 0 -> 2']))[0]
+    assert [r[5] for r in regs if r[2] == 'ptr_diff'] == [True], regs
+    regs = compare(good, bad, parse_allow(['x execute ptr_diff 1']))[0]
+    assert [r[5] for r in regs if r[2] == 'ptr_diff'] == [False], regs
+    regs = compare(good, bad, parse_allow(['x execute lost_strings 1', 'x execute lost_calls 0']))[0]
+    assert {r[2]: r[5] for r in regs if r[2] in ('lost_strings', 'lost_calls')} == {
+        'lost_strings': True, 'lost_calls': False}, regs
     # labels don't hide loops; a copy whose address reads memory twice over is a copy
     m = measure_text('def f(): # not payable\n  loop1: while True:\n      if idx > 3:\n          break\n'
                      '      mem[idx + 192] = mem[mem[mem[64] + 32] + idx]\n      idx = idx + 32\n')['f']['n']
@@ -550,6 +614,18 @@ def selftest():
     assert n['x']['f'].get('h') == ['SafeMath'] and not compare(o, n, [])[0], compare(o, n, [])[0]
     n = {'x': measure_text(lib + "def f(): # not payable\n  return x + y\n")}
     assert [r[2] for r in compare(o, n, [])[0]] == ['lost_strings'], compare(o, n, [])[0]
+    # the best of several texts: each count its least, the items of all
+    a = {'x': {'f': measure_function('f', ['def f():', "  revert with 'a'"] + ['  ' + 'x' * 250] * 3)}}
+    b = {'x': {'f': measure_function('f', ['def f():', "  revert with 'b'"] + ['  ' + 'x' * 250] * 5)}}
+    m = best([a, b])['x']['f']
+    assert m['n']['long'] == 3 and m['s']['strings'] == ['a', 'b'], m
+    assert sorted(r[2] for r in compare(best([a, b]), b, [])[0]) == ['long', 'lost_strings']
+    assert not compare(best([a, b]), best([a, b]), [])[0]
+    # (a raw revert in one, an Error with its message in the next: one revert, the message gained)
+    raw1, err1 = ({'x': {'f': measure_function('f', ['def f():', '  revert with ' + x])}}
+                  for x in ('memory from mem[64] len 100', "Error(32, 3, 'abc', mem[_5 + 100 len 29])"))
+    assert not compare(best([raw1, err1]), err1, [])[0], compare(best([raw1, err1]), err1, [])[0]
+    assert sorted(r[2] for r in compare(best([err1, raw1]), raw1, [])[0]) == ['lost_strings', 'raw_revert']
     print('readability selftest: ok')
     return 0
 
@@ -600,6 +676,9 @@ def main():
     m = sub.add_parser('measure')
     m.add_argument('dir')
     m.add_argument('out')
+    b = sub.add_parser('best')
+    b.add_argument('out')
+    b.add_argument('sets', nargs='+')
     c = sub.add_parser('compare')
     c.add_argument('old')
     c.add_argument('new')
@@ -615,9 +694,25 @@ def main():
         save(data, a.out)
         print('%d texts measured' % len(data))
         return 0
+    if a.cmd == 'best':
+        data = best([load(x) for x in a.sets])
+        save(data, a.out)
+        print('%d texts: the best of %d sets' % (len(data), len(a.sets)))
+        return 0
     old, new = load(a.old), load(a.new)
-    regs, tot_old, tot_new = compare(old, new, read_allow(a.allow))
+    rules = read_allow(a.allow)
+    regs, tot_old, tot_new = compare(old, new, rules)
     bad = [r for r in regs if not r[5]]
+    # the allow lines no regression needs, and those whose MOST is above what they allow now
+    top = collections.defaultdict(int)
+    for name, fn, rule, o, n, ok in regs:
+        if ok:
+            for i, r in enumerate(rules):
+                if allowed([r], name, fn, rule, n):
+                    top[i] = max(top[i], len(n) if isinstance(n, list) else n)
+    stale = [' '.join(r[:3]) for i, r in enumerate(rules) if i not in top]
+    lower = ['%s %d -> %d' % (' '.join(r[:3]), r[3], top[i]) for i, r in enumerate(rules)
+             if i in top and r[3] is not None and top[i] < r[3]]
     names = {r[0] for r in bad}
     what = dict((k, w) for k, _, _, w in RULES)
     what.update(('lost_' + k, w + ' no longer shown') for k, w in SETS)
@@ -644,6 +739,11 @@ def main():
     for name, k in per_text.most_common(a.top):
         rules = collections.Counter(r[2] for r in bad if r[0] == name)
         out.append('- %s: %d (%s)' % (name, k, ', '.join('%s %d' % kv for kv in rules.most_common())))
+    if stale:
+        out += ['', '## Allow lines no regression needs (delete them)', ''] + ['- ' + x for x in stale]
+    if lower:
+        out += ['', '## Allow lines whose count can go down', ''] + ['- ' + x for x in lower]
+    out.insert(4, '%d allow lines no regression needs, %d whose count can go down.' % (len(stale), len(lower)))
     text = '\n'.join(out) + '\n'
     if a.report:
         open(a.report, 'w').write(text)
@@ -652,7 +752,7 @@ def main():
             for name, fn, rule, o, n, ok in regs:
                 f.write(json.dumps({'name': name, 'function': fn, 'rule': rule, 'old': o, 'new': n,
                                     'allowed': ok}) + '\n')
-    print(text if not a.report else '\n'.join(out[:4]))
+    print(text if not a.report else '\n'.join(out[:5]))
     return 1 if bad else 0
 
 
