@@ -40,12 +40,14 @@ word by word are counted with the raw reverts: a raw revert that became an
 Error with its message decoded is no regression. A loop's label (`loop1:
 while ...`) doesn't hide the loop.
 
-The allow file: lines `NAME FUNCTION RULE  # why` (`*` for any); a
-regression it lists is reported as allowed and doesn't fail the comparison.
+The allow file: lines `NAME FUNCTION RULE  # why`, each a shell pattern
+(`*` for any, `ensdom122_*`); a regression it lists is reported as allowed
+and doesn't fail the comparison.
 """
 import argparse
 import collections
 import concurrent.futures
+import fnmatch
 import subprocess
 import json
 import lzma
@@ -334,7 +336,8 @@ def read_allow(path):
 
 
 def allowed(rules, name, fn, rule):
-    return any(a in ('*', name) and b in ('*', fn) and c in ('*', rule) for a, b, c in rules)
+    return any(fnmatch.fnmatchcase(name, a) and fnmatch.fnmatchcase(fn, b) and fnmatch.fnmatchcase(rule, c)
+               for a, b, c in rules)
 
 
 def anonymous(x):
