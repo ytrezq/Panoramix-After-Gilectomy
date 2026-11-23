@@ -147,6 +147,26 @@ void setvars(Value v, std::vector<Value>& out) {
 
 }  // namespace
 
+TEST_CASE("names: a write of the bytes a read of its range gives, masked to them, is no write") {
+    Fixture fx;
+    // c00087's buyShares: the selector's read-modify-write split, its 28
+    // bytes written again as `mem[p + 296 len 28] = uint224(mem[p + 296 len
+    // 28])` - the same bytes: dropped (no partial store left in the text)
+    Value u = check_pass(
+        "{(setmem (range 0 32) (sized 32 (calldataload 4))) "
+        "(setmem (range 4 28) (sized 28 (mask_shl 224 0 0 (mem (range 4 28))))) "
+        "(return (mem (range 0 32)))}",
+        S::simplify_exps);
+    CHECK(count_op(u, Op::SETMEM) == 1);
+    // other bytes than the read's: a write
+    u = check_pass(
+        "{(setmem (range 0 32) (sized 32 (calldataload 4))) "
+        "(setmem (range 4 28) (sized 28 (mask_shl 224 0 0 (mem (range 0 28))))) "
+        "(return (mem (range 0 32)))}",
+        S::simplify_exps);
+    CHECK(count_op(u, Op::SETMEM) == 2);
+}
+
 TEST_CASE("names: a selector stored over the first argument's top bytes leaves the argument whole") {
     Fixture fx;
     // solc's abi.encodeWithSelector (the review's c00184, c00048, c00173):

@@ -54,6 +54,18 @@ Value line_rules(Value l) {
             // a write of no bytes, a copy of memory onto itself: nothing changes
             if (l[0].is(Op::RANGE, 2) && is_int(l[0][1], 0)) return Value();
             if (!run_flags().msize && l[1].is(Op::MEM, 1) && l[1][0] == l[0]) return Value();
+            // (the same: the bytes of a read of the range as its many bytes,
+            // whole or masked to them - c00087's `mem[p + 296 len 28] =
+            // uint224(mem[p + 296 len 28])`, a selector's write split)
+            if (!run_flags().msize && l[0].is(Op::RANGE, 2) && l[0][1].is_small() && l[1].is(Op::SIZED, 2) &&
+                l[1][0] == l[0][1]) {
+                Value v = l[1][1];
+                const i64 n = l[0][1].small_val();
+                if (n > 0 && n < 32 && v.is(Op::MASK_SHL, 4) && is_int(v[0], 8 * n) && is_int(v[1], 0) &&
+                    is_int(v[2], 0))
+                    v = v[3];
+                if (v.is(Op::MEM, 1) && v[0] == l[0]) return Value();
+            }
             return l;
         }
         case Op::STORE_RANGE: {
