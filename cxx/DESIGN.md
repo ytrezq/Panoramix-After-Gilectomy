@@ -722,7 +722,32 @@ where no read of the gas left may run after it (the gas left is lower at
 each read: one after it would read another value; c00226's reads for the
 gas of a precompile's call, which its line doesn't keep). The final
 `name_values` names for display: first the long sums of positions and
-the hashes of memory; then (a pass of its own) a base of two positions or
+the hashes of memory; then (a pass of its own, `name_hashes`) the hashes
+the lines read, whatever they read - one name set before the first line
+that reads it, read wherever it still holds that value after, put back
+where fewer than two lines read it (a hash the rounds write out wherever
+it is read: its variable put in each place, the memory pass's reads of
+calldata where they were memory the trace doesn't know): not one narrower
+than 20 characters, not made by nor written in the bytes the printer
+decodes (a call's, a log's, a return's, a revert's data: a variable set
+to such a name reads as it there, at most); not one holding what the run
+of checks right before the line reads where the line uses arithmetic they
+check, and not in arithmetic a check checks that those bytes have too -
+nor in that check (lot 8's SafeMath finds the check's operands and its
+sum alike in it and in the lines that use them); in a storage slot
+written only as a key under either layout of a mapping's slot
+(`slot_keys`), and not a key holding a hash that votes for the layout
+(two parts, one a number: `vote_language`) - never as a slot the
+storage's forms may read, under either layout (`stor[sha3(0xa5b4..,
+..)]`, `stor5[sha3(32, ..)]`: a hash whose first word is a number stays,
+the forms read that word as the slot where mappings hash it first). A
+variable of the trace's own set to a hash no name holds is its name where
+it holds, no line made; one set to a hash a name holds reads as that name
+(`_22 = _24`: its line gone with its readers, the name takes its number).
+The same hash, the same name (an if's branches alike for the folder); a
+name both branches set before anything changes what its hash reads, set
+once before the if; the names numbered after the words', the other
+passes' as without them. Then (a pass of its own) a base of two positions or
 more, one rounded (`p + ceil32(n)`), that a line printing four rounded
 lengths or more repeats - the base the most places read, set before the
 line and read wherever it still holds (not one the run of checks right
