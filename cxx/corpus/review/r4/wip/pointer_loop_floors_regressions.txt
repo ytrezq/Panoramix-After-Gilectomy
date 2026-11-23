@@ -1,0 +1,122 @@
+The loop floors (pointer_loop_floors.diff) on top of cefeee9cca; g1: PAN_NVF1=1 PAN_NP1=1 PAN_NDEPTH=1 (var_floor multiples, rising start as read, forget_loop floored words); g2: PAN_NVF1=1 PAN_NDEPTH=1 (g1 + the mask readings of ranges.cpp).
+npm: against tests/readability/npm.jsonl.xz with allow.txt; the 400: against the texts of cefeee9cca.
+## g1 npm 15 regressions
+   0x013_DevUtils getSimulatedOrdersTransferResults long 0 -> 4
+   0x032_Exchange batchFillOrdersNoThrow rounded 0 -> 4
+   ensdom122_OffchainDNSResolver resolve lost_errors 1 -> ['OffchainLookup']
+   ensdom122_OffchainDNSResolver resolve raw_revert 0 -> 1
+   ensdom122_OffchainDNSResolver resolve raw_error 0 -> 1
+   ensdom122_OffchainDNSResolver resolve mem_writes 15 -> 53
+   ensdom122_OffchainDNSResolver_2 resolve lost_errors 1 -> ['OffchainLookup']
+   ensdom122_OffchainDNSResolver_2 resolve raw_revert 0 -> 1
+   ensdom122_OffchainDNSResolver_2 resolve raw_error 0 -> 1
+   ensdom122_OffchainDNSResolver_2 resolve mem_writes 15 -> 53
+   ensdom122_UniversalResolver reverse rounded 0 -> 2
+   ensdom122_UniversalResolver unknownb241d0d3 rounded 0 -> 2
+   ensdom122_UniversalResolver_2 reverse rounded 0 -> 2
+   ensdom122_UniversalResolver_2 unknownb241d0d3 rounded 0 -> 2
+   repo_Permit2 permitWitnessTransferFrom#2 long 0 -> 4
+## g1 r400_vs_f1 26 regressions
+   c00004 migrate raw_stor 2 -> 3
+   c00004 unknown330987b3 lost_errors 7 -> ['InvalidLinkWeiPrice']
+   c00004 unknown330987b3 raw_revert 0 -> 1
+   c00004 unknown330987b3 raw_fn 0 -> 1
+   c00004 unknown330987b3 raw_error 0 -> 1
+   c00007 migrate raw_stor 2 -> 3
+   c00007 unknown330987b3 lost_errors 7 -> ['InvalidLinkWeiPrice']
+   c00007 unknown330987b3 raw_revert 0 -> 1
+   c00007 unknown330987b3 raw_fn 0 -> 1
+   c00007 unknown330987b3 raw_error 0 -> 1
+   c00009 unknown301f42e9 rounded 0 -> 2
+   c00022 createElection lost_strings 5 -> ['Governor: empty proposal']
+   c00041 maxWithdraw ptr_diff 1 -> 2
+   c00041 maxRedeem ptr_diff 1 -> 2
+   c00081 unknown9e592bb9 ptr_diff 2 -> 4
+   c00081 unknown9e592bb9 long 0 -> 2
+   c00081 unknown9e592bb9 rounded 0 -> 2
+   c00090 unknown4544c93d ptr_diff 47 -> 48
+   c00090 unknownec0ddfcd ptr_diff 59 -> 60
+   c00124 unknown0f0bc515 long 13 -> 15
+   c00138 unknown4a1131a9 raw_stor 0 -> 1
+   c00138 unknown375e2729 raw_stor 0 -> 2
+   c00144 cancel ptr_diff 0 -> 2
+   c00157 cancel ptr_diff 0 -> 2
+   c00208 propose long 0 -> 2
+   c00220 unknowna9a85614 long 0 -> 2
+## g2 npm 11 regressions
+   0x013_DevUtils getSimulatedOrdersTransferResults long 0 -> 4
+   0x032_Exchange batchFillOrdersNoThrow rounded 0 -> 4
+   0x032_Exchange fillOrKillOrder rounded 38 -> 45
+   0x032_Exchange fillOrder rounded 38 -> 45
+   0x032_Exchange isValidOrderSignature long 15 -> 19
+   0x032_Exchange isValidOrderSignature rounded 12 -> 16
+   ensdom122_UniversalResolver reverse rounded 0 -> 2
+   ensdom122_UniversalResolver unknownb241d0d3 rounded 0 -> 2
+   ensdom122_UniversalResolver_2 reverse rounded 0 -> 2
+   ensdom122_UniversalResolver_2 unknownb241d0d3 rounded 0 -> 2
+   repo_Permit2 permitWitnessTransferFrom#2 long 0 -> 4
+## g2 r400_vs_f1 44 regressions
+   c00004 migrate raw_stor 2 -> 3
+   c00004 unknown330987b3 lost_errors 7 -> ['InvalidLinkWeiPrice']
+   c00004 unknown330987b3 raw_revert 0 -> 1
+   c00004 unknown330987b3 raw_fn 0 -> 1
+   c00004 unknown330987b3 raw_error 0 -> 1
+   c00007 migrate raw_stor 2 -> 3
+   c00007 unknown330987b3 lost_errors 7 -> ['InvalidLinkWeiPrice']
+   c00007 unknown330987b3 raw_revert 0 -> 1
+   c00007 unknown330987b3 raw_fn 0 -> 1
+   c00007 unknown330987b3 raw_error 0 -> 1
+   c00009 unknown301f42e9 rounded 0 -> 2
+   c00022 createElection lost_strings 5 -> ['Governor: empty proposal']
+   c00041 maxWithdraw ptr_diff 1 -> 2
+   c00041 maxRedeem ptr_diff 1 -> 2
+   c00081 unknown9e592bb9 ptr_diff 2 -> 4
+   c00081 unknown9e592bb9 long 0 -> 2
+   c00081 unknown9e592bb9 rounded 0 -> 2
+   c00089 unknown477aedc7 long 1 -> 3
+   c00089 unknownda081c73 rounded 3 -> 5
+   c00089 unknown95109d5c rounded 3 -> 5
+   c00089 unknown49160658 long 7 -> 9
+   c00090 unknown4544c93d ptr_diff 47 -> 48
+   c00090 unknownec0ddfcd ptr_diff 59 -> 60
+   c00104 unknownc2e8f091 long 4 -> 7
+   c00124 unknown0f0bc515 long 13 -> 15
+   c00138 unknown4a1131a9 raw_stor 0 -> 1
+   c00138 unknown375e2729 raw_stor 0 -> 2
+   c00144 cancel ptr_diff 0 -> 2
+   c00157 cancel ptr_diff 0 -> 2
+   c00172 unknown0fb9ca41 long 0 -> 2
+   c00172 unknowna25d3892 long 3 -> 9
+   c00172 unknowna25d3892 chars 9001 -> 11605
+   c00183 approveContractCall long 4 -> 6
+   c00195 initialize lost_errors 5 -> ['0xd0103ae5']
+   c00208 propose long 0 -> 2
+   c00220 unknowna9a85614 long 0 -> 2
+   c00284 unknown2f7adf43 rounded 3 -> 5
+   c00284 unknown450baef0 rounded 3 -> 5
+   c00333 unknown2f7adf43 rounded 3 -> 5
+   c00333 unknown450baef0 rounded 3 -> 5
+   c00334 unknown2f7adf43 rounded 3 -> 5
+   c00334 unknown450baef0 rounded 3 -> 5
+   c00338 unknown2f7adf43 rounded 3 -> 5
+   c00344 unknown2f7adf43 rounded 3 -> 5
+== npm vs baseline (allow.txt)
+861 texts compared (0 only in the old set, 0 only in the new).
+4 regressions in 1 texts; 145 more allowed.
+35 allow lines no regression needs, 0 whose count can go down.
+== 400 vs r4_head_400
+400 texts compared (0 only in the old set, 0 only in the new).
+7 regressions in 3 texts.
+npm 4 {'rounded': 3, 'long': 1}
+    0x032_Exchange fillOrKillOrder rounded 38 45
+    0x032_Exchange fillOrder rounded 38 45
+    0x032_Exchange isValidOrderSignature long 15 19
+    0x032_Exchange isValidOrderSignature rounded 12 16
+r400 7 {'long': 3, 'rounded': 2, 'chars': 1, 'lost_errors': 1}
+    c00089 unknown477aedc7 long 1 3
+    c00089 unknownda081c73 rounded 3 5
+    c00089 unknown95109d5c rounded 3 5
+    c00172 unknown0fb9ca41 long 0 2
+    c00172 unknowna25d3892 long 3 9
+    c00172 unknowna25d3892 chars 9041 11605
+    c00195 initialize lost_errors 5 ['0xd0103ae5']

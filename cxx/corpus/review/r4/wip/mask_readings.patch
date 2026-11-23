@@ -1,0 +1,191 @@
+From e7cae5fca17337bdb8c6937e08d64438bff7e168 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 23 Nov 2026 16:38:25 +0100
+Subject: [PATCH] cxx: a multiple of a field moved down is the field in place,
+ and the bits the masks of one value clear are one atom - the ranges' linear
+ readings
+
+The sums' normal form writes an odd multiple of a rounded length two ways:
+`96 * (n + 31 >> 5)` (a field of n + 31 moved down to bit 0, times a
+multiple of 32) and `3 * ceil32(n)`; and `2 * ceil32(n)` as the field
+shifted up and cut to 250 bits. The ranges' linear reading (expand) took
+the field moved down as an atom of its own, and each mask's cleared bits as
+an atom of that mask: their differences were unknown, so a write at one
+position didn't resolve a read at the other, and buffers stayed raw memory.
+
+- k * MASK_SHL(size, off, -off, y), k a multiple of 2^off (0 < off <= 16):
+  read as (k / 2^off) times the field in place, MASK_SHL(size, off, 0, y),
+  read as the masks are (mask_readable: y below 2^(off + size)).
+- The bits below off a mask of y clears, y mod 2^off: one atom for every
+  mask of y at that offset (cleared_key), whatever its size and its shift.
+
+Exact: k * ((y >> off) mod 2^size) = (k / 2^off) * (((y >> off) mod 2^size)
+<< off) where 2^off divides k, as integers and as words; the bits below off
+of y are the same number in every mask of y at off.
+
+Tests: ranges_test "a multiple of a field moved down is the field in place,
+the bits masks of one value clear are one atom" - decided where the length
+is bounded (by its form or by a fact), 0 for 96 * (y >> 5) - 3 * ceil32
+and for 2 * ceil32 cut to 250 bits - 2 * ceil32; masks of two values or at
+two offsets apart; the ranges hold on every sample for any multiple and for
+a full word (fails without the change: 8 checks).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_011zM71XfnxEKjjJuZ81vSba
+---
+ cxx/src/algebra/ranges.cpp | 38 ++++++++++++++++++-
+ cxx/tests/ranges_test.cpp  | 75 ++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 112 insertions(+), 1 deletion(-)
+
+diff --git a/cxx/src/algebra/ranges.cpp b/cxx/src/algebra/ranges.cpp
+index cbac3de0f7..ab5e21c95e 100644
+--- a/cxx/src/algebra/ranges.cpp
++++ b/cxx/src/algebra/ranges.cpp
+@@ -925,6 +925,20 @@ struct RangeQuery::Impl {
+         return top_bits.finite() && top_bits <= kWordMax;
+     }
+ 
++    // the key of the bits below off that the masks of y at off clear: the
++    // raw word of the widest of them, in place, | 8
++    static u64 cleared_key(Value y, i64 off) {
++        return mk(Op::MASK_SHL, Value::small(256 - off), Value::small(off), Value::small(0), y).raw() | 8;
++    }
++    // m, a concrete field of y moved down to bit 0 (MASK_SHL(size, off,
++    // -off, y), 0 < off <= 16), as the field in place (shl 0); nil otherwise
++    static Value field_in_place(Value m) {
++        if (!(m[0].is_small() && m[1].is_small() && m[2].is_small())) return Value();
++        const i64 off = m[1].small_val();
++        if (off <= 0 || off > 16 || m[2].small_val() != -off) return Value();
++        return mk(Op::MASK_SHL, m[0], m[1], Value::small(0), m[3]);
++    }
++
+     // acc += mult * (v's reading)
+     void expand(Value v, const XInt& mult, Rd rd, Md md, Top top, Lin& acc) {
+         check_stack();
+@@ -963,6 +977,24 @@ struct RangeQuery::Impl {
+                     }
+                     return;
+                 case Op::MUL:
++                    // k times a field moved down to bit 0, k a multiple of
++                    // 2^off (the sums' normal form of an odd multiple of a
++                    // field: 96 * (x + 31 >> 5) is 3 * ceil32(x)): k / 2^off
++                    // times the field in place, read as the masks are
++                    if (v.size() == 2 && v[0].is_small() && v[1].is(Op::MASK_SHL, 4)) {
++                        if (const Value m0 = field_in_place(v[1]); !m0.nil()) {
++                            const i64 off = m0[1].small_val(), kk = v[0].small_val();
++                            if ((kk & ((i64(1) << off) - 1)) == 0 && mask_readable(m0, rd, md, top)) {
++                                XInt k;
++                                if (!mul_exact(k, mult, xi(kk >> off))) {
++                                    acc.overflow = true;
++                                    return;
++                                }
++                                expand(m0, k, rd, md, top, acc);
++                                return;
++                            }
++                        }
++                    }
+                     if (v.size() >= 2 && v[0].is_int()) {
+                         XInt k;
+                         if (!mul_exact(k, mult, md == Md::Int ? xi_signed(v[0]) : xi_value(v[0]))) {
+@@ -1006,7 +1038,11 @@ struct RangeQuery::Impl {
+                         }
+                         ++acc.masks;
+                         expand(v[3], k, rd, md, top, acc);
+-                        if (off > 0) acc.add(v.raw() | 8, v, i32(off), xneg(k));
++                        // (d, the bits below off of y: one atom for every
++                        // mask of y at this offset, whatever its size and
++                        // its shift - 2 * ceil32(x), cut to 250 bits, less
++                        // ceil32(x) twice is 0)
++                        if (off > 0) acc.add(cleared_key(v[3], off), v, i32(off), xneg(k));
+                         return;
+                     }
+                     break;
+diff --git a/cxx/tests/ranges_test.cpp b/cxx/tests/ranges_test.cpp
+index 4d1b58f1eb..618f81ec07 100644
+--- a/cxx/tests/ranges_test.cpp
++++ b/cxx/tests/ranges_test.cpp
+@@ -1046,6 +1046,81 @@ TEST_CASE("ranges: long paths of facts") {
+     A::clear_variables();
+ }
+ 
++TEST_CASE("ranges: review r4 - a multiple of a field moved down is the field in place, the bits masks of one value clear are one atom") {
++    Fixture f;
++    // The sums' normal form writes an odd multiple of a rounded length two
++    // ways: 96 * (n + 31 >> 5) and 3 * ceil32(n). Read apart - the field
++    // moved down an atom of its own - their difference was unknown, and a
++    // write at one position didn't resolve a read at the other.
++    const auto down_of = [](Value y) { return mk(Op::MASK_SHL, Value::small(251), Value::small(5), Value::small(-5), y); };
++    const A::Facts none;
++    const Value x = V("(calldataload 4)");
++    const A::Facts k64 = A::Facts().with_cond(A::cmp(Op::LT, x, pow2(64)));
++    struct Case {
++        Value n;
++        const A::Facts* facts;
++        bool decided;  // a length the masks read: bounded, by its form or by a fact
++    };
++    const Case cases[] = {{V("calldatasize"), &none, true},
++                          {V("(mask_shl 64 0 0 (calldataload 36))"), &none, true},
++                          {x, &k64, true},
++                          {x, &none, false},  // (a word whose n + 31 may wrap: no mask is read)
++                          {V("(mem (range 128 32))"), &none, false}};
++    for (const Case& c : cases) {
++        const Value y = A::add(c.n, mk_int(31));
++        const Value down = down_of(y);              // y >> 5
++        const Value ceil = A::mask(251, 5, 0, y);   // ceil32(n)
++        const Value three = mk(Op::MUL, mk_int(3), ceil);
++        INFO(dump(c.n));
++        const A::Range d96 = A::word_diff(mk(Op::MUL, mk_int(96), down), three, A::Top::Word, c.facts);
++        const A::Range d32 = A::word_diff(mk(Op::MUL, mk_int(32), down), ceil, A::Top::Word, c.facts);
++        if (c.decided) {
++            CHECK(d96 == A::Range::point(EvmInt(0)));
++            CHECK(d32 == A::Range::point(EvmInt(0)));
++        }
++        if (c.facts != &none) continue;  // (the samples below are any words)
++        // whatever the multiple: the range holds the difference on every sample
++        for (i64 k : {32, 64, 96, 160, 48, 33, 1, 31, 4096}) {
++            const Value e = mk(Op::MUL, mk_int(k), down);
++            const A::Range d = A::word_diff(e, three);
++            for (u64 s : kSeeds) {
++                TestEnv env(s);
++                const EvmInt v = I(ev(three, env)) - I(ev(e, env));
++                CHECK_MESSAGE(d.contains(v), k, " * (y >> 5), seed ", s, ": ", str(v), " not in ", str(d));
++            }
++        }
++    }
++    // 2 * ceil32(n) as the sums write it - the field shifted up, cut to 250
++    // bits - and ceil32(n) twice: the 5 bits each mask clears are the same
++    // bits of the same value, one atom, and the difference is 0.
++    {
++        const Value y = A::add(V("calldatasize"), mk_int(31));
++        const Value ceil = A::mask(251, 5, 0, y), two = A::mask(250, 5, 1, y);
++        const Value twice = mk(Op::MUL, mk_int(2), ceil);
++        CHECK(A::word_diff(two, twice) == A::Range::point(EvmInt(0)));
++        CHECK(A::word_diff(A::add(two, ceil), mk(Op::MUL, mk_int(96), down_of(y))) == A::Range::point(EvmInt(0)));
++        for (u64 s : kSeeds) {
++            TestEnv env(s);
++            CHECK(I(ev(two, env)) == I(ev(twice, env)));
++        }
++        // masks of two values, or of one at two offsets: atoms apart
++        const Value other = A::mask(251, 5, 0, A::add(V("returndatasize"), mk_int(31)));
++        CHECK(!A::word_diff(ceil, other).is_point());
++        CHECK(!A::word_diff(ceil, A::mask(252, 4, 0, y)).is_point());
++    }
++    // a full word's 2 * ceil32 cut to 250 bits loses the top bit: whatever is
++    // read, the range holds the difference
++    {
++        const Value y = A::add(x, mk_int(31));
++        const Value two = A::mask(250, 5, 1, y), twice = mk(Op::MUL, mk_int(2), A::mask(251, 5, 0, y));
++        const A::Range d = A::word_diff(two, twice);
++        for (u64 s : kSeeds) {
++            TestEnv env(s);
++            CHECK(d.contains(I(ev(twice, env)) - I(ev(two, env))));
++        }
++    }
++}
++
+ TEST_CASE("ranges: hostile shapes stay bounded") {
+     Fixture f;
+     // a long sum of products of masks: coefficients past 2^320 say nothing
+-- 
+2.43.0
+

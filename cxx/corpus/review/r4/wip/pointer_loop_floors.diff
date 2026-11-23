@@ -1,0 +1,419 @@
+diff --git a/cxx/src/algebra/facts.cpp b/cxx/src/algebra/facts.cpp
+index 8c7a8fa977..2090c882e6 100644
+--- a/cxx/src/algebra/facts.cpp
++++ b/cxx/src/algebra/facts.cpp
+@@ -538,7 +538,7 @@ namespace {
+ // (a floor put in place is floored in turn - a floor of the word reading a
+ // variable that has one - this many levels deep: each substitution alone is
+ // sound, the chain only gives the decisions more)
+-constexpr int kFlooredDepth = 4;
++const int kFlooredDepth = getenv("PAN_NDEPTH") ? 4 : 8;  // TEMP TOGGLE
+ 
+ Value floored_rec(Value v, const Facts& f, Memo<Value, Value>& memo, u8 flags, int depth) {
+     if (v.is_name()) {
+diff --git a/cxx/src/algebra/ranges.cpp b/cxx/src/algebra/ranges.cpp
+index cbac3de0f7..bb795928ce 100644
+--- a/cxx/src/algebra/ranges.cpp
++++ b/cxx/src/algebra/ranges.cpp
+@@ -925,6 +925,20 @@ struct RangeQuery::Impl {
+         return top_bits.finite() && top_bits <= kWordMax;
+     }
+ 
++    // the key of the bits below off that the masks of y at off clear: the
++    // raw word of the widest of them, in place, | 8
++    static u64 cleared_key(Value y, i64 off) {
++        return mk(Op::MASK_SHL, Value::small(256 - off), Value::small(off), Value::small(0), y).raw() | 8;
++    }
++    // m, a concrete field of y moved down to bit 0 (MASK_SHL(size, off,
++    // -off, y), 0 < off <= 16), as the field in place (shl 0); nil otherwise
++    static Value field_in_place(Value m) {
++        if (!(m[0].is_small() && m[1].is_small() && m[2].is_small())) return Value();
++        const i64 off = m[1].small_val();
++        if (off <= 0 || off > 16 || m[2].small_val() != -off) return Value();
++        return mk(Op::MASK_SHL, m[0], m[1], Value::small(0), m[3]);
++    }
++
+     // acc += mult * (v's reading)
+     void expand(Value v, const XInt& mult, Rd rd, Md md, Top top, Lin& acc) {
+         check_stack();
+@@ -963,6 +977,24 @@ struct RangeQuery::Impl {
+                     }
+                     return;
+                 case Op::MUL:
++                    // k times a field moved down to bit 0, k a multiple of
++                    // 2^off (the sums' normal form of an odd multiple of a
++                    // field: 96 * (x + 31 >> 5) is 3 * ceil32(x)): k / 2^off
++                    // times the field in place, read as the masks are
++                    if (!getenv("PAN_NP1") && v.size() == 2 && v[0].is_small() && v[1].is(Op::MASK_SHL, 4)) {
++                        if (const Value m0 = field_in_place(v[1]); !m0.nil()) {
++                            const i64 off = m0[1].small_val(), kk = v[0].small_val();
++                            if ((kk & ((i64(1) << off) - 1)) == 0 && mask_readable(m0, rd, md, top)) {
++                                XInt k;
++                                if (!mul_exact(k, mult, xi(kk >> off))) {
++                                    acc.overflow = true;
++                                    return;
++                                }
++                                expand(m0, k, rd, md, top, acc);
++                                return;
++                            }
++                        }
++                    }
+                     if (v.size() >= 2 && v[0].is_int()) {
+                         XInt k;
+                         if (!mul_exact(k, mult, md == Md::Int ? xi_signed(v[0]) : xi_value(v[0]))) {
+@@ -1006,7 +1038,11 @@ struct RangeQuery::Impl {
+                         }
+                         ++acc.masks;
+                         expand(v[3], k, rd, md, top, acc);
+-                        if (off > 0) acc.add(v.raw() | 8, v, i32(off), xneg(k));
++                        // (d, the bits below off of y: one atom for every
++                        // mask of y at this offset, whatever its size and
++                        // its shift - 2 * ceil32(x), cut to 250 bits, less
++                        // ceil32(x) twice is 0)
++                        if (off > 0) acc.add(getenv("PAN_NP1") ? (v.raw() | 8) : cleared_key(v[3], off), v, i32(off), xneg(k));
+                         return;
+                     }
+                     break;
+diff --git a/cxx/src/simplify/floor.cpp b/cxx/src/simplify/floor.cpp
+index 1708efaea2..0e39c81d3a 100644
+--- a/cxx/src/simplify/floor.cpp
++++ b/cxx/src/simplify/floor.cpp
+@@ -196,6 +196,46 @@ bool reads_floor_atom(Value v) {
+     return false;
+ }
+ 
++// The floor of a variable set to v, one level deep: the terms of v that are
++// a floored word or variable (each with coefficient 1) read as their floors,
++// left as they are - the variables a floor is made of stay in it, so that
++// the positions made of them compare: `_30 = mem[64]` where mem[64] >= _8 +
++// 164 is at least _8 + 164, and a write at _30 is past what was written at
++// _8 + 100 (the floors read in full give _30 >= F(_8) + 164, which says
++// nothing against _8). v is at least that, the words and variables being
++// at least their floors. NIL when no term is floored, or one reads a
++// floored word or variable otherwise (a product, a mask).
++Value var_floor_1(Value v, const alg::Facts& facts) {
++    if (!facts.any_floor()) return Value();
++    SmallVec<Value, 8> rest;
++    bool any = false;
++    auto term = [&](Value t) {
++        Value fl;
++        if (t.is_name()) {
++            if (alg::var_floor_key(t)) fl = facts.floor_of(t);
++        } else if (t.is(Op::MEM, 1) && t[0].is(Op::RANGE, 2) && t[0][0].is_small() && t[0][0].small_val() >= 0 &&
++                   t[0][1] == Value::small(32)) {
++            fl = facts.floor_of(u64(t[0][0].small_val()));
++        }
++        if (!fl.nil()) {
++            any = true;
++            rest.push_back(fl);
++            return true;
++        }
++        if (alg::floored(t, facts) != t) return false;
++        rest.push_back(t);
++        return true;
++    };
++    if (v.is(Op::ADD)) {
++        for (Value t : v.args())
++            if (!term(t)) return Value();
++    } else if (!term(v)) {
++        return Value();
++    }
++    if (!any) return Value();
++    return alg::add(rest.span());
++}
++
+ // The floor of a variable set to v (evaluated with the facts before the
+ // SETVAR): v read with its floored words and variables as F + d (floored),
+ // a sum in which each d is a term of its own, less the d's - v is at least
+@@ -206,6 +246,8 @@ bool reads_floor_atom(Value v) {
+ // left reads the variable itself (its old value).
+ Value var_floor(Value name, Value v, const alg::Facts& facts) {
+     if (v.has_flags(F_MSIZE)) return Value();
++    if (!getenv("PAN_NVF1"))
++        if (Value lb = var_floor_1(v, facts); !lb.nil() && !contains(lb, name)) return lb;
+     const Value fv = alg::floored(v, facts);
+     if (fv == v) {
+         if (v.is_name() || contains(v, name)) return Value();
+@@ -223,6 +265,12 @@ Value var_floor(Value name, Value v, const alg::Facts& facts) {
+             atom = true;
+             return true;
+         }
++        // (a positive multiple of a d: at least 0 as the d is - a length
++        // read from memory times a word's size, 32 * mem[128])
++        if (!getenv("PAN_NB1A") && t.is(Op::MUL, 2) && t[0].is_small() && t[0].small_val() > 0 && alg::is_floor_atom(t[1])) {
++            atom = true;
++            return true;
++        }
+         if (reads_floor_atom(t)) return false;
+         rest.push_back(t);
+         return true;
+@@ -710,7 +758,7 @@ alg::Facts floor_join(const alg::Facts& into, const alg::Facts& before, const al
+ // change: u is at least its start, which is at least that at the entry, and
+ // that is the same at every iteration.
+ alg::Facts with_rising(alg::Facts r, Value loop_line, const loops::LoopSummary& ls, const EffectSummary& e,
+-                       const alg::Facts& before, SmallVec<Value, 4>& keep) {
++                       const alg::Facts& before, SmallVec<Value, 4>& keep, SmallVec<FloorOf, 4>& second) {
+     if (ls.stepped.nil() || !loop_line[3].is_list()) return r;
+     auto reads_written = [&](Value x) {
+         if (!ls.written.nil())
+@@ -718,6 +766,10 @@ alg::Facts with_rising(alg::Facts r, Value loop_line, const loops::LoopSummary&
+                 if (contains(x, n)) return true;
+         return false;
+     };
++    EffectSummary but_memory = e;
++    but_memory.writes &= ~S_MEM;
++    but_memory.writes_any &= ~S_MEM;
++    but_memory.mem_writes = Value();
+     for (Value v : loop_info(loop_line, ls).rising) {
+         if (!alg::var_floor_key(v)) continue;
+         Value start;
+@@ -728,9 +780,22 @@ alg::Facts with_rising(alg::Facts r, Value loop_line, const loops::LoopSummary&
+         Value lb = start;
+         if (reads_written(start) || affects(e, start)) {
+             lb = before.any_floor() ? var_floor(v, start, before) : Value();
+-            if (lb.nil() || (lb.is_small() && lb.small_val() <= 0) || lb.has_flags(F_MSIZE) || reads_written(lb) ||
+-                affects(e, lb))
++            const bool entry = !(lb.nil() || (lb.is_small() && lb.small_val() <= 0) || lb.has_flags(F_MSIZE) ||
++                                 reads_written(lb) || affects(e, lb));
++            // A start that reads memory, in a loop that writes memory but
++            // nothing else the start reads: the start itself as the
++            // candidate (`v = mem[64] + 64`: at least mem[64] + 64 as long
++            // as the body leaves the word - what the walks of the body
++            // check line by line, with the floors of its writes; the word
++            // read in the floor is the one the positions next to it read,
++            // which the entry's floor, a bound of its value, isn't). Should
++            // a walk spoil it: the floor of its value at the entry (second).
++            if (!getenv("PAN_NB1B") && !reads_written(start) && !affects(but_memory, start)) {
++                if (entry) second.push_back(FloorOf{v, lb});
++                lb = start;
++            } else if (!entry) {
+                 continue;
++            }
+         }
+         r = with_var_floor(r, v, lb);
+         keep.push_back(v);
+@@ -982,7 +1047,8 @@ const LoopFloors& loop_floors_of(const alg::Facts& facts, Value loop_line, bool
+             }
+     }
+     SmallVec<Value, 4> keep;
+-    cand = with_rising(cand, loop_line, ls, e, facts, keep);
++    SmallVec<FloorOf, 4> second;  // (the rising variables' floors to fall back on)
++    cand = with_rising(cand, loop_line, ls, e, facts, keep, second);
+     const SmallVec<u64, 4> grows = loop_info(loop_line, ls).grows[cont ? 1 : 0];
+     const std::span<const u64> gs(grows.data(), grows.size());
+     // the walks, to a fixpoint
+@@ -1008,6 +1074,14 @@ const LoopFloors& loop_floors_of(const alg::Facts& facts, Value loop_line, bool
+                 const Value cc = c.is_small() ? c : const_floor(c, cand);
+                 if (!low.nil() && !cc.nil()) next = low.small_val() < cc.small_val() ? low : cc;
+                 if (!next.nil() && next == c) next = Value();
++            } else {
++                // (a rising variable whose start, read as it is, didn't
++                // hold through the body: the floor of its value at the entry)
++                for (FloorOf& s2 : second)
++                    if (s2.key == k && !s2.floor.nil()) {
++                        next = s2.floor;
++                        s2.floor = Value();
++                    }
+             }
+             cand = next.nil() ? cand.without_floor(k) : cand.with_floor(k, next);
+         }
+diff --git a/cxx/src/simplify/mems.cpp b/cxx/src/simplify/mems.cpp
+index b1379eb026..bd22aea168 100644
+--- a/cxx/src/simplify/mems.cpp
++++ b/cxx/src/simplify/mems.cpp
+@@ -30,6 +30,8 @@
+ #include "simplify/floor.hpp"
+ #include "simplify/internal.hpp"
+ #include "simplify/simplify.hpp"
++#include <cstdio>
++#include <cstdlib>
+ 
+ #include <algorithm>
+ #include <vector>
+@@ -134,6 +136,37 @@ Value narrowed(Value l) {
+ // the ids of the atoms forget_loop makes (LOOP names no trace has)
+ constexpr u32 kFreshAtoms = 0xfff00000u;
+ 
++// r (a range a loop's body writes) with its reads of the words at constant
++// addresses that `floors` floor read as the floor plus an atom of its own
++// (a LOOP name no trace has: some d >= 0); r itself when it reads none
++Value words_at_floors(Value r, const alg::Facts& floors, u32& fresh) {
++    if (!r.has_flags(F_MEM) || !(r.is_expr() || r.is_list())) return r;
++    check_stack();
++    if (r.is(Op::MEM, 1) && r[0].is(Op::RANGE, 2) && r[0][0].is_small() && r[0][0].small_val() >= 0 &&
++        r[0][1] == Value::small(32)) {
++        const Value f = floors.floor_of(u64(r[0][0].small_val()));
++        if (f.nil()) return r;
++        return alg::add(f, Value::name(NameKind::LOOP, kFreshAtoms + (fresh++ & 0xffff)));
++    }
++    SmallVec<Value, 8> args;
++    bool changed = false;
++    for (Value a : r.args()) {
++        const Value n = words_at_floors(a, floors, fresh);
++        changed |= n != a;
++        args.push_back(n);
++    }
++    if (!changed) return r;
++    if (r.is_list()) return mk_list(args.span());
++    switch (r.op()) {
++        case Op::ADD:
++        case Op::MUL:
++        case Op::MASK_SHL:
++        case Op::MIN:
++        case Op::MAX: return alg::apply(r.op(), args.span());
++        default: return mk_like_checked(r, args.span());
++    }
++}
++
+ // what a loop changes (lot 6's summary: the names it sets, the memory any
+ // iteration may write), forgotten from what's known at its head (floors:
+ // those no iteration changes - floor_loop - with which what its writes
+@@ -179,12 +212,22 @@ void forget_loop(mem::MemState& st, Value while_line, u32& fresh, const alg::Fac
+         others.mem_writes = cw;
+         others.writes_any &= ~S_MEM;
+     }
+-    for (Value r : cw.args())
++    // (a range that reads a word the loop moves - the free memory pointer,
++    // where the loop allocates - but which has a floor at every point of the
++    // body, floor_loop_inside's: the word read as its floor plus some d >= 0,
++    // an atom of its own, as the loop's variables are below - where SOME
++    // iteration writes, not anywhere)
++    SmallVec<Value, 8> ranges(cw.args());
++    for (Value& r : ranges)
+         if (changes(others, summary(r), &floors)) {
+-            st.clear();
+-            return;
++            const Value r2 = getenv("PAN_NB1C") ? r : words_at_floors(r, floors, fresh);
++            if (r2 == r || changes(others, summary(r2), &floors)) {
++                st.clear();
++                return;
++            }
++            r = r2;
+         }
+-    for (Value r : cw.args()) st.write(r, Value());
++    for (Value r : ranges) st.write(r, Value());
+     // A range made of the loop's variables is where SOME iteration writes:
+     // written again with them as atoms of their own (never in a trace), so
+     // that what the body asks of the current values - a read below where the
+@@ -199,7 +242,7 @@ void forget_loop(mem::MemState& st, Value while_line, u32& fresh, const alg::Fac
+         const Value f = floors.floor_of(n);
+         to.push_back(f.nil() ? atom : alg::add(f, atom));
+     }
+-    for (Value r : cw.args())
++    for (Value r : ranges)
+         if (Value r2 = substitute(r, from, to); r2 != r) st.write(r2, Value());
+ }
+ 
+diff --git a/cxx/tests/simplify_floor_test.cpp b/cxx/tests/simplify_floor_test.cpp
+index 8eda98b721..511b1adf36 100644
+--- a/cxx/tests/simplify_floor_test.cpp
++++ b/cxx/tests/simplify_floor_test.cpp
+@@ -380,8 +380,10 @@ TEST_CASE("floor: a variable set to a floored word has the word's floor") {
+     // what it adds, added; through another variable's floor
+     CHECK(S::floor_transfer(f, V("(setvar tmp1 (add 32 (mem (range 64 32))))")).floor_of(x) == Value::small(160));
+     CHECK(S::floor_transfer(g, V("(setvar tmp2 (add 64 tmp1))")).floor_of(y) == Value::small(192));
+-    // not a sum of the word: nothing
+-    CHECK(S::floor_transfer(f, V("(setvar tmp1 (mul 2 (mem (range 64 32))))")).floor_of(x).nil());
++    // a multiple of the word: that multiple of its floor (round 4); not a
++    // sum of the word (a mask of it): nothing
++    CHECK(S::floor_transfer(f, V("(setvar tmp1 (mul 2 (mem (range 64 32))))")).floor_of(x) == Value::small(256));
++    CHECK(S::floor_transfer(f, V("(setvar tmp1 (mask_shl 251 5 0 (mem (range 64 32))))")).floor_of(x).nil());
+     // the value the word's floor is (as the forward pass resolves the read)
+     CHECK(S::floor_transfer(f, V("(setvar tmp1 128)")).floor_of(x) == Value::small(128));
+     // set again: gone (and the floors reading it keep what's left of them)
+@@ -960,13 +962,94 @@ TEST_CASE("floor: a loop variable that starts at a read of the word is at least
+     REQUIRE(f.floor_of(64) == Value::small(128));
+     const alg::Facts h = S::floor_loop(f, t[3]);
+     CHECK(h.floor_of(64) == Value::small(128));
+-    CHECK(h.floor_of(V("loop2")) == Value::small(320));
++    // (the body leaves the word: the start as it is - round 4, the next test)
++    CHECK(h.floor_of(V("loop2")) == V("(add 192 (mem (range 64 32)))"));
+     // so the pointer taken before the loop is the word after it: 0 returned
+     Value u = check_pass(text, whole);
+     CHECK(!has_op(last(u), Op::MEM));
+     CHECK(!reads_name(last(u), V("tmp1")));
+ }
+ 
++TEST_CASE("floor: a rising variable whose start reads a word the loop leaves is at least that start, read as it is") {
++    Fixture fx;
++    // uniswap's test contracts (round 4): the return's encoding - a header
++    // at p = mem[64], then a loop writing at v from p + 32 on. The word
++    // unknown but at least 160: v's floor from the word's (192) says
++    // nothing against p itself (p may be 400, the header at 400, v from
++    // 432); the start `mem[64] + 32`, read as it is, does - the body leaves
++    // the word, which its walk checks with that very floor. What was
++    // written at p is still known after the loop.
++    const std::string head =
++        "(setmem (range 64 32) (sized 32 160)) "
++        "(if (calldataload 100) {(setmem (range 64 32) (sized 32 (add 192 (mask_shl 7 5 0 (calldataload 132)))))} {}) "
++        "(setmem (range (mem (range 64 32)) 32) (sized 32 7)) ";
++    const std::string loop =
++        "(while (lt loop1 (mask_shl 4 0 0 (calldataload 36))) {(setmem (range loop2 32) (sized 32 loop1)) "
++        "(continue loopid1 [(setvar loop1 (add 1 loop1)) (setvar loop2 (add 32 loop2))])} "
++        "loopid1 [(setvar loop1 0) (setvar loop2 (add 32 (mem (range 64 32))))]) ";
++    const std::string text = "{" + head + loop + "(return (mem (range (mem (range 64 32)) 32)))}";
++    const Value t = V(text);
++    alg::Facts f = S::floor_walk(alg::Facts{}, mk_trace(t.args().subspan(0, 3)));
++    REQUIRE(f.floor_of(64) == Value::small(160));
++    CHECK(S::floor_loop(f, t[3]).floor_of(V("loop2")) == V("(add 32 (mem (range 64 32)))"));
++    Value u = check_pass(text.c_str(), S::cleanup_mems);
++    CHECK(last(u) == V("(return (sized 32 7))"));
++    // a body that moves the word (it allocates): the start isn't what it
++    // was at the next iteration - the floor of its value at the entry, as
++    // before (160 + 32), and the header may be anywhere above it: kept raw
++    const std::string alloc =
++        "(while (lt loop1 (mask_shl 4 0 0 (calldataload 36))) {(setmem (range loop2 32) (sized 32 loop1)) "
++        "(setmem (range 64 32) (sized 32 (add 64 (mem (range 64 32))))) "
++        "(continue loopid1 [(setvar loop1 (add 1 loop1)) (setvar loop2 (add 32 loop2))])} "
++        "loopid1 [(setvar loop1 0) (setvar loop2 (add 32 (mem (range 64 32))))]) ";
++    const std::string text2 = "{" + head + alloc + "(return (mem (range (mem (range 64 32)) 32)))}";
++    const Value t2 = V(text2);
++    CHECK(S::floor_loop(f, t2[3]).floor_of(V("loop2")) == Value::small(192));
++    u = check_pass(text2.c_str(), S::cleanup_mems);
++    CHECK(has_op(last(u), Op::MEM));
++}
++
++TEST_CASE("floor: a variable set to a multiple of a floored word is at least that multiple of its floor") {
++    Fixture fx;
++    // v = mem[64] + 32 * mem[128] + 64, the word at 128 a length at least
++    // n: v is at least the floors' sum (32 * d is at least 0 as d is)
++    const alg::Facts f = alg::Facts().with_floor(u64(64), V("160")).with_floor(u64(128), V("(calldataload 4)"));
++    CHECK(S::floor_transfer(f, V("(setvar tmp7 (add 64 (mem (range 64 32)) (mul 32 (mem (range 128 32)))))"))
++              .floor_of(V("tmp7")) == V("(add 224 (mul 32 (calldataload 4)))"));
++    // (a negative multiple says nothing)
++    CHECK(S::floor_transfer(f, V("(setvar tmp8 (add 640 (mem (range 64 32)) (mul -32 (mem (range 128 32)))))"))
++              .floor_of(V("tmp8"))
++              .nil());
++}
++
++TEST_CASE("floor: a loop that writes at a word it moves forgets what its writes may reach, not everything") {
++    Fixture fx;
++    // a loop that allocates: it writes at mem[64] and moves the word up.
++    // The word has a floor at every point of its body (160: its
++    // allocations only raise it), so its writes are at the floor plus some
++    // d >= 0 - above the word at 128, whose value is still known after the
++    // loop (uniswap's test contracts: the length at mem[128], read by the
++    // loop that encodes the return)
++    const std::string text =
++        "{(setmem (range 64 32) (sized 32 160)) (setmem (range 128 32) (sized 32 (calldataload 4))) "
++        "(while (lt loop1 (mask_shl 4 0 0 (calldataload 36))) {(setmem (range (mem (range 64 32)) 32) (sized 32 loop1)) "
++        "(setmem (range 64 32) (sized 32 (add 32 (mem (range 64 32))))) "
++        "(continue loopid1 [(setvar loop1 (add 1 loop1))])} loopid1 [(setvar loop1 0)]) "
++        "(return (mem (range 128 32)))}";
++    Value u = check_pass(text.c_str(), S::cleanup_mems);
++    CHECK(last(u) == V("(return (sized 32 (calldataload 4)))"));
++    // a word below the first buffer but which the floor doesn't keep the
++    // writes from (the word at 160 itself, where the first write lands): raw
++    const std::string text2 =
++        "{(setmem (range 64 32) (sized 32 160)) (setmem (range 160 32) (sized 32 (calldataload 4))) "
++        "(while (lt loop1 (mask_shl 4 0 0 (calldataload 36))) {(setmem (range (mem (range 64 32)) 32) (sized 32 loop1)) "
++        "(setmem (range 64 32) (sized 32 (add 32 (mem (range 64 32))))) "
++        "(continue loopid1 [(setvar loop1 (add 1 loop1))])} loopid1 [(setvar loop1 0)]) "
++        "(return (mem (range 160 32)))}";
++    u = check_pass(text2.c_str(), S::cleanup_mems);
++    CHECK(has_op(last(u), Op::MEM));
++}
++
+ TEST_CASE("floor: a question the floors leave open is asked again with the conditions") {
+     Fixture fx;
+     // a copy out of a return data buffer (Balancer's exitPool, the npm

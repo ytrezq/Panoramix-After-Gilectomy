@@ -101,3 +101,17 @@ change that makes texts less readable fails without a manual review.
 fixed, what round 3 accepts (`r3/allow.txt`) and what is left. The
 `r3/regressions_*.jsonl` files list the regressions of the six comparisons
 at the end.
+
+## Round 4: the regressions left to fix
+
+Round 3 left 204 regressions "to fix" in `tests/readability/allow.txt`.
+Round 4 fixes as many as it can with exact changes that are not specific
+to a language or a compiler - three agents on the decompiler (memory, the
+decoded forms, the structure and the naming) - and corrects the yardstick
+where it counted something that isn't a loss.
+
+`r4/summary.md` has the numbers (`allow.txt`: 237 lines at the start, 160
+at the end; the texts: 0 regressions against the start of the round, on
+npm and on the 400), the causes fixed, what is left and the execution
+checks. `r4/wip/` holds two exact changes not merged yet, with the reason
+each waits: the mask readings and the pointer's loop floors.
