@@ -417,8 +417,9 @@ private:
             // (the words a name may stand in: a STORE's value, not its
             // slot; not the byte strings the printer decodes)
             if (l.is(Op::STORE, 4)) {
-                const Value v = put(l[3], env);
-                return v == l[3] ? l : mk_like_checked(l, std::array<Value, 4>{l[0], l[1], l[2], v});
+                // (its slot: the keys variables hold, slot_put)
+                const Value v = put(l[3], env), sl = slot_put(l[2], env);
+                return v == l[3] && sl == l[2] ? l : mk_like_checked(l, std::array<Value, 4>{l[0], l[1], sl, v});
             }
             if (l.is(Op::STORE_RANGE) && l.size() > 2) {
                 SmallVec<Value, 4> a(l.args());
@@ -428,6 +429,10 @@ private:
             if (l.is(Op::SETVAR, 2)) {
                 // (a variable set to a value named: its value, not the name -
                 // no variable set to another)
+                if (l[1].is(Op::STORAGE, 3)) {
+                    const Value sl = slot_put(l[1][2], env);
+                    return sl == l[1][2] ? l : mk(Op::SETVAR, l[0], mk(Op::STORAGE, l[1][0], l[1][1], sl));
+                }
                 if (!goes_into(l[1])) return l;
                 SmallVec<Value, 8> a(l[1].args());
                 bool changed = false;
@@ -524,8 +529,12 @@ private:
         if (!e.is_expr()) return e;
         if (const Value* r = names_.find(e)) return *r;
         check_stack();
-        Value x = as_named(e, env);
-        if (x.is_expr() && goes_into(x)) {
+        Value x = as_long_named(e, env);
+        if (x.is(Op::STORAGE, 3)) {
+            // (a storage read: its slot's keys variables hold, slot_put)
+            const Value sl = slot_put(x[2], env);
+            if (sl != x[2]) x = mk(Op::STORAGE, x[0], x[1], sl);
+        } else if (x.is_expr() && goes_into(x)) {
             SmallVec<Value, 8> args;
             bool changed = false;
             for (Value a : x.args()) {
@@ -996,7 +1005,14 @@ private:
     // before the checks, both read the name). A check: an IF one branch of
     // which only fails, before the line in its block or around it (the line
     // in the branch that goes on: the folder flattens it so), a REQUIRE.
-    void checked_parts(MemoSet<Value>& parts) const {
+    // arith (if given): the arithmetic those checks check - their
+    // conditions' sums, products... where a word stands (not in a storage
+    // slot, a hash, a memory place)
+    void checked_parts(MemoSet<Value>& parts, MemoSet<Value>* arith = nullptr) const {
+        auto check = [&](Value cond) {
+            all_parts(cond, parts);
+            if (arith) word_arith(cond, *arith);
+        };
         for (usize f = frames_.size(); f-- > 0;) {
             const SmallVec<Value, 32>& out = *frames_[f].out;
             for (usize j = out.size(); j-- > 0;) {
@@ -1015,16 +1031,39 @@ private:
                     default: break;
                 }
                 if (x.is(Op::IF, 3) && ((only_fails(x[1]) && x[2].size() == 0) || (only_fails(x[2]) && x[1].size() == 0)))
-                    all_parts(x[0], parts);
+                    check(x[0]);
                 else if (x.is(Op::REQUIRE) && x.size() > 0)
-                    all_parts(x[0], parts);
+                    check(x[0]);
                 else
                     return;
             }
             // (the block's first lines: on in the IF around it, if a check)
             if (frames_[f].check.nil()) return;
-            all_parts(frames_[f].check, parts);
+            check(frames_[f].check);
         }
+    }
+    // an operation lot 8's SafeMath may read as checked arithmetic
+    static bool arith_op(Value e) {
+        if (!e.is_expr()) return false;
+        switch (e.op()) {
+            case Op::ADD:
+            case Op::SUB:
+            case Op::MUL:
+            case Op::DIV:
+            case Op::SDIV:
+            case Op::MOD:
+            case Op::SMOD:
+            case Op::EXP: return true;
+            default: return false;
+        }
+    }
+    // the arithmetic of e where a word stands (goes_into)
+    static void word_arith(Value e, MemoSet<Value>& out) {
+        if (!e.is_expr()) return;
+        check_stack();
+        if (arith_op(e) && !out.add(e)) return;
+        if (goes_into(e))
+            for (Value a : e.args()) word_arith(a, out);
     }
     // a check: an IF one branch of which only fails, the other empty; a
     // REQUIRE
@@ -1121,6 +1160,129 @@ private:
         holds_.put(e, h);
         return h;
     }
+    // ---- naming: a long line's storage keys ----
+
+    // a part of a hash that is a word (SIZED(32, w), w no byte string): w
+    static Value part_word(Value p) {
+        if (!p.is(Op::SIZED, 2) || p[0] != Value::small(32)) return Value();
+        const Value w = p[1];
+        if (w.is_expr() ? info(w.op()).sort == Sort::Bytes : !(w.is_int() || w.is_name() || w.is_leaf())) return Value();
+        return w;
+    }
+    // a hash's parts (a lone DATA's)
+    static std::span<const Value> hash_parts(Value h) {
+        std::span<const Value> parts = h.args();
+        if (parts.size() == 1 && parts[0].is(Op::DATA)) parts = parts[0].args();
+        return parts;
+    }
+    // Whether the storage's forms may read the word w as a slot
+    // (storage/paths.cpp Parser::compute: a number, a sum, a word of
+    // calldata, a hash whose slot part is one - `last`: a mapping's slot the
+    // last part of its hash, the layout `sha3(key, slot)`; else the first,
+    // `sha3(slot, key)`). More than the forms read at worst: a word that
+    // isn't one is no slot for them.
+    static bool may_be_slot(Value w, bool last) {
+        check_stack();
+        if (w.is_int()) return true;
+        if (w.is_name(NameKind::PARAM)) return true;
+        if (!w.is_expr()) return false;
+        if (w.is(Op::LOC) || w.is(Op::LENGTH) || w.is(Op::ADD)) return true;
+        if (w.is(Op::SHA3)) {
+            const auto parts = hash_parts(w);
+            if (parts.empty()) return false;
+            const Value sl = part_word(parts.size() == 1 || last ? parts.back() : parts.front());
+            return !sl.nil() && may_be_slot(sl, last);
+        }
+        for (int depth = 0; depth < 64; ++depth) {
+            if (w.is(Op::CALLDATALOAD) || w.is_name(NameKind::PARAM)) return true;
+            if (!w.is(Op::MASK_SHL, 4)) return false;
+            w = w[3];
+        }
+        return false;
+    }
+    // A storage slot with f applied to its keys: the parts of its hashes
+    // that are hashes themselves, each a word, which the storage's forms
+    // read as a key under either layout of a mapping's slot - not as the
+    // slot of an inner mapping (may_be_slot: a name there would be a slot
+    // of its own for the forms, `stor[_155 + 2]`, the review's c00168; a
+    // key's name is a key, `stor2[_k]`, the slot's hash and its place as
+    // they were). f(key) -> the word in its place (the key: left).
+    template <class F>
+    static Value slot_keys(Value slot, F&& f) {
+        check_stack();
+        if (slot.is(Op::ADD)) {
+            SmallVec<Value, 8> terms;
+            bool changed = false;
+            for (Value t : slot.args()) {
+                const Value n = t.is(Op::SHA3) ? slot_keys(t, f) : t;
+                changed |= n != t;
+                terms.push_back(n);
+            }
+            return changed ? mk_like_checked(slot, terms.span()) : slot;
+        }
+        if (!slot.is(Op::SHA3)) return slot;
+        const bool data = slot.size() == 1 && slot[0].is(Op::DATA);
+        const auto parts = hash_parts(slot);
+        const usize n = parts.size();
+        SmallVec<Value, 8> out;
+        bool changed = false;
+        for (usize i = 0; i < n; ++i) {
+            Value p = parts[i];
+            if (const Value w = part_word(p); !w.nil() && w.is(Op::SHA3)) {
+                const bool key = (i + 1 != n || !may_be_slot(w, true)) && (i != 0 || !may_be_slot(w, false));
+                const Value r = key ? f(w) : slot_keys(w, f);
+                if (r != w) p = mk(Op::SIZED, parts[i][0], r);
+            }
+            changed |= p != parts[i];
+            out.push_back(p);
+        }
+        if (!changed) return slot;
+        return data ? mk(Op::SHA3, mk_like(slot[0], out.span())) : mk_like_checked(slot, out.span());
+    }
+    // (long_only) e as a named variable (as_named) - not as a variable of
+    // the trace's own that holds a hash (code_vars_): that one stands for
+    // its value in a slot's keys only (slot_put)
+    Value as_long_named(Value e, const Env& env) {
+        Value x = as_named(e, env);
+        if (x.is_name() && code_vars_.contains(x.raw())) {
+            x = e;
+            env.each_named([&](Value n, Value v) {
+                if (v == e && !code_vars_.contains(n.raw())) x = n;
+            });
+        }
+        return x;
+    }
+    // the variable of the trace's own that holds the key where the line is
+    // (code_vars_; nil: none)
+    Value held_var(Value key, const Env& env) const {
+        Value held;
+        env.each_named([&](Value n, Value v) {
+            if (held.nil() && v == key && code_vars_.contains(n.raw())) held = n;
+        });
+        return held;
+    }
+    // a slot with its keys written as the variables that hold them
+    // (key_names_: those a long line took as a key's name, hold_keys)
+    Value slot_put(Value slot, const Env& env) {
+        if (key_names_.empty() || !(slot.is(Op::SHA3) || slot.is(Op::ADD))) return slot;
+        return slot_keys(slot, [&](Value k) {
+            Value r = k;
+            env.each_named([&](Value n, Value v) {
+                if (v == k && key_names_.contains(n.raw())) r = n;
+            });
+            return r;
+        });
+    }
+
+    // whether e is, or holds, arithmetic (no read) that is one of parts
+    static bool holds_in(Value e, const MemoSet<Value>& parts) {
+        if (!e.is_expr() || read_like(e)) return false;
+        check_stack();
+        if (parts.contains(e)) return true;
+        for (Value a : e.args())
+            if (holds_in(a, parts)) return true;
+        return false;
+    }
     // the part of roots to name: read twice or more, the most characters
     // its name saves, not one the checks before the line read (none: nil)
     Value long_part(std::span<const Value> roots) {
@@ -1181,14 +1343,21 @@ private:
     //
     // es: the expressions of the line names may stand in (put in place),
     // rest: the line's other characters; whether a name was made
-    bool name_long_exprs(SmallVec<Value, 4>& es, u64 rest, Env& env, SmallVec<Value, 4>& before) {
+    // slots: the storage slots the line itself writes (a STORE's): their
+    // keys written as the variables that hold them (hold_keys)
+    bool name_long_exprs(SmallVec<Value, 4>& es, u64 rest, Env& env, SmallVec<Value, 4>& before,
+                         SmallVec<Value, 2>* slots = nullptr) {
+        SmallVec<Value, 2> none;
+        SmallVec<Value, 2>& sl = slots ? *slots : none;
         auto width = [&] {
             u64 w = 2 + 4 * u64(depth_) + rest;
             for (Value e : es) w += widths_.of(e);
+            for (Value e : sl) w += widths_.of(e);
             return w;
         };
         if (width() <= kLongLine) return false;
-        bool made_one = false;
+        // (first what costs no line: the keys variables already hold)
+        bool made_one = hold_keys(es, sl, env);
         for (u32 k = 0; k < kMaxNames && width() > kShortLine; ++k) {
             const Value part = long_part(es.span());
             if (part.nil()) break;
@@ -1211,13 +1380,70 @@ private:
         }
         return made_one;
     }
+    // A long line's storage keys that variables of the trace's own hold
+    // (code_vars_: `_275 = sha3(...)`, read where a name may stand, its
+    // value written out in the slots - the storage's forms parse a slot):
+    // each written as its variable, in this line and where the variable
+    // still holds the hash after (key_names_), no line made. The keys of
+    // the slots the line writes (slots) and of the storage reads a name may
+    // stand beside (es', through goes_into). Not a key the run of checks
+    // before the line reads, or holding arithmetic it reads, where the line
+    // uses arithmetic those checks check: lot 8's SafeMath finds the checks'
+    // operands in that line. Whether the line changed.
+    bool hold_keys(SmallVec<Value, 4>& es, SmallVec<Value, 2>& slots, const Env& env) {
+        if (code_vars_.empty()) return false;
+        MemoSet<Value> seen, checked, checked_arith;
+        checked_parts(checked, &checked_arith);
+        std::vector<Value> post;
+        for (Value r : es) post_order(r, seen, post);
+        bool user = false;
+        for (Value e : post) user = user || (arith_op(e) && checked_arith.contains(e));
+        bool found = false;
+        auto keys_of = [&](Value slot) {
+            (void)slot_keys(slot, [&](Value k) {
+                if (user && holds_in(k, checked)) return k;
+                if (const Value held = held_var(k, env); !held.nil()) {
+                    key_names_.insert(held.raw());
+                    found = true;
+                }
+                return k;
+            });
+        };
+        for (Value s : slots) keys_of(s);
+        // (the storage reads a name's put reaches: named_long_rec)
+        MemoSet<Value> reached;
+        std::vector<Value> todo(es.begin(), es.end());
+        while (!todo.empty()) {
+            const Value e = todo.back();
+            todo.pop_back();
+            if (!e.is_expr() || !reached.add(e)) continue;
+            if (e.is(Op::STORAGE, 3))
+                keys_of(e[2]);
+            else if (goes_into(e))
+                for (Value a : e.args()) todo.push_back(a);
+        }
+        if (!found) return false;
+        bool changed = false;
+        for (Value& e : es) {
+            const Value n = put(e, env);
+            changed |= n != e;
+            e = n;
+        }
+        for (Value& e : slots) {
+            const Value n = slot_put(e, env);
+            changed |= n != e;
+            e = n;
+        }
+        return changed;
+    }
     Value name_long(Value l, Env& env, SmallVec<Value, 4>& before) {
         if (!naming || !l.is_expr()) return l;
         SmallVec<Value, 4> es;
+        SmallVec<Value, 2> slots;
         u64 rest = 8;
         if (l.is(Op::STORE, 4)) {
             es.push_back(l[3]);
-            rest += widths_.of(l[2]);
+            slots.push_back(l[2]);
         } else if (l.is(Op::STORE_RANGE)) {
             // (a storage range's place: a slot, as a STORE's)
             for (u32 i = 0; i < l.size(); ++i)
@@ -1235,7 +1461,7 @@ private:
             });
         }
         const usize n0 = before.size();
-        if (!name_long_exprs(es, rest, env, before)) return l;
+        if (!name_long_exprs(es, rest, env, before, &slots)) return l;
         const Value r = subst_line(l, env);
         if (r != l) cx().pcs.inherit(r, l);
         for (usize j = n0; j < before.size(); ++j) cx().pcs.inherit(before[j], l);
@@ -1405,6 +1631,14 @@ private:
         if (!long_only && !rounded_only && r.is(Op::SETVAR, 2) && is_var(r[0]) && movable(r[0], r[1]) &&
             !(naming && !named_value(r[1]) && snapshot(r[1])))
             env.set(r[0], r[1], named_hash(r[0], r[1]) || (naming && named_value(r[1])));
+        // (long_only: a variable of the trace's own set to a hash the trace
+        // knows - the name of a storage key a long line reads, where it
+        // holds: hold_keys)
+        if (long_only && r.is(Op::SETVAR, 2) && is_var(r[0]) && r[1].is(Op::SHA3) && !r[1].has_flags(F_MEM) &&
+            movable(r[0], r[1])) {
+            env.set(r[0], r[1], true);
+            code_vars_.insert(r[0].raw());
+        }
         return r;
     }
 
@@ -1459,6 +1693,8 @@ private:
     // is in)
     Widths widths_;
     std::unordered_map<u64, Value> long_names_, long_values_;
+    std::unordered_set<u64> key_names_;  // (the names of storage keys: put in slots, slot_put)
+    std::unordered_set<u64> code_vars_;  // (the trace's own variables set to a hash: as_long_named)
     Memo<Value, Value> unname_memo_;
     u32 depth_ = 0;
 public:
