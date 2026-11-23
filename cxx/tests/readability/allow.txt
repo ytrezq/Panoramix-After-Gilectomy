@@ -67,7 +67,6 @@ openze496_ERC777PresetFixedSupply burn lost_forms 1  # Array
 openze496_ERC777PresetFixedSupply operatorBurn lost_forms 1  # Array
 openze496_ERC777PresetFixedSupply operatorSend lost_forms 1  # Array
 openze496_ERC777PresetFixedSupply send lost_forms 1  # Array
-openze540_AccessManager unknownf801a698 long 3  # 1 -> 3
 repo_BSC_target unknown3ecba7f8 raw_args 10  # 8 -> 10
 repo_PancakeRouterV2 swapExactTokensForTokens raw_args 1  # 0 -> 1
 repo_PancakeRouterV2 swapTokensForExactTokens raw_args 1  # 0 -> 1
