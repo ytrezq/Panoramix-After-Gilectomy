@@ -600,6 +600,52 @@ TEST_CASE("simplify: adjacent fields of one storage slot in two parts are one re
     CHECK(u[0][0].is(Op::DATA));
 }
 
+TEST_CASE("simplify: a constant that ends with the zeroes of a word, then the word's low bytes, is the constant and the word") {
+    Fixture f;
+    // a custom error with an address: the selector's 4 bytes and the 12
+    // zero bytes of the address's word joined in one constant (the memory
+    // pass writes the masked word as zeroes and 20 bytes, concat joins the
+    // constants), then the 20 bytes - `Bytes(16, 0xd0103ae5000...),
+    // Bytes(20, x)`, the selector hidden. The same 36 bytes: the constant
+    // without its last 12 bytes, then the word masked to its low 20
+    Value u = check_trace("{(revert (data (sized 16 0xd0103ae5000000000000000000000000) (sized 20 (calldataload 4))))}",
+                          S::simplify_exps);
+    CHECK(u[0][0] == V("(data (sized 4 0xd0103ae5) (sized 32 (mask_shl 160 0 0 (calldataload 4))))"));
+    // ... the last 20 bytes of a word of return data, as the rule for
+    // zeroes before them reads it (the 400's c00171, c00195)
+    u = check_trace("{(call 1 (gas 1) (calldataload 4) 0 None None) (revert (data (sized 16 "
+                    "0xd0103ae5000000000000000000000000) (returndata_bytes 1 12 20)))}",
+                    S::simplify_exps);
+    CHECK(u[1][0] == V("(data (sized 4 0xd0103ae5) (sized 32 (mask_shl 160 0 0 (returndata_bytes 1 0 32))))"));
+    // on the bytes, whatever their number: a word of 4 bytes after 28
+    // zeroes (a constant of 32 bytes), more words after it
+    u = check_trace("{(return (data (sized 32 0xd0103ae500000000000000000000000000000000000000000000000000000000) (sized 4 "
+                    "(calldataload 4)) (sized 32 caller)))}",
+                    S::simplify_exps);
+    CHECK(u[0][0] == V("(data (sized 4 0xd0103ae5) (sized 32 (mask_shl 32 0 0 (calldataload 4))) (sized 32 caller))"));
+    // the two parts of the word's low bytes joined first (a uint128
+    // written across the selector's place), then the word
+    u = check_trace("{(revert (data (sized 16 0xd0103ae5000000000000000000000000) (sized 16 (mask_shl 96 32 -32 "
+                    "(calldataload 4))) (sized 4 (mask_shl 32 0 0 (calldataload 4)))))}",
+                    S::simplify_exps);
+    CHECK(u[0][0] == V("(data (sized 4 0xd0103ae5) (sized 32 (mask_shl 128 0 0 (calldataload 4))))"));
+    // not a constant whose last 12 bytes aren't zeroes, nor a part that
+    // isn't the rest of the word (19 bytes: the 13 bytes before them
+    // aren't zeroes), nor a constant of zeroes alone, nor bytes of memory
+    u = check_trace("{(revert (data (sized 16 0xd0103ae5000000000000000000000001) (sized 20 (calldataload 4))))}",
+                    S::simplify_exps);
+    CHECK(u[0][0] == V("(data (sized 16 0xd0103ae5000000000000000000000001) (sized 20 (calldataload 4)))"));
+    u = check_trace("{(revert (data (sized 16 0xd0103ae5000000000000000000000000) (sized 19 (calldataload 4))))}",
+                    S::simplify_exps);
+    CHECK(u[0][0] == V("(data (sized 16 0xd0103ae5000000000000000000000000) (sized 19 (calldataload 4)))"));
+    u = check_trace("{(revert (data (sized 16 0) (sized 20 (calldataload 4))))}", S::simplify_exps);
+    CHECK(u[0][0] == V("(data (sized 16 0) (sized 20 (calldataload 4)))"));
+    u = check_trace("{(setmem (range 256 32) (calldataload 4)) (revert (data (sized 16 0xd0103ae5000000000000000000000000) "
+                    "(mem (range 268 20))))}",
+                    S::simplify_exps);
+    CHECK(u[1][0] == V("(data (sized 16 0xd0103ae5000000000000000000000000) (mem (range 268 20)))"));
+}
+
 TEST_CASE("simplify: an ABI head word in two parts, zeroes and the low bytes of a word of memory, is that word") {
     Fixture f;
     // uniswa410's label(address, string): the address is a word read from
