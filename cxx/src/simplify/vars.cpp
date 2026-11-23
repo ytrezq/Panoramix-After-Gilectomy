@@ -246,6 +246,7 @@ constexpr u32 kShortLine = 200;
 constexpr u32 kMinPart = 12;     // the narrowest part named
 constexpr u32 kNameWidth = 5;    // a name's (_123)
 constexpr u32 kMaxNames = 8;     // the names one line gets, at most
+constexpr u32 kMinKey = 40;      // the narrowest storage key named though read once
 constexpr u64 kMaxWidth = 1u << 24;
 
 // about the characters an integer prints with (output/text.cpp
@@ -257,13 +258,32 @@ u32 int_width(Value v) {
     return u32(std::min<u64>(bits * 30103 / 100000 + 1, 78) + (x.sign() < 0));
 }
 
+// (faithful) a number just below 2^256 as the negative the printer shows
+// (output/exp.cpp display_int: past -(2**66); `-1`, not 32 bytes of ff)
+u32 shown_int_width(Value v) {
+    const EvmInt x(v);
+    if (x.sign() > 0 && x.bit_length() == 256) {
+        const u64 bits = (EvmInt::pow2(256) - x).bit_length();
+        if (bits <= 66) return u32(bits * 30103 / 100000 + 2);
+    }
+    return int_width(v);
+}
+
 // About the characters an expression prints with (output/exp.cpp's forms,
 // roughly: a storage slot as the names it gets, `mem[p]`, `cd[p]`, a mask
 // as `uint128(x)`...): what decides that a line is long.
+//
+// `faithful`: nearer to the text for numbers, hashes and storage places - a
+// number near 2^256 as its negative, a hash's parts as they print (a word
+// as it is, other bytes as `Bytes(n, x)`), a place as `stor5[key].field_48`
+// (the first measure counts more for them; the lines the long pass names by
+// it stay the same). What decides that a line is long enough for its
+// storage keys to be named.
 class Widths {
 public:
+    explicit Widths(bool faithful = false) : faithful_(faithful) {}
     u32 of(Value e) {
-        if (e.is_int()) return int_width(e);
+        if (e.is_int()) return faithful_ ? shown_int_width(e) : int_width(e);
         if (e.is_name()) return 6;
         if (e.is_leaf()) return 12;
         if (!(e.is_expr() || e.is_list())) return 4;
@@ -294,6 +314,11 @@ private:
     u64 compute(Value e) {
         if (e.is_list()) return sum(e, 2);
         const u32 n = e.size();
+        if (faithful_) {
+            if (e.is(Op::SIZED, 2)) return e[0] == Value::small(32) ? u64(of(e[1])) : u64(of(e[1])) + 9 + of(e[0]);
+            if (e.is(Op::STORAGE, 3)) return place(e[2]) + (e[0] == Value::small(256) ? 0 : 9);
+            if (e.is(Op::SHA3) && n == 1 && e[0].is(Op::DATA)) return sum(e[0], 2) + 6;
+        }
         switch (e.op()) {
             case Op::ADD:
             case Op::MUL:
@@ -334,7 +359,50 @@ private:
             }
         }
     }
+public:
+    // (faithful) a storage place as it prints: a number's `stor5` (a slot
+    // of many digits with them all, `stor[0x40c6..]` - what prints where
+    // the storage's forms don't name the place: at most, where they do), a
+    // mapping's keys in brackets after its slot's place (the slot: the part
+    // of the hash that is a number, a hash or a sum - the last, or the
+    // first), a field's or an element's offset after its hash's place
+    u64 place(Value s) {
+        check_stack();
+        if (s.is(Op::SIZED, 2)) return place(s[1]);
+        if (s.is_int()) return 4 + int_width(s);
+        if (s.is(Op::ADD)) {
+            u64 w = 0;
+            bool base = false;
+            for (Value t : s.args()) {
+                if (t.is(Op::SHA3) && !base) {
+                    w += place(t);
+                    base = true;
+                } else {
+                    w += t.is_int() ? 7 + int_width(t) : u64(of(t)) + 2;
+                }
+            }
+            return base ? w : w + 6;
+        }
+        if (s.is(Op::SHA3)) {
+            std::span<const Value> parts = s.args();
+            if (parts.size() == 1 && parts[0].is(Op::DATA)) parts = parts[0].args();
+            if (parts.empty()) return 8;
+            if (parts.size() == 1) return place(parts[0]);
+            auto slot_part = [](Value p) {
+                return p.is(Op::SIZED, 2) && p[0] == Value::small(32) && (p[1].is_int() || p[1].is(Op::SHA3) || p[1].is(Op::ADD));
+            };
+            const usize at = slot_part(parts.back()) ? parts.size() - 1 : slot_part(parts.front()) ? 0 : parts.size();
+            u64 w = at < parts.size() ? place(parts[at]) : 6;
+            for (usize i = 0; i < parts.size(); ++i)
+                if (i != at) w += u64(of(parts[i])) + 2;
+            return w;
+        }
+        return u64(of(s)) + 6;
+    }
+
+private:
     Memo<Value, u32> memo_;
+    bool faithful_ = false;
 };
 
 class Forward {
@@ -356,6 +424,7 @@ public:
     std::function<Value()> fresh;
     std::function<Value()> fresh_word;  // (naming: a word's name, numbered at the end - name_values)
     SmallVec<Value, 16> made;  // (the variables naming made)
+    SmallVec<Value, 16> made_keys;  // (those made for storage keys: kept though read once)
     // the variables read twice or more in the trace (named_hash)
     std::unordered_map<u64, u32> reads;
 
@@ -1261,8 +1330,9 @@ private:
         });
         return held;
     }
-    // a slot with its keys written as the variables that hold them
-    // (key_names_: those a long line took as a key's name, hold_keys)
+    // a slot with its keys written as their names (key_names_: the
+    // variables that hold them, hold_keys, and the names made for them,
+    // name_long_exprs - where their values hold)
     Value slot_put(Value slot, const Env& env) {
         if (key_names_.empty() || !(slot.is(Op::SHA3) || slot.is(Op::ADD))) return slot;
         return slot_keys(slot, [&](Value k) {
@@ -1284,12 +1354,24 @@ private:
         return false;
     }
     // the part of roots to name: read twice or more, the most characters
-    // its name saves, not one the checks before the line read (none: nil)
-    Value long_part(std::span<const Value> roots) {
-        MemoSet<Value> seen, checked;
-        checked_parts(checked);
+    // its name saves, not one the checks before the line read (none: nil) -
+    // or, where the line is long as its hashes and places print (faithful:
+    // that width, past kLongLine), a key of the storage slots it reads or
+    // writes (slots: the line's own; the roots' storage reads'), a hash:
+    // one the line prints twice or more, or one kMinKey wide without which
+    // the line is no longer long - a name read once costs a line, and a
+    // line that stays long with it gains nothing (is_key)
+    Value long_part(std::span<const Value> roots, std::span<const Value> slots, u64 faithful, bool& is_key) {
+        is_key = false;
+        const bool wide = faithful > kLongLine;
+        MemoSet<Value> seen, checked, checked_arith;
+        checked_parts(checked, &checked_arith);
         std::vector<Value> post;
         for (Value r : roots) post_order(r, seen, post);
+        // (whether the line uses arithmetic the run of checks before it
+        // checks: lot 8's SafeMath may read it as the line they guard)
+        bool user = false;
+        for (Value e : post) user = user || (arith_op(e) && checked_arith.contains(e));
         // (the times each part prints: from the roots down, parents first)
         std::unordered_map<u64, u64> times;
         for (Value r : roots)
@@ -1329,6 +1411,47 @@ private:
             best = e;
             most = saves;
         }
+        // the keys: the times each prints (its slots' reads', the line's own)
+        SmallVec<Value, 4> keys;
+        SmallVec<u64, 4> key_times;
+        auto count_keys = [&](Value slot, u64 t) {
+            (void)slot_keys(slot, [&](Value k) {
+                const auto it = std::find(keys.begin(), keys.end(), k);
+                if (it == keys.end()) {
+                    keys.push_back(k);
+                    key_times.push_back(t);
+                } else {
+                    key_times[usize(it - keys.begin())] += t;
+                }
+                return k;
+            });
+        };
+        // (only where the line is long as its hashes and places print: wide)
+        if (wide) {
+            for (Value sl : slots) count_keys(sl, 1);
+            for (Value e : post)
+                if (e.is(Op::STORAGE, 3) && times[e.raw()]) count_keys(e[2], times[e.raw()]);
+        }
+        for (usize k = 0; k < keys.size(); ++k) {
+            const Value e = keys[k];
+            // (the times its name would stand in the line: as a key, and as
+            // a word of its own - a log's topic, a call's argument)
+            const u64 t = key_times[k] + times[e.raw()];
+            // (not a hash of memory the trace doesn't know: the memory
+            // pass's to read; not one the run of checks before the line
+            // reads, or holding arithmetic it reads, where the line uses
+            // what they check: lot 8's SafeMath finds the checks' operands
+            // in that line - a later check reads the name as its line does)
+            if (e.has_flags(F_MEM) || (user && holds_in(e, checked))) continue;
+            const u32 w = exact_.of(e);
+            if (w < kMinPart || 2 + 4 * u64(depth_) + 8 + w > kLongLine) continue;
+            if (t < 2 && (w < kMinKey || faithful + kNameWidth - w > kLongLine)) continue;
+            const u64 saves = t * (w - kNameWidth);
+            if (saves <= most || !movable(Value(), e)) continue;
+            best = e;
+            most = saves;
+            is_key = true;
+        }
         return best;
     }
     // A line that would print long has the parts it repeats named by
@@ -1344,7 +1467,8 @@ private:
     // es: the expressions of the line names may stand in (put in place),
     // rest: the line's other characters; whether a name was made
     // slots: the storage slots the line itself writes (a STORE's): their
-    // keys written as the variables that hold them (hold_keys)
+    // keys written as the variables that hold them (hold_keys), or named
+    // (slot_put)
     bool name_long_exprs(SmallVec<Value, 4>& es, u64 rest, Env& env, SmallVec<Value, 4>& before,
                          SmallVec<Value, 2>* slots = nullptr) {
         SmallVec<Value, 2> none;
@@ -1355,24 +1479,38 @@ private:
             for (Value e : sl) w += widths_.of(e);
             return w;
         };
+        auto faithful_width = [&] {
+            u64 w = 2 + 4 * u64(depth_) + rest;
+            for (Value e : es) w += exact_.of(e);
+            for (Value e : sl) w += exact_.place(e) + 9;
+            return w;
+        };
         if (width() <= kLongLine) return false;
         // (first what costs no line: the keys variables already hold)
         bool made_one = hold_keys(es, sl, env);
         for (u32 k = 0; k < kMaxNames && width() > kShortLine; ++k) {
-            const Value part = long_part(es.span());
+            bool is_key = false;
+            const Value part = long_part(es.span(), sl.span(), faithful_width(), is_key);
             if (part.nil()) break;
             Value& name = long_names_[part.raw()];
             if (name.nil()) {
                 name = fresh();
-                made.push_back(name);
+                // (a key's name stays though read once: made_keys)
+                (is_key ? made_keys : made).push_back(name);
                 long_values_[name.raw()] = part;
             }
+            if (is_key) key_names_.insert(name.raw());
             before.push_back(mk(Op::SETVAR, name, part));
             env.set(name, part, true);
             made_one = true;
             bool progress = false;
             for (Value& e : es) {
                 const Value n = put(e, env);
+                progress |= n != e;
+                e = n;
+            }
+            for (Value& e : sl) {
+                const Value n = slot_put(e, env);
                 progress |= n != e;
                 e = n;
             }
@@ -1692,6 +1830,7 @@ private:
     // value named - the same wherever it is -, the ifs and loops the walk
     // is in)
     Widths widths_;
+    Widths exact_{true};  // (faithful: the lines whose storage keys are named)
     std::unordered_map<u64, Value> long_names_, long_values_;
     std::unordered_set<u64> key_names_;  // (the names of storage keys: put in slots, slot_put)
     std::unordered_set<u64> code_vars_;  // (the trace's own variables set to a hash: as_long_named)
@@ -2036,9 +2175,10 @@ Value put_back(Value v, const std::unordered_map<u64, Value>& back, Memo<Value, 
 
 namespace {
 
-// the trace with the names made that are read once or never put back (their
-// values where they are read, their SETVARs dropped)
-Value put_back_single(Value t, std::span<const Value> made) {
+// the trace with the names made that are read once or never (fewer times
+// than `least`) put back (their values where they are read, their SETVARs
+// dropped)
+Value put_back_single(Value t, std::span<const Value> made, u32 least = 2) {
     if (made.empty()) return t;
     std::unordered_map<u64, u32> reads;
     count_all_reads(t, reads);
@@ -2073,7 +2213,9 @@ Value put_back_single(Value t, std::span<const Value> made) {
         rec(rec, t);
     }
     for (Value k : made)
-        if (reads[k.raw()] < 2 * std::max<u32>(1, sets[k.raw()])) back[k.raw()] = values[k.raw()];
+        // (least: the reads a name needs to stay - a key's that made a long
+        // line short, one - in each place it is set)
+        if (reads[k.raw()] < least * std::max<u32>(1, sets[k.raw()])) back[k.raw()] = values[k.raw()];
     // (a variable of the trace set to a name made here and read nowhere any
     // more - `_30 = mem[64]` where `_8` names that read already: its readers
     // read `_8` - is dropped with its SETVARs)
@@ -2250,6 +2392,9 @@ Value name_values(Value trace) {
         alg::Facts fl = entry;
         const Value w = fw.walk(t, env, fl);
         t = put_back_single(w, fw.made.span());
+        // (a key's name stays though read once; one no line reads - its
+        // value written as another name where it was - goes)
+        t = put_back_single(t, fw.made_keys.span(), 1);
     }
     return number_words(t, words.span(), word_alias, fresh);
 }
