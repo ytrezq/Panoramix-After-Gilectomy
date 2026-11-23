@@ -29,6 +29,10 @@ repo_cETH repayBorrowBehalf while_true 1  # 0 -> 1: the same
 ensdom122_TestBytesUtils testComparePartial lost_errors 1  # 0x8a3c1cfb: `if 3 > mem[_3]: revert with 0x8a3c1cfb, 3, mem[_3]` right after `mem[_3] = 5` - never taken, now decided
 uniswa314_NonfungiblePositionManager collect lost_strings 1  # ERC721: owner query for nonexistent token - shown only in a memory write no path reads: its revert needs stor3[tokenId] == 0, which the check 4 lines before excludes
 
+# A storage read the old text printed through a named hash, `uint1(stor[_63].field_60)`, is now resolved,
+# `uint1(stor0[_param1][...].field_60)`: the mapping's element is typed by the field the code reads
+aave311_FlashLoanLogic storage structs 5  # 4 -> 5: stor0, "mapping of uint256" -> "mapping of struct of 1 slot"
+
 # ---- To fix: the regressions not fixed yet (corpus/review: r3/summary.md "What is left", and round 4's);
 # a line goes when its function is fixed. The count is today's: it may not grow.
 
@@ -38,7 +42,6 @@ uniswa314_NonfungiblePositionManager collect lost_strings 1  # ERC721: owner que
 aave311_AaveProtocolDataProvider getAllReservesTokens copy_loops 5  # 4 -> 5
 aave311_BorrowLogic unknown1e6473f9 raw_args 30  # 15 -> 30
 aave311_BorrowLogic unknown1e6473f9 raw_stor 38  # 5 -> 38
-aave311_FlashLoanLogic storage structs 5  # 4 -> 5
 aave311_FlashLoanLogic unknown2e7263ea raw_revert 11  # 10 -> 11
 aave311_FlashLoanLogic unknown2e7263ea raw_stor 2  # 1 -> 2
 aave311_LiquidationLogic unknown83c1087d raw_stor 34  # 5 -> 34
