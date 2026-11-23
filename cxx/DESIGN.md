@@ -738,7 +738,17 @@ places and byte strings (the storage's, the memory pass's and the
 printer's forms read them), a part whose own line would be long, the
 arithmetic a check reads anywhere and the reads the checks right before
 the line read (lot 8's SafeMath finds a check's operands in the line that
-uses them). `cleanup_mems` likewise with
+uses them). A storage key that a variable of the trace's own holds
+(`_275 = sha3(...)`, its value written out in the slots, which the
+storage's forms parse) is written as that variable in a long line and
+where the variable still holds the hash after it (`hold_keys`), no line
+made: a part of a slot's hash, a hash itself, that the storage's forms
+read as a key under either layout of a mapping's slot (key first or last)
+and not as the slot of an inner mapping (`may_be_slot`: a variable there
+would be a slot of its own for the forms) - the slot keeps its hash and
+its place (`transactionsExecuted[_275]`, the storage section as it was);
+not where the line uses arithmetic the checks right before it check and
+the key is among what they read. `cleanup_mems` likewise with
 MemState (forward, reads replaced by what reaching writes wrote, under the
 conditions known on the path - a call forgets only the pieces that read
 what it changes, its own numbered results among them, not an earlier

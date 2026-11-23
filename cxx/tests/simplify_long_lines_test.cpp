@@ -313,3 +313,147 @@ TEST_CASE("names: a base the checks right before the line read isn't named there
     for (Value sv : svs)
         CHECK_MESSAGE(!(sv[1].is(Op::ADD, 2) && (sv[1][0].is(Op::MASK_SHL) || sv[1][1].is(Op::MASK_SHL))), dump_trace(u));
 }
+
+namespace {
+
+// a hash of data no storage layout reads as a slot (a word that is no slot
+// first, twelve words: an operation's id, a typed-data digest)
+std::string data_hash(int salt, int words = 12) {
+    std::string k = "(sha3 (sized 32 caller)";
+    for (int i = 0; i + 1 < words; ++i) k += " (sized 32 (calldataload " + std::to_string(4 + 32 * i + salt) + "))";
+    return k + ")";
+}
+
+// the trace after name_values, run in the trace machine before and after
+Value named(const std::string& text) {
+    Value t = V(text.c_str());
+    Value u = S::name_values(t);
+    CHECK_MESSAGE(same_runs(t, u), dump_trace(t) << "\n->\n" << dump_trace(u));
+    return u;
+}
+
+// the STORE lines of u, in order
+std::vector<Value> stores_of(Value u) {
+    std::vector<Value> stores;
+    lines_of(u, Op::STORE, stores);
+    return stores;
+}
+
+}  // namespace
+
+TEST_CASE("long lines: a storage key a variable of the trace's own holds reads as that variable (0x032 batchExecuteTransactions)") {
+    Fixture fx;
+    // `_275 = sha3(...)` (the code's own variable, read past the store) and
+    // long lines keyed by the same hash, written out in the slot
+    // (`transactionsExecuted[sha3(Bytes(2, 0x1901), ..)] = 1`): the variable
+    // is the key's name, no line made - the slot still `sha3(key, 2)`, the
+    // same mapping for the storage's forms
+    const std::string k = data_hash(0);
+    const std::string slot = "(sha3 (sized 32 " + k + ") (sized 32 2))";
+    SUBCASE("the key of the place a line writes and of the read in its value") {
+        Value u = named("{(setvar tmp7 " + k + ") (store 32 48 " + slot + " (mask_shl 32 0 0 (add 1 (storage 32 48 " + slot +
+                        ")))) (return (sized 32 tmp7))}");
+        std::vector<Value> svs;
+        lines_of(u, Op::SETVAR, svs);
+        CHECK_MESSAGE(svs.size() == 1, dump_trace(u));
+        const auto stores = stores_of(u);
+        REQUIRE(stores.size() == 1);
+        CHECK_MESSAGE(stores[0][2] == V("(sha3 (sized 32 tmp7) (sized 32 2))"), dump_trace(u));
+        CHECK(count_of(stores[0][3], V("tmp7")) == 1);
+    }
+    SUBCASE("where the variable holds the hash: not before it is set, not after it is set again") {
+        Value u = named("{(store 256 0 " + slot + " 1) (setvar tmp7 " + k + ") (store 256 0 " + slot +
+                        " 2) (setvar tmp7 (calldataload 4)) (store 256 0 " + slot + " 3) (return (sized 32 tmp7))}");
+        const auto stores = stores_of(u);
+        REQUIRE(stores.size() == 3);
+        CHECK_MESSAGE(stores[0][2] == V(slot.c_str()), dump_trace(u));
+        CHECK_MESSAGE(stores[1][2] == V("(sha3 (sized 32 tmp7) (sized 32 2))"), dump_trace(u));
+        CHECK_MESSAGE(stores[2][2] == V(slot.c_str()), dump_trace(u));
+    }
+    SUBCASE("a line that isn't long keeps its key") {
+        // `stor2[sha3(caller, cd[4])] = 1`: 31 characters
+        const std::string k2 = "(sha3 (sized 32 caller) (sized 32 (calldataload 4)))";
+        const std::string slot2 = "(sha3 (sized 32 " + k2 + ") (sized 32 2))";
+        Value u = named("{(setvar tmp7 " + k2 + ") (store 256 0 " + slot2 + " 1) (return (sized 32 tmp7))}");
+        const auto stores = stores_of(u);
+        REQUIRE(stores.size() == 1);
+        CHECK_MESSAGE(stores[0][2] == V(slot2.c_str()), dump_trace(u));
+    }
+}
+
+TEST_CASE("long lines: a variable stands for a key, not for a mapping's slot (the review's c00168)") {
+    Fixture fx;
+    const std::string k = data_hash(1);
+    SUBCASE("an inner mapping's slot keeps its hash: its own key reads as the variable that holds it") {
+        // m[k][cd[4]]: `sha3(cd[4], sha3(k, 11))` - the inner hash is the
+        // slot of m[k], which the storage's forms parse (a variable there is
+        // a slot of its own for them: `stor[sha3(cd[4], _7)]`, c00168's
+        // `stor[_155 + 2]`); k is that mapping's key
+        const std::string inner = "(sha3 (sized 32 " + k + ") (sized 32 11))";
+        const std::string slot = "(sha3 (sized 32 (calldataload 4)) (sized 32 " + inner + "))";
+        const std::string line = "(store 256 0 " + slot + " (add 1 (storage 256 0 " + slot + ")))";
+        Value u = named("{(setvar tmp7 " + inner + ") " + line + " (return (sized 32 tmp7))}");
+        auto stores = stores_of(u);
+        REQUIRE(stores.size() == 1);
+        CHECK_MESSAGE(stores[0][2] == V(slot.c_str()), dump_trace(u));
+        CHECK_MESSAGE(count_of(stores[0], V("tmp7")) == 0, dump_trace(u));
+
+        u = named("{(setvar tmp7 " + inner + ") (setvar tmp8 " + k + ") " + line + " (return (sized 32 (add tmp7 tmp8)))}");
+        stores = stores_of(u);
+        REQUIRE(stores.size() == 1);
+        const std::string kept = "(sha3 (sized 32 (calldataload 4)) (sized 32 (sha3 (sized 32 tmp8) (sized 32 11))))";
+        CHECK_MESSAGE(stores[0][2] == V(kept.c_str()), dump_trace(u));
+        CHECK_MESSAGE(count_of(stores[0], V("tmp7")) == 0, dump_trace(u));
+        CHECK_MESSAGE(count_of(stores[0][3], V("tmp8")) == 1, dump_trace(u));
+    }
+    SUBCASE("a hash that may be a slot under either layout is left") {
+        // `sha3(sha3(cd[4], 5), 11)`: the first part a mapping's slot where
+        // the slot comes last - or the key where it comes first: left
+        const std::string inner = "(sha3 (sized 32 (calldataload 4)) (sized 32 5))";
+        std::string big = "(add";
+        for (int i = 0; i < 30; ++i) big += " (calldataload " + std::to_string(36 + 32 * i) + ")";
+        big += ")";
+        const std::string slot = "(sha3 (sized 32 " + inner + ") (sized 32 11))";
+        Value u = named("{(setvar tmp7 " + inner + ") (store 256 0 " + slot + " (add " + big + " (storage 256 0 " + slot +
+                        "))) (return (sized 32 tmp7))}");
+        const auto stores = stores_of(u);
+        REQUIRE(stores.size() == 1);
+        CHECK_MESSAGE(count_of(stores[0], V("tmp7")) == 0, dump_trace(u));
+    }
+}
+
+TEST_CASE("long lines: a key the checks before the line read keeps its hash where the line uses what they check (lot 8's SafeMath)") {
+    Fixture fx;
+    // (a key of five words: the check, 110 characters, isn't long)
+    const std::string k = data_hash(0, 5);
+    const std::string slot = "(sha3 (sized 32 " + k + ") (sized 32 2))";
+    const std::string read = "(storage 256 0 " + slot + ")";
+    std::string big = "(add 1 " + read;
+    for (int i = 0; i < 20; ++i) big += " (calldataload " + std::to_string(400 + 32 * i) + ")";
+    big += ")";
+    const std::string store = "(store 256 0 " + slot + " " + big + ")";
+    SUBCASE("a check of the slot's value: the line after it reads the variable") {
+        // `require stor2[k]`, then `stor2[k] = stor2[k] + 1 + ..`: the line
+        // uses no arithmetic the check checks
+        Value u = named("{(setvar tmp7 " + k + ") (if (iszero " + read + ") {(revert None)} {}) " + store +
+                        " (return (sized 32 tmp7))}");
+        const auto stores = stores_of(u);
+        REQUIRE(stores.size() == 1);
+        CHECK_MESSAGE(stores[0][2] == V("(sha3 (sized 32 tmp7) (sized 32 2))"), dump_trace(u));
+    }
+    SUBCASE("a check of the sum the line stores: the key stays in both") {
+        // `if stor2[k] + 1 < cd[4000]: revert`, then `stor2[k] = stor2[k] +
+        // 1`: the line uses the sum the check checks - the check's operand
+        // is read in the line as the check has it (lot 8's SafeMath pairs
+        // them by it)
+        Value u = named("{(setvar tmp7 " + k + ") (if (lt (add 1 " + read + ") (calldataload 4000)) {(revert None)} {}) "
+                        "(store 256 0 " + slot + " (add 1 " + read + ")) (return (sized 32 tmp7))}");
+        const auto stores = stores_of(u);
+        REQUIRE(stores.size() == 1);
+        CHECK_MESSAGE(stores[0][2] == V(slot.c_str()), dump_trace(u));
+        std::vector<Value> ifs;
+        lines_of(u, Op::IF, ifs);
+        REQUIRE(ifs.size() == 1);
+        CHECK_MESSAGE(count_of(ifs[0][0], stores[0][3]) == 1, dump_trace(u));
+    }
+}
