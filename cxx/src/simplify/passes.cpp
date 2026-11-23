@@ -762,19 +762,90 @@ bool cut_zero_runs(SmallVec<Value, 16>& els, SmallVec<Value, 16>& places, std::s
     return any;
 }
 
+// A word of the data in two parts, Bytes(k, 0) then the 32 - k bytes of
+// memory at q - a word read from memory and masked, written where the data
+// is made: the memory pass gives its bytes, `Bytes(12, 0), mem[268 len 20]`
+// for an address - and that word, the word of memory at q - k masked to its
+// low 32 - k bytes (`address(mem[256])`).
+struct TwoParts {
+    Value word, zeros, bytes;
+};
+
+// The elements with their first words in two parts (TwoParts) each made
+// that word, from the start while they are words: the head of an ABI
+// encoding is whole words (uniswa410's label(address, string): no head
+// word, so no reading, while the address was in two parts). The same bytes:
+// the word's top k bytes are masked off whatever the memory before q
+// holds, its low bytes are the bytes at q; the same read at the same line,
+// its last byte the same (msize too). Only where q - k can't wrap: q at
+// least k by its range (with the facts where given) - else the word would
+// be read past the end of memory. made: the words made; false when none.
+bool regroup_head(SmallVec<Value, 16>& els, SmallVec<TwoParts, 4>& made, const alg::Facts* facts) {
+    SmallVec<Value, 16> out;
+    const u32 n = u32(els.size());
+    u32 i = 0;
+    for (; i < n; ++i) {
+        poll();
+        const Value e = els[i];
+        if (mem::width_u64(e) == std::optional<u64>(32)) {
+            out.push_back(e);
+            continue;
+        }
+        if (i + 1 >= n || !e.is(Op::SIZED, 2) || !is_int(e[1], 0) || !e[0].is_small()) break;
+        const i64 k = e[0].small_val();
+        const Value b = els[i + 1];
+        if (k < 1 || k > 31 || !b.is(Op::MEM, 1) || !b[0].is(Op::RANGE, 2) || !is_int(b[0][1], 32 - k)) break;
+        const Value q = b[0][0];
+        if (alg::range(q, alg::Top::Word, facts).lo < EvmInt(k)) break;
+        const Value p = normal(alg::sub(q, small(k)));
+        if (p.nil()) break;
+        const Value w = alg::mask(8 * (32 - k), 0, 0, mk(Op::MEM, mem::make_range(p, small(32))));
+        // (the masked word as it is: not a form the algebra made another)
+        if (!w.is(Op::MASK_SHL, 4) || !w[3].is(Op::MEM, 1)) break;
+        const Value word = mk(Op::SIZED, small(32), w);
+        made.push_back(TwoParts{word, e, b});
+        out.push_back(word);
+        ++i;
+    }
+    if (made.empty()) return false;
+    for (; i < n; ++i) out.push_back(els[i]);
+    els = std::move(out);
+    return true;
+}
+
 // facts: those that hold where the data is (abi_facts), or none
 Value abi_array(Value d, const alg::Facts* facts) {
     if (!d.is(Op::DATA) || d.size() < 2 || d.size() > ABI_MAX_ELEMENTS) return d;
     SmallVec<Value, 16> els(d.args());
     SmallVec<Value, 16> places;
     if (!abi_places(els.span(), places)) return d;
-    const SmallVec<u32, 4> heads = abi_heads(els.span());
-    if (heads.empty()) return d;
-    std::optional<AbiRead> found = abi_read(els.span(), places.span(), heads.span(), facts);
-    // else with the runs of zeroes an offset falls in cut there
-    if (!found && cut_zero_runs(els, places, heads.span(), facts))
-        found = abi_read(els.span(), places.span(), heads.span(), facts);
+    SmallVec<u32, 4> heads = abi_heads(els.span());
+    // the one reading of the elements, else with the runs of zeroes an
+    // offset falls in cut there
+    const auto read = [&]() -> std::optional<AbiRead> {
+        if (heads.empty()) return std::nullopt;
+        std::optional<AbiRead> r = abi_read(els.span(), places.span(), heads.span(), facts);
+        if (!r && cut_zero_runs(els, places, heads.span(), facts))
+            r = abi_read(els.span(), places.span(), heads.span(), facts);
+        return r;
+    };
+    std::optional<AbiRead> found = read();
+    // else with the head's words in two parts each made its word (a tail's
+    // keep their parts: put back below)
+    SmallVec<TwoParts, 4> made;
+    if (!found) {
+        els.clear();
+        els.append(d.args());
+        if (!regroup_head(els, made, facts) || !abi_places(els.span(), places)) return d;
+        heads = abi_heads(els.span());
+        found = read();
+    }
     if (!found) return d;
+    const auto parts_of = [&](Value e) -> const TwoParts* {
+        for (const TwoParts& t : made)
+            if (t.word == e) return &t;
+        return nullptr;
+    };
     const AbiReading* reading = &found->reading;
     const u32 head = found->head, n = u32(els.size());
     SmallVec<Value, 8> out;
@@ -782,6 +853,8 @@ Value abi_array(Value d, const alg::Facts* facts) {
     const auto& offs = reading->offsets;
     for (usize j = 0; j < offs.size(); ++j) {
         const u32 m = offs[j].tail, end = j + 1 < offs.size() ? offs[j + 1].tail : n;
+        // (a length in two parts stays so: the data as it is)
+        if (parts_of(els[m])) return d;
         const Value len = word_of(els[m]);
         SmallVec<Value, 8> content;
         u64 total = 0;
@@ -791,7 +864,12 @@ Value abi_array(Value d, const alg::Facts* facts) {
                 total += *k;
             else
                 known = false;
-            content.push_back(els[i]);
+            if (const TwoParts* t = parts_of(els[i])) {
+                content.push_back(t->zeros);
+                content.push_back(t->bytes);
+            } else {
+                content.push_back(els[i]);
+            }
         }
         // without the zeroes past its length, when they're only that
         if (known && len.is_small()) {
