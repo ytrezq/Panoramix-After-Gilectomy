@@ -235,6 +235,108 @@ void count_all_reads(Value v, std::unordered_map<u64, u32>& n) {
     for (Value a : v.args()) count_all_reads(a, n);
 }
 
+// ---- naming: what a long line repeats ----------------------------------------------------
+
+// A line that would print longer than kLongLine (its indent counted) gets
+// the parts it repeats named, the one that saves the most characters first,
+// until it prints in kShortLine or fewer, or repeats none
+// (Forward::name_long).
+constexpr u32 kLongLine = 240;   // (output: readability's long lines)
+constexpr u32 kShortLine = 200;
+constexpr u32 kMinPart = 12;     // the narrowest part named
+constexpr u32 kNameWidth = 5;    // a name's (_123)
+constexpr u32 kMaxNames = 8;     // the names one line gets, at most
+constexpr u64 kMaxWidth = 1u << 24;
+
+// about the characters an integer prints with (output/text.cpp
+// pretty_num: hex bytes past 2^150, decimal below)
+u32 int_width(Value v) {
+    const EvmInt x(v);
+    const u64 bits = x.bit_length();
+    if (x.sign() >= 0 && bits > 150) return u32(2 + 2 * ((bits + 7) / 8));
+    return u32(std::min<u64>(bits * 30103 / 100000 + 1, 78) + (x.sign() < 0));
+}
+
+// About the characters an expression prints with (output/exp.cpp's forms,
+// roughly: a storage slot as the names it gets, `mem[p]`, `cd[p]`, a mask
+// as `uint128(x)`...): what decides that a line is long.
+class Widths {
+public:
+    u32 of(Value e) {
+        if (e.is_int()) return int_width(e);
+        if (e.is_name()) return 6;
+        if (e.is_leaf()) return 12;
+        if (!(e.is_expr() || e.is_list())) return 4;
+        if (const u32* w = memo_.find(e)) return *w;
+        check_stack();
+        const u32 w = u32(std::min<u64>(compute(e), kMaxWidth));
+        memo_.put(e, w);
+        return w;
+    }
+
+private:
+    u64 sum(Value e, u64 sep) {
+        u64 w = 0;
+        for (Value a : e.args()) w += of(a);
+        return w + (e.size() > 1 ? sep * (e.size() - 1) : 0);
+    }
+    // a slot as its names print (stor3[k].field_128, reserveData[k]...)
+    u64 slot(Value s) {
+        if (s.is_int()) return 10;
+        if (s.is(Op::ADD, 2) && s[0].is_int()) return slot(s[1]) + 10;
+        if (s.is(Op::SHA3)) {
+            u64 w = 8;
+            for (Value a : s.args()) w += a.is_int() ? 0 : (a.is(Op::SHA3) ? slot(a) : of(a)) + 2;
+            return w;
+        }
+        return of(s) + 6;
+    }
+    u64 compute(Value e) {
+        if (e.is_list()) return sum(e, 2);
+        const u32 n = e.size();
+        switch (e.op()) {
+            case Op::ADD:
+            case Op::MUL:
+            case Op::AND:
+            case Op::OR:
+            case Op::XOR: return sum(e, 3) + 2;
+            case Op::SUB:
+            case Op::DIV:
+            case Op::SDIV:
+            case Op::MOD:
+            case Op::SMOD:
+            case Op::LT:
+            case Op::GT:
+            case Op::SLT:
+            case Op::SGT:
+            case Op::LE:
+            case Op::GE:
+            case Op::SLE:
+            case Op::SGE:
+            case Op::EQ:
+            case Op::SHL:
+            case Op::SHR:
+            case Op::SAR: return sum(e, 4) + 2;
+            case Op::EXP: return sum(e, 2);
+            case Op::ISZERO:
+            case Op::NOT: return sum(e, 0) + 4;
+            case Op::MASK_SHL: return n == 4 ? u64(of(e[3])) + 9 : sum(e, 2) + 6;
+            case Op::RANGE: return n == 2 && e[1] == Value::small(32) ? u64(of(e[0])) : sum(e, 5);
+            case Op::MEM: return sum(e, 0) + 5;
+            case Op::CALLDATALOAD: return sum(e, 0) + 4;
+            case Op::CALLDATA_BYTES: return sum(e, 5) + 11;
+            case Op::RETURNDATA_BYTES:
+                return n == 3 ? u64(of(e[1])) + 22 + (e[2] == Value::small(32) ? 0 : u64(of(e[2])) + 5) : sum(e, 2) + 22;
+            case Op::STORAGE: return n == 3 ? slot(e[2]) + (e[0] == Value::small(256) ? 0 : 9) : sum(e, 2) + 8;
+            default: {
+                const char* name = op_name(e.op());
+                return sum(e, 2) + 2 + (name ? std::char_traits<char>::length(name) : 4);
+            }
+        }
+    }
+    Memo<Value, u32> memo_;
+};
+
 class Forward {
 public:
     explicit Forward(std::pmr::memory_resource* r) : res_(r) {}
@@ -243,10 +345,17 @@ public:
     // memory a line reads get a variable set right before it, read there and
     // wherever it still holds that value after (`fresh`: the next unused name)
     bool naming = false;
+    // with naming, the long lines' pass alone (name_long, after the other
+    // names are made): the lines' variables neither put nor named, the
+    // names put only in the words a name may stand in (goes_into)
+    bool long_only = false;
     std::function<Value()> fresh;
     SmallVec<Value, 16> made;  // (the variables naming made)
     // the variables read twice or more in the trace (named_hash)
     std::unordered_map<u64, u32> reads;
+
+    // (long_only: the arithmetic of the trace's checks, before the walk)
+    void checks_of(Value trace) { collect_checked(trace); }
 
     // the trace with the variables known replaced; env: at its end (the
     // paths that reach it); fl: the floors there (floor.hpp: the walk
@@ -256,6 +365,8 @@ public:
         check_stack();
         const u32 n = trace.size();
         SmallVec<Value, 32> out;
+        frames_.push_back(Frame{&out, branch_check_});
+        branch_check_ = Value();
         bool changed = false;
         for (u32 i = 0; i < n; ++i) {
             poll();
@@ -266,6 +377,7 @@ public:
             for (Value b : before) out.push_back(b);
             out.push_back(r);
         }
+        frames_.pop_back();
         return changed ? mk_trace(out.span()) : trace;
     }
 
@@ -296,6 +408,33 @@ private:
     }
     Value subst_line(Value l, const Env& env) {
         if (env.empty()) return l;
+        if (long_only) {
+            // (the words a name may stand in: a STORE's value, not its
+            // slot; not the byte strings the printer decodes)
+            if (l.is(Op::STORE, 4)) {
+                const Value v = put(l[3], env);
+                return v == l[3] ? l : mk_like_checked(l, std::array<Value, 4>{l[0], l[1], l[2], v});
+            }
+            if (l.is(Op::STORE_RANGE) && l.size() > 2) {
+                SmallVec<Value, 4> a(l.args());
+                a[2] = put(l[2], env);
+                return a[2] == l[2] ? l : mk_like_checked(l, a.span());
+            }
+            if (l.is(Op::SETVAR, 2)) {
+                // (a variable set to a value named: its value, not the name -
+                // no variable set to another)
+                if (!goes_into(l[1])) return l;
+                SmallVec<Value, 8> a(l[1].args());
+                bool changed = false;
+                for (Value& x : a) {
+                    const Value n = put(x, env);
+                    changed |= n != x;
+                    x = n;
+                }
+                return changed ? mk(Op::SETVAR, l[0], mk_like_checked(l[1], a.span())) : l;
+            }
+            return map_line_exprs(l, [&](Value e, Pos pos) { return pos == Pos::Bytes ? e : put(e, env); });
+        }
         return map_line_exprs(l, [&](Value e, Pos) { return put(e, env); });
     }
 
@@ -303,6 +442,7 @@ private:
     // the named ones written as their names (named_value: where they hold
     // them - the same entries, killed as the others)
     Value put(Value e, const Env& env) {
+        if (long_only) return put_long(e, env);
         Value r = subst(e, env);
         bool any = false;
         env.each_named([&](Value, Value) { any = true; });
@@ -320,6 +460,34 @@ private:
             bool changed = false;
             for (Value a : x.args()) {
                 Value n = named_rec(a, env);
+                if (n != a) changed = true;
+                args.push_back(n);
+            }
+            if (changed) x = mk_like_checked(x, args.span());
+        }
+        names_.put(e, x);
+        return x;
+    }
+    // (long_only) e with the long lines' names written where their values
+    // are, in the words a name may stand in (goes_into: not in a storage
+    // slot, a hash, a byte string)
+    Value put_long(Value e, const Env& env) {
+        bool any = false;
+        env.each_named([&](Value, Value) { any = true; });
+        if (!any || !e.is_expr()) return e;
+        names_.clear();
+        return named_long_rec(e, env);
+    }
+    Value named_long_rec(Value e, const Env& env) {
+        if (!e.is_expr()) return e;
+        if (const Value* r = names_.find(e)) return *r;
+        check_stack();
+        Value x = as_named(e, env);
+        if (x.is_expr() && goes_into(x)) {
+            SmallVec<Value, 8> args;
+            bool changed = false;
+            for (Value a : x.args()) {
+                Value n = named_long_rec(a, env);
                 if (n != a) changed = true;
                 args.push_back(n);
             }
@@ -404,6 +572,7 @@ private:
     }
     Value name_line(Value l, Env& env, SmallVec<Value, 4>& before) {
         if (!naming || !l.is_expr()) return l;
+        if (long_only) return name_long(l, env, before);
         const usize n0 = before.size();
         if (l.is(Op::STORE, 4)) {
             name_in(l[3], env, before);
@@ -423,6 +592,290 @@ private:
         return r;
     }
 
+    // ---- naming: what a long line repeats (kLongLine) ----
+
+    // a part a name may stand for: a word (not a name, a number, a byte
+    // string; a read of 32 bytes or fewer is one)
+    static bool word_part(Value e) {
+        if (!e.is_expr()) return false;
+        const Sort s = info(e.op()).sort;
+        if (s == Sort::Word || s == Sort::Bool) return true;
+        auto short_len = [](Value n) { return n.is_small() && n.small_val() > 0 && n.small_val() <= 32; };
+        if (e.is(Op::MEM, 1)) return e[0].is(Op::RANGE, 2) && short_len(e[0][1]);
+        if (e.is(Op::RETURNDATA_BYTES, 3)) return short_len(e[2]);
+        if (e.is(Op::CALLDATA_BYTES, 2)) return short_len(e[1]);
+        return false;
+    }
+    // the parts of e a name may stand in: not a storage slot's (the
+    // storage's forms read it), not a hash's, not a byte string's (a word
+    // written as bytes, SIZED, its word's)
+    static bool goes_into(Value e) {
+        if (!e.is_expr()) return false;
+        switch (e.op()) {
+            case Op::STORAGE:
+            case Op::SHA3:
+            case Op::MEM:
+            case Op::RANGE:
+            case Op::RETURNDATA_BYTES:
+            case Op::CALLDATA_BYTES: return false;
+            case Op::SIZED: {
+                if (e.size() != 2 || !e[1].is_expr()) return false;
+                const Sort w = info(e[1].op()).sort;
+                return w == Sort::Word || w == Sort::Bool;
+            }
+            default: break;
+        }
+        const Sort s = info(e.op()).sort;
+        return s == Sort::Word || s == Sort::Bool || s == Sort::Range;
+    }
+    static void post_order(Value e, MemoSet<Value>& seen, std::vector<Value>& post) {
+        if (!e.is_expr() || !seen.add(e)) return;
+        check_stack();
+        if (goes_into(e))
+            for (Value a : e.args()) post_order(a, seen, post);
+        post.push_back(e);
+    }
+    static bool only_fails(Value t) {
+        return t.is_list() && t.size() > 0 && (t[t.size() - 1].is(Op::REVERT) || t[t.size() - 1].is(Op::INVALID));
+    }
+    static void all_parts(Value e, MemoSet<Value>& parts) {
+        if (!(e.is_expr() || e.is_list()) || !parts.add(e)) return;
+        check_stack();
+        for (Value a : e.args()) all_parts(a, parts);
+    }
+    // The parts the run of checks right before the line reads: lot 8's
+    // SafeMath reads a run of checks, past lines that can't fail and change
+    // nothing they read, then the line that uses the arithmetic they check -
+    // a part of theirs named in that line alone would hide it there (named
+    // before the checks, both read the name). A check: an IF one branch of
+    // which only fails, before the line in its block or around it (the line
+    // in the branch that goes on: the folder flattens it so), a REQUIRE.
+    void checked_parts(MemoSet<Value>& parts) const {
+        for (usize f = frames_.size(); f-- > 0;) {
+            const SmallVec<Value, 32>& out = *frames_[f].out;
+            for (usize j = out.size(); j-- > 0;) {
+                const Value x = out[j];
+                if (!x.is_expr()) return;
+                switch (x.op()) {
+                    case Op::SETVAR:
+                    case Op::SETMEM:
+                    case Op::STORE:
+                    case Op::SET:
+                    case Op::LOG0:
+                    case Op::LOG1:
+                    case Op::LOG2:
+                    case Op::LOG3:
+                    case Op::LOG4: continue;
+                    default: break;
+                }
+                if (x.is(Op::IF, 3) && ((only_fails(x[1]) && x[2].size() == 0) || (only_fails(x[2]) && x[1].size() == 0)))
+                    all_parts(x[0], parts);
+                else if (x.is(Op::REQUIRE) && x.size() > 0)
+                    all_parts(x[0], parts);
+                else
+                    return;
+            }
+            // (the block's first lines: on in the IF around it, if a check)
+            if (frames_[f].check.nil()) return;
+            all_parts(frames_[f].check, parts);
+        }
+    }
+    // a read (of memory, calldata, storage, a call's return data...), its
+    // mask: not arithmetic a check verifies
+    static bool read_like(Value e) {
+        if (!e.is_expr()) return true;
+        switch (e.op()) {
+            case Op::MEM:
+            case Op::CALLDATALOAD:
+            case Op::CALLDATA_BYTES:
+            case Op::RETURNDATA_BYTES:
+            case Op::STORAGE:
+            case Op::BALANCE:
+            case Op::EXTCODESIZE:
+            case Op::EXTCODEHASH:
+            case Op::BLOCKHASH: return true;
+            case Op::MASK_SHL: return e.size() == 4 && read_like(e[3]);
+            default: return false;
+        }
+    }
+    static void checked_arith(Value e, MemoSet<Value>& out) {
+        if (!e.is_expr() || !out.add(e)) return;
+        check_stack();
+        for (Value a : e.args()) checked_arith(a, out);
+    }
+    // The arithmetic the trace's checks read (an IF one branch of which
+    // only fails, a REQUIRE: lot 8's SafeMath finds a check's arithmetic in
+    // the line after it that uses the result): a part that is or holds such
+    // arithmetic isn't named - the name would hide it from SafeMath where
+    // the line reads it. (reads aren't: named before the check and the line
+    // alike, both read the name)
+    void collect_checked(Value v) {
+        if (!(v.is_expr() || v.is_list())) return;
+        check_stack();
+        if (v.is_list()) {
+            for (Value l : v.args()) collect_checked(l);
+            return;
+        }
+        if (v.is(Op::IF, 3) && (only_fails(v[1]) || only_fails(v[2])))
+            checked_arith(v[0], checked_ops_);
+        else if (v.is(Op::REQUIRE) && v.size() > 0)
+            checked_arith(v[0], checked_ops_);
+        for (Value a : v.args())
+            if (a.is_list()) collect_checked(a);
+    }
+    // e with the long lines' names it reads as their values (the trace's
+    // checks were read before the names were made)
+    Value unname(Value e) {
+        if (e.is_name()) {
+            auto it = long_values_.find(e.raw());
+            return it == long_values_.end() ? e : unname(it->second);
+        }
+        if (!e.is_expr() || !e.has_flags(F_VAR) || long_values_.empty()) return e;
+        if (const Value* r = unname_memo_.find(e)) return *r;
+        check_stack();
+        SmallVec<Value, 8> args;
+        bool changed = false;
+        for (Value a : e.args()) {
+            const Value n = unname(a);
+            changed |= n != a;
+            args.push_back(n);
+        }
+        const Value r = changed ? mk_like_checked(e, args.span()) : e;
+        unname_memo_.put(e, r);
+        return r;
+    }
+    // (a read is its value: the arithmetic of its place isn't what the line
+    // computes)
+    bool holds_checked(Value e) {
+        if (!e.is_expr() || read_like(e)) return false;
+        if (const bool* r = holds_.find(e)) return *r;
+        check_stack();
+        bool h = checked_ops_.contains(e);
+        for (Value a : e.args()) h = h || holds_checked(a);
+        holds_.put(e, h);
+        return h;
+    }
+    // the part of roots to name: read twice or more, the most characters
+    // its name saves, not one the checks before the line read (none: nil)
+    Value long_part(std::span<const Value> roots) {
+        MemoSet<Value> seen, checked;
+        checked_parts(checked);
+        std::vector<Value> post;
+        for (Value r : roots) post_order(r, seen, post);
+        // (the times each part prints: from the roots down, parents first)
+        std::unordered_map<u64, u64> times;
+        for (Value r : roots)
+            if (r.is_expr()) ++times[r.raw()];
+        for (auto it = post.rbegin(); it != post.rend(); ++it) {
+            const u64 t = times[it->raw()];
+            if (!t || !goes_into(*it)) continue;
+            for (Value a : it->args())
+                if (a.is_expr()) {
+                    u64& x = times[a.raw()];
+                    x = std::min<u64>(x + t, u64(1) << 30);
+                }
+        }
+        // (not named: a hash outside a storage read - a slot, the storage's
+        // forms read it where it is -, a storage read keyed by raw memory -
+        // the memory pass's to read: named, its key would print in one more
+        // line)
+        MemoSet<Value> hashy;
+        for (Value e : post) {
+            bool h = e.is(Op::SHA3) || (e.is(Op::STORAGE) && e.size() == 3 && e[2].has_flags(F_MEM));
+            if (!h && !e.is(Op::STORAGE) && goes_into(e))
+                for (Value a : e.args()) h = h || (a.is_expr() && hashy.contains(a));
+            if (h) hashy.add(e);
+        }
+        Value best;
+        u64 most = 0;
+        for (Value e : post) {
+            const u64 t = times[e.raw()];
+            // (a length rounded to words reads better as itself: ceil32(x))
+            if (t < 2 || !word_part(e) || rounded_term(e) || checked.contains(e) || hashy.contains(e) || holds_checked(unname(e)))
+                continue;
+            const u32 w = widths_.of(e);
+            // (its own line long: no shorter for the name - a part of it is)
+            if (w < kMinPart || 2 + 4 * u64(depth_) + 8 + w > kLongLine) continue;
+            const u64 saves = t * (w - kNameWidth);
+            if (saves <= most || !movable(Value(), e)) continue;
+            best = e;
+            most = saves;
+        }
+        return best;
+    }
+    // A line that would print long has the parts it repeats named by
+    // variables set before it (what the line reads is read before its
+    // effects), the one that saves the most characters first, until it
+    // fits or repeats none; each named where it still holds that value
+    // after. A value named again later gets the same name: an if whose
+    // branches read the same values names them the same (the folder merges
+    // what they end with). The names: the words read where a name may stand
+    // (goes_into: an IF's condition, a SETVAR's value, a STORE's, a call's
+    // address...; not the byte strings the printer decodes).
+    //
+    // es: the expressions of the line names may stand in (put in place),
+    // rest: the line's other characters; whether a name was made
+    bool name_long_exprs(SmallVec<Value, 4>& es, u64 rest, Env& env, SmallVec<Value, 4>& before) {
+        auto width = [&] {
+            u64 w = 2 + 4 * u64(depth_) + rest;
+            for (Value e : es) w += widths_.of(e);
+            return w;
+        };
+        if (width() <= kLongLine) return false;
+        bool made_one = false;
+        for (u32 k = 0; k < kMaxNames && width() > kShortLine; ++k) {
+            const Value part = long_part(es.span());
+            if (part.nil()) break;
+            Value& name = long_names_[part.raw()];
+            if (name.nil()) {
+                name = fresh();
+                made.push_back(name);
+                long_values_[name.raw()] = part;
+            }
+            before.push_back(mk(Op::SETVAR, name, part));
+            env.set(name, part, true);
+            made_one = true;
+            bool progress = false;
+            for (Value& e : es) {
+                const Value n = put(e, env);
+                progress |= n != e;
+                e = n;
+            }
+            if (!progress) break;
+        }
+        return made_one;
+    }
+    Value name_long(Value l, Env& env, SmallVec<Value, 4>& before) {
+        if (!naming || !l.is_expr()) return l;
+        SmallVec<Value, 4> es;
+        u64 rest = 8;
+        if (l.is(Op::STORE, 4)) {
+            es.push_back(l[3]);
+            rest += widths_.of(l[2]);
+        } else if (l.is(Op::STORE_RANGE)) {
+            // (a storage range's place: a slot, as a STORE's)
+            for (u32 i = 0; i < l.size(); ++i)
+                if (i == 2)
+                    es.push_back(l[i]);
+                else
+                    rest += widths_.of(l[i]);
+        } else {
+            (void)map_line_exprs(l, [&](Value e, Pos pos) {
+                if (pos != Pos::Bytes)
+                    es.push_back(e);
+                else
+                    rest += widths_.of(e);
+                return e;
+            });
+        }
+        const usize n0 = before.size();
+        if (!name_long_exprs(es, rest, env, before)) return l;
+        const Value r = subst_line(l, env);
+        if (r != l) cx().pcs.inherit(r, l);
+        for (usize j = n0; j < before.size(); ++j) cx().pcs.inherit(before[j], l);
+        return r;
+    }
+
     // a line, env going forward through it
     Value line(Value l, Env& env, alg::Facts& fl, Value trace, u32 i, SmallVec<Value, 4>& before) {
         if (!l.is_expr()) return l;
@@ -431,15 +884,41 @@ private:
             case Op::MERGED_IF: {
                 Value cond = put(l[0], env);
                 if (naming && cond != l[0]) cond = simplify_word(cond);
-                if (naming) {
+                if (naming && !long_only) {
                     const usize n0 = before.size();
                     name_in(cond, env, before);
                     if (before.size() != n0) cond = simplify_word(put(cond, env));
+                } else if (long_only) {
+                    // (a long condition: the parts it repeats named; an if
+                    // whose branches each only set the same variable, its
+                    // condition and both values as the one line
+                    // cleanup_conds makes of them - `v = not c or x`,
+                    // sc_trace -, their names set before the if: values that
+                    // can't fail, read there as at the branches' start)
+                    SmallVec<Value, 4> es{cond};
+                    if (l.size() > 2 && l[1].is_list() && l[2].is_list() && l[1].size() == 1 && l[2].size() == 1 &&
+                        l[1][0].is(Op::SETVAR, 2) && l[2][0].is(Op::SETVAR, 2) && l[1][0][0] == l[2][0][0]) {
+                        es.push_back(l[1][0][1]);
+                        es.push_back(l[2][0][1]);
+                    }
+                    const usize n0 = before.size();
+                    if (name_long_exprs(es, 8, env, before)) {
+                        cond = simplify_word(es[0]);
+                        for (usize j = n0; j < before.size(); ++j) cx().pcs.inherit(before[j], l);
+                    }
                 }
                 Env et(env), ee(env);
                 alg::Facts ft = fl, fe = fl;
+                // (a check's branch that goes on: the folder flattens it -
+                // its lines print at the if's indent)
+                const bool check = only_fails(l[1]) || (l.size() > 2 && only_fails(l[2]));
+                depth_ += !check;
+                branch_check_ = l.size() > 2 && only_fails(l[2]) ? cond : Value();
                 Value t = walk(l[1], et, ft);
+                branch_check_ = only_fails(l[1]) ? cond : Value();
                 Value e = l.size() > 2 ? walk(l[2], ee, fe) : Value();
+                branch_check_ = Value();
+                depth_ -= !check;
                 const bool t_ends = ends(t), e_ends = e.nil() ? false : ends(e);
                 if (t_ends && !e_ends) {
                     env = ee;
@@ -462,7 +941,7 @@ private:
             case Op::WHILE: {
                 // the setvars: at the entry, from env
                 Value sv = subst_setvars(l[3], env);
-                if (naming && sv.is_list()) {
+                if (naming && !long_only && sv.is_list()) {
                     const usize n0 = before.size();
                     for (Value x : sv.args())
                         if (x.is(Op::SETVAR, 2)) name_in(x[1], env, before);
@@ -480,12 +959,14 @@ private:
                 alg::Facts fin = fl;
                 Value cond = put(l[0], inside);
                 if (naming && cond != l[0]) cond = simplify_word(cond);
+                ++depth_;
                 Value body = walk(l[1], inside, fin);
+                --depth_;
                 Value r = mk(Op::WHILE, cond, body, l[2], sv);
                 cx().pcs.inherit(r, l);
                 // after it, the loop's variables' last values when lot 6
                 // proves them (made of what the loop doesn't change)
-                if (auto ind = loops::induction(l); ind && ind->endvars.is_list())
+                if (auto ind = loops::induction(l); !long_only && ind && ind->endvars.is_list())
                     for (Value e : ind->endvars.args())
                         if (e.is(Op::SETVAR, 2) && is_var(e[0]) && !changes(s, summary(e[1]), &in) && movable(e[0], e[1]))
                             env.set(e[0], e[1]);
@@ -530,7 +1011,7 @@ private:
             env.kill(summary(r), &through);
         }
         fl = floor_transfer(fl, r);
-        if (r.is(Op::SETVAR, 2) && is_var(r[0]) && movable(r[0], r[1]))
+        if (!long_only && r.is(Op::SETVAR, 2) && is_var(r[0]) && movable(r[0], r[1]))
             env.set(r[0], r[1], named_hash(r[0], r[1]) || (naming && named_value(r[1])));
         return r;
     }
@@ -581,6 +1062,25 @@ private:
 
     std::pmr::memory_resource* res_;
     Memo<Value, Value> memo_, names_;
+    // (naming long lines: the characters of the values, the name of each
+    // value named - the same wherever it is -, the ifs and loops the walk
+    // is in)
+    Widths widths_;
+    std::unordered_map<u64, Value> long_names_, long_values_;
+    Memo<Value, Value> unname_memo_;
+    u32 depth_ = 0;
+    // (the blocks the walk is in, innermost last: the lines made before the
+    // line or the IF it is in; the condition of that IF when its other
+    // branch only fails - a check; branch_check_: the next block's)
+    struct Frame {
+        const SmallVec<Value, 32>* out;
+        Value check;
+    };
+    std::vector<Frame> frames_;
+    Value branch_check_;
+    // (the arithmetic the checks read: collect_checked; the parts holding it)
+    MemoSet<Value> checked_ops_;
+    Memo<Value, bool> holds_;
 };
 
 // ---- backward: liveness -----------------------------------------------------------------
@@ -897,31 +1397,12 @@ Value put_back(Value v, const std::unordered_map<u64, Value>& back, Memo<Value, 
 
 }  // namespace
 
-Value name_values(Value trace) {
-    if (!trace.is_list()) return trace;
-    const FloorScope scope(trace);
-    // (the names made: none the trace or the entry lines have, nor one the
-    // algebra has values of - the trace's as the run got it)
-    std::unordered_set<u32> used(run_flags().installed_tmps.begin(), run_flags().installed_tmps.end());
-    {
-        MemoSet<Value> seen;
-        tmp_ids(trace, used, seen);
-        if (run_flags().entry_lines.is_list()) tmp_ids(run_flags().entry_lines, used, seen);
-    }
-    Env env(cx().budget.resource());
-    Forward fw(cx().budget.resource());
-    fw.naming = true;
-    u32 next = 1;
-    fw.fresh = [&] {
-        while (used.contains(next)) ++next;
-        used.insert(next);
-        return Value::name(NameKind::TMP, next);
-    };
-    alg::Facts fl = run_flags().entry_lines.is_list() ? floor_walk(alg::Facts{}, run_flags().entry_lines) : alg::Facts{};
-    count_all_reads(trace, fw.reads);
-    Value t = fw.walk(trace, env, fl);
-    if (fw.made.empty()) return t;
-    // (a name read once or never: its value put back)
+namespace {
+
+// the trace with the names made that are read once or never put back (their
+// values where they are read, their SETVARs dropped)
+Value put_back_single(Value t, std::span<const Value> made) {
+    if (made.empty()) return t;
     std::unordered_map<u64, u32> reads;
     count_all_reads(t, reads);
     std::unordered_map<u64, Value> back;
@@ -938,11 +1419,59 @@ Value name_values(Value trace) {
             for (Value a : x.args()) st.push_back(a);
         }
     }
-    for (Value k : fw.made)
+    for (Value k : made)
         if (reads[k.raw()] < 2) back[k.raw()] = values[k.raw()];
     if (back.empty()) return t;
     Memo<Value, Value> memo;
     return put_back(t, back, memo);
+}
+
+}  // namespace
+
+Value name_values(Value trace) {
+    if (!trace.is_list()) return trace;
+    const FloorScope scope(trace);
+    // (the names made: none the trace or the entry lines have, nor one the
+    // algebra has values of - the trace's as the run got it)
+    std::unordered_set<u32> used(run_flags().installed_tmps.begin(), run_flags().installed_tmps.end());
+    {
+        MemoSet<Value> seen;
+        tmp_ids(trace, used, seen);
+        if (run_flags().entry_lines.is_list()) tmp_ids(run_flags().entry_lines, used, seen);
+    }
+    u32 next = 1;
+    auto fresh = [&] {
+        while (used.contains(next)) ++next;
+        used.insert(next);
+        return Value::name(NameKind::TMP, next);
+    };
+    const alg::Facts entry =
+        run_flags().entry_lines.is_list() ? floor_walk(alg::Facts{}, run_flags().entry_lines) : alg::Facts{};
+    Value t = trace;
+    {
+        // the long sums of positions, the hashes of memory
+        Env env(cx().budget.resource());
+        Forward fw(cx().budget.resource());
+        fw.naming = true;
+        fw.fresh = fresh;
+        alg::Facts fl = entry;
+        count_all_reads(t, fw.reads);
+        const Value w = fw.walk(t, env, fl);
+        t = put_back_single(w, fw.made.span());
+    }
+    {
+        // then what the lines that would print long repeat (kLongLine)
+        Env env(cx().budget.resource());
+        Forward fw(cx().budget.resource());
+        fw.naming = true;
+        fw.long_only = true;
+        fw.fresh = fresh;
+        fw.checks_of(t);
+        alg::Facts fl = entry;
+        const Value w = fw.walk(t, env, fl);
+        t = put_back_single(w, fw.made.span());
+    }
+    return t;
 }
 
 }  // namespace pan::simplify

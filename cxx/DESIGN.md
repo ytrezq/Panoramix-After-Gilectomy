@@ -720,7 +720,21 @@ reads; backward, unread SETVARs dropped (the variables read counted
 exactly: past a summary's cap of 32 places, its parts') - a gas read only
 where no read of the gas left may run after it (the gas left is lower at
 each read: one after it would read another value; c00226's reads for the
-gas of a precompile's call, which its line doesn't keep). `cleanup_mems` likewise with
+gas of a precompile's call, which its line doesn't keep). The final
+`name_values` names for display: first the long sums of positions and
+the hashes of memory, then (a pass of its own, after) the parts a line
+that would print long repeats - over 240 characters, its indent counted
+(an estimate of the printed width, `Widths`) - each set right before the
+line, the one that saves the most first, until the line fits in 200 or
+repeats none, and read wherever that value still holds after; the same
+value, the same name (the branches of an if stay alike for the folder),
+and an if whose branches only set one variable (cleanup_conds' `v = not c
+or x`) gets its names before it. Not named: storage slots, hashes, memory
+places and byte strings (the storage's, the memory pass's and the
+printer's forms read them), a part whose own line would be long, the
+arithmetic a check reads anywhere and the reads the checks right before
+the line read (lot 8's SafeMath finds a check's operands in the line that
+uses them). `cleanup_mems` likewise with
 MemState (forward, reads replaced by what reaching writes wrote, under the
 conditions known on the path - a call forgets only the pieces that read
 what it changes, its own numbered results among them, not an earlier
