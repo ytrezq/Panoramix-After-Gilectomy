@@ -174,9 +174,15 @@ c00144 and c00157 (getActions' ABI offset).
 
 - `tools/readability.py selftest`, in `make check` (`tests/readability_selftest.py`).
 - `make readability`: the npm corpus decompiled and compared with
-  `tests/readability/npm.jsonl.xz`, the measures of f53800acd4's texts.
-  `tests/readability/allow.txt` allows nothing: the baseline holds round
-  3's accepted forms already.
+  `tests/readability/npm.jsonl.xz`, which holds, function by function, the
+  best of three builds' texts (the build before round 2's fixes, round 2's,
+  round 3's). What round 3 left is listed, not folded into the baseline:
+  `tests/readability/allow.txt` has 33 proven exceptions (the P3 loops, the
+  source's `while (true)`, GAS reads in a loop) and 204 regressions to fix,
+  each with today's count as the most it may reach. `make readability`
+  passes, and lists the lines a fix makes useless.
+- `make readability-baseline` moves the baseline forward as a ratchet: no
+  count goes up, nothing shown is dropped.
 - The files here: `allow.txt` (round 3's acceptances against the older
   texts) and the six comparisons' regressions (`regressions_*.jsonl`: `name`,
   `function`, `rule`, `old`, `new`, `allowed`).
