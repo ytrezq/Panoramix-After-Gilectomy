@@ -4,6 +4,8 @@
 #include "simplify/internal.hpp"
 #include "simplify/simplify.hpp"
 
+#include <algorithm>
+
 #include "algebra/construct.hpp"
 #include "core/context.hpp"
 #include "mem/memory.hpp"
@@ -47,6 +49,66 @@ bool no_bytes(Value b) {
     return false;
 }
 
+// A value's adjacent bytes in two parts - SIZED(a, x) SIZED(b, y), together
+// the a + b low bytes of one field of a value in its place: x's low 8a bits
+// moved up 8b OR y's low 8b bits is one mask, not moved (alg::bor merges
+// two fields of one value) - as that field, SIZED(a + b, w): the same
+// bytes. mem::concat merges such parts when their masks have the field's
+// sizes; a mask narrowed since by the value's range, or a part of zeroes
+// where the value's bits are zero, keeps them apart - a word written across
+// where a call's selector goes, its 28 and 4 bytes apart: UniswapV3Pool's
+// collectProtocol, `Bytes(28, uint96(_10 >> 32)), Bytes(4, uint32(_10))`
+// (uint128(_10)); a bytes4 param's word, `Bytes(28, Mask(32, 224, p) >>
+// 32), Bytes(4, 0)` (Mask(32, 224, p)). Words only (a part that is bytes,
+// a read of memory, stays), a field in its place only (a value moved up
+// stays apart: packed data). Two reads of one storage slot likewise
+// (storage_fields).
+
+// The parts SIZED(a, x) SIZED(b, y) of two reads of one storage slot, x's
+// field right above y's and y's b bytes wide: the one read of both fields
+// (a storage read masked is a narrower read, so alg::bor sees no masks of
+// one value - OpenZeppelin's TokenTimelock, `Bytes(28, beneficiary >> 32),
+// Bytes(4, uint32(beneficiary))`). The same storage at the same line: the
+// bytes are the read's - x's low 8a bits (min(its size, 8a)) above y's 8b.
+// NIL when they aren't that.
+Value storage_fields(Value x, Value y, i64 a, i64 b) {
+    if (!x.is(Op::STORAGE, 3) || !y.is(Op::STORAGE, 3) || x[2] != y[2]) return Value();
+    if (!x[0].is_small() || !x[1].is_small() || !y[0].is_small() || !y[1].is_small()) return Value();
+    const i64 xs = std::min<i64>(x[0].small_val(), 8 * a), xo = x[1].small_val();
+    const i64 ys = y[0].small_val(), yo = y[1].small_val();
+    if (ys != 8 * b || xo != yo + ys || xs <= 0 || yo < 0 || xo + xs > 256) return Value();
+    return mk(Op::STORAGE, Value::small(xs + ys), Value::small(yo), x[2]);
+}
+
+Value merged_parts(Value d) {
+    if (!d.is(Op::DATA) || d.size() < 2) return d;
+    SmallVec<Value, 8> out;
+    bool changed = false;
+    for (Value e : d.args()) {
+        if (!out.empty()) {
+            const Value p = out.back();
+            if (p.is(Op::SIZED, 2) && e.is(Op::SIZED, 2) && p[0].is_small() && e[0].is_small() &&
+                !mem::is_bytes(p[1]) && !mem::is_bytes(e[1]) && !(p[1].is_int() && e[1].is_int())) {
+                const i64 a = p[0].small_val(), b = e[0].small_val();
+                if (a > 0 && b > 0 && a + b <= 32) {
+                    Value w = alg::bor(alg::mask(8 * a, 0, 8 * b, p[1]), alg::mask(8 * b, 0, 0, e[1]));
+                    const alg::MaskShl f = alg::mask_view(w);
+                    if (w.is_int() || !f.concrete() || f.ishl() != 0 || f.x.is(Op::OR) || mem::is_bytes(f.x))
+                        w = storage_fields(p[1], e[1], a, b);
+                    if (!w.nil()) {
+                        out.back() = mk(Op::SIZED, Value::small(a + b), w);
+                        changed = true;
+                        continue;
+                    }
+                }
+            }
+        }
+        out.push_back(e);
+    }
+    if (!changed) return d;
+    return out.size() == 1 ? out[0] : mk(Op::DATA, out.span());
+}
+
 // the line rules; NIL: drop the line
 Value line_rules(Value l) {
     switch (l.op()) {
@@ -81,9 +143,11 @@ Value line_rules(Value l) {
         }
         case Op::RETURN:
             if (no_bytes(l[0])) return mk(Op::STOP, std::span<const Value>{});
+            if (Value d = merged_parts(l[0]); d != l[0]) return mk(Op::RETURN, d);
             return l;
         case Op::REVERT:
             if (!l[0].is_none() && no_bytes(l[0])) return mk(Op::REVERT, None);
+            if (Value d = merged_parts(l[0]); d != l[0]) return mk(Op::REVERT, d);
             return l;
         case Op::LOG0:
         case Op::LOG1:
@@ -93,6 +157,11 @@ Value line_rules(Value l) {
             if (!l[0].is_none() && no_bytes(l[0])) {
                 SmallVec<Value, 6> a(l.args());
                 a[0] = None;
+                return mk_like(l, a.span());
+            }
+            if (Value d = merged_parts(l[0]); d != l[0]) {
+                SmallVec<Value, 6> a(l.args());
+                a[0] = d;
                 return mk_like(l, a.span());
             }
             return l;
@@ -140,6 +209,10 @@ Value line_rules(Value l) {
                         }
                     }
                 }
+            }
+            if (Value d = merged_parts(a[p]); d != a[p]) {
+                a[p] = d;
+                changed = true;
             }
             return changed ? mk_like(l, a.span()) : l;
         }

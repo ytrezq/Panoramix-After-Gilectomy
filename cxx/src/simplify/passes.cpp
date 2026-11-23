@@ -11,6 +11,7 @@
 #include "algebra/compare.hpp"
 #include "algebra/construct.hpp"
 #include "algebra/eval.hpp"
+#include "algebra/facts.hpp"
 #include "algebra/linear.hpp"
 #include "algebra/ranges.hpp"
 #include "core/context.hpp"
@@ -461,28 +462,86 @@ Value normal(Value v) {
     }
 }
 
+// v (a normal form) with its MAX / MIN the facts decide made the operand
+// they are (any depth)
+Value minmax_where(Value v, const alg::Facts& facts) {
+    if (!v.is_expr()) return v;
+    check_stack();
+    SmallVec<Value, 8> args;
+    bool changed = false;
+    for (Value a : v.args()) {
+        Value n = a.is_expr() ? minmax_where(a, facts) : a;
+        if (n != a) changed = true;
+        args.push_back(n);
+    }
+    Value r = changed ? mk_like(v, args.span()) : v;
+    if (r.is(Op::MAX) || r.is(Op::MIN)) r = alg::reduce_minmax(r, alg::Top::Word, &facts);
+    return r;
+}
+
+// v (a normal form) where the facts hold: its MAX / MIN they decide made
+// the operand they are (aave311's 32 * max(2, len) once len > 1), then the
+// value they bound it to when that is one value (a length 1 once 0 < len <=
+// 1 is known); NIL past the algebra's caps
+Value where_facts(Value v, const alg::Facts& facts) {
+    if (v.is_int()) return v;
+    Value r = minmax_where(v, facts);
+    if (r != v) r = normal(r);
+    if (r.nil() || r.is_int()) return r;
+    const alg::Range b = alg::range(r, alg::Top::Word, &facts);
+    return b.is_point() ? b.lo.value() : r;
+}
+
 // The tail of an ABI encoding at the elements [m, end) of a data - the
 // length word d[m], then the content - when it is one: the content whole
 // words for every value, as long as the length says - a bytes of len bytes
 // (ceil32(len) bytes), len elements of k words (32 k len), or (constants
 // only) len offsets and the tails they point at (64 len and more) -: where
 // both are constants, those numbers; where both are expressions, provably
-// (the same normal forms); never where one is a constant and the other not
-// (they don't agree for every value). No content only for a length 0.
+// (the same normal forms - the content's width the length itself when its
+// form says it is a multiple of 32); never where one is a constant and the
+// other not (they don't agree for every value). No content only for a
+// length 0.
+// With the facts that hold where the data is (abi_facts): agreeing where
+// they hold - a length or a width they bound to one value is that value, a
+// MAX / MIN they decide is the operand it is (alg::reduce_minmax), and the
+// low 5 bits of the length they say are 0 or not: x % 32 == 0 => ceil32(x)
+// == x (the width then whole words), x % 32 != 0 => ceil32(x) ==
+// floor32(x) + 32 - both mod 2^256 (past 2^256 - 32, x + 31 wraps and
+// ceil32(x) is 0, as floor32(x) + 32 = 2^256 is).
 // 0: no tail; 2: an exact one (ceil32(len) bytes, len words, or provably
 // so); 1: one of constants of k > 1 words an element, or of offsets
-int abi_tail(std::span<const Value> d, u32 m, u32 end) {
+int abi_tail(std::span<const Value> d, u32 m, u32 end, const alg::Facts* facts) {
     const Value len = word_of(d[m]);
     if (len.nil()) return 0;
     SmallVec<Value, 8> widths;
     for (u32 i = m + 1; i < end; ++i) widths.push_back(*mem::width_of(d[i]));
-    if (widths.empty()) return is_int(len, 0) ? 2 : 0;
-    const Value w = normal(alg::add(widths.span()));
-    if (w.nil() || alg::low_zero_bits(w) < 5) return 0;
-    const Value l = normal(len);
-    if (l.nil() || w.is_int() != l.is_int()) return 0;
+    if (widths.empty()) return is_int(len, 0) || (facts && alg::eval_bool(alg::iszero(len), facts) == Tri::True) ? 2 : 0;
+    Value w = normal(alg::add(widths.span()));
+    Value l = normal(len);
+    if (w.nil() || l.nil()) return 0;
+    if (facts) {
+        w = where_facts(w, *facts);
+        l = where_facts(l, *facts);
+        if (w.nil() || l.nil()) return 0;
+    }
+    // whole words: by the width's form, or where the facts say its low 5 bits are 0
+    if (alg::low_zero_bits(w) < 5 &&
+        !(facts && alg::eval_bool(alg::iszero(normal(alg::mask(5, 0, 0, w))), facts) == Tri::True))
+        return 0;
+    if (w.is_int() != l.is_int()) return 0;
     if (!w.is_int()) {
+        // a content as wide as its length says: a multiple of 32 by its
+        // form (low_zero_bits, of the masks, multiples and constants it is
+        // made of), its ceil32 itself (ensdom122's resolve: a bytes of
+        // ceil32(L) + 64 bytes, the ABI encoding of another bytes) - or by
+        // the facts (the content's width is whole words, checked above)
+        if (w == l) return 2;
         if (w == normal(alg::mask(251, 5, 0, alg::add(small(31), l)))) return 2;
+        // the length not a multiple of 32 where the facts hold: ceil32(l) is floor32(l) + 32
+        if (facts && alg::eval_bool(normal(alg::mask(5, 0, 0, l)), facts) == Tri::True &&
+            w == normal(alg::add(small(32), alg::mask(251, 5, 0, l))))
+            return 2;
         for (i64 k = 1; k <= 16; ++k)
             if (w == normal(alg::mul(small(32 * k), l))) return 2;
         return 0;
@@ -514,7 +573,8 @@ struct AbiReading {
 // of a tail is its offset, unless no reading has it so); nullopt when there
 // is none, or several of them (ambiguous: two head words the offset of one
 // tail).
-std::optional<AbiReading> abi_reading(std::span<const Value> d, std::span<const Value> places, u32 h, int least) {
+std::optional<AbiReading> abi_reading(std::span<const Value> d, std::span<const Value> places, u32 h, int least,
+                                      const alg::Facts* facts) {
     const u32 n = u32(d.size());
     // the candidates: (head word, the element at its value)
     SmallVec<AbiReading::Offset, 8> cand;
@@ -538,13 +598,13 @@ std::optional<AbiReading> abi_reading(std::span<const Value> d, std::span<const 
     const usize k = cand.size();
     std::vector<u32> most(k, 0), count(k, 0), next(k, u32(-1));
     for (usize j = k; j-- > 0;) {
-        if (abi_tail(d, cand[j].tail, n) >= least) {
+        if (abi_tail(d, cand[j].tail, n, facts) >= least) {
             most[j] = 1;
             count[j] = 1;
         }
         for (usize q = j + 1; q < k; ++q) {
             if (count[q] == 0 || cand[q].tail <= cand[j].tail) continue;
-            if (abi_tail(d, cand[j].tail, cand[q].tail) < least) continue;
+            if (abi_tail(d, cand[j].tail, cand[q].tail, facts) < least) continue;
             if (most[q] + 1 > most[j]) {
                 most[j] = most[q] + 1;
                 count[j] = count[q];
@@ -587,20 +647,24 @@ std::optional<AbiReading> abi_reading(std::span<const Value> d, std::span<const 
 // other from the end of the head to the end of the data; one reading of the
 // data only (abi_reading, of every head size a head word's constant value
 // gives), else the data as it is.
-Value abi_array(Value d) {
-    if (!d.is(Op::DATA) || d.size() < 2 || d.size() > ABI_MAX_ELEMENTS) return d;
-    const std::span<const Value> els = d.args();
-    const u32 n = u32(els.size());
-    // the places of the elements (normal forms), places[n] the data's end
-    SmallVec<Value, 16> places;
+
+// the places of a data's elements (normal forms): places[0] 0, places[n]
+// the data's end; false when a width isn't known (or past the caps)
+bool abi_places(std::span<const Value> els, SmallVec<Value, 16>& places) {
+    places.clear();
     places.push_back(small(0));
-    for (u32 i = 0; i < n; ++i) {
+    for (u32 i = 0; i < els.size(); ++i) {
         const auto w = mem::width_of(els[i]);
-        if (!w) return d;
+        if (!w) return false;
         places.push_back(normal(alg::add(places[i], *w)));
-        if (places.back().nil()) return d;
+        if (places.back().nil()) return false;
     }
-    // the head sizes: h words, the value 32 h of one of them (its first tail's place)
+    return true;
+}
+
+// the head sizes: h words, the value 32 h of one of them (its first tail's place)
+SmallVec<u32, 4> abi_heads(std::span<const Value> els) {
+    const u32 n = u32(els.size());
     SmallVec<u32, 4> heads;
     for (u32 i = 0; i < n; ++i) {
         const Value v = word_of(els[i]);
@@ -611,20 +675,108 @@ Value abi_array(Value d) {
         for (i64 k = 0; k < h && words; ++k) words = mem::width_u64(els[u32(k)]) == std::optional<u64>(32);
         if (words && std::find(heads.begin(), heads.end(), u32(h)) == heads.end()) heads.push_back(u32(h));
     }
-    // (of exact tails only, else with the weak ones: c00600's 128 bytes, not
-    // a head of 4 words and an array of one element of 3 words)
-    std::optional<AbiReading> reading;
+    return heads;
+}
+
+// The one reading of the elements, its head size: of exact tails only, else
+// with the weak ones (c00600's 128 bytes, not a head of 4 words and an
+// array of one element of 3 words); nullopt when there is none, or two of a
+// kind (not proven)
+struct AbiRead {
+    AbiReading reading;
     u32 head = 0;
-    for (int least = 2; least >= 1 && !reading; --least)
+};
+std::optional<AbiRead> abi_read(std::span<const Value> els, std::span<const Value> places, std::span<const u32> heads,
+                                const alg::Facts* facts) {
+    std::optional<AbiRead> found;
+    for (int least = 2; least >= 1 && !found; --least)
         for (u32 h : heads) {
             poll();
-            auto r = abi_reading(els, places.span(), h, least);
+            auto r = abi_reading(els, places, h, least, facts);
             if (!r) continue;
-            if (reading) return d;  // (two readings: not proven)
-            reading = std::move(r);
-            head = h;
+            if (found) return std::nullopt;  // (two readings: not proven)
+            found = AbiRead{std::move(*r), h};
         }
-    if (!reading) return d;
+    return found;
+}
+
+// The elements with a run of zero bytes, Bytes(n, 0), cut where the value
+// of a head word - an offset - falls inside it (repo_Contract471's
+// eip712Domain: a string's padding and the length 0 of the next tail, one
+// run of zeroes): its first k bytes, then the rest - the length word, 32 of
+// them, apart when the rest is longer. The cut proven inside the run: k and
+// n - k, as words, add up below 2^256 (their ranges, with the facts where
+// given), so they are n as integers - 0 <= k <= n for every value, the same
+// bytes. Any number of cuts, a few rounds at most; false when none.
+bool cut_zero_runs(SmallVec<Value, 16>& els, SmallVec<Value, 16>& places, std::span<const u32> heads,
+                   const alg::Facts* facts) {
+    u32 hmax = 0;
+    for (u32 h : heads) hmax = std::max(hmax, h);
+    const EvmInt top = EvmInt::pow2(256), word(i64(32));
+    bool any = false;
+    for (int round = 0; round < 4; ++round) {
+        // the offsets no element starts at
+        SmallVec<Value, 8> at;
+        for (u32 i = 0; i < hmax && i < els.size(); ++i) {
+            const Value v = word_of(els[i]);
+            if (v.nil()) continue;
+            const Value nv = normal(v);
+            if (nv.nil() || std::find(places.begin(), places.end(), nv) != places.end()) continue;
+            if (std::find(at.begin(), at.end(), nv) == at.end()) at.push_back(nv);
+        }
+        if (at.empty()) break;
+        SmallVec<Value, 16> out;
+        bool cut = false;
+        for (u32 m = 0; m < els.size(); ++m) {
+            poll();
+            const Value e = els[m];
+            bool done = false;
+            if (m >= hmax && e.is(Op::SIZED, 2) && is_int(e[1], 0))
+                for (Value nv : at) {
+                    const Value k = normal(alg::sub(nv, places[m])), r = normal(alg::sub(places[m + 1], nv));
+                    if (k.nil() || r.nil() || is_int(k, 0) || is_int(r, 0)) continue;
+                    const alg::Range rk = alg::range(k, alg::Top::Word, facts), rr = alg::range(r, alg::Top::Word, facts);
+                    if (!(rk.hi + rr.hi < top)) continue;
+                    out.push_back(mk(Op::SIZED, k, small(0)));
+                    if (word < rr.lo) {
+                        out.push_back(mk(Op::SIZED, small(32), small(0)));
+                        out.push_back(mk(Op::SIZED, normal(alg::sub(r, small(32))), small(0)));
+                    } else {
+                        out.push_back(mk(Op::SIZED, r, small(0)));
+                    }
+                    done = true;
+                    break;
+                }
+            if (done)
+                cut = true;
+            else
+                out.push_back(e);
+        }
+        if (!cut || out.size() > ABI_MAX_ELEMENTS) break;
+        SmallVec<Value, 16> p;
+        if (!abi_places(out.span(), p)) break;
+        els = std::move(out);
+        places = std::move(p);
+        any = true;
+    }
+    return any;
+}
+
+// facts: those that hold where the data is (abi_facts), or none
+Value abi_array(Value d, const alg::Facts* facts) {
+    if (!d.is(Op::DATA) || d.size() < 2 || d.size() > ABI_MAX_ELEMENTS) return d;
+    SmallVec<Value, 16> els(d.args());
+    SmallVec<Value, 16> places;
+    if (!abi_places(els.span(), places)) return d;
+    const SmallVec<u32, 4> heads = abi_heads(els.span());
+    if (heads.empty()) return d;
+    std::optional<AbiRead> found = abi_read(els.span(), places.span(), heads.span(), facts);
+    // else with the runs of zeroes an offset falls in cut there
+    if (!found && cut_zero_runs(els, places, heads.span(), facts))
+        found = abi_read(els.span(), places.span(), heads.span(), facts);
+    if (!found) return d;
+    const AbiReading* reading = &found->reading;
+    const u32 head = found->head, n = u32(els.size());
     SmallVec<Value, 8> out;
     for (u32 i = 0; i < head; ++i) out.push_back(els[i]);
     const auto& offs = reading->offsets;
@@ -660,10 +812,131 @@ Value abi_array(Value d) {
     return mk(Op::DATA, out.span());
 }
 
+// The ABI readings that need the conditions known where a line runs (a
+// length that agrees with its content only on its path: gnosis130's and
+// safe141's copy of return data, rounded where len % 32 != 0; aave311's
+// array of one element where 0 < len <= 1): the trace walked with lot 3's
+// facts as cleanup_conds keeps them (conds.cpp's Conds) - each condition
+// of an enclosing if or while, the negation of an if's condition for the
+// lines after it in its trace when one of its branches always ends, each
+// dropped at the first line that may change what it reads (effects.hpp:
+// the variables it reads set again, memory, storage, return data,
+// balances written, a call) - a loop's head forgets what the loop changes,
+// so a fact from outside doesn't enter it when the loop sets what it reads,
+// and the facts its body learns don't leave it. Each data a line reads -
+// its operands' - that no reading without facts made arrays (abi_array's
+// own pass, before) is read again with the facts there.
+class AbiFacts {
+public:
+    Value trace(Value t) {
+        if (!t.is_list()) return t;
+        check_stack();
+        SmallVec<Value, 32> out;
+        bool changed = false;
+        const u32 n = t.size();
+        for (u32 i = 0; i < n; ++i) {
+            poll();
+            const Value line = t[i];
+            Value r = line;
+            if (line.is(Op::LABEL, 2)) {
+                // a loop's head: the lines after it run again - what they change, forgotten
+                EffectSummary rest = summary(line);
+                for (u32 j = i + 1; j < n; ++j) rest = combine(rest, summary(t[j]), true);
+                forget(rest);
+            } else if (line.is(Op::WHILE, 4)) {
+                // at its head, every iteration's and after it: what the loop changes, forgotten
+                forget(summary(line));
+                const Saved saved = save();
+                assume(line[0]);
+                const Value body = trace(line[1]);
+                restore(saved);
+                if (body != line[1]) r = mk(Op::WHILE, line[0], body, line[2], line[3]);
+            } else if (line.is(Op::IF, 3)) {
+                const Value cond = line[0];
+                const Saved saved = save();
+                assume(cond);
+                const Value tt = trace(line[1]);
+                restore(saved);
+                assume(alg::iszero(cond));
+                const Value ee = trace(line[2]);
+                restore(saved);
+                forget(summary(line));
+                // what follows runs after the branch that goes on, if one ends
+                const bool t_ends = ends(line[1]), e_ends = ends(line[2]);
+                if (t_ends != e_ends) {
+                    const Value holds = t_ends ? alg::iszero(cond) : cond;
+                    if (!changes(summary(t_ends ? line[2] : line[1]), summary(holds))) assume(holds);
+                }
+                if (tt != line[1] || ee != line[2]) r = mk(Op::IF, cond, tt, ee);
+            } else {
+                if (!known_.empty()) r = with_facts(line);
+                // (a line of traces other than these: forgotten whole, not walked)
+                forget(summary(line));
+            }
+            if (r != line) {
+                changed = true;
+                cx().pcs.inherit(r, line);
+            }
+            out.push_back(r);
+        }
+        return changed ? mk_trace(out.span()) : t;
+    }
+
+private:
+    // the line's data operands read with the facts
+    Value with_facts(Value line) {
+        if (!line.is_expr()) return line;
+        const Op op = line.op();
+        SmallVec<Value, 8> args;
+        bool changed = false;
+        for (u32 i = 0; i < line.size(); ++i) {
+            Value a = line[i];
+            if (arg_kind(op, i) == Arg::Trace) return line;
+            if (arg_kind(op, i) == Arg::Expr && a.is(Op::DATA)) {
+                const Pos pos = operand_pos(op, i, line.size());
+                if (pos == Pos::Bytes || (pos == Pos::Any && mem::is_bytes(a))) a = abi_array(a, &facts_);
+            }
+            if (a != line[i]) changed = true;
+            args.push_back(a);
+        }
+        return changed ? mk_like_checked(line, args.span()) : line;
+    }
+    // (at most this many: past them, the newer ones aren't kept - fewer facts are as sound)
+    static constexpr usize kMaxKnown = 32;
+    struct Saved {
+        SmallVec<Value, 16> known;
+        alg::Facts facts;
+    };
+    Saved save() const { return Saved{known_, facts_}; }
+    void restore(const Saved& s) {
+        known_ = s.known;
+        facts_ = s.facts;
+    }
+    void assume(Value cond) {
+        if (cond.is_int() || known_.size() >= kMaxKnown) return;
+        known_.push_back(cond);
+        facts_ = facts_.with_cond(cond);
+    }
+    void forget(const EffectSummary& s) {
+        if (!s.writes || known_.empty()) return;
+        SmallVec<Value, 16> kept;
+        for (Value c : known_)
+            if (!changes(s, summary(c))) kept.push_back(c);
+        if (kept.size() == known_.size()) return;
+        known_ = kept;
+        facts_ = alg::Facts();
+        for (Value c : known_) facts_ = facts_.with_cond(c);
+    }
+
+    SmallVec<Value, 16> known_;
+    alg::Facts facts_;
+};
+
 }  // namespace
 
 Value postprocess_exps(Value trace) {
-    return rewrite_exprs(trace, [](Value e, Pos pos) -> Value { return pos == Pos::Bytes ? abi_array(e) : e; });
+    trace = rewrite_exprs(trace, [](Value e, Pos pos) -> Value { return pos == Pos::Bytes ? abi_array(e, nullptr) : e; });
+    return AbiFacts{}.trace(trace);
 }
 
 }  // namespace pan::simplify

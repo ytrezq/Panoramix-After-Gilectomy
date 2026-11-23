@@ -463,6 +463,143 @@ TEST_CASE("simplify: review t01 - an ABI data of several dynamic arguments, each
     CHECK(!has_op(u, Op::ARR));
 }
 
+TEST_CASE("simplify: an ABI bytes whose length is a multiple of 32 by its form") {
+    Fixture f;
+    // ensdom122's resolve (abi.encode of an abi.encode'd bytes): a bytes of
+    // ceil32(L) + 64 bytes - its length's low 5 bits are 0 by its form, its
+    // ceil32 is itself: the content as wide agrees
+    const std::string L = "(add 64 (mask_shl 251 5 0 (add 31 (mask_shl 6 0 0 (calldataload 4)))))";
+    Value u = check_trace(("{(return (data (sized 32 32) (sized 32 " + L + ") (calldata_bytes 36 " + L + ")))}").c_str(),
+                          S::postprocess_exps);
+    REQUIRE(u[0][0].is(Op::DATA));
+    CHECK(u[0][0][0].is(Op::ARR));
+    // not a length whose form doesn't say it (its content would need padding)
+    const std::string l = "(mask_shl 6 0 0 (calldataload 4))";
+    u = check_trace(("{(return (data (sized 32 32) (sized 32 " + l + ") (calldata_bytes 36 " + l + ")))}").c_str(),
+                    S::postprocess_exps);
+    CHECK(!has_op(u, Op::ARR));
+}
+
+TEST_CASE("simplify: an ABI tail of length 0 in the zeroes after the padding before it") {
+    Fixture f;
+    // repo_Contract471's eip712Domain (..., string, uint256[] extensions):
+    // the string's padding and the empty array's length 0 one run of
+    // zeroes, ceil32(l) - l + 32 bytes; the second offset, 96 + ceil32(l),
+    // falls inside it: cut there (ceil32(l) - l in [0, 31], then 32 bytes)
+    const std::string l = "(mask_shl 6 0 0 (calldataload 4))";
+    const std::string c32 = "(mask_shl 251 5 0 (add 31 " + l + "))";
+    Value u = check_trace(("{(return (data (sized 32 64) (sized 32 (add 96 " + c32 + ")) (sized 32 " + l +
+                           ") (calldata_bytes 68 " + l + ") (sized (add 32 " + c32 + " (mul -1 " + l + ")) 0)))}")
+                              .c_str(),
+                          S::postprocess_exps);
+    REQUIRE(u[0][0].is(Op::DATA));
+    REQUIRE(u[0][0].size() == 2);
+    CHECK(u[0][0][0].is(Op::ARR));
+    CHECK(u[0][0][1] == V("(arr 0)"));
+    // an offset 32 bytes before the end of a run of ceil32(l) - l + 1
+    // bytes: the cut, ceil32(l) - l - 31 bytes in, isn't inside it for
+    // every l (a word near 2^256 for most): as it is
+    u = check_trace(("{(return (data (sized 32 64) (sized 32 (add 65 " + c32 + ")) (sized 32 " + l +
+                     ") (calldata_bytes 68 " + l + ") (sized (add 1 " + c32 + " (mul -1 " + l + ")) 0)))}")
+                        .c_str(),
+                    S::postprocess_exps);
+    CHECK(!has_op(u, Op::ARR));
+}
+
+TEST_CASE("simplify: ABI arrays whose length agrees with their content where the path's conditions hold") {
+    Fixture f;
+    // solc's legacy copy of a bytes of return data (gnosis130's and
+    // safe141's execTransactionFromModuleReturnData, simulate): the length
+    // len, the content len bytes where len % 32 == 0, and floor32(len) +
+    // 32 (the last word masked) where it isn't - both ceil32(len) on their
+    // path, mod 2^256: x % 32 == 0 => ceil32(x) == x; x % 32 != 0 =>
+    // floor32(x) + 32 == ceil32(x) (for x > 2^256 - 32, x + 31 wraps and
+    // ceil32(x) is 0, as floor32(x) + 32 = 2^256 is)
+    const std::string len = "(mask_shl 8 0 0 (calldataload 4))";
+    const std::string whole = "(return (data (sized 32 32) (sized 32 tmp1) (calldata_bytes 36 tmp1)))";
+    const std::string rounded =
+        "(return (data (sized 32 32) (sized 32 tmp1) (calldata_bytes 36 (add 32 (mask_shl 251 5 0 tmp1)))))";
+    Value u = check_trace(("{(setvar tmp1 " + len + ") (if (iszero (mask_shl 5 0 0 tmp1)) {" + whole + "} {}) " +
+                           rounded + "}")
+                              .c_str(),
+                          S::postprocess_exps);
+    REQUIRE(u.size() == 3);
+    CHECK(u[1][1][0][0][0].is(Op::ARR));
+    CHECK(u[2][0][0].is(Op::ARR));
+    // a fact dies where what it reads changes: tmp1 set again between the
+    // test and the data - no array (the first one's content would need padding)
+    const std::string again = "(setvar tmp1 (mask_shl 8 0 0 (calldataload 36)))";
+    u = check_trace(("{(setvar tmp1 " + len + ") (if (iszero (mask_shl 5 0 0 tmp1)) {" + again + " " + whole +
+                     "} {}) " + again + " " + rounded + "}")
+                        .c_str(),
+                    S::postprocess_exps);
+    CHECK(!has_op(u, Op::ARR));
+    // ... at the head of a loop that sets it: the fact from before doesn't enter
+    u = check_trace(("{(setvar tmp1 " + len + ") (if (iszero (mask_shl 5 0 0 tmp1)) {(revert None)} {}) " +
+                     "(while (lt loop0 2) {(if (calldataload 68) {" + rounded + "} {}) " + again +
+                     " (continue loopid1 {(setvar loop0 (add 1 loop0))})} loopid1 {(setvar loop0 0)}) (stop)}")
+                        .c_str(),
+                    S::postprocess_exps);
+    CHECK(!has_op(u, Op::ARR));
+    // ... and what a loop's body learns doesn't leave it (it may run no time)
+    u = check_trace(("{(setvar tmp1 " + len + ") (while (lt loop0 (mask_shl 2 0 0 (calldataload 100))) {(if " +
+                     "(mask_shl 5 0 0 tmp1) {(revert None)} {}) (continue loopid1 {(setvar loop0 (add 1 loop0))})} " +
+                     "loopid1 {(setvar loop0 0)}) " + whole + "}")
+                        .c_str(),
+                    S::postprocess_exps);
+    CHECK(!has_op(u, Op::ARR));
+    // a length the conditions pin to one value (aave311's
+    // getAddressesProvidersList: one element where 0 < len <= 1) and a MAX
+    // they decide (32 * max(2, len) bytes where len > 1)
+    const std::string small = "(mask_shl 4 0 0 (calldataload 4))";
+    u = check_trace(("{(setvar tmp1 " + small + ") (if (iszero tmp1) {(stop)} {}) (if (lt 1 tmp1) {} {(return " +
+                     "(data (sized 32 32) (sized 32 tmp1) (sized 32 (calldataload 36))))}) (return (data (sized 32 32) " +
+                     "(sized 32 tmp1) (calldata_bytes 36 (mul 32 (max 2 tmp1)))))}")
+                        .c_str(),
+                    S::postprocess_exps);
+    REQUIRE(u.size() == 4);
+    CHECK(u[2][2][0][0][0].is(Op::ARR));
+    CHECK(u[3][0][0].is(Op::ARR));
+}
+
+TEST_CASE("simplify: a value's adjacent bytes in two parts are one part") {
+    Fixture f;
+    // UniswapV3Pool's collectProtocol: transfer(recipient, amount), the
+    // amount's word written across where the selector goes - its 28 bytes
+    // uint96(amount >> 32) (the mask narrowed by its range), its last 4
+    // uint32(amount): one word, uint128(amount)
+    Value u = check_trace(
+        "{(call 1 (gas 1) (calldataload 36) 0 (sized 4 0xa9059cbb) (data (sized 32 caller) (sized 28 (mask_shl 96 32 "
+        "-32 (calldataload 4))) (sized 4 (mask_shl 32 0 0 (calldataload 4))))) (stop)}",
+        S::simplify_exps);
+    CHECK(u[0][5] == V("(data (sized 32 caller) (sized 32 (mask_shl 128 0 0 (calldataload 4))))"));
+    // a bytes4's word, its last 4 bytes zeroes: Mask(32, 224, p)
+    u = check_trace("{(return (data (sized 28 (mask_shl 32 224 -32 (calldataload 4))) (sized 4 0)))}", S::simplify_exps);
+    CHECK(u[0][0] == V("(sized 32 (mask_shl 32 224 0 (calldataload 4)))"));
+    // a value moved up stays apart (packed: an address, then zeroes)
+    u = check_trace("{(return (data (sized 20 caller) (sized 12 0)))}", S::simplify_exps);
+    CHECK(u[0][0].is(Op::DATA));
+    // ... and two values' bytes
+    u = check_trace("{(return (data (sized 28 (mask_shl 96 32 -32 (calldataload 4))) (sized 4 (mask_shl 32 0 0 "
+                    "(calldataload 36)))))}",
+                    S::simplify_exps);
+    CHECK(u[0][0].is(Op::DATA));
+}
+
+TEST_CASE("simplify: adjacent fields of one storage slot in two parts are one read") {
+    Fixture f;
+    // OpenZeppelin's TokenTimelock: transfer(beneficiary, ...), the address
+    // read from storage, its 28 and 4 bytes apart as two narrower reads (a
+    // storage read masked is a narrower read): one read of its 160 bits
+    Value u = check_trace("{(return (data (sized 28 (storage 128 32 1)) (sized 4 (storage 32 0 1))))}", S::simplify_exps);
+    CHECK(u[0][0] == V("(sized 32 (storage 160 0 1))"));
+    // not two slots' fields, nor fields with bits between them
+    u = check_trace("{(return (data (sized 28 (storage 128 32 1)) (sized 4 (storage 32 0 2))))}", S::simplify_exps);
+    CHECK(u[0][0].is(Op::DATA));
+    u = check_trace("{(return (data (sized 28 (storage 128 40 1)) (sized 4 (storage 32 0 1))))}", S::simplify_exps);
+    CHECK(u[0][0].is(Op::DATA));
+}
+
 TEST_CASE("simplify: conditions known on the path") {
     Fixture f;
     // a check passed holds until what it reads changes: the same check again is decided
