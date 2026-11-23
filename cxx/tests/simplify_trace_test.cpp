@@ -600,6 +600,61 @@ TEST_CASE("simplify: adjacent fields of one storage slot in two parts are one re
     CHECK(u[0][0].is(Op::DATA));
 }
 
+TEST_CASE("simplify: an ABI head word in two parts, zeroes and the low bytes of a word of memory, is that word") {
+    Fixture f;
+    // uniswa410's label(address, string): the address is a word read from
+    // memory and masked; the memory pass gives the bytes written for it, 12
+    // zero bytes and the 20 bytes at 268 - no head word, so no reading. The
+    // word at 256 masked is the same read (its last byte the same), the 12
+    // bytes before 268 masked off whatever they hold (the worlds' words at
+    // 256 have them set): the head whole words, the string its array
+    const std::string text = "(sized 32 0x666565436f6e74726f6c6c657200000000000000000000000000000000000000)";
+    Value u = check_trace(("{(setmem (range 256 32) (calldataload 4)) (call 1 (gas 1) (calldataload 36) 0 (sized 4 "
+                           "0xc657c718) (data (sized 12 0) (mem (range 268 20)) (sized 32 64) (sized 32 13) " +
+                           text + ")) (stop)}")
+                              .c_str(),
+                          S::postprocess_exps);
+    REQUIRE(u[1][5].is(Op::DATA));
+    REQUIRE(u[1][5].size() == 2);
+    CHECK(u[1][5][0] == V("(sized 32 (mask_shl 160 0 0 (mem (range 256 32))))"));
+    CHECK(u[1][5][1] == V(("(arr 13 " + text + ")").c_str()));
+    // an address that isn't a constant: where its range says the word
+    // before it doesn't start below 0 (12 + a 6-bit number is at least 12)
+    const std::string six = "(mask_shl 6 0 0 (calldataload 4))";
+    u = check_trace(("{(setmem (range 0 192) (calldata_bytes 4 192)) (return (data (sized 12 0) (mem (range (add 12 " +
+                     six + ") 20)) (sized 32 64) (sized 32 13) " + text + "))}")
+                        .c_str(),
+                    S::postprocess_exps);
+    REQUIRE(u[1][0].size() == 2);
+    CHECK(u[1][0][0] == V(("(sized 32 (mask_shl 160 0 0 (mem (range " + six + " 32))))").c_str()));
+    CHECK(u[1][0][1].is(Op::ARR));
+    // ... not where it may (11 + a 6-bit number may be 11: the word would
+    // start at -1, read past the end of memory), nor an address that may
+    // wrap (12 + any word): the data as it is
+    u = check_trace(("{(setmem (range 0 192) (calldata_bytes 4 192)) (return (data (sized 12 0) (mem (range (add 11 " +
+                     six + ") 20)) (sized 32 64) (sized 32 13) " + text + "))}")
+                        .c_str(),
+                    S::postprocess_exps);
+    CHECK(!has_op(u, Op::ARR));
+    CHECK(u[1][0].size() == 5);
+    u = check_trace(("{(return (data (sized 12 0) (mem (range (add 12 (calldataload 4)) 20)) (sized 32 64) (sized 32 13) " +
+                     text + "))}")
+                        .c_str(),
+                    S::postprocess_exps);
+    CHECK(u[0][0].size() == 5);
+    // only the head's words: a tail's word in two parts keeps its parts
+    u = check_trace("{(setmem (range 256 64) (calldata_bytes 4 64)) (return (data (sized 12 0) (mem (range 268 20)) "
+                    "(sized 32 64) (sized 32 2) (sized 12 0) (mem (range 300 20)) (sized 32 7)))}",
+                    S::postprocess_exps);
+    CHECK(u[1][0] == V("(data (sized 32 (mask_shl 160 0 0 (mem (range 256 32)))) (arr 2 (sized 12 0) (mem (range 300 20)) "
+                       "(sized 32 7)))"));
+    // and only where it makes a reading: a data that is no encoding, as it is
+    u = check_trace("{(setmem (range 256 32) (calldataload 4)) (return (data (sized 12 0) (mem (range 268 20)) (sized 32 "
+                    "5)))}",
+                    S::postprocess_exps);
+    CHECK(u[1][0] == V("(data (sized 12 0) (mem (range 268 20)) (sized 32 5))"));
+}
+
 TEST_CASE("simplify: conditions known on the path") {
     Fixture f;
     // a check passed holds until what it reads changes: the same check again is decided
