@@ -463,6 +463,23 @@ TEST_CASE("simplify: review t01 - an ABI data of several dynamic arguments, each
     CHECK(!has_op(u, Op::ARR));
 }
 
+TEST_CASE("simplify: an ABI bytes whose length is a multiple of 32 by its form") {
+    Fixture f;
+    // ensdom122's resolve (abi.encode of an abi.encode'd bytes): a bytes of
+    // ceil32(L) + 64 bytes - its length's low 5 bits are 0 by its form, its
+    // ceil32 is itself: the content as wide agrees
+    const std::string L = "(add 64 (mask_shl 251 5 0 (add 31 (mask_shl 6 0 0 (calldataload 4)))))";
+    Value u = check_trace(("{(return (data (sized 32 32) (sized 32 " + L + ") (calldata_bytes 36 " + L + ")))}").c_str(),
+                          S::postprocess_exps);
+    REQUIRE(u[0][0].is(Op::DATA));
+    CHECK(u[0][0][0].is(Op::ARR));
+    // not a length whose form doesn't say it (its content would need padding)
+    const std::string l = "(mask_shl 6 0 0 (calldataload 4))";
+    u = check_trace(("{(return (data (sized 32 32) (sized 32 " + l + ") (calldata_bytes 36 " + l + ")))}").c_str(),
+                    S::postprocess_exps);
+    CHECK(!has_op(u, Op::ARR));
+}
+
 TEST_CASE("simplify: conditions known on the path") {
     Fixture f;
     // a check passed holds until what it reads changes: the same check again is decided

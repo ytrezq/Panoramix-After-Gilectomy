@@ -467,8 +467,10 @@ Value normal(Value v) {
 // (ceil32(len) bytes), len elements of k words (32 k len), or (constants
 // only) len offsets and the tails they point at (64 len and more) -: where
 // both are constants, those numbers; where both are expressions, provably
-// (the same normal forms); never where one is a constant and the other not
-// (they don't agree for every value). No content only for a length 0.
+// (the same normal forms - the content's width the length itself when its
+// form says it is a multiple of 32); never where one is a constant and the
+// other not (they don't agree for every value). No content only for a
+// length 0.
 // 0: no tail; 2: an exact one (ceil32(len) bytes, len words, or provably
 // so); 1: one of constants of k > 1 words an element, or of offsets
 int abi_tail(std::span<const Value> d, u32 m, u32 end) {
@@ -482,6 +484,11 @@ int abi_tail(std::span<const Value> d, u32 m, u32 end) {
     const Value l = normal(len);
     if (l.nil() || w.is_int() != l.is_int()) return 0;
     if (!w.is_int()) {
+        // a content as wide as its length says: a multiple of 32 by its
+        // form (low_zero_bits, of the masks, multiples and constants it is
+        // made of), its ceil32 itself (ensdom122's resolve: a bytes of
+        // ceil32(L) + 64 bytes, the ABI encoding of another bytes)
+        if (w == l) return 2;
         if (w == normal(alg::mask(251, 5, 0, alg::add(small(31), l)))) return 2;
         for (i64 k = 1; k <= 16; ++k)
             if (w == normal(alg::mul(small(32 * k), l))) return 2;
