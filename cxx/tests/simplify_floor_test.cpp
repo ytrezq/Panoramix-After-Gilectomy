@@ -601,8 +601,9 @@ TEST_CASE("floor: an allocation whose size reads the word keeps the floor where 
     CHECK(S::floor_transfer(f, line).floor_of(u64(64)).nil());
     // the loop: its head keeps the word's floor, and the write at the
     // pointer taken from the word leaves the word as it was - every read of
-    // the word in the body is the pointer's value (the pointer, tmp9, is the
-    // word where it is read: no variable left to hold it apart)
+    // the word in the body is the pointer's value (one name for them all,
+    // set before the first: the final naming's - no read of the word left
+    // after the write at the pointer but through it)
     const std::string a = "(add (mask_shl 251 5 0 (add 31 tmp17 (mul -1 (mem (range 64 32))))) (mem (range 64 32)))";
     const std::string loop =
         "{(setmem (range 64 32) (sized 32 128)) (while (lt loop1 (calldataload 4)) {(setvar tmp9 (mem (range 64 32))) "
@@ -619,7 +620,8 @@ TEST_CASE("floor: an allocation whose size reads the word keeps the floor where 
     for (Value l : u.args())
         if (l.is(Op::WHILE)) w = l;
     REQUIRE(!w.nil());
-    CHECK(count_setvars_of_word(w[1]) == 0);
+    CHECK(count_setvars_of_word(w[1]) == 1);
+    CHECK(count_op(w[1], Op::MEM) == 1);
 }
 
 TEST_CASE("floor: the backward memory pass asks for the floors of each place a shared list is at") {
