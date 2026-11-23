@@ -145,7 +145,6 @@ uniswa410_PositionTest unknown85226c81 ptr_diff 2  # 0 -> 2
 uniswa410_PositionTest unknownb5508aa9 ptr_diff 2  # 0 -> 2
 uniswa410_ProtocolFeeLibraryTest unknown85226c81 ptr_diff 2  # 0 -> 2
 uniswa410_ProtocolFeeLibraryTest unknownb5508aa9 ptr_diff 2  # 0 -> 2
-uniswa410_ProtocolFeesTest setUp lost_forms 1  # Array
 uniswa410_ProtocolFeesTest setUp raw_args 1  # 0 -> 1
 uniswa410_ProtocolFeesTest unknown85226c81 ptr_diff 2  # 0 -> 2
 uniswa410_ProtocolFeesTest unknownb5508aa9 ptr_diff 2  # 0 -> 2
