@@ -80,30 +80,88 @@ Value storage_fields(Value x, Value y, i64 a, i64 b) {
     return mk(Op::STORAGE, Value::small(xs + ys), Value::small(yo), x[2]);
 }
 
+// SIZED(a, x) SIZED(b, y) as the one field they are, SIZED(a + b, w) (see
+// above); NIL when they aren't one
+Value one_field(Value p, Value e) {
+    if (!p.is(Op::SIZED, 2) || !e.is(Op::SIZED, 2) || !p[0].is_small() || !e[0].is_small() || mem::is_bytes(p[1]) ||
+        mem::is_bytes(e[1]) || (p[1].is_int() && e[1].is_int()))
+        return Value();
+    const i64 a = p[0].small_val(), b = e[0].small_val();
+    if (a <= 0 || b <= 0 || a + b > 32) return Value();
+    Value w = alg::bor(alg::mask(8 * a, 0, 8 * b, p[1]), alg::mask(8 * b, 0, 0, e[1]));
+    const alg::MaskShl f = alg::mask_view(w);
+    if (w.is_int() || !f.concrete() || f.ishl() != 0 || f.x.is(Op::OR) || mem::is_bytes(f.x))
+        w = storage_fields(p[1], e[1], a, b);
+    return w.nil() ? Value() : mk(Op::SIZED, Value::small(a + b), w);
+}
+
+// A constant that ends with the zero bytes of a word, then the word's low
+// bytes - SIZED(n, C), the last z bytes of C zero and the others not all,
+// then a part of w = 32 - z bytes that is the low bytes of a word:
+// SIZED(w, x) of a word x, or the last w bytes of a word of return data,
+// calldata or code (as mem::concat reads zeroes before them: that word,
+// masked) - as the constant without those zeroes, SIZED(n - z, C >> 8z),
+// and the word, SIZED(32, its low w bytes): the same n + w bytes, the
+// word's 32 being z zero bytes and its low w. A custom error with an
+// address: the memory pass writes the address's masked word as 12 zero
+// bytes and 20 bytes, and concat joins the zeroes to the selector's 4
+// bytes before its own rule for zeroes and a word's low bytes sees them -
+// `revert with Bytes(16, 0xd0103ae5000000000000000000000000), Bytes(20,
+// x)`, the selector hidden, is `revert with 0xd0103ae5, address(x)`. A
+// rule on the bytes, whatever their number (a 4-byte number after a
+// constant of 32 bytes): nothing says which bytes a selector is. Not a
+// constant of zeroes alone (concat's own rule), not a constant after it
+// (concat joins constants), not bytes of memory (a mask of a memory word
+// is the narrower read again). kept, word: the two parts; false when p
+// and e aren't that.
+bool constant_then_word(Value p, Value e, Value& kept, Value& word) {
+    if (!p.is(Op::SIZED, 2) || !p[0].is_small() || !p[1].is_int()) return false;
+    const auto width = mem::width_u64(e);
+    if (!width || *width < 1 || *width > 31) return false;
+    const i64 n = p[0].small_val(), w = i64(*width), z = 32 - w;
+    if (n <= z || n > 32) return false;
+    if (!is_int(alg::mask(8 * z, 0, 0, p[1]), 0)) return false;
+    const Value rest = alg::mask(8 * (n - z), 8 * z, -8 * z, p[1]);
+    if (!rest.is_int() || is_int(rest, 0)) return false;
+    if (e.is(Op::SIZED, 2)) {
+        if (mem::is_bytes(e[1]) || e[1].is_int()) return false;
+        word = mk(Op::SIZED, Value::small(32), alg::mask(8 * w, 0, 0, e[1]));
+    } else if (e.is(Op::RETURNDATA_BYTES) || e.is(Op::CALLDATA_BYTES) || e.is(Op::CODE_BYTES)) {
+        const Value parts[] = {mk(Op::SIZED, Value::small(z), Value::small(0)), e};
+        const Value m = mem::concat(parts);
+        if (!m.is(Op::SIZED, 2) || !is_int(m[0], 32) || mem::is_bytes(m[1]) || m[1].is_int()) return false;
+        word = m;
+    } else {
+        return false;
+    }
+    kept = mk(Op::SIZED, Value::small(n - z), rest);
+    return true;
+}
+
 Value merged_parts(Value d) {
     if (!d.is(Op::DATA) || d.size() < 2) return d;
     SmallVec<Value, 8> out;
     bool changed = false;
     for (Value e : d.args()) {
-        if (!out.empty()) {
-            const Value p = out.back();
-            if (p.is(Op::SIZED, 2) && e.is(Op::SIZED, 2) && p[0].is_small() && e[0].is_small() &&
-                !mem::is_bytes(p[1]) && !mem::is_bytes(e[1]) && !(p[1].is_int() && e[1].is_int())) {
-                const i64 a = p[0].small_val(), b = e[0].small_val();
-                if (a > 0 && b > 0 && a + b <= 32) {
-                    Value w = alg::bor(alg::mask(8 * a, 0, 8 * b, p[1]), alg::mask(8 * b, 0, 0, e[1]));
-                    const alg::MaskShl f = alg::mask_view(w);
-                    if (w.is_int() || !f.concrete() || f.ishl() != 0 || f.x.is(Op::OR) || mem::is_bytes(f.x))
-                        w = storage_fields(p[1], e[1], a, b);
-                    if (!w.nil()) {
-                        out.back() = mk(Op::SIZED, Value::small(a + b), w);
-                        changed = true;
-                        continue;
-                    }
-                }
-            }
-        }
         out.push_back(e);
+        // (a part made joins the part before it in turn: a word's low bytes
+        // in two parts, then the constant that ends with its zeroes)
+        while (out.size() >= 2) {
+            const Value p = out[out.size() - 2], q = out[out.size() - 1];
+            if (const Value f = one_field(p, q); !f.nil()) {
+                out.pop_back();
+                out.back() = f;
+                changed = true;
+                continue;
+            }
+            Value kept, word;
+            if (constant_then_word(p, q, kept, word)) {
+                out[out.size() - 2] = kept;
+                out.back() = word;
+                changed = true;
+            }
+            break;
+        }
     }
     if (!changed) return d;
     return out.size() == 1 ? out[0] : mk(Op::DATA, out.span());
