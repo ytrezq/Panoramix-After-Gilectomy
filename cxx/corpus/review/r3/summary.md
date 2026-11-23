@@ -170,6 +170,21 @@ Four errors in behaviour found by round 2's reviewers predate round 3 and
 are not fixed yet: c00158 and c00160 (a checked subtraction inside an `and`),
 c00144 and c00157 (getActions' ABI offset).
 
+## The execution checks
+
+At f53800acd4. `stagecheck --stage folded` runs evmone against every
+stage's trace; `text_check` runs the printed text against evmone, with the
+world's seeds 0 and 6, in the empty world and a random one.
+
+| set | stagecheck | text_check, seed 0 | text_check, seed 6 |
+|---|---|---|---|
+| the 400 | 400 contracts, 123,664 calls: 0 different, 0 bugs | 61,832 calls in each world: 0 different, no line unparsed | 61,844 calls in each world: 0 different |
+| npm (861) | 861 contracts, 78,122 calls: 0 different, 0 bugs | 39,059 and 39,063 calls: 0 different, no line unparsed | 39,075 calls in each world: 0 different |
+
+`make check` passes (455 test cases, the python tests included). Before each
+merge, the worker that made a fix ran the same checks on every text it
+changed.
+
 ## The automatic check
 
 - `tools/readability.py selftest`, in `make check` (`tests/readability_selftest.py`).
